@@ -64,6 +64,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://192.168.4.1")
     parser.add_argument("--transition-ms", type=int, default=2000)
+    parser.add_argument(
+        "--allow-limited-start", action="store_true",
+        help="use the ECU's explicit reduced-power start path when exactly one eligible sensor is unavailable",
+    )
     args = parser.parse_args()
     if not 100 <= args.transition_ms <= 60000:
         raise SystemExit("transition must be between 100 and 60000 ms")
@@ -83,6 +87,7 @@ def main() -> int:
     )
     selected["transition_ms"] = args.transition_ms
     samples: list[float] = []
+    loop_samples: list[dict] = []
 
     try:
         post_allow_reboot(
@@ -90,6 +95,10 @@ def main() -> int:
             {"startup_enter_actions": candidate["hardware"]["startup_enter_actions"]},
             method="PATCH",
         )
+        # The successful response is deliberately sent before the scheduled
+        # reboot. Do not mistake the still-responsive pre-reboot instance for
+        # the restored ECU and race START against its reboot-pending interlock.
+        time.sleep(3)
         stored = wait_endpoint(
             args.base, "/api/ecu_config",
             lambda config: any(
@@ -107,13 +116,19 @@ def main() -> int:
         if int(stored_transition) != args.transition_ms:
             raise AssertionError("starter transition did not survive save and reboot")
 
-        start = request_json(args.base, "/api/start", {})
+        start_path = "/api/start"
+        if args.allow_limited_start:
+            live = request_json(args.base, "/api/data")
+            if live.get("limited_start_allowed") is True:
+                start_path = "/api/start-limited"
+        start = request_json(args.base, start_path, {})
         if start.get("ok") is False:
             raise AssertionError(f"bench start was rejected: {start}")
         deadline = time.monotonic() + args.transition_ms / 1000 + 0.9
         while time.monotonic() < deadline:
             data = request_json(args.base, "/api/telemetry", timeout=5)
             samples.append(float(data["v"][25]) / 1000.0)
+            loop_samples.append(request_json(args.base, "/api/loop_diagnostics", timeout=5))
             time.sleep(0.12)
         post_allow_reboot(args.base, "/api/stop", {})
         wait_endpoint(args.base, "/api/device_info", lambda data: data.get("state") == "STANDBY", timeout=20)
@@ -125,8 +140,23 @@ def main() -> int:
             raise AssertionError(f"starter demand snapped instead of ramping: {samples}")
         if any(b + 0.01 < a for a, b in zip(positive, positive[1:])):
             raise AssertionError(f"starter ramp was not monotonic: {positive}")
+        # A 50 Hz servo/ESC output must not pull the entire control loop down
+        # to its own frame rate while a transition is active. Ignore the first
+        # sample, which can include the deliberately immediate activation
+        # write, and require the sustained loop execution average to stay well
+        # below one 20 ms output frame.
+        settled_loop = loop_samples[1:]
+        worst_avg_ms = max((float(row.get("loop_exec_avg_ms", 0)) for row in settled_loop), default=0)
+        slow_samples = [row for row in settled_loop if float(row.get("loop_hz", 0)) < 100.0]
+        if worst_avg_ms >= 10.0 or len(slow_samples) > 1:
+            raise AssertionError(
+                f"starter transition stalled the ECU loop: worst average {worst_avg_ms:.3f} ms, "
+                f"{len(slow_samples)} samples below 100 Hz"
+            )
         print(f"Starter ramp observed across {len(samples)} samples: "
               f"{min(positive):.3f} -> {max(positive):.3f}")
+        print(f"Loop stayed responsive during ramp: worst average {worst_avg_ms:.3f} ms, "
+              f"{len(slow_samples)} transient sample(s) below 100 Hz")
     finally:
         try:
             post_allow_reboot(args.base, "/api/stop", {})
@@ -141,6 +171,7 @@ def main() -> int:
                     {"startup_enter_actions": original["hardware"]["startup_enter_actions"]},
                     method="PATCH",
                 )
+                time.sleep(3)
                 restored = wait_endpoint(args.base, "/api/ecu_config", lambda config: same_sequence(config, original))
                 wait_endpoint(args.base, "/api/device_info", lambda data: data.get("state") == "STANDBY")
             else:

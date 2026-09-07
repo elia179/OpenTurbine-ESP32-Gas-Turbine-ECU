@@ -330,7 +330,7 @@ function wetGlowTimingWarning(bname, idx, tab, targetId) {
   if (waitMs >= delayMs) return '';
   const delayS = (delayMs / 1000).toFixed(delayMs % 1000 ? 1 : 0);
   const waitS = (waitMs / 1000).toFixed(waitMs % 1000 ? 1 : 0);
-  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet glow start fuel delay is ${delayS} s, but the next fuel/confirmation step is about ${waitS} s away. Add delay or increase Pre-Heat time if start fuel must be burning first.</span>`;
+  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay is ${delayS} s, but the next fuel or confirmation step is about ${waitS} s away. Add delay or increase Pre-Heat time if pilot fuel must be burning first.</span>`;
 }
 
 function buildDeviceTargetHtml(bname, idx, tab) {

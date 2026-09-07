@@ -501,7 +501,10 @@ public:
     // structured defaults such as controller rules reliably.
     static void resetToCompiledDefaults();
     static bool save(bool writeRuntimeHardware = false); // atomic unified save; full restore passes true
-    static void sanitizeForHardware(); // clear settings that reference unequipped hardware
+    // Clear settings that reference unequipped hardware. Returns true when
+    // the live Settings section was changed, allowing low-memory writers to
+    // preserve the stored section verbatim when no cleanup was necessary.
+    static bool sanitizeForHardware();
     // Auto-fill a sane default threshold for any threshold-based
     // safeties just ENABLED (off->on) while its threshold is 0, so a ticked
     // safety cannot stay silently off. Pass the pre-change enable flags.

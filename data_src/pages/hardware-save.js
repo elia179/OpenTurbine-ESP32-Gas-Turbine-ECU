@@ -691,9 +691,7 @@ async function _doSave() {
   const nextProfileId = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
   const profileChanged = nextProfileId !== (_loadedProfileId || 'OpenTurbine');
   const controller = new AbortController();
-  let started = 0;
   let timeout = null;
-  let savePosted = false;
   try {
     // Hardware owns this page. Release live telemetry, then send only the
     // hardware document to its dedicated validator/save endpoint; firmware
@@ -703,9 +701,9 @@ async function _doSave() {
     const saveCfg = {...cfg};
     delete saveCfg._i2c_discovery;
     const hardwarePatch = mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {});
-    started = Date.now();
-    timeout = setTimeout(() => controller.abort(), 8000);
-    savePosted = true;
+    // A full Classic topology save can legitimately take several seconds.
+    // Timeout is an unknown result, never proof that a reboot/save succeeded.
+    timeout = setTimeout(() => controller.abort(), 15000);
     const r = await fetch('/api/hardware?source=hardware', {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
@@ -727,23 +725,23 @@ async function _doSave() {
       showRebootOverlay(profileChanged ? nextProfileId : '');
     } else {
       const message = friendlyHardwareSaveError(j);
-      document.getElementById('save-msg').textContent = 'Not saved — ' + message;
+      document.getElementById('save-msg').textContent = j.rebooting
+        ? 'Not saved — restoring the previous setup…'
+        : 'Not saved — ' + message;
       alert('Hardware was not saved.\n\n' + message);
-      updateSaveButton();
+      if (j.rebooting) showRebootOverlay('');
+      else updateSaveButton();
     }
   } catch(e) {
     clearTimeout(timeout);
-    // Hardware saves intentionally reboot the ESP32. Chrome can keep the POST
-    // pending if Wi-Fi drops before the JSON response is fully consumed. Do not
-    // leave the page stuck at "Saving..." in that normal reboot window.
-    if (savePosted && (e.name === 'AbortError' || Date.now() - started > 1000)) {
-      document.getElementById('save-msg').textContent = 'Save response lost — reconnecting…';
-      showRebootOverlay(profileChanged ? nextProfileId : '');
-    } else {
-      document.getElementById('save-msg').textContent = 'Not saved — the ECU could not be reached';
-      alert('Hardware was not saved because the ECU could not be reached.\n\nCheck that you are still connected to the OpenTurbine Wi-Fi, then try again.');
-      updateSaveButton();
-    }
+    const timedOut = e.name === 'AbortError';
+    document.getElementById('save-msg').textContent = timedOut
+      ? 'Save status unknown — reconnect and verify before retrying'
+      : 'Not saved — the ECU could not be reached';
+    alert(timedOut
+      ? 'The ECU did not confirm whether Hardware was saved.\n\nReconnect to its Wi-Fi and reload Hardware to verify the setup before retrying.'
+      : 'Hardware was not saved because the ECU could not be reached.\n\nCheck that you are still connected to the OpenTurbine Wi-Fi, then try again.');
+    updateSaveButton();
   }
 }
 
@@ -813,7 +811,7 @@ async function resetDefaults() {
   document.getElementById('save-msg').textContent = 'Changes discarded — reverted to last saved configuration.';
 }
 
-// Backup/restore lives on the Tools page (the card above just links there);
+// Backup/restore lives on the System page (the card above just links there);
 // the old page-local downloadBackup()/handleRestore() helpers were unused
 // and have been removed so nobody wires them back by accident.
 
@@ -882,16 +880,16 @@ function applyContextTooltips(root) {
     'Dwell time (ms)': 'Maximum coil charge time before spark. Keep within the coil/driver safe operating range.',
     'Rest time (ms)': 'Off time between spark pulses so the coil and driver can recover.',
     'Coil saturation current (A)': 'Current threshold that ends coil dwell early in current-limited mode.',
-    'Glow mode': 'Plain glow drives only the glow plug. Wet glow also drives a delayed start-fuel output.',
+    'Glow mode': 'Plain glow drives only the glow plug. Wet glow also drives its delayed pilot-fuel output.',
     'Glow PWM frequency (Hz)': 'PWM carrier for glow MOSFET control. Resistive glow elements usually tolerate low PWM frequencies.',
     'PWM resolution (bits)': 'PWM duty resolution. Higher resolution can limit maximum PWM frequency.',
-    'Start fuel GPIO': 'Output pin for the wet-glow start fuel solenoid or small pump.',
-    'Start fuel driver': 'Electrical driver for the wet-glow fuel output: relay/on-off, PWM, or servo/ESC.',
-    'Fuel output mode': 'Electrical driver for the wet-glow start fuel output.',
+    'Pilot-fuel GPIO': 'Output pin for the wet-glow pilot-fuel solenoid or small pump.',
+    'Pilot-fuel signal': 'Electrical driver for the wet-glow pilot-fuel output: relay/on-off, PWM, or servo/ESC.',
+    'Fuel output mode': 'Electrical driver for the wet-glow pilot-fuel output.',
     'Fuel active polarity': 'Choose whether the wet-glow fuel output is active when the GPIO is high or low.',
     'Fuel active high': 'When enabled, GPIO HIGH turns the wet-glow fuel output on.',
-    'Fuel delay (ms)': 'Delay after glow starts before wet-glow start fuel is enabled.',
-    'Fuel delay after glow ON (ms)': 'Delay after the glow plug is commanded on before wet-glow start fuel starts.',
+    'Fuel delay (ms)': 'Delay after glow starts before wet-glow pilot fuel is enabled.',
+    'Fuel delay after glow ON (ms)': 'Delay after the glow plug is commanded on before wet-glow pilot fuel starts.',
     'Fuel demand (%)': 'Demand sent to the wet-glow fuel output while it is active.',
     'Fuel servo pulse (us)': 'Servo/ESC pulse range used by the wet-glow fuel output.',
     'Fuel PWM freq / bits': 'PWM carrier frequency and resolution for the wet-glow fuel output.',

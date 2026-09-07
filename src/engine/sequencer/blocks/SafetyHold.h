@@ -3,6 +3,7 @@
 #include "../../EngineData.h"
 #include "../../../system/HardwareConfig.h"
 #include "../../../system/Config.h"
+#include "../../../system/FeedbackRequirements.h"
 #include "../SequenceIgnition.h"
 #include <Arduino.h>
 
@@ -52,22 +53,38 @@ public:
 
         bool any = false;
         const char* failed = nullptr;
-        auto require = [&](bool enabled, bool installed, bool passed, const char* label) {
+        auto require = [&](bool enabled, bool installed, bool healthy, bool passed,
+                           FeedbackRequirements::Sensor sensor, const char* label) {
             if (!enabled) return;
             any = true;
+            if (FeedbackRequirements::bypassUnhealthyStartupCheck(ed, sensor,
+                                                                   installed && healthy))
+                return;
             if ((!installed || !passed) && !failed) failed = label;
         };
-        require(checkN1, HardwareConfig::hasN1Rpm, ed.n1Healthy && ed.n1Rpm >= finalCheckRpm, "N1");
-        require(checkN2, HardwareConfig::hasN2Rpm, ed.n2Healthy && ed.n2Rpm >= finalCheckN2Rpm, "N2");
-        require(checkP1, HardwareConfig::hasP1, ed.p1Healthy && ed.p1 >= finalCheckP1, "P1 pressure");
-        require(checkP2, HardwareConfig::hasP2, ed.p2Healthy && ed.p2 >= finalCheckP2, "P2 pressure");
-        require(checkOil, HardwareConfig::hasOilPress,
-                ed.oilHealthy && ed.oilPressure >= runningOilMin, "oil pressure");
-        require(checkEgt, Config::effectiveEgtSource() != 0,
-                Config::primaryEgtHealthy(ed) && Config::primaryEgtC(ed) >= finalCheckEgt,
-                "engine temperature");
-        require(checkFlame, HardwareConfig::hasFlame,
-                ed.flameHealthy && ed.flameDetected, "flame");
+        require(checkN1, HardwareConfig::hasN1Rpm, ed.n1Healthy,
+                ed.n1Healthy && ed.n1Rpm >= finalCheckRpm,
+                FeedbackRequirements::N1, "N1");
+        require(checkN2, HardwareConfig::hasN2Rpm, ed.n2Healthy,
+                ed.n2Healthy && ed.n2Rpm >= finalCheckN2Rpm,
+                FeedbackRequirements::N2, "N2");
+        require(checkP1, HardwareConfig::hasP1, ed.p1Healthy,
+                ed.p1Healthy && ed.p1 >= finalCheckP1,
+                FeedbackRequirements::P1, "P1 pressure");
+        require(checkP2, HardwareConfig::hasP2, ed.p2Healthy,
+                ed.p2Healthy && ed.p2 >= finalCheckP2,
+                FeedbackRequirements::P2, "P2 pressure");
+        require(checkOil, HardwareConfig::hasOilPress, ed.oilHealthy,
+                ed.oilHealthy && ed.oilPressure >= runningOilMin,
+                FeedbackRequirements::OIL_PRESSURE, "oil pressure");
+        const bool egtInstalled = Config::effectiveEgtSource() != 0;
+        const bool egtHealthy = Config::primaryEgtHealthy(ed);
+        require(checkEgt, egtInstalled, egtHealthy,
+                egtHealthy && Config::primaryEgtC(ed) >= finalCheckEgt,
+                FeedbackRequirements::EGT, "engine temperature");
+        require(checkFlame, HardwareConfig::hasFlame, ed.flameHealthy,
+                ed.flameHealthy && ed.flameDetected,
+                FeedbackRequirements::FLAME, "flame");
 
         if (!any) return BlockResult::Fault;
         if (failed) {

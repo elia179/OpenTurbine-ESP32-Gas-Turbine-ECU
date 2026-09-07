@@ -4685,6 +4685,9 @@ void WebServer::_setupRoutes() {
             const bool prevSafBatt = HardwareConfig::safetyBattLow;
             const bool prevSafSurge = HardwareConfig::safetySurge;
             const bool prevSafHot = HardwareConfig::safetyHotStart;
+            char previousHardwareProfile[sizeof(HardwareConfig::profileId)];
+            strlcpy(previousHardwareProfile, HardwareConfig::profileId,
+                    sizeof(previousHardwareProfile));
             if (patch["channel_registry_calibration"].is<JsonObject>()) {
                 JsonObjectConst cal = patch["channel_registry_calibration"].as<JsonObjectConst>();
                 const char* id = cal["id"] | "";
@@ -4721,11 +4724,33 @@ void WebServer::_setupRoutes() {
                 return;
             }
             if (!HardwareConfig::validateJson(current, &HardwareConfig::channelRegistry)) {
+                char rejection[160];
+                strlcpy(rejection, HardwareConfig::lastValidationError(), sizeof(rejection));
                 current.clear();
                 current.shrinkToFit();
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
                 HardwareConfig::load();
+#else
+                // validateJson may use the live registry as its bounded Classic
+                // workspace. If validation rejects it, restore from the atomic
+                // committed file at boot rather than allocating another large
+                // tree in the same fragmented request context.
+                _scheduleRestart("hardware validation rollback");
+#endif
                 ConfigApplyGate::release();
-                req->send(400, "application/json", "{\"error\":\"hardware patch rejected\"}");
+                // ClassicRxWorkspaceLoan may have returned the large receive
+                // workspace to the heap, so it is invalid here. The bounded
+                // transmit workspace remains owned for this small reply.
+                snprintf(g_webTxBuf, sizeof(g_webTxBuf),
+                    "{\"ok\":false,\"error\":\"hardware patch rejected\",\"detail\":\"%s\",\"rebooting\":%s}",
+                    rejection,
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+                    "false"
+#else
+                    "true"
+#endif
+                );
+                req->send(400, "application/json", g_webTxBuf);
                 return;
             }
             HardwareConfig::applyValidatedJsonRuntimeOnly(current);
@@ -4736,10 +4761,32 @@ void WebServer::_setupRoutes() {
             current.shrinkToFit();
             patch.clear();
             patch.shrinkToFit();
+            bool settingsChangedByHardware = false;
+            const bool hardwareProfileChanged =
+                strcmp(previousHardwareProfile, HardwareConfig::profileId) != 0;
+            if (hardwareProfileChanged) {
+                // The user-visible engine name is also the AP name and unified
+                // file identity. A field edit is an atomic rename, never a
+                // hardware/settings mismatch requiring a new engine upload.
+                strlcpy(Config::profileId, HardwareConfig::profileId,
+                        sizeof(Config::profileId));
+                settingsChangedByHardware = true;
+            }
             if (controllerPatch || hardwarePagePatch) {
-                Config::sanitizeForHardware();
+                settingsChangedByHardware |= Config::sanitizeForHardware();
+                const float previousOilTempLimit = Config::oilTempLimit;
+                const float previousFuelPressMin = Config::fuelPressMin;
+                const float previousBattVoltMin = Config::battVoltMin;
+                const float previousSurgeVariance = Config::surgeDetectRpmVariance;
+                const float previousHotStartLimit = Config::preStartEgtLimitC;
                 Config::autoFillNewlyEnabledSafety(prevSafOilT, prevSafFP,
                                                    prevSafBatt, prevSafSurge, prevSafHot);
+                settingsChangedByHardware |=
+                    Config::oilTempLimit != previousOilTempLimit ||
+                    Config::fuelPressMin != previousFuelPressMin ||
+                    Config::battVoltMin != previousBattVoltMin ||
+                    Config::surgeDetectRpmVariance != previousSurgeVariance ||
+                    Config::preStartEgtLimitC != previousHotStartLimit;
             }
             // Every page-owned hardware edit is made while STANDBY and the
             // runtime settings are authoritative. Stream the two sections one
@@ -4749,17 +4796,35 @@ void WebServer::_setupRoutes() {
             // replacement. Serialize the live Settings section in that case so
             // its profile_id follows the validated Hardware profile atomically.
             // Full uploaded engine files keep their strict cross-profile check.
-            const bool preserveStoredSettings = (systemPatch || sequencePatch) &&
-                                                !profileRenamePatch;
+            const bool preserveStoredSettings =
+                ((systemPatch || sequencePatch) && !profileRenamePatch) ||
+                (hardwarePagePatch && !settingsChangedByHardware);
             // Stream hardware and settings separately for every bounded PATCH.
             // The removed monolithic writer assembled both sections in one
             // JsonDocument and could exhaust a Classic ESP32 heap. This writer
             // has explicit overflow checks and installs the file atomically.
             const bool saved = HardwareConfig::saveUnified(preserveStoredSettings);
             if (!saved) {
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+                // S3 has sufficient headroom to restore in place.
                 HardwareConfig::load();
+                Config::load();
+#else
+                // On Classic, the failed writer has already demonstrated that
+                // this request no longer has a safe contiguous JSON workspace.
+                // Reloading here can fail and replace the live map with defaults.
+                // Keep START locked and boot the still-authoritative committed
+                // file instead; atomic save never replaced it on failure.
+                _scheduleRestart("hardware save rollback");
+#endif
                 ConfigApplyGate::release();
-                req->send(500, "application/json", "{\"error\":\"failed to write hardware config\"}");
+                req->send(500, "application/json",
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+                    "{\"ok\":false,\"error\":\"failed to write hardware config\",\"rebooting\":false}"
+#else
+                    "{\"ok\":false,\"error\":\"failed to write hardware config; restoring the previous setup\",\"rebooting\":true}"
+#endif
+                );
                 return;
             }
             FlightRecorder::logConfigChange(systemPatch ? "hardware.system" :
@@ -4770,10 +4835,13 @@ void WebServer::_setupRoutes() {
                 // Boot applies the saved topology. Keep START locked through
                 // the acknowledgement delay instead of exposing a startable
                 // interval immediately before a scheduled reset.
-                req->send(200, "application/json", "{\"ok\":true,\"saved\":true,\"reboot\":true}");
+                static constexpr const char* savedReply =
+                    "{\"ok\":true,\"saved\":true,\"reboot\":true}";
+                _sendOwnedJson(req, savedReply, strlen(savedReply));
                 _scheduleRestart(systemPatch ? "system settings save" :
                                  (controllerPatch ? "controller hardware save" :
-                                  (sequencePatch ? "sequence save" : "hardware page save")));
+                                  (sequencePatch ? "sequence save" : "hardware page save")),
+                                 8000);
             } else {
                 ConfigApplyGate::markReadyForCore();
                 req->send(200, "application/json", "{\"ok\":true,\"applying\":true}");

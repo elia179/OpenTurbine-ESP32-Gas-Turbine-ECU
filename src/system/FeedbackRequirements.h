@@ -30,6 +30,16 @@ namespace FeedbackRequirements {
         return (ed.limpOverrideSensor & (uint32_t)sensor) != 0;
     }
 
+    // Reduced-power START is an explicit, one-sensor operator override.  It may
+    // release only the startup check that consumes that unavailable feedback;
+    // a healthy reading (including a healthy value below its threshold) remains
+    // authoritative, and manual Reduced-Power Mode by itself bypasses nothing.
+    inline bool bypassUnhealthyStartupCheck(const EngineData& ed, Sensor sensor,
+                                            bool feedbackHealthy) {
+        return ed.mode == SysMode::STARTUP && ed.limpMode && !feedbackHealthy &&
+               isOverridden(ed, sensor);
+    }
+
     inline const char* sensorName(uint32_t sensor) {
         switch (sensor) {
             case N1: return "N1 speed";
@@ -197,35 +207,13 @@ namespace FeedbackRequirements {
         return requiredStartFailureMask(ed, now) == NONE;
     }
 
-    inline bool startupConsumes(uint32_t sensor) {
-        switch (sensor) {
-            case N1:
-                return startupHas("StarterSpin") || startupHas("Spool") ||
-                       (startupHas("SafetyHold") && Config::safetyHoldCheckN1);
-            case N2:
-                return startupHas("GovernorHold") ||
-                       (startupHas("SafetyHold") && Config::safetyHoldCheckN2);
-            case EGT:
-                return startupHas("TempConfirm") || startupHas("WaitTOTCool") ||
-                       (startupHas("SafetyHold") && Config::safetyHoldCheckEgt);
-            case P1: return startupHas("SafetyHold") && Config::safetyHoldCheckP1;
-            case P2: return startupHas("SafetyHold") && Config::safetyHoldCheckP2;
-            case OIL_PRESSURE:
-                return startupHas("OilPrime") ||
-                       (startupHas("SafetyHold") && Config::safetyHoldCheckOil);
-            case FLAME:
-                return startupHas("FlameConfirm") ||
-                       (startupHas("SafetyHold") && Config::safetyHoldCheckFlame);
-            default: return false;
-        }
-    }
-
     inline uint32_t eligibleSingleStartOverride(const EngineData& ed, uint32_t now) {
         const uint32_t failed = requiredStartFailureMask(ed, now);
         if (failed == NONE || (failed & (failed - 1UL)) != 0) return NONE;
-        if (failed == THROTTLE || failed == IDLE || failed == GLOW_CURRENT) return NONE;
+        // A closed-loop oil pump cannot be commanded predictably without its
+        // feedback. Other single feedback failures have explicit open-loop or
+        // check-only fallbacks in their startup consumers.
         if (failed == OIL_PRESSURE && HardwareConfig::hasOilLoop) return NONE;
-        if (startupConsumes(failed)) return NONE;
         return failed;
     }
 

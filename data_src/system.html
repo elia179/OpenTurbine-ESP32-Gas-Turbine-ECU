@@ -42,18 +42,18 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 @media(max-width:700px){main{padding:.85rem .75rem 7.6rem}.cfg-workspace{position:relative;top:auto;margin:-.85rem 0 .75rem;padding:.75rem 0 .55rem;background:var(--bg)}.cfg-workspace-card{padding:.75rem;border-radius:11px}.cfg-workspace-head{margin-bottom:.6rem}.cfg-header-actions{margin-left:0;width:100%}.cfg-search{height:44px}.cfg-toolbar{flex-wrap:wrap}.cfg-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;overflow:visible}.cfg-filter{width:100%;padding:.28rem .4rem}.cfg-result-count{display:none}.config-group>summary{min-height:68px;padding:.7rem}.control-definition-card>summary{min-height:84px}.group-desc{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.group-meta{display:none}.group-content{padding:0 .55rem .55rem}.cfg-grid{grid-template-columns:minmax(0,1fr)}.controller-card-body{padding:.7rem}.controller-card-actions,.controller-create-body,.controller-option-row{align-items:stretch;flex-direction:column}.controller-card-actions button,.controller-create-body button{width:100%}body>.save-bar{position:fixed;left:.5rem;right:.5rem;width:auto;transform:none;bottom:max(8px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.45rem;overflow:hidden}body>.save-bar:not(.is-dirty){display:none}.save-bar .save-change-count{grid-column:1/-1;min-width:0;white-space:normal}.save-bar .save-spacer,.save-bar a,.save-msg{display:none}.save-bar button{min-width:0;padding:.42rem .7rem}.save-recap-card{width:calc(100vw - 1rem);max-height:92vh}.save-recap-header,.save-recap-footer{flex-wrap:wrap}.save-recap-body{padding:.65rem;max-height:62vh;overflow-x:auto}}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260905b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260905b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
   <a href="/" title="Live dashboard, start/stop controls, mode, faults, and fitted sensor cards.">Dashboard</a>
-  <a href="/hardware.html" title="Choose fitted sensors, actuators, GPIO pins, Wi-Fi, and hardware safety enables.">Hardware</a>
+  <a href="/hardware.html" title="Define fitted sensors, actuators, switches, GPIO wiring, shared buses, and communication hardware.">Hardware</a>
   <a href="/controllers.html" class="ot-nav-controllers" title="Choose what controls each output and configure related safety limits.">Controllers</a>
   <a href="/calibration.html" title="Calibrate fitted analog, servo, pressure, temperature, current, and flow inputs.">Calibration</a>
   <a href="/sequence.html" title="Edit startup, shutdown, afterburner sequences, block timings, and control rules.">Sequence</a>
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
-  <a href="/tools.html" title="Run standby commissioning, actuator tests, and developer controls.">Tools</a>
-  <a href="/system.html" class="active ot-nav-system" title="Configure ECU behavior and communications; manage backups, diagnostics, and reset.">System</a>
+  <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
+  <a href="/system.html" class="active ot-nav-system" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
   <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 <main>
@@ -201,7 +201,7 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'Reduced-Power Mode', id:'reduced-power-section', sectionNote:'This one cap is shared by manual Reduced-Power Mode and the automatic response to losing feedback required by an enabled shaft controller or safety protection. Sensor loss turns Reduced-Power Mode on; it does not create a separate hidden limit.', fields: [
     { key:'lm_mt', path:['limp_mode','max_throttle_pct'], label:'Maximum Fuel Output (%)', desc:'Shared main-fuel cap when Reduced-Power Mode is turned on from Tools or a configured switch, or automatically because feedback used by an enabled protection/controller becomes unhealthy. A high value also permits higher fuel after that safety feedback is lost.', step:5, min:0, max:100, basic:true },
   ]},
-  { title: 'Idle', id:'idle-control-cfg-section', sectionNote:'Idle is the minimum normal-running fuel authority. Its calibrated low end comes from Hardware; Automatic Idle may raise that floor to hold selected shaft-speed or pressure feedback.', fields: [
+  { title: 'Idle', id:'idle-control-cfg-section', sectionNote:'Idle is the minimum normal-running fuel authority. Its calibrated low end comes from Calibration; Automatic Idle may raise that floor to hold selected shaft-speed or pressure feedback.', fields: [
     { key:'th_mx', path:['throttle','idle_max_pct'], label:'Maximum Normal Idle Fuel Output (%)', desc:'Highest fuel output available to the idle layer. The low end is the calibrated Minimum Reliable Fuel-Metering Output from Calibration. Shutdown, STOP, and hard safety may still command zero.', step:1, min:0, max:100, basic:true },
     { key:'di_src', path:['dynamic_idle','source'], label:'Idle Feedback Source', type:'select', options:[{v:0,l:'N1 core speed (normal / proven)'},{v:1,l:'N2 output-shaft speed (normal / proven)'},{v:2,l:'P1 pressure (experimental)'},{v:3,l:'P2 pressure (experimental)'}], desc:'N1/N2 speed feedback is the normal proven approach. Pressure feedback is available for experimental turbine arrangements and requires careful stand validation.', basic:true },
     { key:'di_tr', path:['dynamic_idle','target_rpm'],    label:'Idle Target (N1/N2)', unit:'RPM', desc:'Used when the selected feedback source is N1 or N2.', step:500, min:0, basic:true },
@@ -1107,13 +1107,13 @@ function renderSystemSetup() {
           <span class="tool-state off" id="loop-diag-state" style="font-size:.65rem;padding:.15rem .5rem;border-radius:999px;border:1px solid var(--border);color:var(--dim)">Live</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem">
-          <div><div class="cfg-desc">Loop rate</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-hz">-</div></div>
-          <div><div class="cfg-desc">Period</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period">-</div></div>
-          <div><div class="cfg-desc">Worst cycle</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period-max">-</div></div>
-          <div><div class="cfg-desc">Exec avg</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-avg">-</div></div>
-          <div><div class="cfg-desc">Exec max</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-max">-</div></div>
+          <div><div class="cfg-desc">Loop rate (1 s average)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-hz">-</div></div>
+          <div><div class="cfg-desc">Latest period</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period">-</div></div>
+          <div><div class="cfg-desc">Worst period (1 s)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period-max">-</div></div>
+          <div><div class="cfg-desc">Execution average</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-avg">-</div></div>
+          <div><div class="cfg-desc">Execution worst (1 s)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-max">-</div></div>
           <div><div class="cfg-desc">Missed deadlines</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-overruns">-</div></div>
-          <div><div class="cfg-desc">Counter</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-count">-</div></div>
+          <div><div class="cfg-desc">Loop iterations</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-count">-</div></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:.55rem;margin-top:.8rem;padding-top:.75rem;border-top:1px solid var(--border)">
           <div><div class="cfg-desc">Sensors</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-sensors">-</div></div>
@@ -1123,7 +1123,7 @@ function renderSystemSetup() {
           <div><div class="cfg-desc">Logging</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-logging">-</div></div>
           <div><div class="cfg-desc">Status LED</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-led">-</div></div>
         </div>
-        <span class="cfg-desc" style="margin-top:.75rem">Main ECU loop speed and execution timing. Worst cycle includes waiting and scheduling; missed deadlines count loop bodies that took longer than the configured period.</span>
+        <span class="cfg-desc" style="margin-top:.75rem">Loop period is start-to-start time and includes deliberate waiting and task scheduling. Execution time measures only work performed by the loop. One-second worst values reset each reporting window; missed deadlines count executions longer than the configured target period.</span>
       </div>`;
   const backupRestoreFields = `
       <div class="cfg-field" style="grid-column:1/-1">
@@ -1152,8 +1152,8 @@ function renderSystemSetup() {
         <span class="cfg-label" style="color:var(--red)">Factory Reset</span>
         <span class="cfg-desc">
           Erases all engine settings, sequences, hardware assignments, calibration,
-          Wi-Fi password, event logs, and session logs, then reboots to the built-in
-          minimal profile. The PCB profile is preserved. Download a complete engine file first if anything may be
+          Wi-Fi password, event logs, and session logs, then reboots with the compiled
+          factory-default engine profile used for a clean installation. The PCB profile is preserved. Download a complete engine file first if anything may be
           needed later. <b style="color:var(--red)">Cannot be undone.</b>
         </span>
         <div style="margin-top:.6rem">
@@ -2409,7 +2409,7 @@ async function validateBeforeSave(cfg) {
 // ── Save ──────────────────────────────────────────────────────
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
-  if (isLocked) { alert('Config is locked - stop the engine first. (Live editing requires Dev Mode enabled beforehand, from Tools while in STANDBY.)'); return; }
+  if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
 
   // Read form values into cfg (needed so _buildChanges has current cfg for validation)
   SCHEMA.forEach(sec => {

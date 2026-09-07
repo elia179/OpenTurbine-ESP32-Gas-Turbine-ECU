@@ -3,6 +3,7 @@
 #include "../../EngineData.h"
 #include "../../../system/Config.h"
 #include "../../../system/HardwareConfig.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // ============================================================
@@ -143,8 +144,11 @@ public:
     }
 
     BlockResult tick() override {
-        if ((millis() - _startMs) >= timeoutMs) return BlockResult::Fault;
         auto& ed = EngineData::instance();
+        const bool n2Bypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::N2, ed.n2Healthy);
+        if ((millis() - _startMs) >= timeoutMs)
+            return n2Bypassed ? BlockResult::TimeoutContinue : BlockResult::Fault;
         if (!ed.n2Healthy) { _inBandSinceMs = 0; return BlockResult::Running; }
         float targetRpm = Config::governorTargetRpm;
         if (targetRpm <= 0) return BlockResult::Fault;

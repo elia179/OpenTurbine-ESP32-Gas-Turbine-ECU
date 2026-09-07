@@ -2,6 +2,7 @@
 #include "../IBlock.h"
 #include "../../EngineData.h"
 #include "../../../system/Config.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // ============================================================
@@ -71,6 +72,12 @@ public:
 
     BlockResult tick() override {
         auto& ed = EngineData::instance();
+        if (FeedbackRequirements::bypassUnhealthyStartupCheck(
+                ed, FeedbackRequirements::EGT, Config::primaryEgtHealthy(ed))) {
+            clearWaitReason();
+            Serial.println("[WaitTOTCool] REDUCED POWER: unavailable EGT check skipped");
+            return BlockResult::Complete;
+        }
         if (!Config::primaryEgtHealthy(ed)) {
             setWaitReason("Selected EGT feedback unavailable");
             if ((millis() - _entryMs) > timeoutMs)

@@ -7,18 +7,18 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260905b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260905b');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
   <a href="/" title="Live dashboard, start/stop controls, mode, faults, and fitted sensor cards.">Dashboard</a>
-  <a href="/hardware.html" class="active" title="Choose fitted sensors, actuators, GPIO pins, Wi-Fi, and hardware safety enables.">Hardware</a>
+  <a href="/hardware.html" class="active" title="Define fitted sensors, actuators, switches, GPIO wiring, shared buses, and communication hardware.">Hardware</a>
   <a href="/controllers.html" title="Choose what controls each output and configure related safety limits.">Controllers</a>
   <a href="/calibration.html" title="Calibrate fitted analog, servo, pressure, temperature, current, and flow inputs.">Calibration</a>
-  <a href="/sequence.html" title="Edit startup, shutdown, and afterburner sequences and block timings.">Sequence</a>
+  <a href="/sequence.html" title="Edit startup, shutdown, and afterburner transitions, block timing, and automation rules.">Sequence</a>
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
-  <a href="/tools.html" title="Run standby commissioning, actuator tests, and developer controls.">Tools</a>
-  <a href="/system.html" title="Configure ECU behavior and communications; manage backups, diagnostics, and reset.">System</a>
+  <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
+  <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
   <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="page-heading">
     <div class="page-heading-main">
       <h1 class="page-title">Hardware Configuration</h1>
-      <p class="page-subtitle">Define what is physically fitted, its wiring, calibration, and electrical limits. Choose how outputs behave in <a href="/controllers.html" style="color:var(--accent)">Controllers</a>, and review transitions in <a href="/sequence.html" style="color:var(--accent)">Sequence</a>.</p>
+      <p class="page-subtitle">Define what is physically fitted, its wiring, interfaces, and electrical limits. Calibrate live signals on <a href="/calibration.html" style="color:var(--accent)">Calibration</a>, choose output behavior in <a href="/controllers.html" style="color:var(--accent)">Controllers</a>, and review transitions in <a href="/sequence.html" style="color:var(--accent)">Sequence</a>.</p>
     </div>
     <div class="page-heading-actions">
       <span id="hw-profile-badge" style="font-size:.72rem;padding:.15rem .6rem;border-radius:4px;background:var(--surface);border:1px solid var(--border);color:var(--dim)">—</span>
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <details class="control-setup-guide" id="supported-bus-devices" style="margin-bottom:.65rem">
       <summary class="control-setup-title">Supported bus devices</summary>
       <div class="hw-desc" style="padding:.65rem .8rem;line-height:1.6">
-        <b>I2C:</b> TCA9554 digital inputs and low-current relay outputs; TLA2528 analog inputs and threshold switches; NAU7802 load-cell inputs for torque or thrust.
+        <b>I2C:</b> TCA9554 digital inputs and logic-level outputs for external relay drivers; TLA2528 analog inputs and threshold switches; NAU7802 load-cell inputs for torque or thrust.
         <br><b>SPI:</b> MAX6675, MAX31855, and MAX31856 thermocouple amplifiers for TOT, TIT, and other temperature inputs.
         <br>DS18B20 temperature sensors use their own OneWire GPIO selected on the sensor card; they do not use these shared I2C or SPI pins.
       </div>

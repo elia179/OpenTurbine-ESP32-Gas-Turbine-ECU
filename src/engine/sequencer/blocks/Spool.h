@@ -1,6 +1,7 @@
 #pragma once
 #include "../IBlock.h"
 #include "../../EngineData.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // Spool up to running RPM target.
@@ -30,6 +31,8 @@ public:
 
     BlockResult tick() override {
         auto& ed = EngineData::instance();
+        const bool n1Bypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::N1, ed.n1Healthy);
 
         if (ed.n1Healthy && ed.n1Rpm >= rpmTarget) {
             clearWaitReason();
@@ -38,10 +41,16 @@ public:
         unsigned long elapsed = millis() - _entryMs;
         if (elapsed > timeoutMs) {
             clearWaitReason();
+            if (n1Bypassed) {
+                Serial.println("[Spool] REDUCED POWER: timed spool completed without N1 feedback");
+                return BlockResult::TimeoutContinue;
+            }
             return ed.benchMode ? BlockResult::Complete : BlockResult::Fault;
         }
         char _buf[80];
-        if (ed.benchMode)
+        if (n1Bypassed)
+            snprintf(_buf, sizeof(_buf), "Reduced-power timed spool - %lu ms remaining", timeoutMs - elapsed);
+        else if (ed.benchMode)
             snprintf(_buf, sizeof(_buf), "[BENCH] Spool sim - %lu ms remaining", timeoutMs - elapsed);
         else
             snprintf(_buf, sizeof(_buf), "N1: %d / %d RPM", (int)ed.n1Rpm, (int)rpmTarget);

@@ -7,18 +7,18 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260905b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260905b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
   <a href="/" class="active" title="Live dashboard, start/stop controls, mode, faults, and fitted sensor cards.">Dashboard</a>
-  <a href="/hardware.html" title="Choose fitted sensors, actuators, GPIO pins, Wi-Fi, and hardware safety enables.">Hardware</a>
+  <a href="/hardware.html" title="Define fitted sensors, actuators, switches, GPIO wiring, shared buses, and communication hardware.">Hardware</a>
   <a href="/controllers.html" title="Choose what controls each output and configure related safety limits.">Controllers</a>
   <a href="/calibration.html" title="Calibrate fitted analog, servo, pressure, temperature, current, and flow inputs.">Calibration</a>
   <a href="/sequence.html" title="Edit startup, shutdown, afterburner sequences, block timings, and control rules.">Sequence</a>
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
-  <a href="/tools.html" title="Run standby commissioning, actuator tests, and developer controls.">Tools</a>
-  <a href="/system.html" title="Configure ECU behavior and communications; manage backups, diagnostics, and reset.">System</a>
+  <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
+  <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
   <span id="conn" class="conn-dot disconnected" title="WebSocket"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 
@@ -99,10 +99,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <!-- Engine-name mismatch banner -->
   <div id="profile-mismatch-banner" style="display:none">
     <strong>⚠ Engine Name Mismatch — Engine operations locked</strong>
-    The hardware and settings sections in <code>ecu_config.json</code> identify different engines.
-    The ECU will not run with mixed engine data.<br>
-    <b>How to fix:</b> restore one complete engine file from <a href="/system.html" style="color:var(--yellow)">System</a>,
-    or save the Hardware page to synchronize its engine name into settings.
+    The hardware and settings sections in <code>ecu_config.json</code> identify different engines, which indicates an incomplete or incompatible restored engine file. Ordinary name edits synchronize both sections automatically, but the ECU will not run with mixed engine data.<br>
+    <b>How to fix:</b> restore one complete engine file from <a href="/system.html" style="color:var(--yellow)">System</a>, or review and save Hardware to synchronize this file.
   </div>
   <div id="profile-error" class="error-banner" style="display:none">Engine name mismatch — engine operations locked</div>
 
@@ -215,7 +213,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <span id="n2-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching hard limit</span>
       <canvas class="sparkline" id="n2-sparkline"></canvas>
     </div>
-    <div class="card" id="oil-card" style="display:none" title="Bearing oil pressure. 'demand' is the ECU target pressure; output pump speed is adjusted to maintain it. Low oil pressure during RUNNING triggers an immediate fault shutdown.">
+    <div class="card" id="oil-card" style="display:none" title="Bearing oil pressure. 'demand' is the ECU target pressure; a proportional pump is adjusted to maintain it. When running oil-pressure protection is configured and enabled, pressure below its limit for the confirmation time causes a fault shutdown.">
       <div class="label"><span id="lbl-oil">Oil Press</span> (<span data-unit="press">bar</span>) <span id="oil-health" class="dot"></span></div>
       <div class="value small" id="oil">—</div>
       <div class="oil-sub">demand: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
@@ -224,7 +222,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <span id="oil-abs-label" class="gauge-abs-label">— / — bar</span>
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>
     </div>
-    <div class="card" id="flame-card" style="display:none" title="Combustion flame sensor (optical or ionisation). Bar shows raw ADC reading vs the detection threshold. Green dot = flame confirmed. Used during startup to verify ignition and during running to detect flameout.">
+    <div class="card" id="flame-card" style="display:none" title="Combustion flame sensor (optical or ionisation). The bar compares its live signal with the configured detection threshold; the green dot means flame is confirmed. It can verify ignition during startup and detect combustion loss while running.">
       <div class="label">Flame <span id="flame-dot" class="dot"></span></div>
       <div class="flame-bar-wrap">
         <div class="flame-bar-track">
@@ -472,7 +470,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label">Oil Pump Output</div>
       <div class="value small" id="oil-pct">—</div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="oil-output-gauge-bar" style="width:0%"></div></div>
-      <div class="oil-sub" id="oil-startup-setting-note" style="display:none">startup OilPumpOn setting: <span id="oil-startup-setting">—</span>% (Sequence)</div>
+      <div class="oil-sub" id="oil-startup-setting-note" style="display:none">startup oil-pump command: <span id="oil-startup-setting">—</span>% (Sequence)</div>
       <div class="oil-sub" id="oil-failsafe-note" style="display:none;color:var(--red)">⚠ sensor failsafe</div>
       <div class="oil-sub" id="oil-flow-warning-note" style="display:none;color:var(--warning)">⚠ monitored oil flow low or unavailable</div>
       <div class="oil-sub" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
@@ -554,7 +552,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="theme-firstrun-box">
     <div class="tfr-kicker">One more thing</div>
     <h3 id="tfr-title">Choose your look</h3>
-    <p>Pick a theme for the interface. You can change it any time at the bottom of the Tools page.</p>
+    <p>Pick a theme for the interface. You can change it any time under System &rarr; Appearance.</p>
     <div class="tfr-grid" id="theme-firstrun-grid"></div>
     <div class="tfr-actions">
       <button class="primary" onclick="OTTheme.finishFirstRun()">Done</button>
@@ -677,7 +675,7 @@ function renderStartChecks(sequenceCount, sequenceUnavailable = false) {
   const limitedNote = limited
     ? '<div class="start-confirm-checks-note" style="color:var(--yellow)"><strong>' +
       escapeHtmlText(String(d.limited_start_sensor || 'Required sensor')) +
-      ' feedback is unavailable.</strong> Reduced-power start keeps the configured fuel cap, disables afterburner, and preserves every unrelated interlock.</div>'
+      ' feedback is unavailable.</strong> Reduced-power start keeps the configured fuel cap, disables afterburner, and bypasses only startup confirmation that depends on this unavailable sensor. Actuator actions, timers, and every unrelated interlock remain active.</div>'
     : '';
   box.innerHTML = '<div class="start-confirm-checks-title">Live ECU start checks</div>' +
     rows.map(([name, value]) => `<div class="start-confirm-checks-row"><span>${escapeHtmlText(name)}</span><span>${value}</span></div>`).join('') +
@@ -698,7 +696,7 @@ function confirmStart() {
   fetch('/api/hardware').then(r => r.json()).then(hw => {
     const seq = hw.startup_seq || [];
     if (seq.length === 0) {
-      alert('Startup sequence is empty.\n\nGo to the Sequence page and add blocks (at minimum: OilPumpOn -> TimedDelay -> IgniterOn -> FuelPumpIdle -> TimedDelay -> IgniterOff -> TimedDelay) before starting.');
+      alert('Startup sequence is empty.\n\nGo to Sequence and add the oil, starter, ignition, fuel, confirmation, and timing blocks required by this engine before starting.');
       return;
     }
     _doStart(limited);

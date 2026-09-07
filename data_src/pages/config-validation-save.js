@@ -468,7 +468,7 @@ async function validateBeforeSave(cfg) {
 // ── Save ──────────────────────────────────────────────────────
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
-  if (isLocked) { alert('Config is locked - stop the engine first. (Live editing requires Dev Mode enabled beforehand, from Tools while in STANDBY.)'); return; }
+  if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
 
   // Read form values into cfg (needed so _buildChanges has current cfg for validation)
   SCHEMA.forEach(sec => {

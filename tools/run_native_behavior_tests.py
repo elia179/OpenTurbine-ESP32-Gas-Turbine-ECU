@@ -79,23 +79,28 @@ def main() -> int:
                    tempfile.TemporaryDirectory(prefix="ot-native-"))
     with tmp_context as tmp:
         tests = [
-            ("relay_demand", [str(ROOT / "dev" / "host" / "relay_demand_behavior.cpp")]),
+            ("relay_demand", [str(ROOT / "dev" / "host" / "relay_demand_behavior.cpp")], []),
+            ("servo_actuator", [str(ROOT / "dev" / "host" / "servo_actuator_behavior.cpp")], []),
             ("command_queue", [
                 str(ROOT / "dev" / "host" / "command_queue_behavior.cpp"),
                 str(ROOT / "src" / "system" / "CommandQueue.cpp"),
-            ]),
-            ("controllers", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")]),
-            ("feedback_control", [str(ROOT / "dev" / "host" / "feedback_control_behavior.cpp")]),
+            ], []),
+            ("controllers", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")], []),
+            ("controllers_s3", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")],
+             ["-DOT_PLATFORM_ESP32S3"]),
+            ("feedback_control", [str(ROOT / "dev" / "host" / "feedback_control_behavior.cpp")], []),
         ]
-        for name, sources in tests:
+        for name, sources, extra_flags in tests:
             # Windows Application Control classifies the generic
             # `command_queue.exe` name as an application rather than a local
             # test probe on some managed hosts. Keep the descriptive historical
             # filename used by this test; the binary is still rebuilt below.
             exe_name = {
                 "relay_demand": "relay_demand_behavior",
+                "servo_actuator": "servo_actuator_behavior",
                 "command_queue": "command_queue_behavior",
                 "controllers": "controller_behavior",
+                "controllers_s3": "controller_behavior_s3",
                 "feedback_control": "feedback_control_behavior",
             }.get(name, name)
             exe = Path(tmp) / (exe_name + (".exe" if os.name == "nt" else ""))
@@ -104,6 +109,7 @@ def main() -> int:
                 "-I", str(ROOT / "dev" / "host" / "fakes"),
                 "-I", str(ROOT),
                 "-I", str(arduino_json),
+                *extra_flags,
                 *sources,
                 "-o", str(exe),
             ], check=True)

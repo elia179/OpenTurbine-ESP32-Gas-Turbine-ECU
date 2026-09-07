@@ -17,7 +17,7 @@ function plainRegistryName(raw, fallback = '') {
     oil_pump:'Oil Pump', oil_pump_main:'Oil Pump', fuel_pump:'Secondary / Auxiliary Fuel Pump', main_fuel:'Main Fuel Metering',
     fuel_shutoff:'Main Fuel Shutoff', fuel_sol:'Main Fuel Shutoff', flame:'Flame Sensor', flame_main:'Flame Sensor',
     coolant_pump:'Coolant Pump', coolant_temperature:'Coolant Temperature',
-    pilot_fuel:'Start Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
+    pilot_fuel:'Pilot Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
     ab_pump:'Afterburner Fuel Pump', ab_solenoid:'Afterburner Fuel Valve', ab_igniter:'Afterburner Igniter',
     prop_pitch:'Prop Pitch', nozzle_actuator:'Nozzle Actuator'
   };
@@ -2350,6 +2350,7 @@ function renderRegistryInputCards(d, sampleSparklines = false) {
     if (value) {
       value.textContent = display.value;
       value.classList.toggle('input-unhealthy', ch.healthy === false);
+      value.classList.toggle('input-healthy', ch.healthy !== false);
       value.title = ch.healthy === false
         ? `${registryDisplayName(ch, fallbackName)} is unhealthy - check Hardware and Calibration`
         : `${registryDisplayName(ch, fallbackName)} live input`;

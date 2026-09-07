@@ -355,7 +355,7 @@ struct EngineData {
     volatile uint32_t runStartMs         = 0;   // millis() at RUNNING entry; mode identifies whether active, so 0 remains valid at rollover
     volatile uint32_t uptimeMs           = 0;
     volatile uint32_t loopCounter        = 0;   // main control-loop iterations since boot
-    volatile float    loopHz             = 0.0f; // measured loop start-to-start rate
+    volatile float    loopHz             = 0.0f; // measured cycles/s over the latest 1 s window
     volatile float    loopPeriodMs       = 0.0f; // measured loop start-to-start period
     volatile float    loopPeriodMaxMs    = 0.0f; // worst start-to-start period in the last sample window
     volatile float    loopExecAvgMs      = 0.0f; // EWMA loop body execution time

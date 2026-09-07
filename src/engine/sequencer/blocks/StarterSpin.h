@@ -2,6 +2,7 @@
 #include "../IBlock.h"
 #include "../PulsedStarterAssist.h"
 #include "../../EngineData.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // Spin to pre-ignition RPM. Optional proportional-starter assist pulses at low
@@ -36,6 +37,8 @@ public:
     BlockResult tick() override {
         auto& ed = EngineData::instance();
         const unsigned long now = millis();
+        const bool n1Bypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::N1, ed.n1Healthy);
 
         // Invalid feedback must never hold the starter on. The existing block
         // timeout remains the single predictable startup failure deadline.
@@ -43,7 +46,13 @@ public:
                                                 ed.n1Rpm, assistUntilRpm,
                                                 (uint32_t)assistOnMs,
                                                 (uint32_t)assistOffMs);
-        if (assistPhase == PulsedStarterAssist::Phase::Cancelled) {
+        if (n1Bypassed) {
+            // No RPM feedback is available for pulsed assist or target release.
+            // Keep the ordinary configured ramp and use timeoutMs as the bounded
+            // open-loop crank duration instead of suppressing the starter.
+            _assist.begin(false, (uint32_t)now);
+            applyNormalRamp(ed, now);
+        } else if (assistPhase == PulsedStarterAssist::Phase::Cancelled) {
             ed.starterDemand = 0.0f;
             ed.starterEnabled = false;
             _lastRampMs = now;
@@ -68,13 +77,21 @@ public:
         }
         const unsigned long elapsed = now - _entryMs;
         if (elapsed > timeoutMs) {
+            if (n1Bypassed) {
+                _completedNormally = true;
+                clearWaitReason();
+                Serial.println("[StarterSpin] REDUCED POWER: timed crank completed without N1 feedback");
+                return BlockResult::TimeoutContinue;
+            }
             ed.starterDemand = 0.0f;
             ed.starterEnabled = false;
             clearWaitReason();
             return ed.benchMode ? BlockResult::Complete : BlockResult::Fault;
         }
         char message[80];
-        if (ed.benchMode)
+        if (n1Bypassed)
+            snprintf(message, sizeof(message), "Reduced-power timed crank - %lu ms remaining", timeoutMs - elapsed);
+        else if (ed.benchMode)
             snprintf(message, sizeof(message), "[BENCH] Starter sim - %lu ms remaining", timeoutMs - elapsed);
         else
             snprintf(message, sizeof(message), "N1: %d / %d RPM", (int)ed.n1Rpm, (int)targetRpm);

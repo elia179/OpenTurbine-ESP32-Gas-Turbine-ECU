@@ -7,18 +7,18 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260905b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260905b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
   <a href="/" title="Live dashboard, start/stop controls, mode, faults, and fitted sensor cards.">Dashboard</a>
-  <a href="/hardware.html" title="Choose fitted sensors, actuators, GPIO pins, Wi-Fi, and hardware safety enables.">Hardware</a>
+  <a href="/hardware.html" title="Define fitted sensors, actuators, switches, GPIO wiring, shared buses, and communication hardware.">Hardware</a>
   <a href="/controllers.html" title="Choose what controls each output and configure related safety limits.">Controllers</a>
   <a href="/calibration.html" class="active" title="Calibrate fitted analog, servo, pressure, temperature, current, and flow inputs.">Calibration</a>
   <a href="/sequence.html" title="Edit startup, shutdown, afterburner sequences, block timings, and control rules.">Sequence</a>
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
-  <a href="/tools.html" title="Run standby commissioning, actuator tests, and developer controls.">Tools</a>
-  <a href="/system.html" title="Configure ECU behavior and communications; manage backups, diagnostics, and reset.">System</a>
+  <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
+  <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
   <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 <main>
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="oil-press-cal-row" style="display:none">
     <div class="sensor-name"><span id="oil-h-cal" class="dot"></span> Oil Pressure</div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label">ADC pin</div><div class="sv-val" id="cal-oil-raw">—</div></div>
+        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-oil-raw">—</div></div>
       <div class="sv-item"><div class="sv-label">bar</div><div class="sv-val" id="cal-oil">—</div></div>
       <div class="sv-item"><div class="sv-label">Pump %</div><div class="sv-val" id="cal-oil-pct">—</div></div>
       <div class="sv-item"><div class="sv-label">Status</div><div class="sv-val" id="cal-oil-h">—</div></div>
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         </div>
         <div id="oil-min-pct-status" style="font-size:.75rem;color:var(--yellow);margin-bottom:.65rem">Minimum pump output not captured yet.</div>
         <div class="wizard-steps">
-          <b>3. Calibrate pressure.</b> Set a few pump outputs across the useful range. After each reading stabilises, enter the pressure shown by your trusted gauge and capture the point. The pump output and raw sensor reading are stored together; four total pressure points including zero are required.
+          <b>3. Calibrate pressure.</b> Set a few pump outputs across the useful range. After each reading stabilises, enter the pressure shown by your trusted gauge and capture the point. The pump output and sensor voltage are stored together; four total pressure points including zero are required.
         </div>
         <!-- Pressure capture -->
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="fuelpress-cal-row" style="display:none">
     <div class="sensor-name">Fuel Pressure Sensor <span id="fuelpress-h-cal" class="dot"></span></div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label">ADC pin</div><div class="sv-val" id="cal-fuelpress-raw">—</div></div>
+        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-fuelpress-raw">—</div></div>
       <div class="sv-item"><div class="sv-label">Pressure bar</div><div class="sv-val" id="cal-fuelpress">—</div></div>
       <div class="sv-item"><div class="sv-label">Cal range</div><div class="sv-val" id="cal-fuelpress-range">—</div></div>
     </div>
@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="sensor-name" id="p1-cal-name">Pressure 1 Sensor</div>
     <div class="sensor-vals">
       <div class="sv-item"><div class="sv-label">Reading (bar)</div><div class="sv-val" id="cal-p1">—</div></div>
-      <div class="sv-item"><div class="sv-label">ADC pin</div><div class="sv-val" id="cal-p1-raw">—</div></div>
+        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p1-raw">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-p1" style="width:0%"></div></div>
     <div class="bar-range"><span>0 bar</span><span id="p1-bar-max-label">10 bar</span></div>
@@ -350,7 +350,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="sensor-name" id="p2-cal-name">Pressure 2 Sensor</div>
     <div class="sensor-vals">
       <div class="sv-item"><div class="sv-label">Reading (bar)</div><div class="sv-val" id="cal-p2">—</div></div>
-      <div class="sv-item"><div class="sv-label">ADC pin</div><div class="sv-val" id="cal-p2-raw">—</div></div>
+        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p2-raw">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-p2" style="width:0%"></div></div>
     <div class="bar-range"><span>0 bar</span><span id="p2-bar-max-label">10 bar</span></div>
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="sv-item"><div class="sv-label">Throttle %</div><div class="sv-val" id="cal-idle-thr">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-idle" style="width:0%"></div></div>
-    <div class="bar-range"><span id="idle-range-lo">0</span><span id="idle-range-hi">4095</span></div>
+    <div class="bar-range"><span id="idle-range-lo">0 mV</span><span id="idle-range-hi">3300 mV</span></div>
     <div class="wizard">
       <div class="wizard-title">Idle Input Min / Max Calibration</div>
       <div class="wizard-steps" id="idle-wiz-steps">Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving moves the usable minimum inward by 2% of the captured span and the maximum inward by 1%.</div>
@@ -1401,7 +1401,7 @@ function fpCapRef() {
 
 function fpSaveCal() {
   if (fpRawZero === null || fpRawRef === null) { alert('Capture both points first'); return; }
-  if (fpRawRef <= fpRawZero) { alert('Reference raw must be greater than zero raw'); return; }
+  if (fpRawRef <= fpRawZero) { alert('Reference voltage must be greater than the ambient / zero voltage'); return; }
   const refBar = parseFloat(document.getElementById('fp-ref-bar').value);
   const ambientBar = pressureReferenceValue('fuelpress-zero-reference');
   if (isNaN(refBar) || refBar <= ambientBar || refBar > 1000) {
@@ -1690,7 +1690,7 @@ function captureOilPoint() {
   const b = parseFloat(document.getElementById('oil-pval').value);
   if (isNaN(b) || b < 0) { alert('Enter a valid bar value (e.g. 3.5)'); return; }
   const raw = live.oil_raw;
-  if (raw === undefined) { alert('No live oil ADC yet'); return; }
+  if (raw === undefined) { alert('No live oil-sensor voltage yet'); return; }
   oilPts.push({ raw, b });
   document.getElementById('oil-pval').value = '';
   renderOilPts();
@@ -1811,12 +1811,8 @@ function oilGoStep3() {
     : '';
 
   document.getElementById('oil-fit-summary').innerHTML =
-    `<b>Captured sensor curve</b> (cubic trend check): y = a·x³ + b·x² + c·x + d<br>` +
-    `a = ${fit.a.toExponential(4)}<br>` +
-    `b = ${fit.b.toExponential(4)}<br>` +
-    `c = ${fit.c.toExponential(4)}<br>` +
-    `d = ${fit.d.toFixed(4)}<br>` +
-    `Range: raw ${oilFit.x0} – ${oilFit.x1} &nbsp;|&nbsp; ` +
+    `<b>Captured sensor curve</b><br>` +
+    `Voltage range: ${adcMvText(oilFit.x0)} – ${adcMvText(oilFit.x1)} &nbsp;|&nbsp; ` +
     `Max residual: <b>${maxErr} bar</b> &nbsp;|&nbsp; ` +
     `R² = <b style="color:${r2Color}">${r2.toFixed(5)}</b> &nbsp;|&nbsp; ${oilPts.length} pts` +
     zeroWarn;
@@ -2863,10 +2859,10 @@ function installCalibrationHelp() {
     'oil-zero-reference':'Gauge sensors read 0 bar at ambient pressure. Absolute sensors read local atmospheric pressure, approximately 1 bar.',
     'oil-fit-mode':'Automatic chooses the simpler straight-line model unless a curved fit is substantially better.',
     'oil-mv-bar':'Datasheet sensitivity measured at the ECU ADC pin, after any voltage divider or conditioning circuit.',
-    'cal-flame-last-avg':'Average raw flame-sensor value sampled once per second during the most recent run. Reference only; it does not change the threshold.',
+    'cal-flame-last-avg':'Average flame-sensor reading sampled once per second during the most recent run. ADC inputs are shown in mV. This is a reference only; it does not change the threshold.',
     'flame-multiplier':'Multiplies igniter-on noise to propose a threshold. Keep this low enough to detect weak light-off flame.',
     'oilt-known-temp':'Enter the trusted reference temperature using the unit selected at the top of the page.',
-    'btn-oilt-known-save':'Fits and activates the raw-ADC temperature curve. This replaces datasheet mode until datasheet values are saved again.'
+    'btn-oilt-known-save':'Fits and activates the captured voltage-to-temperature curve. This replaces datasheet mode until datasheet values are saved again.'
   };
   for(const el of document.querySelectorAll('input,select,button')) {
     if(!el.title) {

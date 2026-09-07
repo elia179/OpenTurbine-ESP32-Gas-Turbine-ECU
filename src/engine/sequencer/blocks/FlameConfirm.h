@@ -2,6 +2,7 @@
 #include "../IBlock.h"
 #include "../../EngineData.h"
 #include "../../../system/FlightRecorder.h"
+#include "../../../system/FeedbackRequirements.h"
 #include "../SequenceIgnition.h"
 #include <Arduino.h>
 
@@ -32,6 +33,12 @@ public:
         if (ed.benchMode) {
             clearWaitReason();
             Serial.println("[FlameConfirm] BENCH: simulating flame confirm");
+            return BlockResult::Complete;
+        }
+        if (FeedbackRequirements::bypassUnhealthyStartupCheck(
+                ed, FeedbackRequirements::FLAME, ed.flameHealthy)) {
+            clearWaitReason();
+            Serial.println("[FlameConfirm] REDUCED POWER: unavailable flame confirmation skipped");
             return BlockResult::Complete;
         }
 

@@ -277,6 +277,12 @@ public:
                 clearWaitReason();
                 return BlockResult::Complete;
             }
+            if (FeedbackRequirements::bypassUnhealthyStartupCheck(
+                    ed, FeedbackRequirements::GLOW_CURRENT, feedbackHealthy)) {
+                clearWaitReason();
+                Serial.println("[GlowPreheat] REDUCED POWER: unavailable current-ready check skipped");
+                return BlockResult::Complete;
+            }
             setWaitReason(!feedbackFitted ? "Glow current feedback not fitted" :
                           !feedbackHealthy ? "Glow current feedback unavailable" :
                           "Waiting for selected glow plug temperature");
@@ -1668,7 +1674,9 @@ static unsigned long _runStartMs            = 0;   // millis() when RUNNING ente
 static bool          _runTimingActive       = false;
 
 // ── Buzzer state machine ───────────────────────────────────────
-// Drives a passive piezo on buzzerPin via tone()/noTone() (Arduino API).
+// Drives a passive piezo on its reserved LEDC channel. Hardware owns the
+// timer so changing beep pitch cannot retune an actuator that happens to use
+// the same frequency/resolution pair.
 // Patterns:
 //   0 = silence
 //   1 = fault     — rapid 2500 Hz beep (repeating, 100 ms on/off)
@@ -1685,28 +1693,32 @@ static void buzzerTick() {
     unsigned long now = millis();
     if ((int32_t)(now - _buzzerNextMs) < 0) return;
     if (_buzzerPattern == 0) {
-        if (_buzzerToneOn) { noTone(HardwareConfig::buzzerPin); _buzzerToneOn = false; }
+        if (_buzzerToneOn) { Hardware::buzzerOff(); _buzzerToneOn = false; }
         return;
     }
     if (_buzzerPattern == 1) {  // fault: 100ms on / 100ms off rapid beep
-        if (_buzzerToneOn) { noTone(HardwareConfig::buzzerPin); _buzzerToneOn = false; _buzzerNextMs = now + 100; }
-        else               { tone(HardwareConfig::buzzerPin, 2500, 100); _buzzerToneOn = true; _buzzerNextMs = now + 100; }
+        if (_buzzerToneOn) { Hardware::buzzerOff(); _buzzerToneOn = false; _buzzerNextMs = now + 100; }
+        else               { Hardware::buzzerTone(2500); _buzzerToneOn = true; _buzzerNextMs = now + 100; }
     } else if (_buzzerPattern == 2) {  // RUNNING: 500ms single beep then stop
-        tone(HardwareConfig::buzzerPin, 1800, 500);
+        Hardware::buzzerTone(1800); _buzzerToneOn = true;
         _buzzerPattern = 0; _buzzerStep = 0;
         _buzzerNextMs  = now + 500;
     } else if (_buzzerPattern == 3) {  // STARTUP begin: double chirp then stop
         if (_buzzerStep == 0) {
-            tone(HardwareConfig::buzzerPin, 1500, 100);
-            _buzzerStep = 1; _buzzerNextMs = now + 250;
+            Hardware::buzzerTone(1500); _buzzerToneOn = true;
+            _buzzerStep = 1; _buzzerNextMs = now + 100;
         } else if (_buzzerStep == 1) {
-            tone(HardwareConfig::buzzerPin, 1500, 100);
-            _buzzerStep = 2; _buzzerNextMs = now + 100;
+            Hardware::buzzerOff(); _buzzerToneOn = false;
+            _buzzerStep = 2; _buzzerNextMs = now + 150;
+        } else if (_buzzerStep == 2) {
+            Hardware::buzzerTone(1500); _buzzerToneOn = true;
+            _buzzerStep = 3; _buzzerNextMs = now + 100;
         } else {
+            Hardware::buzzerOff(); _buzzerToneOn = false;
             _buzzerPattern = 0; _buzzerStep = 0;
         }
     } else if (_buzzerPattern == 4) {  // SHUTDOWN: single low beep then stop
-        tone(HardwareConfig::buzzerPin, 900, 400);
+        Hardware::buzzerTone(900); _buzzerToneOn = true;
         _buzzerPattern = 0; _buzzerStep = 0;
         _buzzerNextMs  = now + 400;
     }
@@ -4508,6 +4520,7 @@ void loop() {
     const uint32_t loopStartUs = micros();
     static uint32_t lastLoopStartUs = 0;
     static uint32_t loopWindowStartMs = 0;
+    static uint32_t loopWindowCycles = 0;
     static uint32_t loopWindowMaxUs = 0;
     static uint32_t loopWindowMaxPeriodUs = 0;
     static uint32_t loopWorstSensorsUs = 0;
@@ -4811,15 +4824,24 @@ void loop() {
         const uint32_t periodUs = loopStartUs - lastLoopStartUs;
         if (periodUs > 0) {
             edp.loopPeriodMs = (float)periodUs / 1000.0f;
-            edp.loopHz = 1000000.0f / (float)periodUs;
             if (periodUs > loopWindowMaxPeriodUs) loopWindowMaxPeriodUs = periodUs;
         }
     }
     lastLoopStartUs = loopStartUs;
 
     const uint32_t nowMs = millis();
-    if (loopWindowStartMs == 0) loopWindowStartMs = nowMs;
+    if (loopWindowStartMs == 0) {
+        loopWindowStartMs = nowMs;
+        loopWindowCycles = 0;
+    }
+    loopWindowCycles++;
     if (nowMs - loopWindowStartMs >= 1000) {
+        const uint32_t windowElapsedMs = nowMs - loopWindowStartMs;
+        // Report useful sustained throughput rather than whichever single
+        // start-to-start period happened immediately before an HTTP/log sample.
+        // Worst-case latency remains independently visible in period_max.
+        edp.loopHz = windowElapsedMs > 0
+            ? (float)loopWindowCycles * 1000.0f / (float)windowElapsedMs : 0.0f;
         edp.loopPeriodMaxMs = (float)loopWindowMaxPeriodUs / 1000.0f;
         edp.loopExecMaxMs = (float)loopWindowMaxUs / 1000.0f;
         // Report the section breakdown from that same worst loop, rather than
@@ -4832,6 +4854,7 @@ void loop() {
         edp.loopLedMs = (float)loopWorstLedUs / 1000.0f;
         loopWindowMaxUs = 0;
         loopWindowMaxPeriodUs = 0;
+        loopWindowCycles = 0;
         loopWorstSensorsUs = loopWorstSequencersUs = loopWorstControllersUs = 0;
         loopWorstActuatorsUs = loopWorstLoggingUs = loopWorstLedUs = 0;
         loopWindowStartMs = nowMs;
@@ -4851,7 +4874,14 @@ void loop() {
         uint32_t waitUs = targetPeriodUs - loopElapsedUs;
         if (waitUs >= 1000u) {
             delay(waitUs / 1000u);
-            waitUs %= 1000u;
+            // A one-tick task delay may resume later than its nominal whole-
+            // millisecond duration. Recalculate from the loop deadline rather
+            // than always adding the old fractional remainder after waking.
+            // This keeps the requested average rate without a needless extra
+            // delay, while still yielding whenever at least one tick is free.
+            const uint32_t elapsedAfterYieldUs = micros() - loopStartUs;
+            waitUs = elapsedAfterYieldUs < targetPeriodUs
+                ? targetPeriodUs - elapsedAfterYieldUs : 0u;
         }
         if (waitUs > 0u) delayMicroseconds(waitUs);
     }

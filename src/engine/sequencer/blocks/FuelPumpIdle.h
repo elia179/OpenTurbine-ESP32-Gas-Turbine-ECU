@@ -3,6 +3,7 @@
 #include "../../EngineData.h"
 #include "../../../system/Config.h"
 #include "../../../system/HardwareConfig.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // ============================================================
@@ -25,7 +26,10 @@ public:
 
     void onEnter() override {
         auto& ed = EngineData::instance();
-        _inputFault = HardwareConfig::hasIdleInput && !ed.idleInputValid && !ed.benchMode;
+        const bool idleBypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::IDLE, ed.idleInputValid);
+        _inputFault = HardwareConfig::hasIdleInput && !ed.idleInputValid &&
+                      !ed.benchMode && !idleBypassed;
         if (_inputFault) {
             ed.throttleDemand = 0.0f;
             ed.sequencerIdleDemand = 0.0f;
@@ -34,8 +38,8 @@ public:
         }
         float minPct = constrain(Config::fuelPumpMinPct, 0.0f, 100.0f);
         float topPct = constrain(maxPct, minPct, 100.0f);
-        float pct = topPct;
-        if (HardwareConfig::hasIdleInput) {
+        float pct = idleBypassed ? minPct : topPct;
+        if (HardwareConfig::hasIdleInput && !idleBypassed) {
             float norm;
             if (HardwareConfig::idleInputRcPwm) {
                 norm = ed.rcIdleValid ? ed.rcIdleNorm : 0.0f;

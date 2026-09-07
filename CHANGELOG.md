@@ -10,6 +10,26 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.3.3] — 2026-09-07
+
+### Changed
+
+- Coalesced physical servo writes to their 50 Hz frames, skipped redundant PWM writes, and corrected loop-rate reporting and pacing. Logical output requests and all safe/off commands remain immediate.
+- General registry MAX6675, MAX31855, and MAX31856 channels now instantiate and sample their configured thermocouple drivers.
+- Healthy zero-valued throttle and idle inputs use normal dashboard styling. Their fail-safe 0 V endpoint is valid while a short-to-high ADC rail remains unhealthy.
+
+### Added
+
+- Explicit reduced-power start can continue with one unavailable required feedback sensor. Only the dependent unhealthy startup confirmation is bypassed; configured actions, timers, healthy thresholds, unrelated interlocks, and the reduced-power fuel cap remain active. Closed-loop oil-pressure feedback cannot be overridden.
+- General HX711 registry inputs support independent torque and thrust load cells, including one of each in the same installation.
+
+### Fixed
+
+- Proportional starter-enable and air-starter outputs are included in LEDC resource validation, and ESP32/ESP32-S3 PWM limits use the correct target clock.
+- The passive buzzer owns a reserved LEDC resource and cannot retune an actuator timer.
+- Reduced-power startup consumers now have bounded fallbacks for unavailable N1, N2, EGT, flame, idle, oil-prime, and glow-current feedback.
+- Shared web assets use a new release token so browsers load the matching dashboard scripts and styles after an update.
+
 ## [2.3.2] — 2026-09-06
 
 ### Changed

@@ -193,7 +193,7 @@ function collectPinUsage() {
     add(ch.pin, label);
     const actuatorKey = registryCoreActuatorKey(ch);
     const dedicated = actuatorKey ? cfg.actuators?.[actuatorKey] : null;
-    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet glow start fuel');
+    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet-glow pilot fuel');
     const currentEnabled = dedicated ? !!dedicated.has_current : !!ch.has_current;
     const currentPin = dedicated ? dedicated.current_pin : ch.current_pin;
     if (currentEnabled) add(currentPin, `${label} current`);

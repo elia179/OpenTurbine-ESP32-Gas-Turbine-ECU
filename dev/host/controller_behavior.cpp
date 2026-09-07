@@ -45,14 +45,33 @@ int main() {
     assert(std::fabs(ThrottleCommandLatch::retain(0.01f, 0.01f, 0.2525f) - 0.2525f) < 0.0001f);
     assert(ThrottleCommandLatch::retain(0.0f, 0.01f, 0.2525f) == 0.0f);
 
-    // PWM validation follows the ESP32 timer's real 80 MHz timing budget,
+    // PWM validation follows each target's real LEDC timing budget,
     // preserving every achievable user-selected pair without accepting a
     // configuration that can only fail when the driver attaches at boot.
     assert(ChannelRegistry::pwmTimingValid(100000, 8));
     assert(!ChannelRegistry::pwmTimingValid(100000, 10));
+#if defined(OT_PLATFORM_ESP32S3)
+    assert(ChannelRegistry::pwmTimingValid(2441, 14));
+    assert(!ChannelRegistry::pwmTimingValid(2442, 14));
+#else
     assert(ChannelRegistry::pwmTimingValid(4882, 14));
     assert(!ChannelRegistry::pwmTimingValid(4883, 14));
+#endif
     assert(!ChannelRegistry::pwmTimingValid(0, 10));
+
+    ChannelRegistry invalidPwmRangeRegistry;
+    ChannelRegistry::Channel invalidPwmRange;
+    invalidPwmRange.installed = true;
+    invalidPwmRange.direction = ChannelRegistry::Output;
+    invalidPwmRange.driver = ChannelRegistry::Pwm;
+    invalidPwmRange.pin = 25;
+    invalidPwmRange.minValue = 0.5f;
+    invalidPwmRange.maxValue = 0.5f;
+    std::strcpy(invalidPwmRange.id, "flat_pwm");
+    std::strcpy(invalidPwmRange.name, "Flat PWM");
+    std::strcpy(invalidPwmRange.role, "generic");
+    std::strcpy(invalidPwmRange.purpose, "generic");
+    assert(!invalidPwmRangeRegistry.add(invalidPwmRange));
 
     // Duplicate engine-purpose outputs have exactly one built-in controller
     // owner. An explicit advanced binding intentionally transfers ownership;

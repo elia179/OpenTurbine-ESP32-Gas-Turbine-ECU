@@ -28,7 +28,16 @@ public:
         // Pull-up: a real HX711 drives DOUT push-pull (idle HIGH between
         // samples); without a converter the pin would float and could read
         // LOW, clocking in 24 bits of noise as a healthy torque reading.
+        // Classic GPIO34-39 are input-only and have no internal pull resistor.
+        // A real HX711 still drives DOUT; leave those pads unbiased instead of
+        // issuing an invalid pull-up request on every boot. Other GPIOs keep
+        // the useful disconnected-module HIGH bias.
+#if defined(CONFIG_IDF_TARGET_ESP32)
+        pinMode(_doutPin, (_doutPin >= 34 && _doutPin <= 39)
+            ? INPUT : INPUT_PULLUP);
+#else
         pinMode(_doutPin, INPUT_PULLUP);
+#endif
         pinMode(_clockPin, OUTPUT);
         digitalWrite(_clockPin, LOW);
     }

@@ -590,13 +590,13 @@ function renderSystemSetup() {
           <span class="tool-state off" id="loop-diag-state" style="font-size:.65rem;padding:.15rem .5rem;border-radius:999px;border:1px solid var(--border);color:var(--dim)">Live</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem">
-          <div><div class="cfg-desc">Loop rate</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-hz">-</div></div>
-          <div><div class="cfg-desc">Period</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period">-</div></div>
-          <div><div class="cfg-desc">Worst cycle</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period-max">-</div></div>
-          <div><div class="cfg-desc">Exec avg</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-avg">-</div></div>
-          <div><div class="cfg-desc">Exec max</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-max">-</div></div>
+          <div><div class="cfg-desc">Loop rate (1 s average)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-hz">-</div></div>
+          <div><div class="cfg-desc">Latest period</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period">-</div></div>
+          <div><div class="cfg-desc">Worst period (1 s)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-period-max">-</div></div>
+          <div><div class="cfg-desc">Execution average</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-avg">-</div></div>
+          <div><div class="cfg-desc">Execution worst (1 s)</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-max">-</div></div>
           <div><div class="cfg-desc">Missed deadlines</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-overruns">-</div></div>
-          <div><div class="cfg-desc">Counter</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-count">-</div></div>
+          <div><div class="cfg-desc">Loop iterations</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-count">-</div></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:.55rem;margin-top:.8rem;padding-top:.75rem;border-top:1px solid var(--border)">
           <div><div class="cfg-desc">Sensors</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-sensors">-</div></div>
@@ -606,7 +606,7 @@ function renderSystemSetup() {
           <div><div class="cfg-desc">Logging</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-logging">-</div></div>
           <div><div class="cfg-desc">Status LED</div><div style="font-family:var(--font-mono);font-weight:700;color:var(--text)" id="diag-loop-led">-</div></div>
         </div>
-        <span class="cfg-desc" style="margin-top:.75rem">Main ECU loop speed and execution timing. Worst cycle includes waiting and scheduling; missed deadlines count loop bodies that took longer than the configured period.</span>
+        <span class="cfg-desc" style="margin-top:.75rem">Loop period is start-to-start time and includes deliberate waiting and task scheduling. Execution time measures only work performed by the loop. One-second worst values reset each reporting window; missed deadlines count executions longer than the configured target period.</span>
       </div>`;
   const backupRestoreFields = `
       <div class="cfg-field" style="grid-column:1/-1">
@@ -635,8 +635,8 @@ function renderSystemSetup() {
         <span class="cfg-label" style="color:var(--red)">Factory Reset</span>
         <span class="cfg-desc">
           Erases all engine settings, sequences, hardware assignments, calibration,
-          Wi-Fi password, event logs, and session logs, then reboots to the built-in
-          minimal profile. The PCB profile is preserved. Download a complete engine file first if anything may be
+          Wi-Fi password, event logs, and session logs, then reboots with the compiled
+          factory-default engine profile used for a clean installation. The PCB profile is preserved. Download a complete engine file first if anything may be
           needed later. <b style="color:var(--red)">Cannot be undone.</b>
         </span>
         <div style="margin-top:.6rem">

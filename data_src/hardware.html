@@ -8,18 +8,18 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260905b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260905b');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
   <a href="/" title="Live dashboard, start/stop controls, mode, faults, and fitted sensor cards.">Dashboard</a>
-  <a href="/hardware.html" class="active" title="Choose fitted sensors, actuators, GPIO pins, Wi-Fi, and hardware safety enables.">Hardware</a>
+  <a href="/hardware.html" class="active" title="Define fitted sensors, actuators, switches, GPIO wiring, shared buses, and communication hardware.">Hardware</a>
   <a href="/controllers.html" title="Choose what controls each output and configure related safety limits.">Controllers</a>
   <a href="/calibration.html" title="Calibrate fitted analog, servo, pressure, temperature, current, and flow inputs.">Calibration</a>
-  <a href="/sequence.html" title="Edit startup, shutdown, and afterburner sequences and block timings.">Sequence</a>
+  <a href="/sequence.html" title="Edit startup, shutdown, and afterburner transitions, block timing, and automation rules.">Sequence</a>
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
-  <a href="/tools.html" title="Run standby commissioning, actuator tests, and developer controls.">Tools</a>
-  <a href="/system.html" title="Configure ECU behavior and communications; manage backups, diagnostics, and reset.">System</a>
+  <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
+  <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
   <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="page-heading">
     <div class="page-heading-main">
       <h1 class="page-title">Hardware Configuration</h1>
-      <p class="page-subtitle">Define what is physically fitted, its wiring, calibration, and electrical limits. Choose how outputs behave in <a href="/controllers.html" style="color:var(--accent)">Controllers</a>, and review transitions in <a href="/sequence.html" style="color:var(--accent)">Sequence</a>.</p>
+      <p class="page-subtitle">Define what is physically fitted, its wiring, interfaces, and electrical limits. Calibrate live signals on <a href="/calibration.html" style="color:var(--accent)">Calibration</a>, choose output behavior in <a href="/controllers.html" style="color:var(--accent)">Controllers</a>, and review transitions in <a href="/sequence.html" style="color:var(--accent)">Sequence</a>.</p>
     </div>
     <div class="page-heading-actions">
       <span id="hw-profile-badge" style="font-size:.72rem;padding:.15rem .6rem;border-radius:4px;background:var(--surface);border:1px solid var(--border);color:var(--dim)">—</span>
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <details class="control-setup-guide" id="supported-bus-devices" style="margin-bottom:.65rem">
       <summary class="control-setup-title">Supported bus devices</summary>
       <div class="hw-desc" style="padding:.65rem .8rem;line-height:1.6">
-        <b>I2C:</b> TCA9554 digital inputs and low-current relay outputs; TLA2528 analog inputs and threshold switches; NAU7802 load-cell inputs for torque or thrust.
+        <b>I2C:</b> TCA9554 digital inputs and logic-level outputs for external relay drivers; TLA2528 analog inputs and threshold switches; NAU7802 load-cell inputs for torque or thrust.
         <br><b>SPI:</b> MAX6675, MAX31855, and MAX31856 thermocouple amplifiers for TOT, TIT, and other temperature inputs.
         <br>DS18B20 temperature sensors use their own OneWire GPIO selected on the sensor card; they do not use these shared I2C or SPI pins.
       </div>
@@ -375,7 +375,7 @@ function collectPinUsage() {
     add(ch.pin, label);
     const actuatorKey = registryCoreActuatorKey(ch);
     const dedicated = actuatorKey ? cfg.actuators?.[actuatorKey] : null;
-    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet glow start fuel');
+    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet-glow pilot fuel');
     const currentEnabled = dedicated ? !!dedicated.has_current : !!ch.has_current;
     const currentPin = dedicated ? dedicated.current_pin : ch.current_pin;
     if (currentEnabled) add(currentPin, `${label} current`);
@@ -2134,7 +2134,7 @@ function registryHumanizeIdentifier(raw, direction) {
     flame:'Flame Sensor', flame_main:'Flame Sensor',
     low_oil_switch:'Low Oil Switch', oil_zero_switch:'Zero Oil Pressure Switch',
     coolant_pump:'Coolant Pump', coolant_temperature:'Coolant Temperature',
-    pilot_fuel:'Start Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
+    pilot_fuel:'Pilot Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
     ab_pump:'Afterburner Fuel Pump', ab_solenoid:'Afterburner Fuel Valve', ab_igniter:'Afterburner Igniter',
     prop_pitch:'Prop Pitch', nozzle_actuator:'Nozzle Actuator'
   };
@@ -2265,7 +2265,8 @@ function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
   const freq = Number(c.pwm_freq_hz ?? 5000);
   const bits = Number(c.pwm_res_bits ?? 10);
-  const maxFreq = Math.min(100000, Math.floor(80000000 / (2 ** Math.max(8, Math.min(14, bits)))));
+  const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
+  const maxFreq = Math.min(100000, Math.floor(ledcClockHz / (2 ** Math.max(8, Math.min(14, bits)))));
   const invalid = freq < 1 || freq > maxFreq || bits < 8 || bits > 14;
   const cls = invalid ? ' field-error' : '';
   return `<div class="hw-field"><span class="hw-label">PWM carrier frequency (Hz)</span><span class="hw-desc">Switching frequency for a MOSFET, motor driver or PWM-capable ESC. At ${bits} bits this ESP32 timer supports up to ${maxFreq} Hz.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}${cls}" type="number" min="1" max="${maxFreq}" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>
@@ -2340,7 +2341,7 @@ function registryRangeEditor(direction, c, index) {
       <div class="hw-field"><span class="hw-label">Threshold and hysteresis</span><span class="hw-desc">Threshold: ${threshold} raw ADC, set on <a href="/calibration.html#${calAnchor}">Calibration</a>. Hysteresis is total deadband around it.</span><input class="${hysteresisClass}" aria-label="${ariaPrefix} flame hysteresis" type="number" min="0" max="${maxHysteresis}" step="1" value="${hysteresis}" oninput="updateRegistryChannel('input',${index},'digital_hysteresis_raw',+this.value)"></div>`;
   }
   if (direction === 'input' && Number(c.driver) === 2 && String(c.role) === 'speed')
-    return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Speed plausibility range</span><span class="hw-desc">Automatic: up to twice the applicable N1 or N2 hard shutdown speed set in Config. This avoids a second conflicting RPM limit here.</span></div>`;
+    return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Speed plausibility range</span><span class="hw-desc">Automatic: up to twice the applicable N1 or N2 hard shutdown speed set under Controllers -> Engine Limits &amp; Protection. This avoids a second conflicting RPM limit here.</span></div>`;
   if (direction === 'input' && Number(c.driver) === 9 &&
       (registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(registryDerivedPurpose(direction,c)))) return '';
   if (direction === 'input' && String(c.role||'') === 'temperature' &&
@@ -2731,7 +2732,7 @@ function registryMinimumRunEditor(c, index) {
     physical = `${Math.round(lo + electricalDemand*(hi-lo))} us pulse${c.invert ? ' (inverted)' : ''}`;
   }
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
-    <div class="registry-card-summary"><div><strong>Minimum reliable running command</strong><div class="hw-desc">A nonzero command below this hardware value is raised to it. The output remains fully off at 0%. An automatic oil-pressure controller may apply its own higher minimum in Config.</div></div></div>
+    <div class="registry-card-summary"><div><strong>Minimum reliable running command</strong><div class="hw-desc">A nonzero command below this hardware value is raised to it. The output remains fully off at 0%. An automatic oil-pressure controller may apply its own higher minimum under Controllers.</div></div></div>
     <div class="registry-card-editor" style="display:block"><div class="hw-grid">
       <div class="hw-field"><span class="hw-label">Minimum reliable command (%)</span><input type="number" min="0" max="100" step="0.1" value="${registryFormatValue(pct,1)}" onchange="updateRegistryChannel('output',${index},'min_run_demand',Math.max(0,Math.min(1,(+this.value||0)/100)))"></div>
       <div class="hw-field"><span class="hw-label">Calculated electrical signal</span><span class="hw-desc">Derived from the electrical endpoints; rerun or review this calibration after changing them.</span><output>${escapeHtmlText(physical || 'On / off')}</output></div>
@@ -2865,7 +2866,7 @@ function registryOilFlowMonitorEditor(c, index) {
     ? `${registryPulseScaleEditor('input',sensor,sensorIndex)}${registryAnalogScaleEditor('input',sensor,sensorIndex)}`
     : '';
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
-    <div class="registry-card-summary"><div><strong>Flow sensing &amp; monitoring</strong><div class="hw-desc">Adds this pump's own flow meter here. Low or missing flow warns by default; Config can optionally make a confirmed fault shut the engine down.</div></div>
+    <div class="registry-card-summary"><div><strong>Flow sensing &amp; monitoring</strong><div class="hw-desc">Adds this pump's own flow meter here. Low or missing flow warns by default; Controllers can optionally make a confirmed fault shut the engine down.</div></div>
       <label class="hw-toggle"><input type="checkbox" ${fitted?'checked':''} onchange="setPumpFlowSensorEnabled(${index},this.checked)"><span></span> Fit flow sensor</label>
     </div>
     ${fitted ? `<div class="registry-card-editor" style="display:block"><div class="hw-grid">
@@ -3126,7 +3127,8 @@ function registryStatus(c) {
   }
   if (Number(c.driver) === 5) {
     const frequency = Number(c.pwm_freq_hz ?? 5000), resolution = Number(c.pwm_res_bits ?? 10);
-    const maxFrequency = Math.min(100000, Math.floor(80000000 / (2 ** resolution)));
+    const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
+    const maxFrequency = Math.min(100000, Math.floor(ledcClockHz / (2 ** resolution)));
     if (frequency < 1 || frequency > maxFrequency || resolution < 8 || resolution > 14)
       return {kind:'error', text:`PWM timing is not achievable: ${resolution} bits supports at most ${maxFrequency} Hz`};
   }
@@ -3605,7 +3607,7 @@ function abTriggerWorkflowCard() {
     ${source===3 ? ((pcbProfileActive() || profileCommandInput) ? `<div class="hw-field"><span class="hw-label">Command input</span><span class="hw-desc">${profileCommandInput?'Uses the fitted Afterburner analog / RC command from Inputs. Its signal type and calibration live on that input card.':'Add an Afterburner analog / RC command under Inputs and choose its named PCB connection.'}</span></div><div class="hw-field"><span class="hw-label">Trigger threshold (%)</span><span class="hw-desc">Afterburner is requested when the normalized command rises above this percentage.</span><input class="${fieldClass('input_threshold')}" type="number" min="0" max="100" step="1" value="${Math.round(rawThreshold*100/4095)}" onchange="setAbProfileThreshold(this.value)"></div>` : `<div class="hw-field"><span class="hw-label">Command signal</span><select class="${fieldClass('input_rc_pwm')}" data-ab-trigger-field="input_rc_pwm" onchange="setAbInputType(this.value==='rc');renderHardwareWorkflowSummaries()"><option value="analog"${!abt.input_rc_pwm?' selected':''}>Analog 0-3.3 V</option><option value="rc"${abt.input_rc_pwm?' selected':''}>RC servo pulse</option></select></div><div class="hw-field"><span class="hw-label">Command-input GPIO</span><select class="${fieldClass('input_pin')}" data-ab-trigger-field="input_pin" onchange="setAbTrig('input_pin',+this.value).then(()=>renderHardwareWorkflowSummaries())">${buildPinOptions(abt.input_pin,pinMode)}</select></div><div class="hw-field"><span class="hw-label">Trigger threshold (${abt.input_rc_pwm?'%':'V'})</span><span class="hw-desc">Afterburner is requested when this command input rises above the threshold.</span><input class="${fieldClass('input_threshold')}" data-ab-trigger-field="input_threshold" type="number" min="0" max="${abt.input_rc_pwm?'100':'3.3'}" step="${abt.input_rc_pwm?'1':'0.01'}" value="${thresholdValue}" onchange="setAbWorkflowThreshold(this.value)"></div>${abt.input_rc_pwm?`<div class="hw-field"><span class="hw-label">RC pulse range (us)</span><span class="hw-desc">Pulse widths representing 0% and 100% command.</span><div style="display:flex;gap:.35rem"><input class="${fieldClass('input_min_us')}" data-ab-trigger-field="input_min_us" aria-label="RC pulse minimum" type="number" min="500" max="2500" value="${Number(abt.input_min_us ?? 1000)}" onchange="setAbTrigBool('input_min_us',+this.value)"><input class="${fieldClass('input_max_us')}" data-ab-trigger-field="input_max_us" aria-label="RC pulse maximum" type="number" min="500" max="2500" value="${Number(abt.input_max_us ?? 2000)}" onchange="setAbTrigBool('input_max_us',+this.value)"></div></div>`:''}`) : ''}
     ${source!==0 ? `<div class="hw-field"><span class="hw-label">Arming interlock</span><label class="hw-toggle"><input class="${fieldClass('requires_arm')}" data-ab-trigger-field="requires_arm" type="checkbox" ${abt.requires_arm?'checked':''} onchange="setAbTrigBool('requires_arm',this.checked);renderHardwareWorkflowSummaries()"><span></span> Require a separate arm switch</label></div>${abt.requires_arm&&!usesDiArm?(pcbProfileActive()?`<div class="hw-field"><span class="hw-label">Arm switch</span><span class="hw-desc">Add an Afterburner arm switch under Inputs and choose its named PCB connection.</span></div>`:`<div class="hw-field"><span class="hw-label">Arm-switch GPIO</span><select class="${fieldClass('arm_pin')}" data-ab-trigger-field="arm_pin" onchange="setAbTrig('arm_pin',+this.value).then(()=>renderHardwareWorkflowSummaries())">${buildPinOptions(abt.arm_pin,'in')}</select></div><div class="hw-field"><span class="hw-label">Arm polarity</span><label class="hw-toggle"><input class="${fieldClass('arm_active_h')}" data-ab-trigger-field="arm_active_h" type="checkbox" ${abt.arm_active_h?'checked':''} onchange="setAbTrigBool('arm_active_h',this.checked);renderHardwareWorkflowSummaries()"><span></span> Active high</label></div>`):''}` : ''}
   </div></div>` : '';
-  return `<div class="hw-item-card ${editing?'registry-card-open':''} ${triggerChanged?'field-change-parent field-changed':''}" data-workflow-key="ab_trigger"><div class="registry-card-summary"><div><strong>Afterburner trigger and arm</strong><div class="hw-desc">${escapeHtmlText(sourceLabel + armDetail)}</div></div><div class="registry-card-actions"><span class="registry-status ${status==='Ready'?'registry-status-ok':'registry-status-error'}">${status}</span><button type="button" onclick="toggleWorkflowEditor('ab_trigger')">${editing?'Done':'Edit'}</button></div></div>${editor}</div>`;
+  return `<div class="hw-item-card ${editing?'registry-card-open':''} ${triggerChanged?'field-change-parent field-changed':''}" id="hardware-ab-trigger" data-workflow-key="ab_trigger"><div class="registry-card-summary"><div><strong>Afterburner trigger and arm</strong><div class="hw-desc">${escapeHtmlText(sourceLabel + armDetail)}</div></div><div class="registry-card-actions"><span class="registry-status ${status==='Ready'?'registry-status-ok':'registry-status-error'}">${status}</span><button type="button" onclick="toggleWorkflowEditor('ab_trigger')">${editing?'Done':'Edit'}</button></div></div>${editor}</div>`;
 }
 function renderBuiltinInputSummary() {
   const box = document.getElementById('builtin-inputs');
@@ -3858,8 +3860,8 @@ function controllerInlineEditor() {
     ${cb('oil_loop', 'Oil pressure loop', 'Closed-loop oil pressure control. Requires oil pressure input and oil pump output.', !!c.oil_loop, "setController('oil_loop',this.checked)")}
     ${c.oil_loop ? oilLoopInlineEditor() : ''}
     ${hasThrottle ? `<div class="hw-item-card" style="grid-column:1/-1"><div class="registry-card-summary"><div><strong>Fuel response &amp; limit protection</strong><div class="hw-desc">Automatic with Main Fuel. Configure normal opening/closing response and N1, N2, temperature, P1, P2 or torque protection in <a href="/controllers.html#engine-limits">Controllers → Engine Limits &amp; Protection</a>.</div></div><span class="registry-status registry-status-ok">Ready</span></div></div>` : ''}
-    ${cb('dynamic_idle', 'Automatic idle control', 'Commands the main fuel output to hold N1 or N2 speed (normal proven methods), or experimental P1/P2 pressure. Choose the feedback source and tune it in Config > Start, Run & Recovery.', !!c.dynamic_idle, "setController('dynamic_idle',this.checked)")}
-    ${cb('governor', 'Automatic N2 speed control', 'Generator/turboshaft: proportional main fuel controls N2. Prop Pitch uses proportional control or deliberate relay fine/coarse control. Set N2 target and response in Config > Power System.', !!c.governor, "setController('governor',this.checked)")}
+    ${cb('dynamic_idle', 'Automatic idle control', 'Commands the main fuel output to hold N1 or N2 speed (normal proven methods), or experimental P1/P2 pressure. Choose the feedback source and tune it under Controllers -> Automatic Idle.', !!c.dynamic_idle, "setController('dynamic_idle',this.checked)")}
+    ${cb('governor', 'Automatic N2 speed control', 'Generator/turboshaft: proportional main fuel controls N2. Prop Pitch uses proportional control or deliberate relay fine/coarse control. Set its target and response under Controllers -> Automatic N2 Speed Control.', !!c.governor, "setController('governor',this.checked)")}
   </div>`;
 }
 function renderControllerSummary() {
@@ -3931,7 +3933,7 @@ function safetyInlineEditor() {
   };
   return `<div class="registry-card-editor" style="display:block">
     ${cb('overspeed', 'N1 overspeed', 'Requires primary N1 speed input.', s.overspeed !== false)}
-    ${cb('n2_overspeed', 'N2 overspeed', 'Independent hard shutdown for the free power-turbine/output shaft. Set its RPM limit in Config.', !!s.n2_overspeed)}
+    ${cb('n2_overspeed', 'N2 overspeed', 'Independent hard shutdown for the free power-turbine/output shaft. Set its RPM limit under Controllers -> Engine Limits & Protection.', !!s.n2_overspeed)}
     ${cb('overtemp', 'Turbine gas overtemperature', 'Watches the configured TOT/TIT temperature limits.', s.overtemp !== false)}
     ${cb('low_oil', 'Low oil pressure', 'Requires oil-pressure input or low-oil switch.', s.low_oil !== false)}
     ${cb('oil_zero', 'Zero oil pressure', 'Requires oil-pressure input or zero-oil switch.', s.oil_zero !== false)}
@@ -6626,9 +6628,7 @@ async function _doSave() {
   const nextProfileId = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
   const profileChanged = nextProfileId !== (_loadedProfileId || 'OpenTurbine');
   const controller = new AbortController();
-  let started = 0;
   let timeout = null;
-  let savePosted = false;
   try {
     // Hardware owns this page. Release live telemetry, then send only the
     // hardware document to its dedicated validator/save endpoint; firmware
@@ -6638,9 +6638,9 @@ async function _doSave() {
     const saveCfg = {...cfg};
     delete saveCfg._i2c_discovery;
     const hardwarePatch = mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {});
-    started = Date.now();
-    timeout = setTimeout(() => controller.abort(), 8000);
-    savePosted = true;
+    // A full Classic topology save can legitimately take several seconds.
+    // Timeout is an unknown result, never proof that a reboot/save succeeded.
+    timeout = setTimeout(() => controller.abort(), 15000);
     const r = await fetch('/api/hardware?source=hardware', {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
@@ -6662,23 +6662,23 @@ async function _doSave() {
       showRebootOverlay(profileChanged ? nextProfileId : '');
     } else {
       const message = friendlyHardwareSaveError(j);
-      document.getElementById('save-msg').textContent = 'Not saved — ' + message;
+      document.getElementById('save-msg').textContent = j.rebooting
+        ? 'Not saved — restoring the previous setup…'
+        : 'Not saved — ' + message;
       alert('Hardware was not saved.\n\n' + message);
-      updateSaveButton();
+      if (j.rebooting) showRebootOverlay('');
+      else updateSaveButton();
     }
   } catch(e) {
     clearTimeout(timeout);
-    // Hardware saves intentionally reboot the ESP32. Chrome can keep the POST
-    // pending if Wi-Fi drops before the JSON response is fully consumed. Do not
-    // leave the page stuck at "Saving..." in that normal reboot window.
-    if (savePosted && (e.name === 'AbortError' || Date.now() - started > 1000)) {
-      document.getElementById('save-msg').textContent = 'Save response lost — reconnecting…';
-      showRebootOverlay(profileChanged ? nextProfileId : '');
-    } else {
-      document.getElementById('save-msg').textContent = 'Not saved — the ECU could not be reached';
-      alert('Hardware was not saved because the ECU could not be reached.\n\nCheck that you are still connected to the OpenTurbine Wi-Fi, then try again.');
-      updateSaveButton();
-    }
+    const timedOut = e.name === 'AbortError';
+    document.getElementById('save-msg').textContent = timedOut
+      ? 'Save status unknown — reconnect and verify before retrying'
+      : 'Not saved — the ECU could not be reached';
+    alert(timedOut
+      ? 'The ECU did not confirm whether Hardware was saved.\n\nReconnect to its Wi-Fi and reload Hardware to verify the setup before retrying.'
+      : 'Hardware was not saved because the ECU could not be reached.\n\nCheck that you are still connected to the OpenTurbine Wi-Fi, then try again.');
+    updateSaveButton();
   }
 }
 
@@ -6748,7 +6748,7 @@ async function resetDefaults() {
   document.getElementById('save-msg').textContent = 'Changes discarded — reverted to last saved configuration.';
 }
 
-// Backup/restore lives on the Tools page (the card above just links there);
+// Backup/restore lives on the System page (the card above just links there);
 // the old page-local downloadBackup()/handleRestore() helpers were unused
 // and have been removed so nobody wires them back by accident.
 
@@ -6817,16 +6817,16 @@ function applyContextTooltips(root) {
     'Dwell time (ms)': 'Maximum coil charge time before spark. Keep within the coil/driver safe operating range.',
     'Rest time (ms)': 'Off time between spark pulses so the coil and driver can recover.',
     'Coil saturation current (A)': 'Current threshold that ends coil dwell early in current-limited mode.',
-    'Glow mode': 'Plain glow drives only the glow plug. Wet glow also drives a delayed start-fuel output.',
+    'Glow mode': 'Plain glow drives only the glow plug. Wet glow also drives its delayed pilot-fuel output.',
     'Glow PWM frequency (Hz)': 'PWM carrier for glow MOSFET control. Resistive glow elements usually tolerate low PWM frequencies.',
     'PWM resolution (bits)': 'PWM duty resolution. Higher resolution can limit maximum PWM frequency.',
-    'Start fuel GPIO': 'Output pin for the wet-glow start fuel solenoid or small pump.',
-    'Start fuel driver': 'Electrical driver for the wet-glow fuel output: relay/on-off, PWM, or servo/ESC.',
-    'Fuel output mode': 'Electrical driver for the wet-glow start fuel output.',
+    'Pilot-fuel GPIO': 'Output pin for the wet-glow pilot-fuel solenoid or small pump.',
+    'Pilot-fuel signal': 'Electrical driver for the wet-glow pilot-fuel output: relay/on-off, PWM, or servo/ESC.',
+    'Fuel output mode': 'Electrical driver for the wet-glow pilot-fuel output.',
     'Fuel active polarity': 'Choose whether the wet-glow fuel output is active when the GPIO is high or low.',
     'Fuel active high': 'When enabled, GPIO HIGH turns the wet-glow fuel output on.',
-    'Fuel delay (ms)': 'Delay after glow starts before wet-glow start fuel is enabled.',
-    'Fuel delay after glow ON (ms)': 'Delay after the glow plug is commanded on before wet-glow start fuel starts.',
+    'Fuel delay (ms)': 'Delay after glow starts before wet-glow pilot fuel is enabled.',
+    'Fuel delay after glow ON (ms)': 'Delay after the glow plug is commanded on before wet-glow pilot fuel starts.',
     'Fuel demand (%)': 'Demand sent to the wet-glow fuel output while it is active.',
     'Fuel servo pulse (us)': 'Servo/ESC pulse range used by the wet-glow fuel output.',
     'Fuel PWM freq / bits': 'PWM carrier frequency and resolution for the wet-glow fuel output.',

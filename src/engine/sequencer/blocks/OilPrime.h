@@ -2,6 +2,7 @@
 #include "../IBlock.h"
 #include "../../EngineData.h"
 #include "../../../system/HardwareConfig.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // Pre-start oil priming gate.
@@ -28,7 +29,10 @@ public:
         // actually running (sensor fitted, loop enabled, not bench). Otherwise drive the
         // pump directly at a fixed % — without this, a sensor-fitted build with the oil
         // loop OFF would set a target that nothing acts on and never prime (silent abort).
-        _useLoop = HardwareConfig::hasOilPress && HardwareConfig::hasOilLoop && !ed.benchMode;
+        const bool oilBypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::OIL_PRESSURE, ed.oilHealthy);
+        _useLoop = HardwareConfig::hasOilPress && HardwareConfig::hasOilLoop &&
+                   !ed.benchMode && !oilBypassed;
         if (_useLoop) {
             ed.oilTargetBar = startupOilDemand;   // P-controller regulates to this bar target
         } else {
@@ -41,12 +45,14 @@ public:
         auto& ed = EngineData::instance();
 
         unsigned long elapsed = millis() - _entryMs;
+        const bool oilBypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::OIL_PRESSURE, ed.oilHealthy);
 
         // When we drive the pump ourselves (no loop / bench), keep commanding it every tick
         // so nothing else quietly clears it during the prime.
         if (!_useLoop) ed.oilPumpPct = startupOilPct;
 
-        if (!HardwareConfig::hasOilPress || ed.benchMode) {
+        if (!HardwareConfig::hasOilPress || ed.benchMode || oilBypassed) {
             // No pressure sensor, OR bench mode — run pump for configured time then proceed
             if (elapsed >= timeoutMs) {
                 clearWaitReason();
@@ -55,7 +61,7 @@ public:
             }
             char buf[80];
             snprintf(buf, sizeof(buf), "%sOil pump %.0f%% - %lu ms remaining",
-                     ed.benchMode ? "[BENCH] " : "", startupOilPct,
+                     ed.benchMode ? "[BENCH] " : oilBypassed ? "[REDUCED POWER] " : "", startupOilPct,
                      timeoutMs - elapsed);
             setWaitReason(buf);
             return BlockResult::Running;

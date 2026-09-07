@@ -1343,7 +1343,8 @@ void Config::autoFillNewlyEnabledSafety(bool prevOilTemp,
     fill(prevHotStart,  HardwareConfig::safetyHotStart,     preStartEgtLimitC,      150.0f,    "autofill:pre_start_egt_limit_c");
 }
 
-void Config::sanitizeForHardware() {
+bool Config::sanitizeForHardware() {
+    bool changed = false;
     // An enabled starter-assist mode is an operating command, not merely a
     // tuning value. If a Hardware edit removes its required starter/N1 path
     // (or changes to a non-PWM starter), disarm it while preserving all of its
@@ -1353,42 +1354,53 @@ void Config::sanitizeForHardware() {
         (!HardwareConfig::hasStarter || HardwareConfig::starterType == 2 ||
          !HardwareConfig::hasN1Rpm)) {
         starterAssistEnabled = false;
+        changed = true;
     }
     if ((egtSource == 1 && !HardwareConfig::hasTot) ||
         (egtSource == 2 && !HardwareConfig::hasTit)) {
         egtSource = 0;
+        changed = true;
     }
     // N1 is structurally required for windmilling proof. Keep a missing or
     // ambiguous ignition-device reference enabled and visible for repair;
     // runtime validation reports it and never guesses another physical output.
     if (!HardwareConfig::hasN1Rpm && relightEnabled) {
         relightEnabled = false;
+        changed = true;
     }
     if ((flameoutSource == 1 && !HardwareConfig::hasFlame) ||
         (flameoutSource == 2 && !HardwareConfig::hasN1Rpm) ||
         (flameoutSource == 3 && effectiveEgtSource() == 0)) {
         flameoutSource = 0;
+        changed = true;
     }
     if ((relightConfirmSource == 1 && !HardwareConfig::hasFlame) ||
         (relightConfirmSource == 2 && !HardwareConfig::hasN1Rpm) ||
         (relightConfirmSource == 3 && effectiveEgtSource() == 0)) {
         relightConfirmSource = 0;
+        changed = true;
     }
     if ((relightTriggerSource == 1 && !HardwareConfig::hasFlame) ||
         (relightTriggerSource == 2 && !HardwareConfig::hasN1Rpm) ||
         (relightTriggerSource == 3 && effectiveEgtSource() == 0)) {
         relightTriggerSource = 0;
+        changed = true;
     }
     const bool hasN1 = HardwareConfig::hasN1Rpm;
     const bool hasN2 = HardwareConfig::hasN2Rpm;
     if ((idleSource == 0 && !hasN1) || (idleSource == 1 && !hasN2) ||
         (idleSource == 2 && !HardwareConfig::hasP1) || (idleSource == 3 && !HardwareConfig::hasP2)) {
+        const uint8_t previousIdleSource = idleSource;
         if (hasN1) idleSource = 0;
         else if (hasN2) idleSource = 1;
         else if (HardwareConfig::hasP1) idleSource = 2;
         else if (HardwareConfig::hasP2) idleSource = 3;
+        changed |= idleSource != previousIdleSource;
     }
+    const bool previousIdleUseN2 = idleUseN2;
     idleUseN2 = idleSource == 1;
+    changed |= idleUseN2 != previousIdleUseN2;
+    const uint8_t previousStandbyOilSource = standbyOilSource;
     if (!hasN1 && !hasN2) {
         standbyOilSource = 0;
     } else if (standbyOilSource == 0 && !hasN1) {
@@ -1396,6 +1408,8 @@ void Config::sanitizeForHardware() {
     } else if (standbyOilSource == 1 && !hasN2) {
         standbyOilSource = 0;
     }
+    changed |= standbyOilSource != previousStandbyOilSource;
+    const uint32_t previousSessionLogMask = sessionLogMask;
     if (!HardwareConfig::hasN1Rpm) sessionLogMask &= ~SLOG_N1;
     if (!HardwareConfig::hasN2Rpm) sessionLogMask &= ~SLOG_N2;
     if (!HardwareConfig::hasTot) sessionLogMask &= ~SLOG_TOT;
@@ -1422,25 +1436,27 @@ void Config::sanitizeForHardware() {
     if (!HardwareConfig::hasTorque) sessionLogMask &= ~SLOG_TORQUE;
     if (!HardwareConfig::hasThrust) sessionLogMask &= ~SLOG_THRUST;
     if (!HardwareConfig::hasStarter) sessionLogMask &= ~SLOG_STARTER;
+    changed |= sessionLogMask != previousSessionLogMask;
 
     int out = 0;
+    const int previousRuleCount = ruleCount;
     uint8_t claimedTargets[MAX_RULES] = {};
     int claimedTargetCount = 0;
     for (int i = 0; i < ruleCount; i++) {
         Rule r = rules[i];
-        if ((r.kind != 3 && !ruleSensorAvailable(r.sensor)) || !ruleActuatorAvailable(r.actuator)) continue;
-        if (r.kind == 2 && r.targetSourceType != 0 && !ruleSensorAvailable(r.targetSensor)) continue;
-        if ((r.kind == 1 || r.kind == 2) && !ruleActuatorSupportsVariable(r.actuator)) continue;
+        if ((r.kind != 3 && !ruleSensorAvailable(r.sensor)) || !ruleActuatorAvailable(r.actuator)) { changed = true; continue; }
+        if (r.kind == 2 && r.targetSourceType != 0 && !ruleSensorAvailable(r.targetSensor)) { changed = true; continue; }
+        if ((r.kind == 1 || r.kind == 2) && !ruleActuatorSupportsVariable(r.actuator)) { changed = true; continue; }
         // Afterburner fuel remains owned by its ignition/running state
         // machine. Other fitted outputs may use a custom normal owner when
         // their dedicated controller is not selected in the UI.
-        if (ruleTargetConflictsWithDedicatedController(r.actuator)) continue;
+        if (ruleTargetConflictsWithDedicatedController(r.actuator)) { changed = true; continue; }
         bool duplicateTarget = false;
         if (r.actuator != 13 && r.actuator != 14) {
             for (int j = 0; j < claimedTargetCount; ++j)
                 if (claimedTargets[j] == r.actuator) { duplicateTarget = true; break; }
         }
-        if (duplicateTarget) continue;
+        if (duplicateTarget) { changed = true; continue; }
         r.kind = constrain(r.kind, 0, 3);
         r.op = constrain(r.op, 0, 1);
         r.onValue = constrain(r.onValue, 0.0f, 1.0f);
@@ -1448,16 +1464,16 @@ void Config::sanitizeForHardware() {
         r.outputMin = constrain(r.outputMin, 0.0f, 1.0f);
         r.outputMax = constrain(r.outputMax, 0.0f, 1.0f);
         r.targetSourceType = constrain(r.targetSourceType, 0, 2);
-        if (!isfinite(r.targetFixed) || !isfinite(r.targetLow) || !isfinite(r.targetHigh)) continue;
+        if (!isfinite(r.targetFixed) || !isfinite(r.targetLow) || !isfinite(r.targetHigh)) { changed = true; continue; }
         if (r.targetSourceType == 2 && (!isfinite(r.targetInputMin) ||
-            !isfinite(r.targetInputMax) || r.targetInputMax == r.targetInputMin)) continue;
+            !isfinite(r.targetInputMax) || r.targetInputMax == r.targetInputMin)) { changed = true; continue; }
         if (!isfinite(r.responseGain) || r.responseGain < 0.0f ||
             !isfinite(r.integralGain) || r.integralGain < 0.0f ||
-            !isfinite(r.deadband) || r.deadband < 0.0f) continue;
-        if (r.kind == 1 && (!isfinite(r.inputMin) || !isfinite(r.inputMax) || r.inputMax == r.inputMin)) continue;
+            !isfinite(r.deadband) || r.deadband < 0.0f) { changed = true; continue; }
+        if (r.kind == 1 && (!isfinite(r.inputMin) || !isfinite(r.inputMax) || r.inputMax == r.inputMin)) { changed = true; continue; }
         if (r.hysteresis < 0.0f) r.hysteresis = 0.0f;
         r.modeMask &= 0x0F;
-        if (r.modeMask == 0) continue;
+        if (r.modeMask == 0) { changed = true; continue; }
         if (r.actuator == RulesEngine::THROTTLE) {
             const float calibratedMinimum = constrain(fuelPumpMinPct / 100.0f, 0.0f, 1.0f);
             if (r.onValue > 0.0f) r.onValue = max(r.onValue, calibratedMinimum);
@@ -1466,10 +1482,13 @@ void Config::sanitizeForHardware() {
         }
         if (r.actuator != 13 && r.actuator != 14)
             claimedTargets[claimedTargetCount++] = r.actuator;
+        if (out != i || memcmp(&r, &rules[i], sizeof(Rule)) != 0) changed = true;
         rules[out++] = r;
     }
     for (int i = out; i < MAX_RULES; i++) rules[i] = {};
     ruleCount = out;
+    changed |= ruleCount != previousRuleCount;
+    return changed;
 }
 
 class ConfigStorageWriteRelease {
@@ -1858,7 +1877,14 @@ bool Config::_saveSettingsJson(const char* settingsJson, size_t settingsLen,
         }
     }
     section.clear();
-    section.shrinkToFit();
+    // When this transaction must serialize both live sections, retain and
+    // reuse the Hardware arena for Settings. Releasing it here can leave a
+    // fragmented Classic heap unable to provide a second contiguous block,
+    // even though the first allocation and total free memory were adequate.
+    // Uploaded Settings and copied stored Settings do not need it. A staged
+    // full restore may retain it harmlessly until the final clear below.
+    if (settingsJson || !writeRuntimeHardware)
+        section.shrinkToFit();
     delay(0);
 
     ok &= fw.print(",\"settings\":") == strlen(",\"settings\":");

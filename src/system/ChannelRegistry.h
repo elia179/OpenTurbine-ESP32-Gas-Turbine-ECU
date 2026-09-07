@@ -605,12 +605,18 @@ public:
     }
     static bool validId(const char* id) { if (!id || !id[0] || strlen(id) >= 20) return false; for (;*id;++id) if (!(isalnum(*id)||*id=='_'||*id=='-')) return false; return true; }
     static bool pwmTimingValid(uint32_t frequency, uint8_t resolution) {
-        // ESP32 LEDC derives these channels from an 80 MHz source. Preserve
-        // every achievable pair instead of imposing presets, but reject a
-        // pair the driver can only discover is impossible during boot attach.
+        // Arduino-ESP32 uses the 40 MHz XTAL for LEDC on the S3 and the
+        // 80 MHz APB clock on the classic ESP32. Preserve every achievable
+        // pair instead of imposing presets, but reject a pair the driver can
+        // only discover is impossible during boot attach.
+#if defined(OT_PLATFORM_ESP32S3)
+        static constexpr uint32_t LEDC_CLOCK_HZ = 40000000UL;
+#else
+        static constexpr uint32_t LEDC_CLOCK_HZ = 80000000UL;
+#endif
         return frequency >= 1 && frequency <= 100000 &&
                resolution >= 8 && resolution <= 14 &&
-               frequency * (1UL << resolution) <= 80000000UL;
+               frequency * (1UL << resolution) <= LEDC_CLOCK_HZ;
     }
     static bool singletonPurpose(Direction d, const char* purpose) {
         if (!purpose || !strcmp(purpose, "generic")) return false;
@@ -917,6 +923,7 @@ private:
         if (c.driver == RcPwm || c.driver == Servo) return c.minValue >= 500.0f && c.maxValue <= 2500.0f && c.maxValue > c.minValue;
         if (c.driver == PwmDuty) return c.minValue >= 0.0f && c.maxValue <= 1.0f && c.maxValue > c.minValue;
         if (c.driver == Pwm) return c.minValue >= 0.0f && c.maxValue <= 1.0f &&
+                                    c.maxValue > c.minValue &&
                                     (!c.pwmTimingConfigured ||
                                      pwmTimingValid(c.pwmFrequency, c.pwmResolution));
         return true;

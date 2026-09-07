@@ -40,17 +40,40 @@ public:
                       ok ? "OK" : "FAILED");
         _ready = ok;
         _lastUs = -1;
-        if (_ready) set(0.0f); // logical safe/off demand on boot
+        _pendingUs = -1;
+        _hasWritten = false;
+        _lastCommandOff = true;
+        if (_ready) off(); // logical safe/off demand on boot
     }
 
     void set(float value) override {
         value = constrain(value, 0.0f, 1.0f);
+        const bool commandOff = value <= 0.0f;
+        const bool wasOff = _lastCommandOff;
+        _lastCommandOff = commandOff;
         if (_inverted) value = 1.0f - value;
-        writePulse(_minUs + (int)(value * (_maxUs - _minUs)));
+        const int us = _minUs + (int)(value * (_maxUs - _minUs));
+
+        // A 50 Hz receiver observes at most one new command per 20 ms frame.
+        // Queueing LEDC duty updates faster than that can make the ESP32 LEDC
+        // driver wait for successive frame-boundary latches, blocking the ECU
+        // loop for roughly 20-40 ms throughout a smooth ramp. Coalesce normal
+        // changes to the newest command once per frame. The first activation
+        // and every logical-off command remain immediate, so this optimization
+        // cannot delay START response, STOP, fault shutdown, or allOff().
+        if (commandOff || wasOff) {
+            _pendingUs = -1;
+            writePulseNow(us);
+        } else {
+            writePulseCoalesced(us);
+        }
     }
 
     void off() override {
-        set(0.0f);
+        _lastCommandOff = true;
+        _pendingUs = -1;
+        const float safeValue = _inverted ? 1.0f : 0.0f;
+        writePulseNow(_minUs + (int)(safeValue * (_maxUs - _minUs)));
     }
 
     const char* name() override { return _name; }
@@ -63,22 +86,47 @@ private:
     // duty steps (~200 steps across a 1000 us servo band) — plenty for an ESC.
     static constexpr uint8_t  MIN_RES_BITS = 12;
 
-    void writePulse(int us) {
+    static constexpr uint32_t FRAME_INTERVAL_MS = 20;
+
+    void writePulseCoalesced(int us) {
+        if (!_ready) return;
+        us = constrain(us, _minUs, _maxUs);
+        if (us == _lastUs) {
+            _pendingUs = -1;
+            return;
+        }
+        _pendingUs = us;
+        if (_hasWritten && millis() - _lastWriteMs < FRAME_INTERVAL_MS) return;
+        const int pending = _pendingUs;
+        _pendingUs = -1;
+        writePulseNow(pending);
+    }
+
+    void writePulseNow(int us) {
         if (!_ready) return;
         us = constrain(us, _minUs, _maxUs);
         if (us == _lastUs) return;
         uint32_t duty = ((uint64_t)us * PWM_FREQ_HZ * _maxDuty) / 1000000ULL;
         ledcWrite(_pin, duty);
         _lastUs = us;
+        // Measure from completion, not entry. On Classic, an update submitted
+        // while the previous 50 Hz latch is pending is exactly what can block;
+        // require a complete quiet frame after the driver returns.
+        _lastWriteMs = millis();
+        _hasWritten = true;
     }
 
     int         _pin;
     int         _minUs;
     int         _maxUs;
     int         _lastUs = -1;
+    int         _pendingUs = -1;
     const char* _name;
     uint8_t     _resBits = MAX_RES_BITS;
     uint32_t    _maxDuty = (1UL << MAX_RES_BITS) - 1UL;
     bool        _ready = false;
     bool        _inverted = false;
+    bool        _hasWritten = false;
+    bool        _lastCommandOff = true;
+    uint32_t    _lastWriteMs = 0;
 };

@@ -1384,8 +1384,9 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
 .operator-input-summary .input-unhealthy {
   color: var(--red);
   font-weight: 700;
-.context-links strong { color: var(--text-2); font-size: .7rem; }
 }
+.operator-input-summary .input-healthy { color: var(--text); }
+.context-links strong { color: var(--text-2); font-size: .7rem; }
 .context-links a {
   color: var(--blue);
   font-weight: 650;

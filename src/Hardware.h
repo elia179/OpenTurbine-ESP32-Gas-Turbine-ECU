@@ -21,6 +21,7 @@
 #include "system/HardwareConfig.h"
 #include "system/OutputActivity.h"
 #include "soc/soc_caps.h"
+#include <new>
 
 // ── All sensor headers — always included ──────────────────────
 #include "hal/sensors/PCNTRpmSensor.h"
@@ -367,6 +368,33 @@ extern SafetyMonitor  g_safety;
 
 namespace Hardware {
 
+    inline bool g_buzzerReady = false;
+
+    inline void initBuzzer() {
+        auto& hw = HardwareConfig::instance();
+        g_buzzerReady = false;
+        if (!hw.hasBuzzer || hw.buzzerPin < 0) return;
+#if defined(OT_PLATFORM_ESP32S3)
+        static constexpr uint8_t BUZZER_LEDC_CHANNEL = 7;
+#else
+        static constexpr uint8_t BUZZER_LEDC_CHANNEL = 15;
+#endif
+        // Reserve the last channel before any actuator auto-allocation. The
+        // deliberately private boot frequency/resolution pair forces a
+        // dedicated timer; ledcWriteTone() may then retune it without ever
+        // changing a pump, starter, servo, or igniter that shares LEDC.
+        g_buzzerReady = ledcAttachChannel(hw.buzzerPin, 1237, 7, BUZZER_LEDC_CHANNEL);
+        if (g_buzzerReady) ledcWrite(hw.buzzerPin, 0);
+    }
+
+    inline void buzzerTone(uint32_t frequency) {
+        if (g_buzzerReady && frequency > 0) ledcWriteTone(HardwareConfig::buzzerPin, frequency);
+    }
+
+    inline void buzzerOff() {
+        if (g_buzzerReady) ledcWrite(HardwareConfig::buzzerPin, 0);
+    }
+
     inline volatile uint16_t g_registryPulseCounts[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline unsigned long     g_registryPulseLastMs = 0;
     inline volatile uint16_t g_registryRcRiseUs[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
@@ -383,6 +411,11 @@ namespace Hardware {
     inline uint16_t          g_registryAnalogSwitchConfig[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline uint8_t           g_registryCoreKind[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline uint8_t           g_registryInputFlags[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
+    // Non-canonical SPI thermocouples need one driver instance per configured
+    // channel. Allocate only the fitted devices at boot: saves scarce Classic
+    // DRAM for normal profiles while still allowing every registry input slot
+    // to be a real, independently sampled thermocouple when requested.
+    inline ISensor*          g_registryThermocouple[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     static constexpr uint8_t REG_INPUT_THRESHOLD_SWITCH = 0x01;
     static constexpr uint8_t REG_INPUT_DEDICATED_TEMPERATURE = 0x02;
     struct RegistryInputPlan {
@@ -409,6 +442,9 @@ namespace Hardware {
     static constexpr uint8_t REG_OUTPUT_PRIMARY_OIL_LOOP = 0x40;
     inline uint8_t g_registryOutputMeta[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline uint32_t g_registryOutputCurrentLastMs = 0;
+    inline uint32_t g_registryOutputLastDuty[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
+    inline uint32_t g_registryOutputLastWriteMs[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
+    inline bool g_registryOutputDutyWritten[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline uint32_t g_registryIgnitionPhaseMs[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline bool g_registryIgnitionActive[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline bool g_registryIgnitionCharging[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
@@ -693,12 +729,38 @@ namespace Hardware {
             g_registryDs18Slot[i] = -1;
             g_registryPcntSlot[i] = -1;
             g_registryHx711Slot[i] = -1;
+            g_registryThermocouple[i] = nullptr;
             g_registryCoreKind[i] = registryCoreInputKind(c);
             g_registryInputFlags[i] = ChannelRegistry::isSwitchCondition(c)
                 ? REG_INPUT_THRESHOLD_SWITCH : 0;
             const bool temperatureRole = !strcmp(c.role, "temperature");
             const bool singletonOilTemperature = !strcmp(c.id, "oil_temperature") ||
                                                   !strcmp(c.purpose, "oil_temperature");
+            const bool singletonTurbineTemperature = !strcmp(c.purpose, "tot") ||
+                                                      !strcmp(c.purpose, "tit");
+            const bool genericThermocouple = c.installed && temperatureRole &&
+                c.temperatureInterface >= 1 && c.temperatureInterface <= 3 &&
+                !singletonTurbineTemperature && !singletonOilTemperature;
+            if (genericThermocouple) {
+                ISensor* sensor = nullptr;
+                if (c.temperatureInterface == 1)
+                    sensor = new (std::nothrow) MAX6675TempSensor(c.spiClk, c.spiCs, c.spiMiso, c.name);
+                else if (c.temperatureInterface == 2)
+                    sensor = new (std::nothrow) MAX31855TempSensor(c.spiClk, c.spiCs, c.spiMiso, c.name);
+                else
+                    sensor = new (std::nothrow) MAX31856TempSensor(c.spiClk, c.spiCs, c.spiMiso,
+                                                                  c.spiMosi, c.tcType, c.name);
+                if (sensor) {
+                    sensor->begin();
+                    g_registryThermocouple[i] = sensor;
+                } else {
+                    ed.hardwareReady = false;
+                    snprintf(ed.hardwareFault, sizeof(ed.hardwareFault),
+                             "Not enough memory for temperature input %.24s", c.name);
+                }
+                ed.registryInputHealthy[i] = false;
+                continue;
+            }
             if (temperatureRole && c.temperatureInterface != 0 &&
                 (c.temperatureInterface != 4 || singletonOilTemperature))
                 g_registryInputFlags[i] |= REG_INPUT_DEDICATED_TEMPERATURE;
@@ -898,7 +960,21 @@ namespace Hardware {
                 mirrorCoreRegistryInput(i, coreKind, ed);
                 continue;
             }
-            if (!c.installed || c.pin < 0) {
+            if (!c.installed) {
+                ed.registryInputHealthy[i] = false;
+                continue;
+            }
+            if (g_registryThermocouple[i]) {
+                ISensor* sensor = g_registryThermocouple[i];
+                sensor->update();
+                ed.registryInputValue[i] = sensor->getValue();
+                ed.registryInputRaw[i] = 0;
+                ed.registryInputHealthy[i] = sensor->isHealthy();
+                ed.registryInputSampleSeq[i] = sensor->sampleSequence();
+                ed.registryInputSampleMs[i] = sensor->sampleTimestampMs();
+                continue;
+            }
+            if (c.pin < 0) {
                 ed.registryInputHealthy[i] = false;
                 continue;
             }
@@ -957,8 +1033,22 @@ namespace Hardware {
                 } else {
                     ed.registryInputValue[i] = registryAnalogPhysicalInput((float)raw, c);
                 }
+                float healthyMin = c.minValue;
+                float healthyMax = c.maxValue;
+                const bool operatorPot = !strcmp(c.role, "operator") &&
+                    (!strcmp(c.purpose, "throttle") || !strcmp(c.purpose, "idle"));
+                // Before commissioning, operator pots use the full 0..4095
+                // mapping. A true 0 V throttle/idle command is both physically
+                // valid and the fail-safe direction, so accept the low rail.
+                // Keep the high rail unavailable: a short-to-high throttle must
+                // never become a trusted 100% command. Once calibrated, the
+                // captured endpoint window remains authoritative.
+                if (operatorPot && healthyMin <= 0.0f && healthyMax >= 4095.0f) {
+                    healthyMin = 0.0f;
+                    healthyMax = 4085.0f;
+                }
                 ed.registryInputHealthy[i] = isfinite(ed.registryInputValue[i]) &&
-                                             raw >= c.minValue && raw <= c.maxValue;
+                                             raw >= healthyMin && raw <= healthyMax;
                 ed.registryInputSampleSeq[i] = ed.registryInputSampleSeq[i] + 1U;
                 ed.registryInputSampleMs[i] = now;
             } else if (c.driver == ChannelRegistry::Pulse) {
@@ -1113,9 +1203,14 @@ namespace Hardware {
         return fmaxf(demand, constrain(c.minimumRunDemand, 0.0f, 1.0f));
     }
 
-    inline void writeRegistryOutputSignal(const ChannelRegistry::Channel& c, float demand) {
+    inline void writeRegistryOutputSignal(const ChannelRegistry::Channel& c, float demand,
+                                          bool immediate = false) {
         demand = constrain(demand, 0.0f, 1.0f);
         if (demand > 0.0f) demand = fmaxf(demand, constrain(c.minimumRunDemand, 0.0f, 1.0f));
+        const ptrdiff_t outputOffset = &c - HardwareConfig::channelRegistry.outputs;
+        const bool tracked = outputOffset >= 0 &&
+            outputOffset < ChannelRegistry::MAX_OUTPUT_CHANNELS;
+        const uint8_t outputIndex = tracked ? (uint8_t)outputOffset : 0;
         if (c.driver == ChannelRegistry::I2cRelay) {
             I2CDeviceManager::writeOutput(c, demand);
         } else if (c.driver == ChannelRegistry::Relay) {
@@ -1129,7 +1224,14 @@ namespace Hardware {
             const uint8_t bits = constrain(c.pwmResolution, 8, 14);
             const uint32_t dutyMax = (1UL << bits) - 1UL;
             uint32_t duty = (uint32_t)(dutyDemand * dutyMax + 0.5f);
+            if (tracked && g_registryOutputDutyWritten[outputIndex] &&
+                duty == g_registryOutputLastDuty[outputIndex]) return;
             ledcWrite(c.pin, duty);
+            if (tracked) {
+                g_registryOutputLastDuty[outputIndex] = duty;
+                g_registryOutputDutyWritten[outputIndex] = true;
+                g_registryOutputLastWriteMs[outputIndex] = millis();
+            }
         } else if (c.driver == ChannelRegistry::Servo) {
             const float driveDemand = c.inverted ? 1.0f - demand : demand;
             float minUs = (c.minValue >= 500.0f && c.minValue <= 2500.0f) ? c.minValue : 1000.0f;
@@ -1137,12 +1239,26 @@ namespace Hardware {
                         ? c.maxValue : 2000.0f;
             float us = minUs + (maxUs - minUs) * driveDemand;
             uint32_t duty = (uint32_t)(us * 16383.0f / 20000.0f + 0.5f);
+            if (tracked && g_registryOutputDutyWritten[outputIndex] &&
+                duty == g_registryOutputLastDuty[outputIndex]) return;
+            // Generic registry servo/ESC outputs share the same 50 Hz hardware
+            // limitation as ServoActuator. Avoid continuously queueing duty
+            // latches faster than a receiver frame; explicit safety writes
+            // bypass this coalescing path.
+            if (!immediate && tracked && g_registryOutputDutyWritten[outputIndex] &&
+                millis() - g_registryOutputLastWriteMs[outputIndex] < 20UL) return;
             ledcWrite(c.pin, duty);
+            if (tracked) {
+                g_registryOutputLastDuty[outputIndex] = duty;
+                g_registryOutputDutyWritten[outputIndex] = true;
+                g_registryOutputLastWriteMs[outputIndex] = millis();
+            }
         }
     }
 
-    inline void writeRegistryOutput(const ChannelRegistry::Channel& c, float demand) {
-        if (registryOutputManaged(c)) writeRegistryOutputSignal(c, demand);
+    inline void writeRegistryOutput(const ChannelRegistry::Channel& c, float demand,
+                                    bool immediate = false) {
+        if (registryOutputManaged(c)) writeRegistryOutputSignal(c, demand, immediate);
     }
 
     inline float registryIgnitionPhysicalDemand(const ChannelRegistry::Channel& c,
@@ -1189,6 +1305,9 @@ namespace Hardware {
         auto& reg = HardwareConfig::channelRegistry;
         auto& ed = EngineData::instance();
         for (uint8_t i = 0; i < reg.outputCount; ++i) {
+            g_registryOutputLastDuty[i] = 0;
+            g_registryOutputLastWriteMs[i] = 0;
+            g_registryOutputDutyWritten[i] = false;
             const auto& c = reg.outputs[i];
             if (!(g_registryOutputMeta[i] & REG_OUTPUT_MANAGED)) continue;
             ed.registryOutputDemand[i] = constrain(c.safeDemand, 0.0f, 1.0f);
@@ -1210,7 +1329,8 @@ namespace Hardware {
                     snprintf(ed.hardwareFault, sizeof(ed.hardwareFault), "Registry servo attach failed: %s", c.id);
                 }
             }
-            writeRegistryOutputSignal(c, fallbackDemand >= 0.0f ? fallbackDemand : c.safeDemand);
+            writeRegistryOutputSignal(c,
+                fallbackDemand >= 0.0f ? fallbackDemand : c.safeDemand, true);
         }
     }
 
@@ -1420,7 +1540,7 @@ namespace Hardware {
             if (!registryCombustionPurpose(output.purpose) &&
                 !(includeStarter && registryStarterPurpose(output.purpose))) continue;
             ed.registryOutputDemand[i] = 0.0f;
-            writeRegistryOutput(output, 0.0f);
+            writeRegistryOutput(output, 0.0f, true);
         }
     }
 
@@ -1491,7 +1611,7 @@ namespace Hardware {
             // position; every other managed output is de-energized.
             ed.registryOutputDemand[i] = !strcmp(reg.outputs[i].purpose, "prop_pitch")
                 ? constrain(reg.outputs[i].safeDemand, 0.0f, 1.0f) : 0.0f;
-            writeRegistryOutput(reg.outputs[i], ed.registryOutputDemand[i]);
+            writeRegistryOutput(reg.outputs[i], ed.registryOutputDemand[i], true);
         }
     }
 
@@ -2549,6 +2669,11 @@ namespace Hardware {
         auto& hw = HardwareConfig::instance();
         auto& ed = EngineData::instance();
         buildRegistryOutputPlan();
+        initBuzzer();
+        if (hw.hasBuzzer && !g_buzzerReady) {
+            ed.hardwareReady = false;
+            strlcpy(ed.hardwareFault, "Buzzer output failed to initialize", sizeof(ed.hardwareFault));
+        }
         if (hw.hasThrottle) {
             if (hw.throttleType == 1) {
                 g_actThrottleLedc.setInverted(hw.throttleInverted);

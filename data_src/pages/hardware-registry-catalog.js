@@ -392,7 +392,7 @@ function registryHumanizeIdentifier(raw, direction) {
     flame:'Flame Sensor', flame_main:'Flame Sensor',
     low_oil_switch:'Low Oil Switch', oil_zero_switch:'Zero Oil Pressure Switch',
     coolant_pump:'Coolant Pump', coolant_temperature:'Coolant Temperature',
-    pilot_fuel:'Start Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
+    pilot_fuel:'Pilot Fuel', purge_valve:'Purge Valve', air_starter:'Air Starter',
     ab_pump:'Afterburner Fuel Pump', ab_solenoid:'Afterburner Fuel Valve', ab_igniter:'Afterburner Igniter',
     prop_pitch:'Prop Pitch', nozzle_actuator:'Nozzle Actuator'
   };
@@ -523,7 +523,8 @@ function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
   const freq = Number(c.pwm_freq_hz ?? 5000);
   const bits = Number(c.pwm_res_bits ?? 10);
-  const maxFreq = Math.min(100000, Math.floor(80000000 / (2 ** Math.max(8, Math.min(14, bits)))));
+  const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
+  const maxFreq = Math.min(100000, Math.floor(ledcClockHz / (2 ** Math.max(8, Math.min(14, bits)))));
   const invalid = freq < 1 || freq > maxFreq || bits < 8 || bits > 14;
   const cls = invalid ? ' field-error' : '';
   return `<div class="hw-field"><span class="hw-label">PWM carrier frequency (Hz)</span><span class="hw-desc">Switching frequency for a MOSFET, motor driver or PWM-capable ESC. At ${bits} bits this ESP32 timer supports up to ${maxFreq} Hz.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}${cls}" type="number" min="1" max="${maxFreq}" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>
@@ -598,7 +599,7 @@ function registryRangeEditor(direction, c, index) {
       <div class="hw-field"><span class="hw-label">Threshold and hysteresis</span><span class="hw-desc">Threshold: ${threshold} raw ADC, set on <a href="/calibration.html#${calAnchor}">Calibration</a>. Hysteresis is total deadband around it.</span><input class="${hysteresisClass}" aria-label="${ariaPrefix} flame hysteresis" type="number" min="0" max="${maxHysteresis}" step="1" value="${hysteresis}" oninput="updateRegistryChannel('input',${index},'digital_hysteresis_raw',+this.value)"></div>`;
   }
   if (direction === 'input' && Number(c.driver) === 2 && String(c.role) === 'speed')
-    return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Speed plausibility range</span><span class="hw-desc">Automatic: up to twice the applicable N1 or N2 hard shutdown speed set in Config. This avoids a second conflicting RPM limit here.</span></div>`;
+    return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Speed plausibility range</span><span class="hw-desc">Automatic: up to twice the applicable N1 or N2 hard shutdown speed set under Controllers -> Engine Limits &amp; Protection. This avoids a second conflicting RPM limit here.</span></div>`;
   if (direction === 'input' && Number(c.driver) === 9 &&
       (registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(registryDerivedPurpose(direction,c)))) return '';
   if (direction === 'input' && String(c.role||'') === 'temperature' &&
@@ -989,7 +990,7 @@ function registryMinimumRunEditor(c, index) {
     physical = `${Math.round(lo + electricalDemand*(hi-lo))} us pulse${c.invert ? ' (inverted)' : ''}`;
   }
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
-    <div class="registry-card-summary"><div><strong>Minimum reliable running command</strong><div class="hw-desc">A nonzero command below this hardware value is raised to it. The output remains fully off at 0%. An automatic oil-pressure controller may apply its own higher minimum in Config.</div></div></div>
+    <div class="registry-card-summary"><div><strong>Minimum reliable running command</strong><div class="hw-desc">A nonzero command below this hardware value is raised to it. The output remains fully off at 0%. An automatic oil-pressure controller may apply its own higher minimum under Controllers.</div></div></div>
     <div class="registry-card-editor" style="display:block"><div class="hw-grid">
       <div class="hw-field"><span class="hw-label">Minimum reliable command (%)</span><input type="number" min="0" max="100" step="0.1" value="${registryFormatValue(pct,1)}" onchange="updateRegistryChannel('output',${index},'min_run_demand',Math.max(0,Math.min(1,(+this.value||0)/100)))"></div>
       <div class="hw-field"><span class="hw-label">Calculated electrical signal</span><span class="hw-desc">Derived from the electrical endpoints; rerun or review this calibration after changing them.</span><output>${escapeHtmlText(physical || 'On / off')}</output></div>
@@ -1123,7 +1124,7 @@ function registryOilFlowMonitorEditor(c, index) {
     ? `${registryPulseScaleEditor('input',sensor,sensorIndex)}${registryAnalogScaleEditor('input',sensor,sensorIndex)}`
     : '';
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
-    <div class="registry-card-summary"><div><strong>Flow sensing &amp; monitoring</strong><div class="hw-desc">Adds this pump's own flow meter here. Low or missing flow warns by default; Config can optionally make a confirmed fault shut the engine down.</div></div>
+    <div class="registry-card-summary"><div><strong>Flow sensing &amp; monitoring</strong><div class="hw-desc">Adds this pump's own flow meter here. Low or missing flow warns by default; Controllers can optionally make a confirmed fault shut the engine down.</div></div>
       <label class="hw-toggle"><input type="checkbox" ${fitted?'checked':''} onchange="setPumpFlowSensorEnabled(${index},this.checked)"><span></span> Fit flow sensor</label>
     </div>
     ${fitted ? `<div class="registry-card-editor" style="display:block"><div class="hw-grid">

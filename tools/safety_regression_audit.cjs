@@ -55,6 +55,7 @@ const adcThreshold = read('src/hal/AdcThreshold.h');
 const i2cManager = read('src/hal/i2c/I2CDeviceManager.h');
 const relayDemand = read('src/hal/actuators/RelayDemand.h');
 const relayActuator = read('src/hal/actuators/RelayActuator.h');
+const servoActuator = read('src/hal/actuators/ServoActuator.h');
 const pcbProfileManager = read('src/system/pcb/PcbProfileManager.cpp');
 const lossRecheck = read('src/hal/i2c/LossRecheck.h');
 const ntc = read('src/hal/sensors/NTCSensor.h');
@@ -268,12 +269,20 @@ expect('START readiness is consumer-aware on both command paths',
   web.includes('FeedbackRequirements::eligibleSingleStartOverride'));
 expect('sensor-fault restart is one-sensor-only and latches reduced-power safeguards',
   feedback.includes('(failed & (failed - 1UL)) != 0') &&
-  feedback.includes('startupConsumes(failed)') &&
+  feedback.includes('bypassUnhealthyStartupCheck') &&
+  !feedback.includes('startupConsumes(failed)') &&
   main.includes('ed.limpOverrideSensor = limited ? overrideSensor') &&
   main.includes('ed.automaticLimpLatched = limited') &&
   safety.includes('ed.limpFailureMask |= observedFailure') &&
   !safety.includes('_trigger("MULTIPLE_SENSOR_FAILURE")') &&
   web.includes('Afterburner is disabled while reduced-power mode is active'));
+expect('reduced-power startup bypasses only its unavailable feedback while retaining timed actuator behavior',
+  tempConfirm.includes('bypassUnhealthyStartupCheck') &&
+  starterSpin.includes('timed crank completed without N1 feedback') &&
+  read('src/engine/sequencer/blocks/Spool.h').includes('timed spool completed without N1 feedback') &&
+  read('src/engine/sequencer/blocks/SafetyHold.h').includes('bypassUnhealthyStartupCheck') &&
+  read('src/engine/sequencer/blocks/OilPrime.h').includes('[REDUCED POWER]') &&
+  main.includes('unavailable current-ready check skipped'));
 expect('automatic limp cannot be cleared by manual controls during a run',
   engineData.includes('manualLimpRequested') &&
   engineData.includes('automaticLimpLatched') &&
@@ -592,6 +601,17 @@ expect('ordinary Set Starter cards persist and execute a bounded per-command tra
   sequenceEngine.includes('a.actuator == RulesEngine::STARTER && a.transitionMs > 0') &&
   sequenceEngine.includes('_starterTransitionFrom +') &&
   sequenceEngine.includes('_cancelStarterTransition();'));
+expect('50 Hz servo ramps coalesce frame writes without delaying logical off',
+  servoActuator.includes('FRAME_INTERVAL_MS = 20') &&
+  servoActuator.includes('if (commandOff || wasOff)') &&
+  servoActuator.includes('writePulseNow(us)') &&
+  servoActuator.includes('millis() - _lastWriteMs < FRAME_INTERVAL_MS') &&
+  hardware.includes('millis() - g_registryOutputLastWriteMs[outputIndex] < 20UL') &&
+  hardware.includes('writeRegistryOutput(output, 0.0f, true)'));
+expect('loop rate reports sustained throughput while worst period remains separate',
+  main.includes('(float)loopWindowCycles * 1000.0f / (float)windowElapsedMs') &&
+  main.includes('edp.loopPeriodMaxMs = (float)loopWindowMaxPeriodUs / 1000.0f') &&
+  !main.includes('edp.loopHz = 1000000.0f / (float)periodUs'));
 expect('sequence save drains its local status request before claiming Classic maintenance memory',
   sequenceHtml.includes('OTWaitForPageTelemetryIdle') &&
   sequenceHtml.includes('Live sequence status did not become idle'));
@@ -981,7 +1001,11 @@ expect('calibration writes pause and drain compact telemetry before maintenance 
   webApp.includes('window.OTWithTelemetryPaused = withGlobalTelemetryPaused') &&
   calibrationHtml.includes('window.OTWithTelemetryPaused(save)'));
 expect('hardware persistence rejects valid-looking ArduinoJson overflow prefixes',
-  hwConfig.includes('ok &= !section.overflowed()') &&
+  (hwConfig.includes('ok &= !section.overflowed()') ||
+   (hwConfig.includes('const bool hardwareOverflowed = section.overflowed()') &&
+    hwConfig.includes('ok &= !hardwareOverflowed') &&
+    hwConfig.includes('settingsOverflowed = section.overflowed()') &&
+    hwConfig.includes('ok &= !settingsOverflowed'))) &&
   !hwConfig.includes('bool HardwareConfig::save()'));
 expect('rules and custom conditions accept thrust plus addressable generic I2C channels',
   configCpp.includes('return RulesEngine::THRUST') &&
@@ -1299,10 +1323,20 @@ expect('adding an auxiliary output cannot reset the established primary controll
   hardwareRegistryActions.includes('if (existing === 0) resetRegistryPurposeDefaults(_registryAddDirection, purpose);'));
 expect('PWM timing is constrained by real timer capability in firmware and Hardware UI',
   channelRegistry.includes('static bool pwmTimingValid(uint32_t frequency, uint8_t resolution)') &&
-  channelRegistry.includes('frequency * (1UL << resolution) <= 80000000UL') &&
+  channelRegistry.includes('static constexpr uint32_t LEDC_CLOCK_HZ = 40000000UL') &&
+  channelRegistry.includes('static constexpr uint32_t LEDC_CLOCK_HZ = 80000000UL') &&
+  channelRegistry.includes('frequency * (1UL << resolution) <= LEDC_CLOCK_HZ') &&
   hwConfig.includes('ChannelRegistry::pwmTimingValid(item["fuel_freq_hz"] | 1000') &&
-  hardwareCatalog.includes('const maxFreq = Math.min(100000, Math.floor(80000000 /') &&
+  hardwareCatalog.includes("cfg?.platform === 'esp32s3' ? 40000000 : 80000000") &&
   hardwareRegistryView.includes('PWM timing is not achievable'));
+expect('LEDC capacity includes proportional starter-enable and air-starter registry outputs',
+  hwConfig.includes('const bool registryOwnedProportional =') &&
+  hwConfig.includes('!strcmp(channel.purpose, "starter_enable")') &&
+  hwConfig.includes('!strcmp(channel.purpose, "air_starter")') &&
+  hwConfig.includes('if (registryOwnedProportional ||'));
+expect('control-loop pacing recalculates its fractional wait after yielding',
+  main.includes('const uint32_t elapsedAfterYieldUs = micros() - loopStartUs;') &&
+  main.includes('waitUs = elapsedAfterYieldUs < targetPeriodUs'));
 expect('glow PWM has one canonical timing authority while wet-glow fuel keeps its independent timer',
   hardwareCatalog.includes('PWM carrier frequency (Hz)') &&
   hardwareCatalog.includes('Pilot-fuel delay (seconds)') &&
@@ -1479,5 +1513,23 @@ expect('fresh factory sequences expose simple device commands as editable Set Ou
   hwConfig.includes('modernizeDefaultActions(shutdownSeq, shutdownSeqLen, shutdownEnterActions);') &&
   hwConfig.includes('modernizeDefaultActions(abSeq, abSeqLen, abEnterActions);') &&
   hwConfig.includes('modernizeDefaultActions(abShutSeq, abShutSeqLen, abShutEnterActions);'));
+expect('general SPI thermocouple registry inputs own and sample a real driver',
+  hardware.includes('g_registryThermocouple[ChannelRegistry::MAX_INPUT_CHANNELS]') &&
+  hardware.includes('new (std::nothrow) MAX6675TempSensor') &&
+  hardware.includes('new (std::nothrow) MAX31855TempSensor') &&
+  hardware.includes('new (std::nothrow) MAX31856TempSensor') &&
+  hardware.includes('ed.registryInputSampleSeq[i] = sensor->sampleSequence()'));
+expect('buzzer owns a reserved LEDC channel and never uses the shared Arduino tone task',
+  hardware.includes('ledcAttachChannel(hw.buzzerPin, 1237, 7, BUZZER_LEDC_CHANNEL)') &&
+  hardware.includes('inline void buzzerTone(uint32_t frequency)') &&
+  hardware.includes('inline void buzzerOff()') &&
+  !main.includes('tone(HardwareConfig::buzzerPin') &&
+  !main.includes('noTone(HardwareConfig::buzzerPin'));
+expect('uncalibrated operator inputs accept fail-safe zero but reject the high ADC rail',
+  hardware.includes('const bool operatorPot = !strcmp(c.role, "operator")') &&
+  hardware.includes('healthyMin = 0.0f;') &&
+  hardware.includes('healthyMax = 4085.0f;') &&
+  hardware.includes('short-to-high throttle') &&
+  hardware.includes('raw >= healthyMin && raw <= healthyMax'));
 
 console.log(`Safety regression audit passed (${checks.length} checks).`);

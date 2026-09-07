@@ -1495,6 +1495,9 @@ bool optionalPinAllowed(JsonVariantConst object, const char* field, bool (*allow
 
 bool validatePlatformPins(const JsonDocument& doc,
                           const ChannelRegistry* parsedRegistry = nullptr) {
+    auto validationStage = [](const char* stage) {
+        setHardwareValidationError(stage);
+    };
     // Canonical I2C cards intentionally mirror into the legacy runtime flags
     // as enabled with pin=-1. Those flags tell controllers that the function
     // exists; the registry owns the real bus address/channel. A document
@@ -1545,6 +1548,7 @@ bool validatePlatformPins(const JsonDocument& doc,
         ChannelRegistry::Input, "stop_switch");
     const bool registryStart = registryHasAddressablePurpose(parsedRegistry,
         ChannelRegistry::Input, "start_switch");
+    validationStage("platform controls or control GPIOs");
     if (parsedRegistry) {
         for (uint8_t i = 0; i < parsedRegistry->inputCount; ++i) {
             const auto& channel = parsedRegistry->inputs[i];
@@ -1570,6 +1574,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     }
 
     JsonVariantConst sensors = doc["sensors"];
+    validationStage("platform shaft-speed GPIOs");
     if (enabled(sensors["n1_rpm"]) &&
         !registryInputUsesI2c("n1_speed") &&
         !requiredPinAllowed(sensors["n1_rpm"], "pin", gpioAllowed)) return false;
@@ -1583,6 +1588,7 @@ bool validatePlatformPins(const JsonDocument& doc,
         {"fuel_press", "fuel_pressure"}, {"p1", "p1_pressure"},
         {"p2", "p2_pressure"}, {"batt_voltage", "battery_voltage"}
     };
+    validationStage("platform analog sensor GPIOs or ranges");
     for (const auto& mirror : analogSensors)
         if (enabled(sensors[mirror.key]) && !registryInputUsesI2c(mirror.purpose)) {
             const auto* canonical = registryInputForPurpose(mirror.purpose);
@@ -1600,6 +1606,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     const LegacyInputMirror inputSensors[] = {
         {"throttle_input", "throttle"}, {"idle_input", "idle"}
     };
+    validationStage("platform operator-input GPIOs");
     for (const auto& mirror : inputSensors) {
         JsonVariantConst item = sensors[mirror.key];
         if (enabled(item) && !registryInputUsesI2c(mirror.purpose)) {
@@ -1617,6 +1624,7 @@ bool validatePlatformPins(const JsonDocument& doc,
                strcmp(chip, "max31856") == 0;
     };
     const char* spiSensors[] = { "tot", "tit" };
+    validationStage("platform thermocouple SPI wiring");
     for (const char* key : spiSensors) {
         JsonVariantConst item = sensors[key];
         const bool remoteI2c = registryInputUsesI2c(key);
@@ -1637,6 +1645,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     }
 
     JsonVariantConst oilTemp = sensors["oil_temp"];
+    validationStage("platform oil-temperature wiring or range");
     if (enabled(oilTemp) && !registryInputUsesI2c("oil_temperature")) {
         const char* chip = oilTemp["chip"] | "ntc";
         const bool validOilTempChip = strcmp(chip, "ntc") == 0 ||
@@ -1672,17 +1681,43 @@ bool validatePlatformPins(const JsonDocument& doc,
     }
 
     JsonVariantConst torque = sensors["torque"];
-    if (enabled(torque) && !registryInputUsesI2c("torque")) {
+    const auto* canonicalTorque = registryInputForPurpose("torque");
+    validationStage("platform torque sensor wiring or range");
+    // The channel registry is authoritative whenever a canonical torque card
+    // exists (analog, HX711, or I2C). sensors.torque is then only a generated
+    // runtime adapter and can temporarily lag a page edit; validating both
+    // copies made a valid HX711 card fail before it could be saved. Keep the
+    // legacy path strict only for files that genuinely have no registry card.
+    if (!canonicalTorque && enabled(torque)) {
         if (torque["hx711"] | false) {
-            if (!requiredPinAllowed(torque, "dt_pin", gpioAllowed) ||
-                !requiredPinAllowed(torque, "clk_pin", outputGpioAllowed)) return false;
-        } else if (!requiredPinAllowed(torque, "pin", adcGpioAllowed)) return false;
+            if (!requiredPinAllowed(torque, "dt_pin", gpioAllowed)) {
+                validationStage("platform torque HX711 DOUT GPIO");
+                return false;
+            }
+            if (!requiredPinAllowed(torque, "clk_pin", outputGpioAllowed)) {
+                validationStage("platform torque HX711 SCK GPIO");
+                return false;
+            }
+        } else if (!requiredPinAllowed(torque, "pin", adcGpioAllowed)) {
+            validationStage("platform torque analog GPIO");
+            return false;
+        }
     }
-    if (!numberRange(torque, "scale", 0.001f, 100000.0f) ||
-        !numberRange(torque, "offset", -100000.0f, 100000.0f) ||
-        !numberRange(torque, "hx_scale", 0.000001f, 1000000.0f)) return false;
+    if (!canonicalTorque && !numberRange(torque, "scale", 0.001f, 100000.0f)) {
+        validationStage("platform torque scale");
+        return false;
+    }
+    if (!canonicalTorque && !numberRange(torque, "offset", -100000.0f, 100000.0f)) {
+        validationStage("platform torque offset");
+        return false;
+    }
+    if (!canonicalTorque && !numberRange(torque, "hx_scale", 0.000001f, 1000000.0f)) {
+        validationStage("platform torque HX711 scale");
+        return false;
+    }
 
     JsonVariantConst actuators = doc["actuators"];
+    validationStage("platform actuator GPIOs or electrical ranges");
     const char* actuatorNames[] = {
         "throttle", "starter", "oil_pump", "fuel_sol", "igniter", "igniter2",
         "starter_en", "ab_sol", "airstarter_sol", "cool_fan", "ab_pump",
@@ -1780,6 +1815,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     }
 
     const char* currentSensorOwners[] = { "glow_plug", "igniter", "igniter2", "oil_pump" };
+    validationStage("platform current sensor GPIOs or ranges");
     for (const char* key : currentSensorOwners) {
         JsonVariantConst item = actuators[key];
         if (enabled(item) && (item["has_current"] | false) &&
@@ -1804,6 +1840,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     JsonVariantConst cluster = doc["cluster_serial"];
     JsonVariantConst mavlink = doc["mavlink"];
     JsonVariantConst buzzer = doc["buzzer"];
+    validationStage("platform communications or indicator GPIOs");
     if (enabled(cluster) &&
         (!requiredPinAllowed(cluster, "tx_pin", outputGpioAllowed) ||
          !optionalPinAllowed(cluster, "rx_pin", gpioAllowed) ||
@@ -1864,6 +1901,7 @@ bool validatePlatformPins(const JsonDocument& doc,
                strcmp(role, "ab_fire") == 0 ||
                strcmp(role, "limp_mode") == 0;
     };
+    validationStage("platform digital-input GPIOs or ranges");
     if (!doc["di_channels"].isNull() && !doc["di_channels"].is<JsonArrayConst>()) return false;
     for (JsonVariantConst ch : doc["di_channels"].as<JsonArrayConst>()) {
         if (!optionalStringFits(ch["label"], sizeof(HardwareConfig::diCh[0].label)) ||
@@ -1900,6 +1938,7 @@ bool validatePlatformPins(const JsonDocument& doc,
         used[usedCount++] = { pin, shareGroup };
         return true;
     };
+    validationStage("platform GPIO assignment collision");
 
     // Registry START/STOP cards are independently sampled and may be repeated.
     // Add every one in the registry loop below; only reserve the legacy pins
@@ -1907,6 +1946,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     if ((!registryStop && !addPin(stopPin)) ||
         (!registryStart && !addPin(startPin))) return false;
     JsonVariantConst i2c = doc["i2c"];
+    validationStage("platform I2C bus wiring");
     if (!i2c.isNull() && !i2c.is<JsonObjectConst>()) return false;
     if (i2c["enabled"] | false) {
         const int sda = i2c["sda_pin"] | -1;
@@ -1927,6 +1967,7 @@ bool validatePlatformPins(const JsonDocument& doc,
              PcbProfileManager::gpioReserved(interruptPin))) return false;
     }
     JsonVariantConst spi = doc["spi"];
+    validationStage("platform SPI bus wiring");
     if (!spi.isNull() && !spi.is<JsonObjectConst>()) return false;
     if (spi["enabled"] | false) {
         const int sck = spi["sck_pin"] | -1;
@@ -1942,6 +1983,7 @@ bool validatePlatformPins(const JsonDocument& doc,
              PcbProfileManager::gpioReserved(mosi))) return false;
     }
 
+    validationStage("platform legacy/core GPIO collision");
     if (enabled(sensors["n1_rpm"]) && !addPin(jsonPin(sensors["n1_rpm"], "pin"))) return false;
     if (hasN2Rpm && !addPin(jsonPin(sensors["n2_rpm"], "pin"))) return false;
     for (const auto& mirror : analogSensors)
@@ -1969,7 +2011,7 @@ bool validatePlatformPins(const JsonDocument& doc,
                    !addPin(jsonPin(oilTemp, "mosi"), 3) ||
                    !addPin(jsonPin(oilTemp, "cs"))) return false;
     }
-    if (enabled(torque)) {
+    if (!canonicalTorque && enabled(torque)) {
         if (torque["hx711"] | false) {
             if (!addPin(jsonPin(torque, "dt_pin")) ||
                 !addPin(jsonPin(torque, "clk_pin"))) return false;
@@ -2030,7 +2072,6 @@ bool validatePlatformPins(const JsonDocument& doc,
         for (const auto& mirror : inputSensors)
             if (!strcmp(ch.purpose, mirror.purpose)) return sensorPin(mirror.key);
         if (!strcmp(ch.purpose, "oil_temperature")) return sensorPin("oil_temp");
-        if (!strcmp(ch.purpose, "torque")) return sensorPin("torque");
         if (!strcmp(ch.purpose, "ab_command"))
             return jsonPin(doc["ab_trigger"], "input_pin") == ch.pin;
         return false;
@@ -2041,6 +2082,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     // DRAM. Allocate the scratch copy only for standalone pin validation;
     // validateJson() passes its already-parsed copy through this parameter.
     std::unique_ptr<ChannelRegistry> registryScratch;
+    validationStage("platform channel-registry GPIOs or collisions");
     if (!doc["channel_registry"].isNull()) {
         if (!parsedRegistry) {
             registryScratch.reset(new (std::nothrow) ChannelRegistry());
@@ -2074,15 +2116,7 @@ bool validatePlatformPins(const JsonDocument& doc,
             if (hx711LoadCell) {
                 if (!gpioAllowed(ch.pin) || !outputGpioAllowed(ch.hx711Clk) ||
                     ch.pin == ch.hx711Clk) return false;
-                // Core torque pins are mirrored into the runtime adapter and
-                // validated there when present. Canonical-only documents still
-                // need both physical pins entered into the collision set.
-                JsonVariantConst runtimeTorque = doc["sensors"]["torque"];
-                const bool mirrored = (runtimeTorque["enabled"] | false) &&
-                    (runtimeTorque["hx711"] | false) &&
-                    jsonPin(runtimeTorque, "dt_pin") == ch.pin &&
-                    jsonPin(runtimeTorque, "clk_pin") == ch.hx711Clk;
-                if (!mirrored && (!addPin(ch.pin) || !addPin(ch.hx711Clk))) return false;
+                if (!addPin(ch.pin) || !addPin(ch.hx711Clk)) return false;
                 continue;
             }
             const bool thermocouple = strcmp(ch.role, "temperature") == 0 &&
@@ -2162,7 +2196,16 @@ bool validatePlatformPins(const JsonDocument& doc,
         for (uint8_t i = 0; i < parsedRegistry->outputCount; ++i) {
             const auto& channel = parsedRegistry->outputs[i];
             if (!channel.installed || (channel.driver != ChannelRegistry::Pwm && channel.driver != ChannelRegistry::Servo)) continue;
-            if (!parsedRegistry->ownsCoreOutput(channel) && !parsedRegistry->boundToCoreOutput(channel)) ++ledcUsed;
+            // Starter-enable and air-starter are normally relay-only legacy
+            // adapters, so proportional versions are driven directly by the
+            // registry even when they own/bind the core function. Every other
+            // core owner is already counted through its legacy actuator above.
+            const bool registryOwnedProportional =
+                !strcmp(channel.purpose, "starter_enable") ||
+                !strcmp(channel.purpose, "air_starter");
+            if (registryOwnedProportional ||
+                (!parsedRegistry->ownsCoreOutput(channel) &&
+                 !parsedRegistry->boundToCoreOutput(channel))) ++ledcUsed;
         }
     }
 #if defined(OT_PLATFORM_ESP32S3)
@@ -2775,20 +2818,36 @@ bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
     JsonDocument section;
     _toDoc(section.to<JsonObject>());
     const size_t hardwareExpected = measureJson(section);
-    ok &= !section.overflowed();
-    ok &= serializeJson(section, fw) == hardwareExpected;
+    const bool hardwareOverflowed = section.overflowed();
+    const size_t hardwareWritten = hardwareOverflowed ? 0 : serializeJson(section, fw);
+    ok &= !hardwareOverflowed;
+    ok &= hardwareWritten == hardwareExpected;
     section.clear();
-    section.shrinkToFit();
+    // Keep the successfully allocated Hardware arena when Settings will be
+    // generated from runtime. A fully fitted Classic can have enough total
+    // heap but no second contiguous block after Wi-Fi has fragmented it;
+    // releasing this arena and immediately reallocating it made otherwise
+    // valid larger profiles fail their atomic save. clear() lets ArduinoJson
+    // reuse the same arena for Settings. The final shrink below still returns
+    // all of it before the filesystem swap and response allocation.
+    if (preserveStoredSettings) section.shrinkToFit();
     delay(0);
 
     ok &= fw.print(",\"settings\":") == strlen(",\"settings\":");
+    bool settingsOverflowed = false;
+    size_t settingsExpected = 0;
+    size_t settingsWritten = 0;
+    bool settingsCopied = false;
     if (preserveStoredSettings) {
-        ok &= Config::copyStoredSettings(fw);
+        settingsCopied = Config::copyStoredSettings(fw);
+        ok &= settingsCopied;
     } else {
         Config::toJson(section);
-        const size_t settingsExpected = measureJson(section);
-        ok &= !section.overflowed();
-        ok &= serializeJson(section, fw) == settingsExpected;
+        settingsExpected = measureJson(section);
+        settingsOverflowed = section.overflowed();
+        settingsWritten = settingsOverflowed ? 0 : serializeJson(section, fw);
+        ok &= !settingsOverflowed;
+        ok &= settingsWritten == settingsExpected;
     }
     ok &= fw.print('}') == 1;
     fw.close();
@@ -2796,6 +2855,15 @@ bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
     section.shrinkToFit();
     if (!ok) {
         LittleFS.remove(TMP_PATH);
+#if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
+        Serial.printf("[HWCfg] Save stage failed preserve=%d hw=%u/%u hwOverflow=%d settings=%u/%u settingsOverflow=%d copied=%d heap=%u max=%u\n",
+                      preserveStoredSettings ? 1 : 0,
+                      (unsigned)hardwareWritten, (unsigned)hardwareExpected,
+                      hardwareOverflowed ? 1 : 0,
+                      (unsigned)settingsWritten, (unsigned)settingsExpected,
+                      settingsOverflowed ? 1 : 0, settingsCopied ? 1 : 0,
+                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+#endif
         Serial.println("[HWCfg] Incomplete unified config write");
         return false;
     }

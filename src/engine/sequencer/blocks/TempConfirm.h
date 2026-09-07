@@ -2,6 +2,7 @@
 #include "../IBlock.h"
 #include "../../EngineData.h"
 #include "../../../system/Config.h"
+#include "../../../system/FeedbackRequirements.h"
 #include <Arduino.h>
 
 // Wait for the selected engine temperature source to rise above a target.
@@ -32,6 +33,12 @@ public:
         if (ed.benchMode) {
             clearWaitReason();
             Serial.println("[TempConfirm] BENCH: simulating EGT threshold met");
+            return BlockResult::Complete;
+        }
+        if (FeedbackRequirements::bypassUnhealthyStartupCheck(
+                ed, FeedbackRequirements::EGT, Config::primaryEgtHealthy(ed))) {
+            clearWaitReason();
+            Serial.println("[TempConfirm] REDUCED POWER: unavailable EGT confirmation skipped");
             return BlockResult::Complete;
         }
         if ((millis() - _entryMs) > timeoutMs) {
