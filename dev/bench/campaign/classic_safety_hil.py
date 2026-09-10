@@ -235,16 +235,20 @@ class ClassicSafetyHil:
         self.tester.close()
 
     def run(self):
+        repetitions = int(os.environ.get("OTBENCH_SAFETY_REPETITIONS", "1"))
         try:
             self.install()
-            self.overspeed()
-            self.physical_stop()
+            for number in range(1, repetitions + 1):
+                print(f"--- safety repetition {number}/{repetitions} ---", flush=True)
+                self.overspeed()
+                self.physical_stop()
         finally:
             self.restore()
         payload = {
             "firmware": self.dut.data().get("fw_version", "unknown"),
             "target": "esp32dev",
             "tester": "ESP32-S3 OTBench 0.9",
+            "repetitions": repetitions,
             "passed": sum(row["ok"] for row in self.rows),
             "total": len(self.rows),
             "checks": self.rows,
@@ -252,7 +256,7 @@ class ClassicSafetyHil:
         with open(self.result_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
         print(f"Result: {payload['passed']}/{payload['total']} -> {self.result_path}")
-        if payload["total"] != 2 or payload["passed"] != payload["total"]:
+        if payload["total"] != repetitions * 2 or payload["passed"] != payload["total"]:
             raise SystemExit(1)
 
 

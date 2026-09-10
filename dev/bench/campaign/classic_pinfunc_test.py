@@ -158,8 +158,18 @@ def cfg_in(hw):
 apply_profile(cfg_in, check=lambda hw: (
     any(c.get("id") == "n1_main" for c in hw["channel_registry"]["inputs"]) and
     hw["di_channels"][0]["pin"] == 27))
-t.set("N1", round(45000/60.0, 1)); time.sleep(1.5); n1 = dut.data().get("n1"); t.set("N1", 0)
-rec("FREQ input (N1 RPM / PCNT)", abs((n1 or 0) - 45000) < 3000, "drive 45000 -> %s" % n1)
+t.set("N1", round(45000/60.0, 1))
+# The ECU publishes a one-second rolling speed average.  Read several complete
+# windows so the assertion cannot land on the zero-to-speed transition window.
+time.sleep(1.5)
+n1_samples = []
+for _ in range(4):
+    n1_samples.append(dut.data().get("n1") or 0)
+    time.sleep(0.5)
+t.set("N1", 0)
+n1 = sorted(n1_samples)[len(n1_samples) // 2]
+rec("FREQ input (N1 RPM / PCNT)", abs(n1 - 45000) < 3000,
+    "drive 45000 -> median %s samples=%r" % (n1, n1_samples))
 t.set("IDLE_IN", "HIGH"); time.sleep(0.7); hi = dut.full_data().get("p1")
 t.set("IDLE_IN", "LOW");  time.sleep(0.7); lo = dut.full_data().get("p1")
 # Registry-native pressure cards publish calibrated engineering units through
@@ -215,7 +225,12 @@ ok, detail = dc.patch_cfg({
     "sequence": {"startup": {"pre_ign_rpm": 3000, "starter_demand": 60,
                                 "starter_timeout_ms": 6000}},
     "starter_control": {"pulsed_assist_enabled": True, "pulsed_assist_pwm_pct": 20,
-                         "pulsed_assist_until_rpm": 1000, "pulsed_assist_on_ms": 500,
+                         # The S3 tester's 14-bit LEDC has a practical low-frequency
+                         # floor on this fixture; a requested 300 RPM is measured by
+                         # the Classic at roughly 1,800 RPM.  Keep the signal safely
+                         # below a higher threshold while exercising identical pulse
+                         # timing and threshold-latch firmware paths.
+                         "pulsed_assist_until_rpm": 3000, "pulsed_assist_on_ms": 500,
                          "pulsed_assist_off_ms": 250, "startup_ramp_pct_per_s": 1000},
 })
 if not ok:
@@ -232,18 +247,34 @@ rec("v2 assist Tools pulse auto-stops", a and p >= 1150 and safe_us <= 1050,
 # testing START; otherwise the correct overlap guard returns HTTP 409.
 time.sleep(1.0)
 
-t.set("N1", round(300/60.0, 1)); time.sleep(1.0)
+t.set("N1", round(300/60.0, 1))
+# Pulsed assist intentionally latches into normal starter control after any
+# threshold crossing.  Do not start while the ECU's rolling RPM window still
+# contains pulses from the preceding 45,000 RPM input test.
+low_rpm_samples = []
+deadline = time.time() + 4.0
+while time.time() < deadline:
+    n1_now = dut.data().get("n1") or 0
+    low_rpm_samples.append(n1_now)
+    if len(low_rpm_samples) >= 3 and all(v < 2500 for v in low_rpm_samples[-3:]):
+        break
+    time.sleep(0.35)
 code, response = dut.start()
 samples = []
-end = time.time() + 1.8
+running_n1 = []
+end = time.time() + 4.0
 while code == 200 and time.time() < end:
-    t.set("N1", round(300/60.0, 1))
     samples.append(t.get("THROTTLE_OUT").get("us", 0) or 0)
-    time.sleep(0.05)
-states = [1 if value >= 1150 else 0 for value in samples if value > 0]
+    running_n1.append(dut.data().get("n1") or 0)
+    time.sleep(0.04)
+# A fully stopped PWM capture is reported as zero by current OTBench firmware;
+# that is a valid physical OFF sample and must participate in edge counting.
+states = [1 if value >= 1150 else 0 for value in samples]
 transitions = sum(a != b for a, b in zip(states, states[1:]))
-rec("v2 StarterSpin repeats pulses", code == 200 and 1 in states and 0 in states and transitions >= 2,
-    "HTTP=%s response=%r transitions=%d" % (code, response, transitions))
+rec("v2 StarterSpin repeats pulses", code == 200 and 1 in states and 0 in states and transitions >= 4,
+    "HTTP=%s response=%r transitions=%d range=%d..%dus pre_n1=%r run_n1=%r" %
+    (code, response, transitions, min(samples or [0]), max(samples or [0]),
+     low_rpm_samples, running_n1))
 dut.stop(); time.sleep(0.5)
 stopped_us = t.get("THROTTLE_OUT").get("us", 0) or 0
 rec("v2 StarterSpin STOP cut", stopped_us <= 1050 and not dut.data().get("starter_enabled"),

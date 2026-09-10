@@ -1,6 +1,7 @@
 #include "FlightRecorder.h"
 #include "Config.h"
 #include "HardwareConfig.h"
+#include "SessionLogger.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_attr.h>
@@ -349,19 +350,6 @@ bool FlightRecorder::healthy() { return _mutex != nullptr && s_lastError == 0; }
 uint8_t FlightRecorder::errorCode() { return s_lastError; }
 uint32_t FlightRecorder::lastDurableAppendMs() { return s_lastDurableAppendMs; }
 
-void FlightRecorder::clear() {
-    if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
-    portENTER_CRITICAL(&s_ringMux);
-    s_ringTail = s_ringHead;
-    s_droppedEvents = 0;
-    s_droppedMarked = 0;
-    s_clearPending = false;
-    portEXIT_CRITICAL(&s_ringMux);
-    LittleFS.remove(PATH);
-    s_lineCount = 0;
-    if (_mutex) xSemaphoreGive(_mutex);
-}
-
 void FlightRecorder::requestClear() {
     // Establish the clear boundary now: queued pre-clear events are discarded,
     // while events appended after this point remain in the ring and are written
@@ -374,43 +362,6 @@ void FlightRecorder::requestClear() {
     s_clearPending = true;
     portEXIT_CRITICAL(&s_ringMux);
     if (_mutex) xSemaphoreGive(_mutex);
-}
-
-size_t FlightRecorder::toJson(char* buf, size_t len) {
-    if (len < 4) return 0;
-
-    // Take mutex so we don't read while runEviction() is mid-eviction (remove+rename).
-    if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
-
-    File f = LittleFS.open(PATH, "r");
-    if (!f || f.size() == 0) {
-        if (f) f.close();
-        if (_mutex) xSemaphoreGive(_mutex);
-        buf[0]='['; buf[1]=']'; buf[2]=0;
-        return 2;
-    }
-
-    size_t pos = 0;
-    buf[pos++] = '[';
-    bool first = true;
-
-    while (f.available() && pos < len - 8) {
-        String line = f.readStringUntil('\n');
-        line.trim();
-        if (line.length() == 0 || line[0] != '{') continue;
-        if (!first) { buf[pos++] = ','; }
-        first = false;
-        size_t ll = line.length();
-        if (pos + ll >= len - 4) break;   // ran out of space
-        memcpy(buf + pos, line.c_str(), ll);
-        pos += ll;
-    }
-
-    buf[pos++] = ']';
-    buf[pos]   = 0;
-    f.close();
-    if (_mutex) xSemaphoreGive(_mutex);
-    return pos;
 }
 
 void FlightRecorder::lockLog() {
@@ -500,12 +451,16 @@ static int _copyTailLocked(int dropFirst) {
 // black box must keep accepting FAULT events rather than dropping them forever.
 static void _makeRoomLocked() {
     int before = s_lineCount;
-    int kept = _copyTailLocked(FlightRecorder::MAX_RECORDS / 5);
+    // Drop the oldest fifth of the records actually present. This retains the
+    // established 80% policy at MAX_RECORDS and also permits early compaction
+    // when filesystem reserve, rather than record count, is the limiting factor.
+    int dropFirst = max(1, before / 5);
+    int kept = _copyTailLocked(dropFirst);
     bool fallback = false;
     if (kept < 0) {
         fallback = true;
-        int dropFirst = before - FlightRecorder::MAX_RECORDS / 10;
-        if (dropFirst < 0) dropFirst = 0;
+        const int keepNewest = max(1, before / 10);
+        dropFirst = max(0, before - keepNewest);
         kept = _copyTailLocked(dropFirst);
     }
     if (kept < 0) {
@@ -549,7 +504,19 @@ static void _drainRingLocked() {
     }
 
     while (s_ringTail != s_ringHead || s_droppedEvents != s_droppedMarked) {
-        if (s_lineCount >= FlightRecorder::MAX_RECORDS) _makeRoomLocked();
+        const size_t freeBytes = LittleFS.totalBytes() - LittleFS.usedBytes();
+        const size_t reserveBytes = SessionLogger::reserveBytes();
+        if (s_lineCount >= FlightRecorder::MAX_RECORDS ||
+            (s_lineCount > 0 && freeBytes < reserveBytes + RING_SLOT_LEN))
+            _makeRoomLocked();
+
+        // If non-log files alone consume the reserve, keep newest events in
+        // the RAM ring and report the write error instead of consuming the
+        // working space required for configuration recovery.
+        if (LittleFS.totalBytes() - LittleFS.usedBytes() < reserveBytes + RING_SLOT_LEN) {
+            s_lastError = 3;
+            return;
+        }
 
         File fa = LittleFS.open(FlightRecorder::PATH, "a");
         if (!fa) { s_lastError = 2; return; }   // leave queued and retry
@@ -607,7 +574,19 @@ void FlightRecorder::runEviction() {
     portEXIT_CRITICAL(&s_ringMux);
 
     if (s_clearPending) {
-        LittleFS.remove(PATH);
+        const bool removed = !LittleFS.exists(PATH) ||
+            (LittleFS.remove(PATH) && !LittleFS.exists(PATH));
+        if (!removed) {
+            // Keep the clear request pending and preserve post-clear events in
+            // RAM. Appending them to the old file would cross the boundary
+            // the operator explicitly requested.
+            s_lastError = 4;
+            portENTER_CRITICAL(&s_ringMux);
+            s_drainActive = false;
+            portEXIT_CRITICAL(&s_ringMux);
+            if (_mutex) xSemaphoreGive(_mutex);
+            return;
+        }
         s_lineCount = 0;
         s_clearPending = false;
     }

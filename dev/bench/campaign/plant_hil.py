@@ -50,10 +50,8 @@ def main() -> int:
             ReversedDigitalSensorHil.quiet_profile(hw)
             hw["controls"].update(start_pin=13, stop_pin=14, start_active_h=False,
                                   stop_active_h=False, start_pullup=True, stop_pullup=True)
-            # Use a representative multi-tooth pickup for the continuously
-            # changing plant ramp. PPR=1 is separately proven by the static pin
-            # campaign; at very low ramp frequencies the tester timer's first
-            # divider reconfiguration can create a non-physical edge burst.
+            # Ten pulses/revolution keeps the role-reversed tester comfortably
+            # above its timer-divider transition once feedback is released.
             hw["sensors"]["n1_rpm"].update(enabled=True, pin=4, ppr=10.0)
             hw["sensors"]["throttle_input"].update(enabled=False, pin=-1, rc_pwm=False)
             hw["sensors"]["flame"].update(enabled=True, pin=27)
@@ -118,29 +116,13 @@ def main() -> int:
         hw["controllers"]["oil_loop"] = target != "classic"
 
     try:
+        if target == "classic":
+            # The tester can retain the preceding campaign's N1 waveform while
+            # the DUT reboots into this profile. Park every stimulus first so
+            # the RPM sensor cannot legitimately latch that old shaft speed.
+            runner.t.reset()
         runner.apply_profile({"id": "closed_loop_plant", "build": build})
         config_patch = {
-            # Schema 1 deliberately has no hidden operator-to-fuel owner. The
-            # causal plant profile must install the same explicit Main Fuel
-            # mapped-input controller that a user creates on Controllers;
-            # otherwise FuelPumpIdle's 12% startup demand remains the last
-            # legitimate owner after RUNNING entry and the throttle stimulus
-            # cannot affect physical fuel.
-            "rules": [{
-                "enabled": True, "kind": 1, "op": 0,
-                "threshold": 0, "on_value": 1, "off_value": 0,
-                "hysteresis": 0, "input_min": 0, "input_max": 1,
-                # Main-fuel controller persistence canonicalizes its lower
-                # bound to the calibrated pump-spin threshold.
-                "output_min": 0.12, "output_max": 1,
-                "target_source_type": 0, "target_source": "",
-                "target_fixed": 0, "target_low": 0, "target_high": 1,
-                "target_input_min": 0, "target_input_max": 1,
-                "response_gain": 0.02, "integral_gain": 0.005,
-                "deadband": 0.01, "mode_mask": 4,
-                "name": "Main Fuel", "source": "operator_throttle",
-                "target": "main_fuel",
-            }],
             "engine": {"min_rpm": 20000},
             "calibration": {
                 "oil_poly": {"a": 0, "b": 0, "c": round(6.0 / 4095.0, 8),
@@ -158,6 +140,27 @@ def main() -> int:
             }},
             "throttle": {"fuel_pump_min_pct": 12},
         }
+        if target != "classic":
+            # Schema 1 deliberately has no hidden operator-to-fuel owner. The
+            # S3 plant profile has a physical operator input, so install the
+            # same explicit Main Fuel mapped-input controller that a user
+            # creates on Controllers. The role-reversed Classic fixture has no
+            # throttle-input wire and therefore runs at FuelPumpIdle demand.
+            config_patch["rules"] = [{
+                "enabled": True, "kind": 1, "op": 0,
+                "threshold": 0, "on_value": 1, "off_value": 0,
+                "hysteresis": 0, "input_min": 0, "input_max": 1,
+                # Main-fuel controller persistence canonicalizes its lower
+                # bound to the calibrated pump-spin threshold.
+                "output_min": 0.12, "output_max": 1,
+                "target_source_type": 0, "target_source": "",
+                "target_fixed": 0, "target_low": 0, "target_high": 1,
+                "target_input_min": 0, "target_input_max": 1,
+                "response_gain": 0.02, "integral_gain": 0.005,
+                "deadband": 0.01, "mode_mask": 4,
+                "name": "Main Fuel", "source": "operator_throttle",
+                "target": "main_fuel",
+            }]
         runner.note_config_patch(config_patch)
         ok, response = runner.dc.patch_cfg(config_patch)
         if not ok:

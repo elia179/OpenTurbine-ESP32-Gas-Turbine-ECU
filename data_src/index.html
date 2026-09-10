@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260910a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260910a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
   <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
   <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
-  <span id="conn" class="conn-dot disconnected" title="WebSocket"></span><span id="conn-label" class="conn-label">Disconnected</span>
+  <span id="conn" class="conn-dot disconnected" title="ECU connection"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 
 <main>
@@ -28,9 +28,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <span>New? <a href="/hardware.html" style="color:var(--dim);text-decoration:underline">Start with Hardware setup →</a></span>
   </div>
 
-  <!-- Captive portal browser warning — shown when the page is opened via the OS auto-popup
-       WebView instead of a real browser. The CNA/WebView throttles WebSocket frames to
-       5-20 s intervals. Users need Safari/Chrome for live data. -->
+  <!-- Captive portal browser warning — shown when the page is opened via the OS auto-popup.
+       CNA/WebViews can throttle live requests heavily; use a full browser for responsive data. -->
   <div id="captive-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 10%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 50%, transparent);border-radius:7px;padding:.6rem 1rem;margin-bottom:.6rem;font-size:.84rem;color:var(--yellow);align-items:center;justify-content:space-between">
     <span>&#9888; Live updates need a real browser &mdash; open <strong>Safari</strong> or <strong>Chrome</strong> and go to <strong>192.168.4.1</strong></span>
   <button onclick="dismissCaptiveBanner()" style="background:none;border:none;color:var(--yellow);font-size:1.2rem;cursor:pointer;margin-left:.8rem;line-height:1">&times;</button>
@@ -67,14 +66,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     ⚠ BENCH MODE ACTIVE — Sequence runs on timers only, no sensor verification, safety bypassed.
     <a href="/tools.html" style="color:var(--accent);text-decoration:underline;font-weight:400;margin-left:.5rem">Disable in Tools →</a>
   </div>
-  <div id="session-log-drop-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.55rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--yellow);text-align:center">
-    Session log dropped rows. CSV for this run is incomplete.
-  </div>
-  <div id="event-log-drop-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.55rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--yellow);text-align:center">
-    Event recorder dropped events. Event log may be incomplete.
-  </div>
   <div id="logging-health-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.55rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--yellow);text-align:center">
-    Run logging is degraded. Engine control is unaffected. See Log for details.
+    <span id="logging-health-text">Run logging is degraded. Engine control is unaffected.</span>
+    <a href="/log.html" style="color:var(--yellow);text-decoration:underline;margin-left:.45rem">Open Log →</a>
   </div>
   <div id="config-storage-banner" style="display:none;background:color-mix(in srgb, var(--red) 10%, transparent);border:1px solid color-mix(in srgb, var(--red) 55%, transparent);border-radius:7px;padding:.65rem 1rem;margin-bottom:.7rem;font-size:.82rem;color:var(--red);line-height:1.5">
     <strong>Storage fault - engine operations locked.</strong>
@@ -102,7 +96,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     The hardware and settings sections in <code>ecu_config.json</code> identify different engines, which indicates an incomplete or incompatible restored engine file. Ordinary name edits synchronize both sections automatically, but the ECU will not run with mixed engine data.<br>
     <b>How to fix:</b> restore one complete engine file from <a href="/system.html" style="color:var(--yellow)">System</a>, or review and save Hardware to synchronize this file.
   </div>
-  <div id="profile-error" class="error-banner" style="display:none">Engine name mismatch — engine operations locked</div>
 
   <!-- Fault/abort description card -->
   <div id="fault-card" style="display:none">
@@ -804,12 +797,12 @@ function dismissCaptiveBanner() {
 
 // Captive-portal warning — show when opened inside the OS captive popup
 // (iOS/macOS CNA has no "Safari" UA token; Android captive WebView carries
-// the "; wv)" token). Those WebViews throttle WS frames to 5-20 s.
+// the "; wv)" token). Those WebViews heavily throttle background networking.
 (function() {
   if (hasStoredFlag(CP_BANNER_KEY)) return;
   const ua = navigator.userAgent || '';
   // Home-screen PWAs / standalone WKWebView apps also lack the "Safari" UA
-  // token but get full-rate WS frames — don't flag them as captive.
+  // token but keep normal browser networking — don't flag them as captive.
   const standalone = navigator.standalone === true
     || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
   const iosCna = !standalone

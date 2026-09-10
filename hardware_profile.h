@@ -84,12 +84,6 @@
   #define OT_SPI_CLK_DEFAULT    5
 #endif
 
-// ── Development mode ─────────────────────────────────────────
-// Uncomment to allow live config changes during engine operation,
-// enable mock sensors/actuators, and bypass safety locks.
-// NEVER ship firmware with this enabled.
-// #define OT_DEV_MODE
-
 // ── Mandatory physical controls ──────────────────────────────
 #define OT_STOP_PIN    15    // active-low, internal pull-up — MUST be hardware
 #define OT_START_PIN   13    // active-low, internal pull-up

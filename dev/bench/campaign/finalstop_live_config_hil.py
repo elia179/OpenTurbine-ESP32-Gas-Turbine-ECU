@@ -131,9 +131,12 @@ def main() -> int:
         standby, stopped = dut.poll_until(
             lambda d: d.get("mode") == "STANDBY", timeout=5, interval=0.02
         )
+        # Measure the control transition itself. The full engine-file read
+        # below is deliberately large and its Wi-Fi transfer time is unrelated
+        # to the configured turbine spool-down delay.
+        elapsed = time.monotonic() - started
         time.sleep(0.5)
         durable_engine = dut._get("/api/ecu_config")
-        elapsed = time.monotonic() - started
         oil_after = tester.get("OILPUMP_OUT")
         record(
             "NO_N1_FINALSTOP_USES_CONFIGURED_DELAY",

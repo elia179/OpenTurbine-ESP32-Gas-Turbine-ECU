@@ -127,9 +127,5 @@ public:
 #endif
         }
 
-#ifdef OT_DEV_MODE
-        EngineData::instance().devMode = true;
-        Serial.println("[OT] *** DEV MODE ACTIVE ***");
-#endif
     }
 };

@@ -340,7 +340,6 @@ public:
     static bool  primaryEgtHealthy(const EngineData& ed);
     static float primaryEgtC(const EngineData& ed);
     static float primaryEgtLimitC();
-    static const char* primaryEgtLabel();
     static float effectiveRelightMinRpm();       // never below configured minimum running N1
     static float applyFuelPumpMinimum(float demand01);
     static float effectiveMainFuelDemand(const EngineData& ed);
@@ -531,13 +530,10 @@ public:
     static bool acquireStorageWrite(); // serialize all ecu_config.json replacement operations
     static void releaseStorageWrite();
 
-    // Serialize current config to JSON string (for web download)
-    static size_t toJson(char* buf, size_t len);
     // Serialize into an existing document (for PATCH merge)
     static void   toJson(JsonDocument& doc);
 
     // Parse and apply JSON from web upload
-    static bool validateJson(const char* json, size_t len);
     static bool validateJson(const JsonDocument& doc);
     // Full-engine restore validates settings before its uploaded hardware is
     // resident. This checks schema/ranges only; dependency cleanup is run
@@ -550,8 +546,6 @@ public:
     // Re-resolve stable controller source/target IDs after a complete engine
     // restore has installed its uploaded hardware registry.
     static bool resolveRuleHandlesForHardware();
-    static bool fromJson(const char* json, size_t len);
-    static bool fromJson(const JsonDocument& doc);  // PATCH merge variant
     // Applies a validated settings document, releases its heap before the
     // unified-file write, and reloads the on-disk values if the write fails.
     // Persists a validated candidate without touching live Config statics.
@@ -580,7 +574,7 @@ public:
 
 private:
     static void _applyDefaults();
-    static void _fromDoc(const JsonDocument& doc, bool resolveRuleHandles = true);
+    static void _fromDoc(JsonVariantConst doc, bool resolveRuleHandles = true);
     static void _toDoc(JsonDocument& doc);
     static void _writeDoc(JsonObject doc);
     static bool _saveSettingsJson(const char* settingsJson, size_t settingsLen,

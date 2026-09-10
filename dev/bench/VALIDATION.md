@@ -18,7 +18,7 @@ either target to a build-only-by-a-few-bytes state.
 
 Systematic hardware-in-the-loop validation of the OpenTurbine firmware on the
 bench rig, aimed at finding defects **before** they reach a real turbine engine.
-The current release candidate is OpenTurbine 2.3.3. DUT and tester roles may be
+The current release candidate is OpenTurbine 2.3.5. DUT and tester roles may be
 swapped between the ESP32-S3 and Classic ESP32 as a campaign requires. Tests
 drive physical ADC/PCNT/SPI/digital paths where wired and use explicit simulator
 coverage for unavailable I²C devices.
@@ -29,6 +29,64 @@ the **v2.0.0 release-candidate HIL** section as the baseline and the newer
 superseded EGT-rate and old configuration behavior are not v2 requirements.
 
 Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically testable
+
+## v2.3.5 final release verification — 2026-09-10
+
+- ✅ The uninterrupted publication gate passed 11 UI audit programs, 315 safety
+  regression checks, 17 representative turbine setups, native command,
+  controller and session behavior, 32 sensor-protocol vectors, 12 release-tool
+  tests, 33 bench-harness tests, Setup Tool tests, and firmware plus LittleFS
+  builds and enforced memory budgets for both targets.
+- ✅ The final Classic image is `build_id 8900fff4383ed5f5`, 1,655,712 bytes,
+  SHA-256 `E15CFE8C376143BDB37806CCEA7921AFD27245BCBD6D2043D7EFA784DCFA52BF`.
+  It leaves 48,224 bytes of OTA headroom and 19,320 bytes static DRAM, 40,288
+  bytes IRAM and 116 bytes RTC slow-memory headroom. The matching LittleFS image
+  SHA-256 is `BF27E1B77EAD8213C2EA869E6C264BB9312D8CA9AE7EE3C16D6349D0F463312A`.
+- ✅ The final S3 image is `build_id 520f7e61fba604d3`, 1,640,016 bytes,
+  SHA-256 `8D6D28EE6F273901ABBD7FD9E4FA1D91D65F1BC730CAF0A0F0B23CDF40915F70`.
+  It leaves 1,505,712 bytes of OTA headroom and 150,632 bytes static DRAM,
+  278,528 bytes IRAM and 7,640 bytes RTC slow-memory headroom. Its LittleFS
+  SHA-256 is `42863F11D610375285E12FCF8D41116D3E335AF6EB2C07BEB4A7F02ADB927338`.
+- ✅ Three repeated Classic role-reversed pin/function campaigns passed 11/11,
+  three digital sensor/protocol campaigns passed 9/9, the physical-output
+  campaign passed 5/5, and the 20-cycle safety/storage soak passed 40/40 while
+  restoring the exact JU4 engine file (`classic_pinfunc_hil_20260910_083933.json`,
+  `classic_pinfunc_hil_20260910_084215.json`,
+  `classic_pinfunc_hil_20260910_085152.json`,
+  `reversed_digital_sensor_hil_20260910_110944.json`,
+  `reversed_digital_sensor_hil_20260910_111134.json`,
+  `reversed_digital_sensor_hil_20260910_111311.json`, and
+  `classic_safety_hil_20260910_105422.json`).
+- ✅ The S3 passed the ten-profile physical matrix 10/10, hard-safety matrix
+  10/10, controller interactions 13/13, starter and control behavior 8/8,
+  afterburner 3/3, shutdown ownership 4/4, live configuration and FinalStop
+  5/5, session logger 2/2, causal plant simulation 4/4, and ten configuration-
+  preserving warm reboots. Result files are dated `20260910_132800` through
+  `20260910_135152` in this directory.
+- ✅ Final packaged web assets passed 40-page navigation audits on both boards.
+  The packaged Classic realistic session passed in 113 seconds with six
+  connected page workflows, two persisted saves, a complete engine-file
+  download/upload/reboot cycle, and byte-exact restoration of the JU4 hardware
+  and settings. Final Classic idle heap was about 73–76 KiB with a 38,900-byte
+  largest allocation and zero HTTP TIME_WAIT buildup.
+- ✅ Setup Tool 0.7.3 performed a clean install and a full firmware plus 12-asset
+  update on each connected board. Every flashed image was verified, each ECU
+  rebooted into 2.3.5 in safe STANDBY, and all served compressed assets matched
+  the release package byte for byte. The 17,834,295-byte recommended package
+  SHA-256 is `7BDD172249CBA036F812D4FEF014BF0864C9DBAE678ADDD82480C892AE8355DA`;
+  the 7,251,456-byte Setup Tool SHA-256 is
+  `34FC47C84F232FB55260CD5A1AEDE25B17209DB00F9BA45569260ACFC0109B04`.
+- ✅ Storage testing exposed a real Classic headroom defect before release.
+  Session capture now protects 72 KiB, and the event recorder compacts from
+  actual retained lines before a write can consume configuration-recovery
+  space. Repeated safety events, logs, saves, downloads and restores completed
+  without losing the engine file.
+- ⚠️ The role-reversed Classic loom still cannot provide causal plant evidence:
+  its shared starter-PWM path couples into N1. The independent starter, N1,
+  output, STOP, overspeed and sensor campaigns pass, while causal plant behavior
+  is qualified on the S3 with the Classic tester. This is dry-bench validation;
+  powered loads, combustion, EMI, vibration and installed emergency-stop
+  validation remain engine-system responsibilities.
 
 ## v2.3.2 release follow-up — 2026-09-06
 

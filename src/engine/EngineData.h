@@ -25,7 +25,7 @@ enum class ABMode : uint8_t {
 //  However, COMPOSITE state transitions (e.g. setting mode then
 //  igniterOn in two separate writes) may be observed by Core 0
 //  in a mid-transition state — e.g. mode == SHUTDOWN while
-//  igniterOn is still true for one WebSocket tick.
+//  igniterOn is still true for one telemetry tick.
 //  This is intentional and accepted: Core 0 is display-only and
 //  never makes safety or control decisions.  The only consequence
 //  is a briefly inconsistent dashboard reading, not an unsafe action.
@@ -218,7 +218,6 @@ struct EngineData {
     volatile bool     standbyOilFeedActive = false; // windmill protection: oil pump running in STANDBY
     volatile bool     benchMode          = false;  // bench/debug: blocks complete on timer, safety bypassed
     volatile uint32_t limpOverrideSensor = 0;      // one failed feedback sensor explicitly overridden for restart
-    volatile uint32_t limpFailureMask    = 0;      // all ordinary feedback failures observed during this run
     volatile bool     manualLimpRequested = false; // operator/input request; cannot clear automatic limp
     volatile bool     automaticLimpLatched = false;// ECU latch; cleared only at the STANDBY boundary
     volatile bool     dynamicIdleEnabled = true;
@@ -227,10 +226,8 @@ struct EngineData {
     volatile bool     stopSwitchConfigured = false;
     volatile bool     stopSwitchHealthy  = false;
     volatile bool     startSwitchActive  = false;  // hardware start button currently pressed
-    volatile bool     startSwitchRawLevel = false; // electrical/logical level before debounce
     volatile bool     startSwitchConfigured = false;
     volatile bool     startSwitchHealthy = false;
-    volatile bool     startSwitchActiveHigh = false;
     volatile bool     startSwitchReady   = true;   // healthy release observed; next press may request START
     volatile bool     manualRelightActive = false; // operator holding START while running
 
@@ -264,16 +261,12 @@ struct EngineData {
     char              seqWaitReason[80]  = {};     // set by active block: "waiting for N1 > 42000 (currently 38500)"
     char              seqLastResult[16]  = {};
     char              seqFaultBlock[32]  = {};
-    volatile uint32_t seqStartedMs       = 0;
-    volatile uint32_t seqEndedMs         = 0;
     char              abCurrentBlock[32] = {};
     volatile uint8_t  abSeqBlockIdx      = 0;
     volatile uint8_t  abSeqBlockTotal    = 0;
     char              abSeqWaitReason[80] = {};
     char              abSeqLastResult[16] = {};
     char              abSeqFaultBlock[32] = {};
-    volatile uint32_t abSeqStartedMs      = 0;
-    volatile uint32_t abSeqEndedMs        = 0;
     volatile bool     governorHandoffActive = false;
     char              governorControllerState[64] = "Off";
     char              idleControllerState[40] = "Off";

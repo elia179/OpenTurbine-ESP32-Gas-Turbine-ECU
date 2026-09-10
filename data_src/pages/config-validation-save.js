@@ -672,8 +672,8 @@ function _doSave() {
     return;
   }
   // A Classic ESP32 can be close to its largest-contiguous-block limit while
-  // the live WebSocket owns queued frames. Pause it briefly for the durable
-  // filesystem transaction, then resume normal telemetry automatically.
+  // a live REST response owns its transmit buffer. Pause new polling briefly
+  // for the durable transaction, then resume telemetry automatically.
   const pauseTelemetry = typeof stopGlobalTelemetry === 'function';
   const sendSave = async () => {
     if (typeof window.OTSaveConfigPatch !== 'function')
@@ -723,22 +723,20 @@ function _doSave() {
   }).finally(() => {
     if (pauseTelemetry && typeof startTelemetryBoot === 'function') startTelemetryBoot();
   });
-  // Closing the WebSocket is asynchronous; give AsyncTCP one scheduling slice
-  // to release its frame/connection storage before opening LittleFS.
+  // Let the current REST response finish before opening LittleFS.
   if (pauseTelemetry) {
     const idle = typeof window.OTWaitForTelemetryIdle === 'function'
       ? window.OTWaitForTelemetryIdle(1600) : Promise.resolve(true);
     idle.finally(async () => {
       stopGlobalTelemetry();
-      // WebSocket messages are copied into heap-backed send buffers. Their
-      // ACK/destructors can trail close() briefly on Classic. Wait until the
-      // ECU reports a useful contiguous block instead of racing LittleFS and
-      // returning a low-memory save error. This normally completes in well
-      // under a second and is bounded so a status fault cannot hang Save.
+      // TCP acknowledgement/destruction can trail a completed response briefly
+      // on Classic. Wait for a useful contiguous block instead of racing
+      // LittleFS and returning a low-memory save error. This is bounded so a
+      // status fault cannot hang Save.
       for (let attempt = 0; attempt < 16; attempt++) {
         try {
           const status = await fetch('/api/status', { cache:'no-store' }).then(r => r.ok ? r.json() : null);
-          if (status && Number(status.max_alloc_heap) >= 12000 && Number(status.ws_clients || 0) === 0) break;
+          if (status && Number(status.max_alloc_heap) >= 12000) break;
         } catch (_) {}
         await new Promise(resolve => setTimeout(resolve, 250));
       }

@@ -52,11 +52,11 @@ static volatile bool     _endPending   = false;
 #if defined(OT_PLATFORM_ESP32S3)
 static constexpr size_t  SESSION_MAX_RESERVE_BYTES = 150 * 1024;
 #else
-// A complete Classic installation plus ordinary configuration/event data can
-// leave less than one eighth of its 576 KiB LittleFS free. Capping the reserve
-// at 48 KiB still protects config/restore headroom without making the bounded
-// session recorder permanently unavailable on an otherwise healthy ECU.
-static constexpr size_t  SESSION_MAX_RESERVE_BYTES = 48 * 1024;
+// A full unified-config restore temporarily needs the uploaded file, its two
+// staged sections, and the atomic save candidate.  The previous 48 KiB cap was
+// exhausted by a 40-cycle hardware soak, leaving 44 KiB free and making an
+// otherwise valid restore fail. Keep the Classic's full one-eighth reserve.
+static constexpr size_t  SESSION_MAX_RESERVE_BYTES = 72 * 1024;
 #endif
 static constexpr size_t  SESSION_MIN_RESERVE_BYTES = 32 * 1024;
 static constexpr uint32_t SESSION_FREE_CHECK_MS = 5000;
@@ -193,16 +193,14 @@ static void _writeRow(const SessionRow& row) {
     uint32_t mask = row.mask;
     static char r[768];
     int n = snprintf(r, sizeof(r), "%lu", (unsigned long)row.t_ms);
+    bool rowComplete = n >= 0 && n < (int)sizeof(r);
 
     #define APPEND_ROW_FIELD(...) do { \
-        if (n >= 0 && n < (int)sizeof(r)) { \
-            int wrote = snprintf(r + n, sizeof(r) - (size_t)n, __VA_ARGS__); \
-            if (wrote < 0) { \
-                n = (int)sizeof(r) - 1; \
-            } else { \
-                n += wrote; \
-                if (n >= (int)sizeof(r)) n = (int)sizeof(r) - 1; \
-            } \
+        if (rowComplete) { \
+            const size_t available = sizeof(r) - (size_t)n; \
+            const int wrote = snprintf(r + n, available, __VA_ARGS__); \
+            if (wrote < 0 || (size_t)wrote >= available) rowComplete = false; \
+            else n += wrote; \
         } \
     } while (0)
 
@@ -261,6 +259,16 @@ static void _writeRow(const SessionRow& row) {
 
     #undef APPEND_ROW_FIELD
 
+    if (!rowComplete) {
+        // Never persist a short CSV row whose values have shifted into the
+        // wrong columns. Legal calibration ranges are intentionally broad;
+        // if their rendered values exceed this bounded maintenance buffer,
+        // report the loss through the existing backlog/degraded health path.
+        _droppedRows = _droppedRows + 1;
+        _healthy = false;
+        _errorCode = 4;
+        return;
+    }
     r[sizeof(r) - 1] = 0;
     const uint32_t nowMs = millis();
     if (_lowSpaceDropActive || nowMs - _lastFreeCheckMs >= SESSION_FREE_CHECK_MS) {
@@ -291,10 +299,15 @@ static void _writeRow(const SessionRow& row) {
 // ── One-time init ─────────────────────────────────────────────
 bool SessionLogger::begin() {
     if (!LittleFS.exists("/logs")) LittleFS.mkdir("/logs");
-    if (!_rowQueue) _rowQueue = xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow));
-    _healthy = _rowQueue != nullptr;
-    _errorCode = _healthy ? 0 : 1;
-    return _healthy;
+    // Most ECUs ship with session capture disabled. Reserving the complete
+    // 64-row queue here cost a Classic roughly 14 KiB for the entire uptime,
+    // including configuration saves that benefit most from contiguous heap.
+    // Allocate only when a selected channel makes a session useful. Logging
+    // remains non-interlocking: an allocation failure is reported through its
+    // health fields without preventing START or engine control.
+    _healthy = true;
+    _errorCode = 0;
+    return true;
 }
 
 // ── Evict oldest session files if flash is low ────────────────
@@ -368,16 +381,15 @@ static void _openSession() {
         }
         dir.close();
     }
-    const uint32_t durableRun = EngineData::instance().runCount;
-    const uint32_t base = max(durableRun, highestStored);
-    if (base == UINT32_MAX) {
+    uint32_t run = 0;
+    if (!SessionFiles::nextSessionNumber(Config::startAttemptCount,
+                                         highestStored, run)) {
         _currentPath[0] = '\0';
         _healthy = false;
         _errorCode = 7;
         Serial.println("[SessionLogger] Session identity exhausted");
         return;
     }
-    const uint32_t run = base + 1U;
     snprintf(_currentPath, sizeof(_currentPath), "/logs/session_%lu.csv", (unsigned long)run);
 
     _file = LittleFS.open(_currentPath, "w");
@@ -448,7 +460,15 @@ static void _openSession() {
 }
 
 static void _closeSession() {
-    if (!_open) return;
+    if (!_open) {
+        // A failed open still leaves the capture queue allocated. Nothing can
+        // consume it now, so return that memory to the Classic immediately.
+        if (_rowQueue) {
+            vQueueDelete(_rowQueue);
+            _rowQueue = nullptr;
+        }
+        return;
+    }
     _acceptRows = false;
 
     // Drain any rows Core 0 hasn't written yet before marking the session
@@ -463,15 +483,24 @@ static void _closeSession() {
     _file.flush();
     _file.close();
     Serial.printf("[SessionLogger] Session ended - %u rows\n", (unsigned)_rowCount);
+    // The queue is useful only while a run is being captured. Keeping its
+    // worst-case row storage for the entire uptime cost a Classic about
+    // 14 KiB precisely when the UI and configuration saves need heap most.
+    vQueueDelete(_rowQueue);
+    _rowQueue = nullptr;
 }
 
 // ── Core 1: snapshot sensor state → queue (no file I/O) ──────
 void SessionLogger::startSession() {
     _acceptRows = false;
-    if (!_rowQueue) {
-        _startPending = false;
+    if (_startPending || _endPending || _open) {
+        // A very fast restart can beat the Core-0 standby flush. Never reset
+        // the queue and destroy the preceding run's evidence. Logging is not
+        // an engine interlock, so preserve the old session and visibly skip
+        // only this overlapping capture rather than blocking START.
+        _droppedRows = _droppedRows + 1;
         _healthy = false;
-        _errorCode = 1;
+        _errorCode = 4;
         return;
     }
     _prepareRegistryCaptureMask();
@@ -484,7 +513,14 @@ void SessionLogger::startSession() {
         if (_open) _endPending = true;
         return;
     }
-    if (_rowQueue) xQueueReset(_rowQueue);
+    if (!_rowQueue) _rowQueue = xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow));
+    if (!_rowQueue) {
+        _startPending = false;
+        _healthy = false;
+        _errorCode = 1;
+        return;
+    }
+    xQueueReset(_rowQueue);
     _currentPath[0] = '\0';
     _rowCount = 0;
     _droppedRows = 0;

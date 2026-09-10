@@ -55,6 +55,10 @@ static AsyncWebServerRequest* _assetUploadOwner = nullptr;
 static File          _assetTempFile;
 static uint16_t      _assetUploadMask        = 0;
 static unsigned long _assetUploadLastMs      = 0;
+static int8_t        _assetChunkAsset        = -1;
+static size_t        _assetChunkReceived     = 0;
+static int8_t        _assetLastComplete      = -1;
+static size_t        _assetLastCompleteSize  = 0;
 static bool          _webAssetsComplete      = false;
 static AsyncWebServerRequest* _configRestoreOwner = nullptr;
 static File          _configRestoreFile;
@@ -407,6 +411,14 @@ static bool _maintenanceUploadInProgress() {
     return _otaInProgress || _assetUploadInProgress || (_configRestoreOwner != nullptr);
 }
 
+static bool _rejectMaintenanceConflict(AsyncWebServerRequest* req, bool commandEnvelope = false) {
+    if (!_maintenanceUploadInProgress()) return false;
+    req->send(423, "application/json", commandEnvelope
+        ? "{\"ok\":false,\"error\":\"Maintenance upload in progress\"}"
+        : "{\"error\":\"maintenance upload in progress\"}");
+    return true;
+}
+
 // FAULT is the boot-time config-integrity state (profile mismatch / config load
 // failure): a light lockout where only START is blocked. Every other STANDBY
 // gate treats FAULT as standby-like so the user can repair the ECU — mirrors
@@ -467,6 +479,39 @@ static bool _startsTimedActuatorTest(const OTPacket& pkt) {
         case OTCommand::PULSED_STARTER_ASSIST_TEST:
         case OTCommand::FUEL_SOL_TEST:
         case OTCommand::IDLE_TEST:
+        case OTCommand::OIL_SCAV_TEST:
+        case OTCommand::COOL_FAN_TEST:
+        case OTCommand::AIRSTARTER_TEST:
+        case OTCommand::BLEED_VALVE_TEST:
+        case OTCommand::GLOW_TEST:
+        case OTCommand::FUEL_PUMP2_TEST:
+        case OTCommand::AB_SOL_TEST:
+        case OTCommand::AB_PUMP_TEST:
+        case OTCommand::STARTER_EN_TEST:
+        case OTCommand::PROP_PITCH_TEST:
+        case OTCommand::REGISTRY_OUTPUT_TEST:
+            return true;
+        case OTCommand::EXTRA_COOLDOWN:
+            return pkt.iParam > 0;
+        default:
+            return false;
+    }
+}
+
+static bool _mayEnergizeOutput(const OTPacket& pkt) {
+    switch (pkt.cmd) {
+        case OTCommand::SET_OIL_DEMAND:
+        case OTCommand::SET_OIL_PCT:
+        case OTCommand::SET_THROTTLE_PCT:
+        case OTCommand::FUEL_PRIME:
+        case OTCommand::OIL_PRIME:
+        case OTCommand::IGN_TEST:
+        case OTCommand::IGN2_TEST:
+        case OTCommand::START_TEST:
+        case OTCommand::PULSED_STARTER_ASSIST_TEST:
+        case OTCommand::FUEL_SOL_TEST:
+        case OTCommand::IDLE_TEST:
+        case OTCommand::AB_FIRE:
         case OTCommand::OIL_SCAV_TEST:
         case OTCommand::COOL_FAN_TEST:
         case OTCommand::AIRSTARTER_TEST:
@@ -549,6 +594,10 @@ static const char* _commandPreflightRejectReason(const OTPacket& pkt) {
         return "ECU is rebooting to apply a saved configuration. Reconnect and retry.";
     }
     if (const char* hw = _missingHardwareForCommand(pkt)) return hw;
+    if (_mayEnergizeOutput(pkt) && ed.stopSwitchActive)
+        return "Cannot energize tools while the STOP input is active. Release STOP first.";
+    if (_mayEnergizeOutput(pkt) && ed.stopSwitchConfigured && !ed.stopSwitchHealthy)
+        return "Cannot energize tools because the configured STOP input is unavailable. Check its wiring or device.";
     if (_isStandbyToolCommand(pkt.cmd) && !_isStandbyLike(ed.mode)) {
         return "Command is only available in STANDBY or FAULT";
     }
@@ -598,6 +647,56 @@ static const char* _commandPreflightRejectReason(const OTPacket& pkt) {
         }
     }
     return nullptr;
+}
+
+struct CommandName {
+    const char* text;
+    OTCommand command;
+};
+
+static bool _parseCommandName(const char* text, OTCommand& command) {
+    static constexpr CommandName names[] = {
+        {"FUEL_PRIME", OTCommand::FUEL_PRIME},
+        {"OIL_PRIME", OTCommand::OIL_PRIME},
+        {"IGN_TEST", OTCommand::IGN_TEST},
+        {"IGN2_TEST", OTCommand::IGN2_TEST},
+        {"START_TEST", OTCommand::START_TEST},
+        {"FUEL_SOL_TEST", OTCommand::FUEL_SOL_TEST},
+        {"IDLE_TEST", OTCommand::IDLE_TEST},
+        {"TOGGLE_DYNAMIC_IDLE", OTCommand::TOGGLE_DYNAMIC_IDLE},
+        {"TOGGLE_LIMP_MODE", OTCommand::TOGGLE_LIMP_MODE},
+        {"TOGGLE_DEV_MODE", OTCommand::TOGGLE_DEV_MODE},
+        {"TOGGLE_SAFETY_CHECKS", OTCommand::TOGGLE_SAFETY_CHECKS},
+        {"TOGGLE_BENCH_MODE", OTCommand::TOGGLE_BENCH_MODE},
+        {"SET_OIL_PCT", OTCommand::SET_OIL_PCT},
+        {"SET_THROTTLE_PCT", OTCommand::SET_THROTTLE_PCT},
+        {"SET_OIL_DEMAND", OTCommand::SET_OIL_DEMAND},
+        {"EXTRA_COOLDOWN", OTCommand::EXTRA_COOLDOWN},
+        {"PULSED_STARTER_ASSIST_TEST", OTCommand::PULSED_STARTER_ASSIST_TEST},
+        {"CLEAR_LOG", OTCommand::CLEAR_LOG},
+        {"CLEAR_FAULT", OTCommand::CLEAR_FAULT},
+        {"AB_FIRE", OTCommand::AB_FIRE},
+        {"AB_STOP", OTCommand::AB_STOP},
+        {"OIL_SCAV_TEST", OTCommand::OIL_SCAV_TEST},
+        {"COOL_FAN_TEST", OTCommand::COOL_FAN_TEST},
+        {"AIRSTARTER_TEST", OTCommand::AIRSTARTER_TEST},
+        {"BLEED_VALVE_TEST", OTCommand::BLEED_VALVE_TEST},
+        {"GLOW_TEST", OTCommand::GLOW_TEST},
+        {"FUEL_PUMP2_TEST", OTCommand::FUEL_PUMP2_TEST},
+        {"AB_SOL_TEST", OTCommand::AB_SOL_TEST},
+        {"AB_PUMP_TEST", OTCommand::AB_PUMP_TEST},
+        {"STARTER_EN_TEST", OTCommand::STARTER_EN_TEST},
+        {"PROP_PITCH_TEST", OTCommand::PROP_PITCH_TEST},
+        {"REGISTRY_OUTPUT_TEST", OTCommand::REGISTRY_OUTPUT_TEST},
+        {"RESET_PEAKS", OTCommand::RESET_PEAKS},
+    };
+    for (const auto& name : names) {
+        if (!strcmp(text, name.text)) {
+            command = name.command;
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool _outputActiveBlocksStart() {
@@ -750,6 +849,10 @@ static void _finishAssetUpload() {
     _discardAssetTemps();
     _assetUploadOwner = nullptr;
     _assetUploadMask = 0;
+    _assetChunkAsset = -1;
+    _assetChunkReceived = 0;
+    _assetLastComplete = -1;
+    _assetLastCompleteSize = 0;
     _assetUploadInProgress = false;
     _endMaintenanceWriteWindow();
 }
@@ -804,6 +907,63 @@ static const char* _limitedStartRejectReason() {
     if (FeedbackRequirements::eligibleSingleStartOverride(ed, millis()) == FeedbackRequirements::NONE)
         return "Reduced-power restart requires exactly one eligible failed sensor";
     return nullptr;
+}
+
+// Both START surfaces use the same acknowledged Core-1 transaction. Keep one
+// implementation so timeout cancellation and definitive-result handling cannot
+// drift apart as safety checks evolve.
+static void __attribute__((noinline)) _handleStartRequest(
+    AsyncWebServerRequest* req, bool reducedPower) {
+    if (_rejectMaintenanceConflict(req, true)) return;
+    const char* reject = reducedPower
+        ? _limitedStartRejectReason() : _startPreflightRejectReason();
+    if (reject) {
+        _sendCommandReject(req, 409, reject);
+        return;
+    }
+
+    const uint32_t requestId = CommandQueue::nextRequestId();
+    CommandQueue::beginResult(requestId);
+    OTPacket packet{reducedPower ? OTCommand::START_LIMITED : OTCommand::START};
+    packet.requestId = requestId;
+    if (!CommandQueue::push(packet)) {
+        req->send(503, "application/json", "{\"ok\":false,\"error\":\"Command queue full\"}");
+        return;
+    }
+
+    bool accepted = false;
+    char reason[120] = {};
+    if (!CommandQueue::waitResult(requestId, 150, accepted, reason, sizeof(reason))) {
+        if (CommandQueue::cancelPendingResult(requestId)) {
+            req->send(504, "application/json", reducedPower
+                ? "{\"ok\":false,\"error\":\"ECU core did not claim reduced-power START in time; request canceled\"}"
+                : "{\"ok\":false,\"error\":\"ECU core did not claim START in time; request canceled\"}");
+            return;
+        }
+        // The ECU atomically claimed the request before cancellation. Its
+        // decision path is synchronous; wait for that definitive result.
+        if (!CommandQueue::waitResult(requestId, 1000, accepted, reason, sizeof(reason))) {
+            req->send(504, "application/json", reducedPower
+                ? "{\"ok\":false,\"error\":\"ECU reset or became unavailable while deciding reduced-power START; verify ECU state before retrying\"}"
+                : "{\"ok\":false,\"error\":\"ECU reset or became unavailable while deciding START; verify ECU state before retrying\"}");
+            return;
+        }
+    }
+    if (!accepted) {
+        _sendCommandReject(req, 409, reason);
+        return;
+    }
+
+    if (reducedPower) {
+        snprintf(g_webTxBuf, sizeof(g_webTxBuf),
+                 "{\"ok\":true,\"started\":true,\"mode\":\"reduced_power\",\"request_id\":%lu}",
+                 (unsigned long)requestId);
+    } else {
+        snprintf(g_webTxBuf, sizeof(g_webTxBuf),
+                 "{\"ok\":true,\"started\":true,\"request_id\":%lu}",
+                 (unsigned long)requestId);
+    }
+    req->send(200, "application/json", g_webTxBuf);
 }
 
 static void _recoverInterruptedAssetUpdate() {
@@ -1069,6 +1229,38 @@ static bool _copyLittleFsFile(const char* from, const char* to) {
     dst.close();
     if (!ok) LittleFS.remove(to);
     return ok;
+}
+
+// Remove session files one at a time, closing directory iteration before each
+// unlink. LittleFS directory iterators are not guaranteed to remain stable when
+// their contents change. The bounded pass count also prevents a corrupt
+// directory from trapping an HTTP callback indefinitely.
+static bool _removeAllSessionFiles() {
+    static constexpr uint16_t MAX_REMOVALS = 256;
+    for (uint16_t removed = 0; removed <= MAX_REMOVALS; ++removed) {
+        File dir = LittleFS.open("/logs");
+        if (!dir) return !LittleFS.exists("/logs");
+
+        char path[40] = {};
+        File entry = dir.openNextFile();
+        while (entry) {
+            int runNumber = -1;
+            if (SessionFiles::parseRunNumber(entry.name(), runNumber)) {
+                snprintf(path, sizeof(path), "/logs/session_%d.csv", runNumber);
+                entry.close();
+                break;
+            }
+            entry.close();
+            entry = dir.openNextFile();
+        }
+        dir.close();
+
+        if (!path[0]) return true;
+        if (removed == MAX_REMOVALS) return false;
+        if (!LittleFS.remove(path) || LittleFS.exists(path)) return false;
+        delay(0);
+    }
+    return false;
 }
 
 class WebRxRelease {
@@ -1726,7 +1918,7 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     auto setFlag = [](uint32_t& mask, uint8_t bit, bool on) {
         if (on) mask |= (1UL << bit);
     };
-    uint32_t f = 0, f2 = 0;
+    uint32_t f = 0, f2 = 0, f3 = 0;
     const bool faultClearAllowed = ed.faultLatched && !ed.dryOilStopActive &&
         ed.hardwareReady && ed.watchdogReady && Config::profileMatch && !ed.configLocked &&
         !OutputActivity::anyPhysicalDemand(false);
@@ -1764,7 +1956,9 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     setFlag(f2,28, ed.recoveryLockout); setFlag(f2,29, SessionLogger::healthy());
     setFlag(f2,30, SessionLogger::captureActive());
     setFlag(f2,31, _limitedStartRejectReason() == nullptr);
-    doc["f"] = f; doc["g"] = f2;
+    setFlag(f3, 0, ed.stopSwitchConfigured);
+    setFlag(f3, 1, ed.stopSwitchHealthy);
+    doc["f"] = f; doc["g"] = f2; doc["h"] = f3;
 
     uint32_t inputOnMask = 0;
     uint32_t inputHealthyMask = 0;
@@ -1972,9 +2166,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["idle_target"]           = idlePressureSource ? Config::idleTargetPressure
                                                        : Config::idleTargetRpm;
     doc["idle_target_unit"]      = idlePressureSource ? "bar" : "rpm";
-    doc["idle_source"]           = Config::idleSource == 1 ? "N2" :
-                                    Config::idleSource == 2 ? "P1" :
-                                    Config::idleSource == 3 ? "P2" : "N1";
     doc["idle_controller_state"] = ed.limpMode ? "Reduced-power mode" :
                                                    ed.idleControllerState;
     doc["throttle_command_owner"] = ed.throttleCommandOwner;
@@ -1982,11 +2173,10 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["oil_command_owner"] = ed.oilCommandOwner;
     doc["limp_mode"]             = ed.limpMode;
     doc["stop_switch_active"]    = ed.stopSwitchActive;
+    doc["stop_switch_configured"] = ed.stopSwitchConfigured;
+    doc["stop_switch_healthy"]   = ed.stopSwitchHealthy;
     doc["start_switch_active"]   = ed.startSwitchActive;
-    doc["start_switch_raw_level"] = ed.startSwitchRawLevel;
-    doc["start_switch_configured"] = ed.startSwitchConfigured;
     doc["start_switch_healthy"] = ed.startSwitchHealthy;
-    doc["start_switch_active_high"] = ed.startSwitchActiveHigh;
     doc["start_switch_ready"] = ed.startSwitchReady;
     doc["manual_relight_active"] = ed.manualRelightActive;
     doc["oil_failsafe_active"]   = ed.oilFailsafeActive;
@@ -2012,7 +2202,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["fw_version"]            = OT_VERSION;
     doc["uptime_s"]              = ed.uptimeMs / 1000;
     doc["boot_count"]            = ed.bootCount;
-    doc["loop_counter"]          = ed.loopCounter;
     doc["loop_hz"]               = ed.loopHz;
     doc["loop_period_ms"]        = ed.loopPeriodMs;
     doc["loop_period_max_ms"]    = ed.loopPeriodMaxMs;
@@ -2030,14 +2219,11 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["session_logger_healthy"] = SessionLogger::healthy();
     doc["session_logger_error"]   = SessionLogger::errorCode();
     doc["session_capture_active"] = SessionLogger::captureActive();
-    doc["session_log_mask"]       = SessionLogger::configuredMask();
     doc["session_log_path"]       = SessionLogger::currentPath();
     doc["session_eviction_count"] = SessionLogger::evictionCount();
     doc["session_last_evicted"]   = SessionLogger::lastEvictedSession();
     doc["session_free_bytes"]     = SessionLogger::freeBytes();
     doc["session_reserve_bytes"]  = SessionLogger::reserveBytes();
-    doc["restart_pending"]        = _hwRebootPending;
-    doc["restart_blocker"]        = _pendingRestartBlocker;
     doc["event_dropped_events"]  = FlightRecorder::droppedEvents();
     doc["event_pending_count"]    = FlightRecorder::pendingCount();
     doc["event_recorder_healthy"] = FlightRecorder::healthy();
@@ -2066,15 +2252,10 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         }
         doc["ab_mode"]           = abStr;
     }
-    doc["ab_trigger_active"]     = ed.abTriggerActive;
     doc["ab_trigger_source"]     = HardwareConfig::abTriggerSource;
     doc["ab_arm_switch_on"]      = ed.abArmSwitchOn;
     doc["ab_flame_on"]           = ed.abFlameOn;
     doc["ab_flame_healthy"]      = ed.abFlameHealthy;
-    doc["ab_flame_value"]        = ed.abFlameValue;
-    doc["ab_flame_sample_seq"]   = ed.abFlameSampleSeq;
-    doc["ab_evidence_valid"]     = ed.abEvidenceValid;
-    doc["ab_request_active"]     = ed.abTriggerActive;
     doc["ab_permitted"]          = ed.abPermitted;
     doc["ab_execution_active"]   = ed.abExecutionActive;
     doc["ab_inhibit_reason"]     = ed.abInhibitReason;
@@ -2088,25 +2269,14 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["seq_block_idx"]         = (int)ed.seqBlockIdx;
     doc["seq_block_total"]       = (int)ed.seqBlockTotal;
     doc["seq_wait_reason"]       = ed.seqWaitReason[0] ? ed.seqWaitReason : nullptr;
-    doc["seq_last_result"]       = ed.seqLastResult[0] ? ed.seqLastResult : nullptr;
-    doc["seq_fault_block"]       = ed.seqFaultBlock[0] ? ed.seqFaultBlock : nullptr;
-    doc["seq_started_ms"]        = ed.seqStartedMs;
-    doc["seq_ended_ms"]          = ed.seqEndedMs;
     doc["ab_current_block"]      = ed.abCurrentBlock;
     doc["ab_seq_block_idx"]      = (int)ed.abSeqBlockIdx;
     doc["ab_seq_block_total"]    = (int)ed.abSeqBlockTotal;
     doc["ab_seq_wait_reason"]    = ed.abSeqWaitReason[0] ? ed.abSeqWaitReason : nullptr;
-    doc["ab_seq_last_result"]    = ed.abSeqLastResult[0] ? ed.abSeqLastResult : nullptr;
-    doc["ab_seq_fault_block"]    = ed.abSeqFaultBlock[0] ? ed.abSeqFaultBlock : nullptr;
-    doc["ab_seq_started_ms"]     = ed.abSeqStartedMs;
-    doc["ab_seq_ended_ms"]       = ed.abSeqEndedMs;
     doc["fault_description"]     = ed.faultDescription;
     doc["limp_override_sensor"]  =
         ed.limpOverrideSensor != FeedbackRequirements::NONE
             ? FeedbackRequirements::sensorName(ed.limpOverrideSensor) : nullptr;
-    doc["limp_failure_mask"]     = ed.limpFailureMask;
-    doc["limp_automatic"]        = ed.automaticLimpLatched;
-    doc["limp_manual"]           = ed.manualLimpRequested;
     doc["limited_start_allowed"] = _limitedStartRejectReason() == nullptr;
     {
         const uint32_t eligible =
@@ -2251,8 +2421,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["has_ab_sol"]            = HardwareConfig::hasAbSol;
         doc["has_ab_pump"]           = HardwareConfig::hasAbPump;
         doc["has_oil_pump"]          = HardwareConfig::hasOilPump;
-        doc["has_dynamic_idle"]      = HardwareConfig::hasDynamicIdle;
-        doc["ws_interval_ms"]        = Config::wsIntervalMs;
         bool relightIgnitionOk = false;
         switch (Config::relightIgnitionTarget) {
             case 1: relightIgnitionOk = HardwareConfig::hasIgniter2; break;
@@ -2266,7 +2434,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["flameout_n1_min_rpm"]   = Config::flameoutN1MinRpm;
         doc["flameout_egt_below_c"]  = Config::flameoutEgtBelowC;
         doc["flameout_egt_fall_rate_c_s"] = Config::flameoutEgtFallRateCPerSec;
-        doc["dev_mode_fw"]           = true;
         doc["config_locked"]         = Config::isLocked();
     doc["config_storage_fault"]  = ed.configStorageFault;
     doc["hardware_ready"]        = ed.hardwareReady;
@@ -2303,8 +2470,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         // separately so clients cannot mistake a controller setting for a trip.
         doc["n2_limit"]              = HardwareConfig::safetyN2Overspeed
                                          ? (int)Config::n2RpmLimit : 0;
-        doc["n2_pullback_soft"]      = Config::pullbackN2Enabled ? (int)Config::pullbackN2SoftRpm : 0;
-        doc["n2_pullback_hard"]      = Config::pullbackN2Enabled ? (int)Config::pullbackN2HardRpm : 0;
         doc["tot_limit"]             = Config::totLimit;
         doc["egt_source"]            = Config::effectiveEgtSource();
         doc["egt_limit"]             = Config::primaryEgtLimitC();
@@ -2314,7 +2479,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["batt_volt_min"]         = Config::battVoltMin;
         doc["fuel_press_min"]        = Config::fuelPressMin;
         // has_* capability flags
-        doc["has_afterburner"]       = HardwareConfig::hasAfterburner;
         doc["has_ab_flame"]          = HardwareConfig::hasAfterburner && HardwareConfig::hasAbFlame;
         if (HardwareConfig::hasAbFlame) {
             for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
@@ -2526,64 +2690,45 @@ void WebServer::_setupRoutes() {
     // browser reuse them while navigating; repeatedly streaming CSS/JS in
     // parallel with large HTML pages can overrun the ESP AP/LittleFS path and
     // produce truncated responses in Chrome.
-    _server.on("/app.js", HTTP_GET, [](AsyncWebServerRequest* req) {
-        _sendGzipAsset(req, "/app.js.gz", "application/javascript", SHARED_ASSET_CACHE);
-    });
-    _server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest* req) {
-        _sendGzipAsset(req, "/style.css.gz", "text/css", SHARED_ASSET_CACHE);
-    });
-    _server.on("/theme.js", HTTP_GET, [](AsyncWebServerRequest* req) {
-        _sendGzipAsset(req, "/theme.js.gz", "application/javascript", SHARED_ASSET_CACHE);
-    });
-    _server.on("/ui_dialog.js", HTTP_GET, [](AsyncWebServerRequest* req) {
-        _sendGzipAsset(req, "/ui_dialog.js.gz", "application/javascript", SHARED_ASSET_CACHE);
-    });
-    _server.on("/", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/index.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/index.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/index.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/hardware.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/hardware.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/calibration.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/calibration.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
+    // Register repeated static-file handlers from one lambda expression. Each
+    // route still owns its immutable path/MIME pointers, but the compiler now
+    // emits one std::function invoker instead of a distinct template body for
+    // every asset and page.
+    auto registerSharedAsset = [](const char* route, const char* asset, const char* mime) {
+        _server.on(route, HTTP_GET, [asset, mime](AsyncWebServerRequest* req) {
+            _sendGzipAsset(req, asset, mime, SHARED_ASSET_CACHE);
+        });
+    };
+    registerSharedAsset("/app.js", "/app.js.gz", "application/javascript");
+    registerSharedAsset("/style.css", "/style.css.gz", "text/css");
+    registerSharedAsset("/theme.js", "/theme.js.gz", "application/javascript");
+    registerSharedAsset("/ui_dialog.js", "/ui_dialog.js.gz", "application/javascript");
+
+    auto registerPage = [redirectCaptiveToIp](const char* route, const char* asset) {
+        _server.on(route, HTTP_GET, [redirectCaptiveToIp, asset](AsyncWebServerRequest* req) {
+            if (redirectCaptiveToIp(req)) return;
+            _sendGzipAsset(req, asset, "text/html", PAGE_ASSET_CACHE);
+        });
+    };
+    registerPage("/", "/index.html.gz");
+    registerPage("/index.html", "/index.html.gz");
+    registerPage("/hardware.html", "/hardware.html.gz");
+    registerPage("/calibration.html", "/calibration.html.gz");
     _server.on("/config.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
         if (redirectCaptiveToIp(req)) return;
         req->redirect("/controllers.html");
     });
-    _server.on("/controllers.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/controllers.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/system.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/system.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/sequence.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/sequence.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/log.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/log.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/tools.html", HTTP_GET, [redirectCaptiveToIp](AsyncWebServerRequest* req) {
-        if (redirectCaptiveToIp(req)) return;
-        _sendGzipAsset(req, "/tools.html.gz", "text/html", PAGE_ASSET_CACHE);
-    });
-    _server.on("/ecu_config.json", HTTP_GET, [](AsyncWebServerRequest* req) {
+    registerPage("/controllers.html", "/controllers.html.gz");
+    registerPage("/system.html", "/system.html.gz");
+    registerPage("/sequence.html", "/sequence.html.gz");
+    registerPage("/log.html", "/log.html.gz");
+    registerPage("/tools.html", "/tools.html.gz");
+
+    auto forbidPrivateFile = [](AsyncWebServerRequest* req) {
         req->send(403, "text/plain", "Forbidden");
-    });
-    _server.on("/hardware.json", HTTP_GET, [](AsyncWebServerRequest* req) {
-        req->send(403, "text/plain", "Forbidden");
-    });
+    };
+    _server.on("/ecu_config.json", HTTP_GET, forbidPrivateFile);
+    _server.on("/hardware.json", HTTP_GET, forbidPrivateFile);
 
     // GET /api/data — live snapshot. Uses g_webTxBuf (static) to avoid a 6 KB stack
     // allocation inside the async TCP task callback (task stack is ~8 KB).
@@ -2620,11 +2765,11 @@ void WebServer::_setupRoutes() {
             return;
         }
         auto& ed = EngineData::instance();
-        char buf[352];
+        char buf[320];
         snprintf(buf, sizeof(buf),
             "{\"mode\":\"%s\",\"locked\":%s,\"dev_mode\":%s,\"profile_match\":%s,\"config_apply_busy\":%s,"
-            "\"free_heap\":%u,\"max_alloc_heap\":%u,\"ws_clients\":%u,"
-            "\"http_time_wait\":%u,\"http_time_wait_reaped\":%u}",
+            "\"free_heap\":%u,\"max_alloc_heap\":%u,"
+            "\"http_time_wait\":%u}",
             sysModeStr(ed.mode),
             Config::isLocked() ? "true" : "false",
             ed.devMode ? "true" : "false",
@@ -2632,8 +2777,7 @@ void WebServer::_setupRoutes() {
             ConfigApplyGate::busy() ? "true" : "false",
             static_cast<unsigned>(ESP.getFreeHeap()),
             static_cast<unsigned>(ESP.getMaxAllocHeap()),
-            0U,
-            static_cast<unsigned>(s_httpTimeWaitPcbs), 0U);
+            static_cast<unsigned>(s_httpTimeWaitPcbs));
         AsyncWebServerResponse* resp = req->beginResponse(200, "application/json", buf);
         _finalizeJsonResponse(resp);
         req->send(resp);
@@ -2873,10 +3017,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            if (index == 0 && _maintenanceUploadInProgress()) {
-                req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-                return;
-            }
+            if (index == 0 && _rejectMaintenanceConflict(req)) return;
             if (!_appendWebRx(req, data, len, index)) return;
             if (index + len < total) return;   // wait for more chunks
             WebRxRelease release(req);
@@ -2967,10 +3108,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            if (index == 0 && _maintenanceUploadInProgress()) {
-                req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-                return;
-            }
+            if (index == 0 && _rejectMaintenanceConflict(req)) return;
             if (!_appendWebRx(req, data, len, index)) return;
             if (index + len < total) return;   // wait for more chunks
             WebRxRelease release(req);
@@ -3185,7 +3323,7 @@ void WebServer::_setupRoutes() {
     });
 
     // POST /api/theme?t=<key> — persist the web UI theme into ecu_config.json so it
-    // travels with the engine file. Cosmetic: not mode-gated, no APPLY_CONFIG, no event log.
+    // travels with the engine file. Cosmetic: not mode-gated and no event log.
     _server.on("/api/theme", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!req->hasParam("t")) {
             req->send(400, "application/json", "{\"ok\":false,\"error\":\"missing t\"}");
@@ -3335,13 +3473,14 @@ void WebServer::_setupRoutes() {
     _server.on("/api/loop_diagnostics", HTTP_GET, [](AsyncWebServerRequest* req) {
         const EngineData& ed = EngineData::instance();
         const int n = snprintf(g_webTxBuf, sizeof(g_webTxBuf),
-            "{\"mode\":\"%s\",\"loop_hz\":%.3f,\"loop_period_ms\":%.3f,"
+            "{\"mode\":\"%s\",\"loop_counter\":%lu,\"loop_hz\":%.3f,\"loop_period_ms\":%.3f,"
             "\"loop_period_max_ms\":%.3f,\"loop_exec_avg_ms\":%.3f,"
             "\"loop_exec_max_ms\":%.3f,\"loop_overrun_count\":%lu,"
             "\"loop_sensors_ms\":%.3f,\"loop_sequencer_ms\":%.3f,"
             "\"loop_controllers_ms\":%.3f,\"loop_actuators_ms\":%.3f,"
             "\"loop_logging_ms\":%.3f,\"loop_led_ms\":%.3f}",
-            sysModeStr(ed.mode), ed.loopHz, ed.loopPeriodMs,
+            sysModeStr(ed.mode), (unsigned long)ed.loopCounter,
+            ed.loopHz, ed.loopPeriodMs,
             ed.loopPeriodMaxMs, ed.loopExecAvgMs, ed.loopExecMaxMs,
             (unsigned long)ed.loopOverrunCount, ed.loopSensorsMs,
             ed.loopSequencerMs, ed.loopControllersMs, ed.loopActuatorsMs,
@@ -3407,49 +3546,7 @@ void WebServer::_setupRoutes() {
 
     // POST /api/start
     _server.on("/api/start", HTTP_POST, [](AsyncWebServerRequest* req) {
-        if (_maintenanceUploadInProgress()) {
-            req->send(423, "application/json", "{\"ok\":false,\"error\":\"Maintenance upload in progress\"}");
-            return;
-        }
-        // Report the reject reason via the HTTP response only.  EngineData
-        // strings are Core-1-owned; writing them from async_tcp (Core 0) races
-        // the ECU loop's own fault/event writes (CommandQueue-only rule).
-        if (const char* reject = _startPreflightRejectReason()) {
-            _sendCommandReject(req, 409, reject);
-            return;
-        }
-        const uint32_t requestId = CommandQueue::nextRequestId();
-        CommandQueue::beginResult(requestId);
-        OTPacket packet{OTCommand::START};
-        packet.requestId = requestId;
-        if (!CommandQueue::push(packet)) {
-            req->send(503, "application/json", "{\"ok\":false,\"error\":\"Command queue full\"}");
-            return;
-        }
-        bool accepted = false;
-        char reason[120] = {};
-        if (!CommandQueue::waitResult(requestId, 150, accepted, reason, sizeof(reason))) {
-            if (CommandQueue::cancelPendingResult(requestId)) {
-                req->send(504, "application/json",
-                    "{\"ok\":false,\"error\":\"ECU core did not claim START in time; request canceled\"}");
-                return;
-            }
-            // The ECU atomically claimed the request before cancellation. Its
-            // decision path is synchronous; wait for that definitive result.
-            if (!CommandQueue::waitResult(requestId, 1000, accepted, reason, sizeof(reason))) {
-                req->send(504, "application/json",
-                    "{\"ok\":false,\"error\":\"ECU reset or became unavailable while deciding START; verify ECU state before retrying\"}");
-                return;
-            }
-        }
-        if (!accepted) {
-            _sendCommandReject(req, 409, reason);
-        } else {
-            snprintf(g_webTxBuf, sizeof(g_webTxBuf),
-                     "{\"ok\":true,\"started\":true,\"request_id\":%lu}",
-                     (unsigned long)requestId);
-            req->send(200, "application/json", g_webTxBuf);
-        }
+        _handleStartRequest(req, false);
     });
 
     // POST /api/stop
@@ -3477,46 +3574,10 @@ void WebServer::_setupRoutes() {
             }
             const char* cmdStr = doc["cmd"] | "";
             OTPacket pkt;
-            if      (strcmp(cmdStr, "FUEL_PRIME")     == 0) pkt.cmd = OTCommand::FUEL_PRIME;
-            else if (strcmp(cmdStr, "OIL_PRIME")      == 0) pkt.cmd = OTCommand::OIL_PRIME;
-            else if (strcmp(cmdStr, "IGN_TEST")       == 0) pkt.cmd = OTCommand::IGN_TEST;
-            else if (strcmp(cmdStr, "IGN2_TEST")      == 0) pkt.cmd = OTCommand::IGN2_TEST;
-            else if (strcmp(cmdStr, "START_TEST")     == 0) pkt.cmd = OTCommand::START_TEST;
-            else if (strcmp(cmdStr, "FUEL_SOL_TEST")        == 0) pkt.cmd = OTCommand::FUEL_SOL_TEST;
-            else if (strcmp(cmdStr, "IDLE_TEST")            == 0) pkt.cmd = OTCommand::IDLE_TEST;
-            else if (strcmp(cmdStr, "TOGGLE_DYNAMIC_IDLE")  == 0) pkt.cmd = OTCommand::TOGGLE_DYNAMIC_IDLE;
-            else if (strcmp(cmdStr, "TOGGLE_LIMP_MODE")     == 0) pkt.cmd = OTCommand::TOGGLE_LIMP_MODE;
-            else if (strcmp(cmdStr, "TOGGLE_DEV_MODE")        == 0) pkt.cmd = OTCommand::TOGGLE_DEV_MODE;
-            else if (strcmp(cmdStr, "TOGGLE_SAFETY_CHECKS")  == 0) pkt.cmd = OTCommand::TOGGLE_SAFETY_CHECKS;
-            else if (strcmp(cmdStr, "TOGGLE_BENCH_MODE")     == 0) pkt.cmd = OTCommand::TOGGLE_BENCH_MODE;
-            else if (strcmp(cmdStr, "SET_OIL_PCT")          == 0) pkt.cmd = OTCommand::SET_OIL_PCT;
-            else if (strcmp(cmdStr, "SET_THROTTLE_PCT")     == 0) pkt.cmd = OTCommand::SET_THROTTLE_PCT;
-            else if (strcmp(cmdStr, "SET_OIL_DEMAND")        == 0) pkt.cmd = OTCommand::SET_OIL_DEMAND;
-            else if (strcmp(cmdStr, "EXTRA_COOLDOWN")        == 0) pkt.cmd = OTCommand::EXTRA_COOLDOWN;
-            else if (strcmp(cmdStr, "PULSED_STARTER_ASSIST_TEST") == 0) pkt.cmd = OTCommand::PULSED_STARTER_ASSIST_TEST;
-            else if (strcmp(cmdStr, "CLEAR_LOG")            == 0) pkt.cmd = OTCommand::CLEAR_LOG;
-            else if (strcmp(cmdStr, "CLEAR_FAULT")          == 0) pkt.cmd = OTCommand::CLEAR_FAULT;
-            else if (strcmp(cmdStr, "AB_FIRE")              == 0) pkt.cmd = OTCommand::AB_FIRE;
-            else if (strcmp(cmdStr, "AB_STOP")              == 0) pkt.cmd = OTCommand::AB_STOP;
-            else if (strcmp(cmdStr, "OIL_SCAV_TEST")        == 0) pkt.cmd = OTCommand::OIL_SCAV_TEST;
-            else if (strcmp(cmdStr, "COOL_FAN_TEST")        == 0) pkt.cmd = OTCommand::COOL_FAN_TEST;
-            else if (strcmp(cmdStr, "AIRSTARTER_TEST")      == 0) pkt.cmd = OTCommand::AIRSTARTER_TEST;
-            else if (strcmp(cmdStr, "BLEED_VALVE_TEST")     == 0) pkt.cmd = OTCommand::BLEED_VALVE_TEST;
-            else if (strcmp(cmdStr, "GLOW_TEST")            == 0) pkt.cmd = OTCommand::GLOW_TEST;
-            else if (strcmp(cmdStr, "FUEL_PUMP2_TEST")      == 0) pkt.cmd = OTCommand::FUEL_PUMP2_TEST;
-            else if (strcmp(cmdStr, "AB_SOL_TEST")          == 0) pkt.cmd = OTCommand::AB_SOL_TEST;
-            else if (strcmp(cmdStr, "AB_PUMP_TEST")         == 0) pkt.cmd = OTCommand::AB_PUMP_TEST;
-            else if (strcmp(cmdStr, "STARTER_EN_TEST")      == 0) pkt.cmd = OTCommand::STARTER_EN_TEST;
-            else if (strcmp(cmdStr, "PROP_PITCH_TEST")      == 0) pkt.cmd = OTCommand::PROP_PITCH_TEST;
-            else if (strcmp(cmdStr, "REGISTRY_OUTPUT_TEST")  == 0) pkt.cmd = OTCommand::REGISTRY_OUTPUT_TEST;
-            else if (strcmp(cmdStr, "RESET_PEAKS")          == 0) pkt.cmd = OTCommand::RESET_PEAKS;
-            else { req->send(400); return; }
+            if (!_parseCommandName(cmdStr, pkt.cmd)) { req->send(400); return; }
             pkt.fParam = doc["fParam"] | 0.0f;
             pkt.iParam = doc["iParam"] | 0;
-            if (_maintenanceUploadInProgress() && pkt.cmd != OTCommand::AB_STOP) {
-                req->send(423, "application/json", "{\"ok\":false,\"error\":\"Maintenance upload in progress\"}");
-                return;
-            }
+            if (pkt.cmd != OTCommand::AB_STOP && _rejectMaintenanceConflict(req, true)) return;
             if (const char* reject = _commandPreflightRejectReason(pkt)) {
                 _sendCommandReject(req, 409, reject);
                 return;
@@ -3532,33 +3593,21 @@ void WebServer::_setupRoutes() {
 
     // DELETE /api/session/all — wipe every session_N.csv file from /logs
     _server.on("/api/session/all", HTTP_DELETE, [](AsyncWebServerRequest* req) {
-        if (_maintenanceUploadInProgress()) {
-            req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-            return;
-        }
+        if (_rejectMaintenanceConflict(req)) return;
         if (!_isStandbyLike(EngineData::instance().mode)) {
             req->send(423, "application/json",
                 "{\"error\":\"Engine must be in STANDBY or FAULT to delete session logs\"}");
             return;
         }
-        File dir = LittleFS.open("/logs");
-        if (dir) {
-            File entry = dir.openNextFile();
-            while (entry) {
-                int num = -1;
-                // entry.name() may return the full path (/logs/session_1.csv) or just the
-                // basename (session_1.csv) depending on LittleFS version — strip the dir prefix.
-                if (SessionFiles::parseRunNumber(entry.name(), num)) {
-                    char path[40];
-                    snprintf(path, sizeof(path), "/logs/session_%d.csv", num);
-                    entry.close();
-                    LittleFS.remove(path);
-                } else {
-                    entry.close();
-                }
-                entry = dir.openNextFile();
-            }
-            dir.close();
+        if (SessionLogger::captureActive() || SessionLogger::queuedRows() > 0) {
+            req->send(409, "application/json",
+                "{\"ok\":false,\"error\":\"Session recording is still finalizing; retry in a moment\"}");
+            return;
+        }
+        if (!_removeAllSessionFiles()) {
+            req->send(500, "application/json",
+                "{\"ok\":false,\"error\":\"One or more session files could not be deleted\"}");
+            return;
         }
         req->send(200, "application/json", "{\"ok\":true}");
     });
@@ -3569,10 +3618,7 @@ void WebServer::_setupRoutes() {
     // /factory_config.json override is present it is restored instead; none
     // ships by default, so factory reset == first boot.
     _server.on("/api/factory_reset", HTTP_POST, [](AsyncWebServerRequest* req) {
-        if (_maintenanceUploadInProgress()) {
-            req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-            return;
-        }
+        if (_rejectMaintenanceConflict(req)) return;
         if (!_isStandbyLike(EngineData::instance().mode)) {
             req->send(423, "application/json",
                 "{\"error\":\"Engine must be in STANDBY or FAULT to perform factory reset\"}");
@@ -3586,6 +3632,11 @@ void WebServer::_setupRoutes() {
                 "{\"error\":\"Stop active actuator tools/cooldown before factory reset\"}");
             return;
         }
+        if (SessionLogger::captureActive() || SessionLogger::queuedRows() > 0) {
+            req->send(409, "application/json",
+                "{\"ok\":false,\"error\":\"Session recording is still finalizing; retry factory reset in a moment\"}");
+            return;
+        }
         // Drain any already-pending save to a known state, then wipe the config.
         Config::flushPendingSave();
         bool wipeOk = true;
@@ -3594,7 +3645,6 @@ void WebServer::_setupRoutes() {
             if (LittleFS.exists(path)) wipeOk = false;
         };
         removeAndVerify(Config::PATH);
-        removeAndVerify(HardwareConfig::PATH);
         // Optional override: if a curated /factory_config.json is present, restore
         // it; otherwise leave the config removed so the reboot regenerates from
         // the compiled hardware_profile.h defaults (the normal case).
@@ -3606,20 +3656,7 @@ void WebServer::_setupRoutes() {
         }
         removeAndVerify(FlightRecorder::PATH);
         if (!Config::clearRuntimeStats()) wipeOk = false;
-        File dir = LittleFS.open("/logs");
-        if (dir) {
-            File entry = dir.openNextFile();
-            while (entry) {
-                int num = -1;
-                char path[40] = {};
-                if (SessionFiles::parseRunNumber(entry.name(), num))
-                    snprintf(path, sizeof(path), "/logs/session_%d.csv", num);
-                entry.close();
-                if (path[0]) removeAndVerify(path);
-                entry = dir.openNextFile();
-            }
-            dir.close();
-        }
+        if (!_removeAllSessionFiles()) wipeOk = false;
         if (!wipeOk) {
             Serial.println("[WebServer] Factory reset incomplete - reboot cancelled; retry is safe");
             req->send(500, "application/json",
@@ -3718,8 +3755,8 @@ void WebServer::_setupRoutes() {
 
     // POST /api/firmware_chunk — bounded OTA transport. Flash programming can
     // pause Classic long enough to destabilize one multi-megabyte AsyncTCP
-    // request, so current tools use short raw requests and retain Update state
-    // between them. The legacy /update route remains for older clients.
+    // request, so every client uses short raw requests and retains Update state
+    // between them.
     _server.on("/api/firmware_chunk", HTTP_POST,
         [](AsyncWebServerRequest* req) {},
         nullptr,
@@ -3727,6 +3764,11 @@ void WebServer::_setupRoutes() {
             UploadLock lock;
             const size_t offset = (size_t)strtoul(req->arg("offset").c_str(), nullptr, 10);
             const bool finalChunk = req->arg("final") == "1";
+            // A response can be lost after flash accepted the whole request.
+            // Treat a completely committed range as an idempotent replay so
+            // clients may safely retry without writing it twice or aborting.
+            const bool replayed = _otaInProgress && offset < _otaChunkReceived &&
+                                  offset + total <= _otaChunkReceived;
             if (index == 0) {
                 if (!_otaInProgress) {
                     _otaUploadOwner = req;
@@ -3747,11 +3789,11 @@ void WebServer::_setupRoutes() {
                 } else if (!_otaUploadOwner) {
                     _otaUploadOwner = req;
                 }
-                if (_otaUploadOwner != req || offset != _otaChunkReceived)
+                if (_otaUploadOwner != req || (!replayed && offset != _otaChunkReceived))
                     _otaError = true;
             }
             _otaUploadLastMs = millis();
-            if (!_otaError && _otaUploadOwner == req) {
+            if (!_otaError && _otaUploadOwner == req && !replayed) {
                 if (Update.write(data, len) != len) _otaError = true;
                 else _otaChunkReceived += len;
             }
@@ -3764,6 +3806,12 @@ void WebServer::_setupRoutes() {
                 return;
             }
             _otaUploadOwner = nullptr;
+            if (replayed) {
+                req->send(finalChunk ? 200 : 202, "application/json",
+                    finalChunk ? "{\"ok\":true,\"reboot\":true}" :
+                                 "{\"ok\":true,\"continue\":true,\"replayed\":true}");
+                return;
+            }
             if (!finalChunk) {
                 req->send(202, "application/json", "{\"ok\":true,\"continue\":true}");
                 return;
@@ -3779,101 +3827,6 @@ void WebServer::_setupRoutes() {
             }
         });
 
-    // POST /update — OTA firmware upload (works over AP, no internet needed)
-    // Browser sends multipart/form-data with the compiled .bin file.
-    // ESP32 writes it to the inactive OTA partition and reboots.
-    _server.on("/update", HTTP_POST,
-        // Response callback — runs after all upload chunks received
-        [](AsyncWebServerRequest* req) {
-            UploadLock lock;
-            if (_otaUploadOwner != req) {
-                req->send(409, "application/json",
-                    "{\"ok\":false,\"error\":\"Another OTA upload is in progress\"}");
-                return;
-            }
-            bool ok = !_otaError && !Update.hasError();
-            req->send(ok ? 200 : 400, "application/json",
-                ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"Update failed\"}");
-            if (ok) {
-                // AsyncWebServer has only queued the response at this point.
-                // Use the same delayed, guarded restart path as configuration
-                // restore so the browser receives success before the AP drops.
-                _otaPendingRestart = true;
-                _scheduleRestart("firmware OTA", 3000);
-            } else {
-                _otaInProgress = false;
-                _otaUploadOwner = nullptr;
-            }
-        },
-        // Upload handler — called per chunk
-        [](AsyncWebServerRequest* req, String filename, size_t index,
-           uint8_t* data, size_t len, bool final) {
-            UploadLock lock;
-            if (!index) {
-                if (_otaUploadOwner && _otaUploadOwner != req) return;
-                _otaUploadOwner = req;
-                _otaError = false;
-                _otaUploadLastMs = millis();
-                if (_assetUploadInProgress || _configRestoreOwner) {
-                    Serial.println("[OTA] Rejected: another maintenance upload is in progress");
-                    _otaError = true;
-                    return;
-                }
-                // OTA is a maintenance takeover. Release the browser's
-                // heap-backed telemetry workspace before flash streaming and
-                // let it reconnect after the deliberate successful reboot.
-                _releaseLiveTelemetryWorkspace();
-                // Guard: never flash firmware while the engine is running.
-                // FAULT is accepted — OTA is a legitimate repair path.
-                if (!_isStandbyLike(EngineData::instance().mode)) {
-                    Serial.println("[OTA] Rejected: engine must be in STANDBY for OTA update");
-                    _otaError = true;
-                    return;
-                }
-                // Reserve the update window before evaluating outputs so a
-                // queued START/tool command cannot begin between this check
-                // and the first flash write.
-                _otaInProgress = true;
-                if (_outputsActiveForOta()) {
-                    Serial.println("[OTA] Rejected: controlled output is active");
-                    _otaInProgress = false;
-                    _otaError = true;
-                    return;
-                }
-                Serial.printf("[OTA] Upload start: %s\n", filename.c_str());
-                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-                    Update.printError(Serial);
-                    _otaInProgress = false;
-                    _otaError = true;
-                }
-            }
-            if (_otaUploadOwner != req) return;
-            _otaUploadLastMs = millis();
-            if (!_otaError && !_isStandbyLike(EngineData::instance().mode)) {
-                Serial.println("[OTA] Aborted: engine left STANDBY during upload");
-                Update.abort();
-                _otaInProgress = false;
-                _otaError = true;
-            }
-            if (!_otaError) {
-                if (Update.write(data, len) != len) {
-                    Update.printError(Serial);
-                    Update.abort();
-                    _otaInProgress = false;
-                    _otaError = true;
-                }
-            }
-            if (final) {
-                if (!_otaError && Update.end(true)) {
-                    Serial.printf("[OTA] Success: %u bytes - rebooting\n", index + len);
-                } else if (!_otaError) {
-                    Update.printError(Serial);
-                    _otaInProgress = false;
-                    _otaError = true;
-                }
-            }
-        });
-
     // POST /api/web_asset_chunk - bounded raw chunks used by the setup tool
     // and Tools page. Short requests keep Classic AsyncTCP responsive while
     // LittleFS programs the larger dashboard files.
@@ -3886,11 +3839,24 @@ void WebServer::_setupRoutes() {
             const int asset = _assetIndex(filename);
             const size_t offset = (size_t)strtoul(req->arg("offset").c_str(), nullptr, 10);
             const bool fileFinal = req->arg("final") == "1";
+            // Compute from the complete HTTP-body range so the decision stays
+            // stable if AsyncTCP delivers one request in several callbacks.
+            const bool replayed = asset >= 0 && (
+                ((_assetUploadMask & (1u << asset)) &&
+                 asset == _assetLastComplete && offset < _assetLastCompleteSize &&
+                 total <= _assetLastCompleteSize - offset) ||
+                (!(_assetUploadMask & (1u << asset)) &&
+                 _assetChunkAsset == asset && offset < _assetChunkReceived &&
+                 total <= _assetChunkReceived - offset));
             if (index == 0) {
                 if (!_assetUploadInProgress) {
                     _assetUploadOwner = req;
                     _assetUploadError = false;
                     _assetUploadMask = 0;
+                    _assetChunkAsset = -1;
+                    _assetChunkReceived = 0;
+                    _assetLastComplete = -1;
+                    _assetLastCompleteSize = 0;
                     _assetUploadInProgress = true;
                     if (!_isStandbyLike(EngineData::instance().mode) || _otaInProgress ||
                         _configRestoreOwner || _outputsActiveForOta() || !_beginMaintenanceWriteWindow()) {
@@ -3905,24 +3871,44 @@ void WebServer::_setupRoutes() {
                     _assetUploadOwner = req;
                 }
                 _assetUploadLastMs = millis();
-                if (_assetUploadOwner != req || _assetUploadError || asset < 0 ||
-                    (_assetUploadMask & (1u << asset))) {
+                if (_assetUploadOwner != req || _assetUploadError || asset < 0) {
                     _assetUploadError = true;
+                } else if (_assetUploadMask & (1u << asset)) {
+                    // A response may disappear after the final chunk of one
+                    // file was committed. The immediately completed file is
+                    // still known, so its fully written ranges are safe to
+                    // acknowledge without appending them again.
+                    if (!replayed) _assetUploadError = true;
                 } else {
+                    if (_assetChunkAsset != asset) {
+                        if (_assetChunkAsset >= 0 || offset != 0) {
+                            _assetUploadError = true;
+                        } else {
+                            _assetChunkAsset = (int8_t)asset;
+                            _assetChunkReceived = 0;
+                        }
+                    }
+                    if (!_assetUploadError && !replayed && offset != _assetChunkReceived) {
+                        _assetUploadError = true;
+                    }
 #if defined(OT_PLATFORM_ESP32S3)
                     String writePath = _assetPath((uint16_t)asset, true);
 #else
                     String writePath = _assetPath((uint16_t)asset, false);
 #endif
-                    if (offset == 0 && LittleFS.exists(writePath)) LittleFS.remove(writePath);
-                    _assetTempFile = LittleFS.open(writePath, offset == 0 ? "w" : "a");
-                    if (!_assetTempFile || (offset > 0 && _assetTempFile.size() != offset))
-                        _assetUploadError = true;
+                    if (!_assetUploadError && !replayed) {
+                        if (offset == 0 && LittleFS.exists(writePath)) LittleFS.remove(writePath);
+                        _assetTempFile = LittleFS.open(writePath, offset == 0 ? "w" : "a");
+                        if (!_assetTempFile || (offset > 0 && _assetTempFile.size() != offset))
+                            _assetUploadError = true;
+                    }
                 }
             }
-            if (!_assetUploadError && _assetUploadOwner == req) {
+            if (!_assetUploadError && _assetUploadOwner == req && !replayed) {
                 if (!_assetTempFile || _assetTempFile.write(data, len) != len)
                     _assetUploadError = true;
+                else
+                    _assetChunkReceived += len;
             }
             if (index + len < total) return;
             if (_assetTempFile) _assetTempFile.close();
@@ -3931,133 +3917,37 @@ void WebServer::_setupRoutes() {
                 _finishAssetUpload();
                 return;
             }
-            if (fileFinal) _assetUploadMask |= (1u << asset);
+            if (fileFinal && !replayed) {
+                _assetUploadMask |= (1u << asset);
+                _assetLastComplete = (int8_t)asset;
+                _assetLastCompleteSize = _assetChunkReceived;
+                _assetChunkAsset = -1;
+                _assetChunkReceived = 0;
+            }
             _assetUploadOwner = nullptr;
             _assetUploadLastMs = millis();
             if (_assetUploadMask != WEB_ASSET_ALL) {
-                req->send(202, "application/json", "{\"ok\":true,\"continue\":true}");
+                req->send(202, "application/json", replayed
+                    ? "{\"ok\":true,\"continue\":true,\"replayed\":true}"
+                    : "{\"ok\":true,\"continue\":true}");
+                return;
+            }
+            if (replayed) {
+                // Keep the completed generation state until the scheduled
+                // reboot, just like firmware OTA, so a lost final response is
+                // also safe to retry without recommitting renamed S3 files.
+                req->send(200, "application/json",
+                    "{\"ok\":true,\"reboot\":true,\"replayed\":true}");
                 return;
             }
             const bool ok = _commitWebAssetGeneration();
             req->send(ok ? 200 : 400, "application/json",
                 ok ? "{\"ok\":true,\"reboot\":true}"
                    : "{\"ok\":false,\"error\":\"Web asset verification failed\"}");
-            _finishAssetUpload();
-            if (ok) _scheduleRestart("web asset update");
-        });
-
-    // POST /api/web_assets - replace only compressed UI files in LittleFS.
-    // This intentionally does not accept a raw LittleFS image: the filesystem
-    // also contains configuration and logs that must survive a web update.
-    _server.on("/api/web_assets", HTTP_POST,
-        [](AsyncWebServerRequest* req) {
-            UploadLock lock;
-            if (_assetUploadOwner != req) {
-                req->send(409, "application/json",
-                    "{\"ok\":false,\"error\":\"Another web asset upload is in progress\"}");
-                return;
-            }
-            if (_assetUploadError) {
-                req->send(400, "application/json",
-                    "{\"ok\":false,\"error\":\"Web asset update failed; upload the full asset set again\"}");
-                _finishAssetUpload();
-                return;
-            }
-            // Classic ESP32 cannot reliably receive the complete compressed UI
-            // in one long multipart connection while LittleFS erase/program
-            // pauses are occurring.  Accept a resumable series of short
-            // one-file requests; the marker remains absent and START remains
-            // inhibited until the final required file has arrived.
-            if (_assetUploadMask != WEB_ASSET_ALL) {
-                _assetUploadOwner = nullptr;
-                _assetUploadLastMs = millis();
-                req->send(202, "application/json", "{\"ok\":true,\"continue\":true}");
-                return;
-            }
-            bool ok = _commitWebAssetGeneration();
-            req->send(ok ? 200 : 400, "application/json",
-                ok ? "{\"ok\":true,\"reboot\":true}"
-                   : "{\"ok\":false,\"error\":\"Web asset update failed; upload the full asset set again\"}");
-            _finishAssetUpload();
             if (ok) {
-                Serial.println("[WebAssets] Update complete - rebooting");
                 _scheduleRestart("web asset update");
-            }
-        },
-        [](AsyncWebServerRequest* req, String filename, size_t index,
-           uint8_t* data, size_t len, bool final) {
-            UploadLock lock;
-            if (!_assetUploadInProgress) {
-                _assetUploadOwner = req;
-                _assetUploadError = false;
-                _assetUploadMask = 0;
-                _assetUploadInProgress = true;
-                _assetUploadLastMs = millis();
-                if (!_isStandbyLike(EngineData::instance().mode) ||
-                    _otaInProgress || _configRestoreOwner || _outputsActiveForOta()) {
-                    Serial.println("[WebAssets] Rejected: idle STANDBY required");
-                    _assetUploadError = true;
-                }
-                if (!_assetUploadError && !_beginMaintenanceWriteWindow()) {
-                    Serial.println("[WebAssets] Rejected: storage is busy");
-                    _assetUploadError = true;
-                }
-                if (!_assetUploadError) {
-                    LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
-                    if (LittleFS.exists(WEB_ASSET_MARKER))
-                        LittleFS.rename(WEB_ASSET_MARKER, WEB_ASSET_MARKER_BACKUP);
-                    _webAssetsComplete = false;
-                }
-            } else if (!_assetUploadOwner) {
-                // Continue the same incomplete generation with the next short
-                // request. The upload mask and maintenance lease deliberately
-                // survive between requests.
-                _assetUploadOwner = req;
-            }
-            if (_assetUploadOwner != req || _assetUploadError) return;
-            _assetUploadLastMs = millis();
-            if (!_isStandbyLike(EngineData::instance().mode) || _outputsActiveForOta()) {
-                Serial.println("[WebAssets] Aborted: ECU no longer idle");
-                _assetUploadError = true;
-                _discardAssetTemps();
-                return;
-            }
-            const int asset = _assetIndex(filename);
-            if (asset < 0 || (_assetUploadMask & (1u << asset))) {
-                Serial.printf("[WebAssets] Rejected file: %s\n", filename.c_str());
-                _assetUploadError = true;
-                _discardAssetTemps();
-                return;
-            }
-            if (!index) {
-#if defined(OT_PLATFORM_ESP32S3)
-                // S3 has enough LittleFS space to stage the complete set and
-                // atomically restore the previous generation if any swap fails.
-                String writePath = _assetPath((uint16_t)asset, true);
-#else
-                // Classic's small filesystem can hold the finished UI but not
-                // an old and new copy of a large page at the same time.  The
-                // marker has already been removed, so stream replacements in
-                // place.  A power loss leaves the firmware recovery page active
-                // and START inhibited until the complete set is uploaded again.
-                String writePath = _assetPath((uint16_t)asset, false);
-#endif
-                if (LittleFS.exists(writePath)) LittleFS.remove(writePath);
-                _assetTempFile = LittleFS.open(writePath, "w");
-                if (!_assetTempFile) {
-                    _assetUploadError = true;
-                    _discardAssetTemps();
-                    return;
-                }
-            }
-            if (!_assetTempFile || _assetTempFile.write(data, len) != len) {
-                _assetUploadError = true;
-                _discardAssetTemps();
-                return;
-            }
-            if (final) {
-                _assetTempFile.close();
-                _assetUploadMask |= (1u << asset);
+            } else {
+                _finishAssetUpload();
             }
         });
 
@@ -4128,51 +4018,7 @@ void WebServer::_setupRoutes() {
     // sequence with every unrelated interlock active and the reduced-power
     // fuel cap enforced in both STARTUP and RUNNING.
     _server.on("/api/start-limited", HTTP_POST, [](AsyncWebServerRequest* req) {
-        if (_maintenanceUploadInProgress()) {
-            req->send(423, "application/json", "{\"ok\":false,\"error\":\"Maintenance upload in progress\"}");
-            return;
-        }
-        if (const char* reject = _limitedStartRejectReason()) {
-            _sendCommandReject(req, 409, reject);
-            return;
-        }
-        const uint32_t requestId = CommandQueue::nextRequestId();
-        CommandQueue::beginResult(requestId);
-        OTPacket packet{OTCommand::START_LIMITED};
-        packet.requestId = requestId;
-        if (!CommandQueue::push(packet)) {
-            req->send(503, "application/json", "{\"ok\":false,\"error\":\"Command queue full\"}");
-            return;
-        }
-        bool accepted = false;
-        char reason[120] = {};
-        if (!CommandQueue::waitResult(requestId, 150, accepted, reason, sizeof(reason))) {
-            if (CommandQueue::cancelPendingResult(requestId)) {
-                req->send(504, "application/json",
-                    "{\"ok\":false,\"error\":\"ECU core did not claim reduced-power START in time; request canceled\"}");
-                return;
-            }
-            if (!CommandQueue::waitResult(requestId, 1000, accepted, reason, sizeof(reason))) {
-                req->send(504, "application/json",
-                    "{\"ok\":false,\"error\":\"ECU reset or became unavailable while deciding reduced-power START; verify ECU state before retrying\"}");
-                return;
-            }
-        }
-        if (!accepted) {
-            _sendCommandReject(req, 409, reason);
-        } else {
-            snprintf(g_webTxBuf, sizeof(g_webTxBuf),
-                     "{\"ok\":true,\"started\":true,\"mode\":\"reduced_power\",\"request_id\":%lu}",
-                     (unsigned long)requestId);
-            req->send(200, "application/json", g_webTxBuf);
-        }
-    });
-
-    _server.on("/api/hardware/capability", HTTP_GET, [](AsyncWebServerRequest* req) {
-        const char* feature = req->hasParam("feature") ? req->getParam("feature")->value().c_str() : "";
-        JsonDocument doc; HardwareCapabilities::toJson(doc.to<JsonObject>(), feature);
-        size_t n = serializeJson(doc, g_webTxBuf, sizeof(g_webTxBuf));
-        _sendOwnedJson(req, g_webTxBuf, n);
+        _handleStartRequest(req, true);
     });
 
     // Read-only immutable PCB catalog, paged so even a maximum custom profile
@@ -4244,10 +4090,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            if (index == 0 && _maintenanceUploadInProgress()) {
-                req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-                return;
-            }
+            if (index == 0 && _rejectMaintenanceConflict(req)) return;
             if (!_appendWebRx(req, data, len, index)) return;
             if (index + len < total) return;   // wait for more chunks
             WebRxRelease release(req);
@@ -4465,10 +4308,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            if (index == 0 && _maintenanceUploadInProgress()) {
-                req->send(423, "application/json", "{\"error\":\"maintenance upload in progress\"}");
-                return;
-            }
+            if (index == 0 && _rejectMaintenanceConflict(req)) return;
             // Hardware config changes take effect immediately on the live control loop
             // (HardwareConfig static fields are read every tick).  Reject unless
             // STANDBY (or FAULT — the control loop is equally idle there).

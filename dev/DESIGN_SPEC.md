@@ -111,7 +111,7 @@ OpenTurbine/
     │   ├── CommandQueue.h/.cpp   ← thread-safe Core 0 → Core 1 command pipe
     │   ├── Watchdog.h
     │   └── web/
-    │       ├── WebServer.h/.cpp  ← AsyncWebServer, WebSocket, REST endpoints
+    │       ├── WebServer.h/.cpp  ← AsyncWebServer and REST endpoints
     │
     └── platform/esp32/         ← MCU-specific shims
         ├── PlatformInit.h      ← Serial, LittleFS, NVS, ADC bring-up
@@ -157,11 +157,6 @@ sequence) — it is illustrative, not the default.
 
 // ── Platform ──────────────────────────────────────────────────
 #define OT_PLATFORM_ESP32          // ESP32 classic (240 MHz dual-core)
-
-// ── Development mode ──────────────────────────────────────────
-// Uncomment to allow live config changes, bypass safety locks.
-// NEVER ship firmware with this enabled.
-// #define OT_DEV_MODE
 
 // ── Mandatory physical controls ───────────────────────────────
 #define OT_STOP_PIN    15    // active-low, internal pull-up — MUST be hardware
@@ -720,7 +715,7 @@ Core 0:
   OpenTurbine web task, priority 8
   AsyncTCP network callbacks, priority 10, explicitly pinned here
   AsyncWebServer handles HTTP requests
-  WebSocket responds to browser pull frames; Dashboard and Calibration pull near 3 Hz
+  Compact REST telemetry serves Dashboard and Calibration near 3 Hz
   CommandQueue::push() when commands received from UI
   LittleFS/NVS queues are persisted only while the ECU is in STANDBY/FAULT
 ```
@@ -756,13 +751,13 @@ POST  /api/command   → queue a command (FuelPrime, IGNtest, etc.)
 POST  /api/start     → queue START command
 POST  /api/stop      → immediate STOP (direct, not queued)
 GET   /api/status    → mode, health summary, lock state
+GET   /api/telemetry → compact live values for responsive UI polling
 POST  /api/factory_reset → regenerate default config, STANDBY-only, schedules reboot
-POST  /api/web_assets → upload replacement web UI assets to LittleFS, STANDBY-only
-POST  /update        → OTA firmware upload (binary, writes to inactive OTA slot, reboots)
-WS    /ws            → client-pulled live telemetry frames
+POST  /api/web_asset_chunk → bounded replacement web UI asset upload to LittleFS, STANDBY-only
+POST  /api/firmware_chunk → bounded OTA firmware upload (writes to inactive OTA slot, reboots)
 ```
 
-### WebSocket telemetry frame (Dashboard/Calibration pull near 3 Hz)
+### Compact REST telemetry frame (Dashboard/Calibration pull near 3 Hz)
 ```json
 {
   "mode": "RUNNING",
@@ -784,7 +779,9 @@ WS    /ws            → client-pulled live telemetry frames
 ## 13. Web UI — Page Structure
 
 Static files served from LittleFS. Plain HTML/CSS/JS — no frameworks, no build step.
-Modern, clean aesthetic. Mobile-friendly. All live data via WebSocket.
+Modern, clean aesthetic. Mobile-friendly. Live numerical and binary data uses
+bounded compact REST polling; mostly-static labels and configuration documents
+are not retransmitted at that rate.
 
 ### Pages
 

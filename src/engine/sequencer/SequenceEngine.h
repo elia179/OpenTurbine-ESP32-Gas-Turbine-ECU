@@ -60,11 +60,11 @@ public:
         auto& ed = EngineData::instance();
         if (_afterburner) {
             ed.abSeqBlockTotal = (uint8_t)count; ed.abSeqBlockIdx = 0;
-            ed.abSeqStartedMs = millis(); ed.abSeqEndedMs = 0; ed.abSeqLastResult[0] = '\0';
+            ed.abSeqLastResult[0] = '\0';
             ed.abSeqFaultBlock[0] = '\0';
         } else {
             ed.seqBlockTotal = (uint8_t)count; ed.seqBlockIdx = 0;
-            ed.seqStartedMs = millis(); ed.seqEndedMs = 0; ed.seqLastResult[0] = '\0';
+            ed.seqLastResult[0] = '\0';
             ed.seqFaultBlock[0] = '\0';
         }
         if (_running) _enter(0);
@@ -87,12 +87,10 @@ public:
         auto& ed = EngineData::instance();
         if (_afterburner) {
             ed.abCurrentBlock[0] = '\0'; ed.abSeqBlockTotal = 0; ed.abSeqBlockIdx = 0;
-            ed.abSeqEndedMs = millis();
             strncpy(ed.abSeqLastResult, "stopped", sizeof(ed.abSeqLastResult)-1);
             ed.abSeqLastResult[sizeof(ed.abSeqLastResult)-1] = '\0';
         } else {
             ed.currentBlock[0] = '\0'; ed.seqBlockTotal = 0; ed.seqBlockIdx = 0;
-            ed.seqEndedMs = millis();
             strncpy(ed.seqLastResult, "stopped", sizeof(ed.seqLastResult)-1);
             ed.seqLastResult[sizeof(ed.seqLastResult)-1] = '\0';
         }
@@ -229,8 +227,8 @@ private:
         char* target = _afterburner ? ed.abSeqLastResult : ed.seqLastResult;
         const size_t size = _afterburner ? sizeof(ed.abSeqLastResult) : sizeof(ed.seqLastResult);
         strncpy(target, result, size - 1); target[size - 1] = '\0';
-        if (_afterburner) { ed.abSeqEndedMs = millis(); ed.abCurrentBlock[0] = '\0'; }
-        else { ed.seqEndedMs = millis(); ed.currentBlock[0] = '\0'; }
+        if (_afterburner) ed.abCurrentBlock[0] = '\0';
+        else ed.currentBlock[0] = '\0';
     }
 
     void _recordFaultBlock(const char* blockName) {

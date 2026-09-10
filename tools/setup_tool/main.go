@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,14 +33,14 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.2"
+	appVersion                  = "0.7.3"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
 	ecuBaseURL                  = "http://192.168.4.1"
 	defaultPackageURL           = "https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbine_Recommended.zip"
-	cleanSafetyButtonLabel      = "I understand — choose board"
-	updateSafetyButtonLabel     = "My engine is safe — continue update"
+	cleanSafetyButtonLabel      = "Continue to board selection"
+	updateSafetyButtonLabel     = "Continue with safe update"
 	maxPackageDownloadBytes     = int64(512 << 20)
 	maxPackageEntries           = 4096
 	maxPackageFileBytes         = int64(128 << 20)
@@ -58,9 +57,9 @@ var (
 	colText       = rgb(231, 239, 245)
 	colTextMuted  = rgb(170, 185, 199)
 	colTextSoft   = rgb(131, 149, 169)
-	colAccent     = rgb(238, 118, 32)
-	colAccent2    = rgb(245, 158, 11)
-	colAccentDark = rgb(124, 63, 24)
+	colAccent     = rgb(42, 194, 190)
+	colAccent2    = rgb(255, 184, 72)
+	colAccentDark = rgb(21, 101, 105)
 	colInfoBg     = rgb(32, 40, 58)
 	colInfoBorder = rgb(54, 82, 124)
 	colInfoText   = rgb(215, 229, 255)
@@ -263,6 +262,7 @@ type Job struct {
 	app        *App
 	mode       string
 	continueCh chan struct{}
+	cancelCh   chan struct{}
 	actionCh   chan string
 	backupPath string
 	logs       []string
@@ -365,6 +365,7 @@ var (
 
 const (
 	wsOverlappedWindow = 0x00CF0000
+	wsThickFrame       = 0x00040000
 	wsVisible          = 0x10000000
 	createNoWindow     = 0x08000000
 	imageIcon          = 1
@@ -372,6 +373,8 @@ const (
 
 	wmCreate        = 0x0001
 	wmDestroy       = 0x0002
+	wmClose         = 0x0010
+	wmKeyDown       = 0x0100
 	wmSize          = 0x0005
 	wmGetMinMaxInfo = 0x0024
 	wmPaint         = 0x000F
@@ -404,6 +407,8 @@ const (
 
 	cursorArrow = 32512
 	cursorHand  = 32649
+	htClient    = 1
+	vkEscape    = 0x1B
 )
 
 type rect struct{ left, top, right, bottom int32 }
@@ -493,29 +498,33 @@ type NativeUI struct {
 	fontSmall   uintptr
 	fontButton  uintptr
 
-	mu            sync.Mutex
-	screen        screenKind
-	title         string
-	subtitle      string
-	body          string
-	detail        string
-	mode          string
-	step          int
-	totalSteps    int
-	progress      int
-	primary       string
-	secondary     string
-	pendingMode   string
-	backupPath    string
-	logs          []string
-	showDetails   bool
-	scrollOffset  int
-	scrollMax     int
-	activeJob     *Job
-	zones         []clickZone
-	boards        []detectedBoard
-	pcbChoices    []pcbProfileChoice
-	driverChoices []driverChoice
+	mu                 sync.Mutex
+	screen             screenKind
+	title              string
+	subtitle           string
+	body               string
+	detail             string
+	mode               string
+	step               int
+	totalSteps         int
+	progress           int
+	primary            string
+	secondary          string
+	pendingMode        string
+	backupPath         string
+	logs               []string
+	showDetails        bool
+	scrollOffset       int
+	scrollMax          int
+	scrollRemainder    int
+	preparing          bool
+	activeJob          *Job
+	zones              []clickZone
+	boards             []detectedBoard
+	pcbChoices         []pcbProfileChoice
+	selectedPCBProfile string
+	driverChoices      []driverChoice
+	hoverAction        string
 
 	pending *uiUpdate
 }
@@ -568,7 +577,9 @@ func runGUI(app *App) {
 	work := rect{0, 0, 1024, 768}
 	procSystemParametersInfoW.Call(0x0030, 0, uintptr(unsafe.Pointer(&work)), 0) // SPI_GETWORKAREA
 	workW, workH := int(work.right-work.left), int(work.bottom-work.top)
-	windowW, windowH := 900, 740
+	// The normal layout is intentionally roomy: both install paths fit beside
+	// each other and longer safety/instruction text does not start scrolled.
+	windowW, windowH := 1240, 820
 	if windowW > workW-24 {
 		windowW = workW - 24
 	}
@@ -586,7 +597,7 @@ func runGUI(app *App) {
 		0,
 		uintptr(unsafe.Pointer(className)),
 		uintptr(unsafe.Pointer(utf16Ptr(appTitle))),
-		wsOverlappedWindow|wsVisible,
+		wsOverlappedWindow|wsThickFrame|wsVisible,
 		uintptr(x), uintptr(y), uintptr(windowW), uintptr(windowH),
 		0, 0, hInst, 0,
 	)
@@ -620,6 +631,22 @@ func wndProc(hwnd uintptr, msgID uint32, wParam, lParam uintptr) uintptr {
 	case wmEraseBkgnd:
 		// The complete frame is copied from an off-screen buffer in wmPaint.
 		return 1
+	case wmClose:
+		if ui != nil {
+			ui.mu.Lock()
+			busy := ui.preparing || ui.activeJob != nil
+			if busy {
+				ui.detail = "The setup operation is still active. Finish or cancel the current step before closing this window."
+			}
+			ui.mu.Unlock()
+			if busy {
+				ui.invalidate()
+				return 0
+			}
+		}
+		// Let the default procedure destroy the window when no operation is active.
+		ret, _, _ := procDefWindowProcW.Call(hwnd, uintptr(msgID), wParam, lParam)
+		return ret
 	case wmSize:
 		ui.invalidate()
 		return 0
@@ -640,16 +667,43 @@ func wndProc(hwnd uintptr, msgID uint32, wParam, lParam uintptr) uintptr {
 		y := int(int16((lParam >> 16) & 0xffff))
 		ui.click(x, y)
 		return 0
+	case wmKeyDown:
+		if ui != nil && ui.handleKey(wParam) {
+			return 0
+		}
+	case wmMouseMove:
+		if ui != nil {
+			x := int(int16(lParam & 0xffff))
+			y := int(int16((lParam >> 16) & 0xffff))
+			ui.updateHover(x, y)
+		}
+		return 0
 	case wmSetCursor:
-		// Leave the cursor simple and predictable.
-		arrow, _, _ := procLoadCursorW.Call(0, cursorArrow)
-		user32.NewProc("SetCursor").Call(arrow)
+		if ui == nil {
+			return 0
+		}
+		// Keep DefWindowProc in charge of non-client hit testing. In particular,
+		// it supplies the resize cursors and edge/corner behavior for the
+		// WS_THICKFRAME window. Only customize the cursor inside our client area.
+		if uint32(lParam&0xffff) != htClient {
+			ret, _, _ := procDefWindowProcW.Call(hwnd, uintptr(msgID), wParam, lParam)
+			return ret
+		}
+		ui.mu.Lock()
+		hoverAction := ui.hoverAction
+		ui.mu.Unlock()
+		cursorID := uintptr(cursorArrow)
+		if hoverAction != "" {
+			cursorID = cursorHand
+		}
+		cursor, _, _ := procLoadCursorW.Call(0, cursorID)
+		user32.NewProc("SetCursor").Call(cursor)
 		return 1
 	case wmAppUpdate:
 		ui.applyPending()
 		return 0
 	case wmAppInvalidate:
-		procInvalidateRect.Call(hwnd, 0, 1)
+		procInvalidateRect.Call(hwnd, 0, 0)
 		return 0
 	case wmDestroy:
 		procPostQuitMessage.Call(0)
@@ -692,16 +746,79 @@ func setProcessDPIAware() {
 func (ui *NativeUI) scroll(wheelDelta int) {
 	ui.mu.Lock()
 	if ui.scrollMax > 0 {
-		ui.scrollOffset -= wheelDelta / 120 * 48
+		// Use the wheel packet itself instead of truncating to whole notches.
+		// Precision touchpads commonly send deltas smaller than 120; retaining
+		// the remainder keeps those events responsive without jumpy 48px steps.
+		total := ui.scrollRemainder + wheelDelta
+		move := total / 4 // 30px per traditional 120-unit wheel notch
+		ui.scrollRemainder = total - move*4
+		ui.scrollOffset -= move
 		if ui.scrollOffset < 0 {
 			ui.scrollOffset = 0
+			ui.scrollRemainder = 0
 		}
 		if ui.scrollOffset > ui.scrollMax {
 			ui.scrollOffset = ui.scrollMax
+			ui.scrollRemainder = 0
 		}
+	} else {
+		ui.scrollRemainder = 0
 	}
 	ui.mu.Unlock()
 	ui.invalidate()
+}
+
+func (ui *NativeUI) handleKey(key uintptr) bool {
+	if key != vkEscape {
+		return false
+	}
+	ui.mu.Lock()
+	screen := ui.screen
+	job := ui.activeJob
+	ui.mu.Unlock()
+	switch screen {
+	case screenSafety, screenDone, screenError:
+		ui.showHome()
+	case screenWait:
+		if job != nil {
+			select {
+			case job.cancelCh <- struct{}{}:
+			default:
+			}
+		}
+	case screenDriverHelp, screenBoardChoice, screenPCBProfileChoice:
+		if job != nil {
+			select {
+			case job.actionCh <- "cancel":
+			default:
+			}
+		}
+	case screenRunning:
+		ui.mu.Lock()
+		ui.detail = "The current operation cannot be cancelled at this point. Wait for it to finish before closing the window."
+		ui.mu.Unlock()
+		ui.invalidate()
+	default:
+		return false
+	}
+	return true
+}
+
+func (ui *NativeUI) updateHover(x, y int) {
+	ui.mu.Lock()
+	previous := ui.hoverAction
+	ui.hoverAction = ""
+	for _, z := range ui.zones {
+		if pointInRect(x, y, z.r) {
+			ui.hoverAction = z.action
+			break
+		}
+	}
+	changed := previous != ui.hoverAction
+	ui.mu.Unlock()
+	if changed {
+		ui.invalidate()
+	}
 }
 
 func (ui *NativeUI) showHome() {
@@ -718,7 +835,10 @@ func (ui *NativeUI) showHome() {
 	ui.primary = ""
 	ui.secondary = ""
 	ui.pendingMode = ""
+	ui.backupPath = ""
 	ui.showDetails = false
+	ui.preparing = false
+	ui.selectedPCBProfile = ""
 	ui.activeJob = nil
 	ui.mu.Unlock()
 	ui.invalidate()
@@ -739,6 +859,8 @@ func (ui *NativeUI) showPreparing() {
 	ui.secondary = ""
 	ui.pendingMode = ""
 	ui.showDetails = false
+	ui.preparing = true
+	ui.selectedPCBProfile = ""
 	ui.activeJob = nil
 	ui.logs = nil
 	ui.mu.Unlock()
@@ -757,13 +879,18 @@ func (ui *NativeUI) prepareThenShowHome() {
 	}
 	logf("Checking for the recommended OpenTurbine files.", 12)
 	if _, err := ui.app.ensurePackageWithProgress(logf); err != nil {
-		body := "The tool could not prepare the required OpenTurbine files.\n\nStay connected to your normal internet Wi-Fi and open the tool again.\n\nFor now, OpenTurbine also needs a GitHub Release asset named OpenTurbine_Recommended.zip."
-		ui.update(uiUpdate{screen: screenError, title: "Setup files not ready", subtitle: "The tool could not download or check the required files.", body: body, detail: oneLine(err.Error()), step: 0, totalSteps: 0, progress: 0, primary: "Back to start", secondary: "", done: true, appendLog: []string{"ERROR: " + err.Error()}})
+		body := "The tool could not prepare the required OpenTurbine files.\n\nStay connected to your normal internet Wi-Fi and click Retry. If GitHub is unavailable, the tool will use a previously verified cache or a local OpenTurbine_Recommended.zip placed beside the EXE."
+		ui.update(uiUpdate{screen: screenError, title: "Setup files not ready", subtitle: "The tool could not download or check the required files.", body: body, detail: oneLine(err.Error()), step: 0, totalSteps: 0, progress: 0, primary: "Retry", secondary: "Choose package", done: true, appendLog: []string{"ERROR: " + err.Error()}})
 		return
 	}
 	ui.update(uiUpdate{screen: screenRunning, title: "Preparing OpenTurbine Setup Tool", subtitle: "Setup files ready.", body: "Required files are ready. Opening the setup tool.", detail: "", step: 2, totalSteps: 2, progress: 100, appendLog: []string{"Required files are ready."}})
 	time.Sleep(500 * time.Millisecond)
-	ui.update(uiUpdate{screen: screenHome, title: appTitle, subtitle: "Ready. Simple setup and updates for OpenTurbine boards."})
+	pkg, _ := ui.app.ensurePackage()
+	subtitle := "Ready. Simple setup and updates for OpenTurbine boards."
+	if pkg != nil {
+		subtitle = "Ready. Verified OpenTurbine package " + packageVersion(pkg) + ". Choose an install or update."
+	}
+	ui.update(uiUpdate{screen: screenHome, title: appTitle, subtitle: subtitle})
 }
 
 func (ui *NativeUI) showSafety(mode string) {
@@ -794,7 +921,7 @@ func (ui *NativeUI) startJob(mode string) {
 	if ui.activeJob != nil {
 		return
 	}
-	job := &Job{app: ui.app, mode: mode, continueCh: make(chan struct{}), actionCh: make(chan string)}
+	job := &Job{app: ui.app, mode: mode, continueCh: make(chan struct{}, 1), cancelCh: make(chan struct{}, 1), actionCh: make(chan string, 1)}
 	ui.mu.Lock()
 	ui.activeJob = job
 	ui.logs = nil
@@ -816,12 +943,18 @@ func (ui *NativeUI) click(x, y int) {
 	ui.mu.Unlock()
 	for _, z := range zones {
 		if pointInRect(x, y, z.r) {
-			if (strings.HasPrefix(z.action, "selectBoard:") ||
-				strings.HasPrefix(z.action, "pcbProfile:")) && job != nil {
+			if strings.HasPrefix(z.action, "selectBoard:") && job != nil {
 				select {
 				case job.actionCh <- z.action:
 				default:
 				}
+				return
+			}
+			if strings.HasPrefix(z.action, "pcbProfile:") && job != nil {
+				ui.mu.Lock()
+				ui.selectedPCBProfile = z.action
+				ui.mu.Unlock()
+				ui.invalidate()
 				return
 			}
 			switch z.action {
@@ -840,10 +973,45 @@ func (ui *NativeUI) click(x, y int) {
 					default:
 					}
 				}
+			case "cancelWait":
+				if job != nil {
+					select {
+					case job.cancelCh <- struct{}{}:
+					default:
+					}
+				}
+			case "rescanUSB":
+				if job != nil {
+					select {
+					case job.actionCh <- "rescan":
+					default:
+					}
+				}
+			case "pcbProfileContinue":
+				if job != nil {
+					ui.mu.Lock()
+					selected := ui.selectedPCBProfile
+					ui.mu.Unlock()
+					if selected != "" {
+						select {
+						case job.actionCh <- selected:
+						default:
+						}
+					}
+				}
 			case "home":
 				ui.showHome()
+			case "retryPrepare":
+				if ui.activeJob == nil {
+					ui.showPreparing()
+					go ui.prepareThenShowHome()
+				}
+			case "choosePackage":
+				ui.chooseLocalPackage()
 			case "openBackup":
 				ui.openBackupFolder()
+			case "openDashboard":
+				ui.openDashboard()
 			case "copyLog":
 				ui.copyLogToClipboard()
 			case "driverCP210x":
@@ -894,39 +1062,8 @@ func (ui *NativeUI) click(x, y int) {
 			return
 		}
 	}
-	switch screen {
-	case screenHome:
-		if y >= 170 && y <= 395 {
-			if x < 450 {
-				ui.showSafety("new")
-				return
-			}
-			ui.showSafety("update")
-			return
-		}
-	case screenSafety:
-		if y >= 520 {
-			if x < 330 {
-				ui.showHome()
-				return
-			}
-			ui.startJob(mode)
-			return
-		}
-	case screenWait:
-		if y >= 520 && job != nil {
-			select {
-			case job.continueCh <- struct{}{}:
-			default:
-			}
-			return
-		}
-	case screenError, screenDone:
-		if y >= 520 && x > 500 {
-			ui.showHome()
-			return
-		}
-	}
+	// Do not infer an action from a click in a broad body/footer area. Every
+	// state-changing action must have an explicit painted click zone.
 	_ = screen
 }
 
@@ -953,6 +1090,58 @@ func (ui *NativeUI) choosePCBProfileFile() string {
 	return syscall.UTF16ToString(buffer)
 }
 
+func (ui *NativeUI) choosePackageFile() string {
+	buffer := make([]uint16, 32768)
+	filter := syscall.StringToUTF16("OpenTurbine package (*.zip)\x00*.zip\x00All files (*.*)\x00*.*\x00\x00")
+	title := syscall.StringToUTF16("Choose the verified OpenTurbine package ZIP")
+	defExt := syscall.StringToUTF16("zip")
+	ofn := openFileName{
+		structSize:       uint32(unsafe.Sizeof(openFileName{})),
+		owner:            ui.hwnd,
+		filter:           &filter[0],
+		filterIndex:      1,
+		file:             &buffer[0],
+		maxFile:          uint32(len(buffer)),
+		title:            &title[0],
+		flags:            0x00080000 | 0x00000800 | 0x00001000,
+		defaultExtension: &defExt[0],
+	}
+	ok, _, _ := procGetOpenFileNameW.Call(uintptr(unsafe.Pointer(&ofn)))
+	if ok == 0 {
+		return ""
+	}
+	return syscall.UTF16ToString(buffer)
+}
+
+func (ui *NativeUI) chooseLocalPackage() {
+	path := ui.choosePackageFile()
+	if path == "" {
+		return
+	}
+	pkg, err := loadPackageFromZip(path)
+	if err == nil {
+		if _, toolErr := findEsptool(pkg); toolErr != nil {
+			err = fmt.Errorf("the selected package is missing tools\\esptool.exe: %w", toolErr)
+		}
+	}
+	if err != nil {
+		if pkg != nil {
+			pkg.cleanup()
+		}
+		ui.update(uiUpdate{screen: screenError, title: "Package not accepted", subtitle: "Choose a complete OpenTurbine package ZIP and try again.", body: "The selected package could not be used for this Setup Tool. No board was changed.", detail: oneLine(err.Error()), primary: "Retry", secondary: "Choose package", done: true})
+		return
+	}
+	ui.app.packageMu.Lock()
+	previous := ui.app.packageReady
+	ui.app.packageReady = pkg
+	ui.app.packageMu.Unlock()
+	if previous != nil && previous != pkg {
+		previous.cleanup()
+	}
+	ui.showPreparing()
+	go ui.prepareThenShowHome()
+}
+
 func (ui *NativeUI) openBackupFolder() {
 	ui.mu.Lock()
 	p := ui.backupPath
@@ -965,6 +1154,10 @@ func (ui *NativeUI) openBackupFolder() {
 	}
 	_ = os.MkdirAll(p, 0755)
 	procShellExecuteW.Call(ui.hwnd, uintptr(unsafe.Pointer(utf16Ptr("open"))), uintptr(unsafe.Pointer(utf16Ptr(p))), 0, 0, 1)
+}
+
+func (ui *NativeUI) openDashboard() {
+	procShellExecuteW.Call(ui.hwnd, uintptr(unsafe.Pointer(utf16Ptr("open"))), uintptr(unsafe.Pointer(utf16Ptr(ecuBaseURL))), 0, 0, 1)
 }
 
 func (ui *NativeUI) copyLogToClipboard() {
@@ -1051,6 +1244,7 @@ func (ui *NativeUI) applyPending() {
 		}
 		if p.done {
 			ui.activeJob = nil
+			ui.preparing = false
 		}
 		if p.screen == screenHome {
 			ui.body = ""
@@ -1064,13 +1258,22 @@ func (ui *NativeUI) applyPending() {
 			ui.pendingMode = ""
 			ui.backupPath = ""
 			ui.showDetails = false
+			ui.preparing = false
+			ui.selectedPCBProfile = ""
 			ui.activeJob = nil
 			ui.driverChoices = nil
 			ui.pcbChoices = nil
 		}
+		if p.screen == screenPCBProfileChoice && previousScreen != screenPCBProfileChoice {
+			ui.selectedPCBProfile = ""
+		}
+		if p.screen != screenPCBProfileChoice && p.screen != screenHome {
+			ui.selectedPCBProfile = ""
+		}
 		if p.screen != previousScreen {
 			ui.scrollOffset = 0
 			ui.scrollMax = 0
+			ui.scrollRemainder = 0
 		}
 	}
 	ui.mu.Unlock()
@@ -1079,7 +1282,10 @@ func (ui *NativeUI) applyPending() {
 
 func (ui *NativeUI) invalidate() {
 	if ui.hwnd != 0 {
-		procPostMessageW.Call(ui.hwnd, wmAppInvalidate, 0, 0)
+		// InvalidateRect coalesces repeated wheel/live-update paints in the
+		// window manager. Posting one private message per wheel packet made
+		// precision-wheel scrolling visibly lag behind the cursor.
+		procInvalidateRect.Call(ui.hwnd, 0, 0)
 	}
 }
 
@@ -1138,16 +1344,19 @@ func (ui *NativeUI) paint() {
 	line(hdc, 0, 86, w, 86, colBorderSoft, 1)
 	text(hdc, title, rect{34, 14, int32(w - 34), 54}, ui.fontTitle, colText, dtLeft|dtSingleLine|dtNoPrefix)
 	text(hdc, subtitle, rect{36, 54, int32(w - 36), 82}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
+	if s == screenHome && strings.Contains(subtitle, "Verified") {
+		drawStatusBadge(hdc, rect{int32(w - 238), 16, int32(w - 34), 44}, "PACKAGE READY", ui.fontSmall)
+	}
 
 	switch s {
 	case screenHome:
-		ui.paintHome(hdc, w, h)
+		ui.paintHome(hdc, w, h, scrollOffset)
 	case screenSafety:
-		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, primary, secondary, false, false, logs, showDetails, scrollOffset)
+		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, primary, secondary, false, false, logs, showDetails, scrollOffset, mode)
 	case screenRunning:
-		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, "", "", true, true, logs, showDetails, scrollOffset)
+		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, "", "", true, true, logs, showDetails, scrollOffset, mode)
 	case screenWait:
-		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, primary, "", false, true, logs, showDetails, scrollOffset)
+		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, primary, "Cancel", false, true, logs, showDetails, scrollOffset, mode)
 	case screenDone:
 		if backupPath != "" && !strings.Contains(body, backupPath) {
 			body += "\n\nEngine file backup:\n" + backupPath
@@ -1156,19 +1365,19 @@ func (ui *NativeUI) paint() {
 		if backupPath != "" {
 			secondary = "Open backup folder"
 		}
-		ui.paintCardScreen(hdc, w, h, body, detail, step, total, 100, "Back to start", secondary, false, true, logs, showDetails, scrollOffset)
+		ui.paintCardScreen(hdc, w, h, body, detail, step, total, 100, "Back to start", secondary, false, true, logs, showDetails, scrollOffset, mode)
 	case screenDriverHelp:
-		ui.paintDriverHelp(hdc, w, h, body, detail, logs, showDetails, scrollOffset, driverChoices)
+		ui.paintDriverHelp(hdc, w, h, body, detail, logs, showDetails, scrollOffset, driverChoices, mode)
 	case screenBoardChoice:
-		ui.paintBoardChoice(hdc, w, h, boards, scrollOffset)
+		ui.paintBoardChoice(hdc, w, h, boards, scrollOffset, mode)
 	case screenPCBProfileChoice:
-		ui.paintPCBProfileChoice(hdc, w, h, pcbChoices, scrollOffset)
+		ui.paintPCBProfileChoice(hdc, w, h, pcbChoices, scrollOffset, mode)
 	case screenError:
 		errorSecondary := secondaryState
 		if errorSecondary == "" {
 			errorSecondary = "Open folder"
 		}
-		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, "Back to start", errorSecondary, false, true, logs, showDetails, scrollOffset)
+		ui.paintCardScreen(hdc, w, h, body, detail, step, total, progress, "Back to start", errorSecondary, false, true, logs, showDetails, scrollOffset, mode)
 	}
 
 	// Footer is intentionally simple.
@@ -1182,39 +1391,77 @@ func (ui *NativeUI) paint() {
 	}
 }
 
-func (ui *NativeUI) paintHome(hdc uintptr, w, h int) {
-	text(hdc, "Choose one option", rect{36, 108, int32(w - 36), 144}, ui.fontHeading, colText, dtLeft|dtSingleLine|dtNoPrefix)
+func (ui *NativeUI) paintHome(hdc uintptr, w, h, scrollOffset int) {
+	contentTop, contentBottom := 104, h-48
 	margin := 34
-	gap := 24
+	gap := 20
+	// Keep the two actions readable on compact windows. At narrower widths the
+	// cards stack and use the full content column; wider windows keep a
+	// comfortable maximum card width.
+	stacked := w < 1100
 	cardW := (w - margin*2 - gap) / 2
-	if cardW > 390 {
-		cardW = 390
+	if stacked {
+		cardW = w - margin*2
 	}
-	x1 := margin
-	x2 := x1 + cardW + gap
-	y := 150
-	cardH := h - y - 142
-	if cardH > 268 {
-		cardH = 268
+	if !stacked && cardW > 520 {
+		cardW = 520
 	}
-	if cardH < 196 {
-		cardH = 196
+	cardH := 252
+	if stacked {
+		cardH = 220
 	}
-	r1 := rect{int32(x1), int32(y), int32(x1 + cardW), int32(y + cardH)}
-	r2 := rect{int32(x2), int32(y), int32(x2 + cardW), int32(y + cardH)}
-	ui.drawActionCard(hdc, r1, "Clean install / reinstall", "For a blank board or a fresh start on an older board. Uses USB and ERASES all existing settings, calibration, logs, and Wi-Fi details.", "Erase board and install", "new")
-	ui.drawActionCard(hdc, r2, "Update and keep my setup", "For a working OpenTurbine board. Uses Wi-Fi, validates a complete engine-file backup, and keeps the setup already stored on the board.", "Update without resetting", "update")
-	noteY := y + cardH + 16
-	note := "During update the tool will tell you exactly when to stay on normal internet Wi-Fi and when to connect to the board Wi-Fi. The board Wi-Fi name may be OpenTurbine or your own engine/project name."
-	noteBottom := h - 48
-	drawPanel(hdc, rect{34, int32(noteY), int32(w - 34), int32(noteBottom)}, colInfoBg, colInfoBorder, 18)
-	text(hdc, note, rect{56, int32(noteY + 14), int32(w - 56), int32(noteBottom - 10)}, ui.fontSmall, colInfoText, dtLeft|dtWordBreak|dtNoPrefix)
+	noteH := 124
+	contentHeight := 52 + cardH + noteH
+	if stacked {
+		contentHeight = 52 + cardH*2 + gap + noteH + gap
+	}
+	ui.setScrollMax(maxInt(0, contentHeight-(contentBottom-contentTop)))
+	saved, _, _ := procSaveDC.Call(hdc)
+	contentLeft, contentRight := margin, margin+cardW
+	if !stacked {
+		contentRight = w - margin
+	}
+	procIntersectClipRect.Call(hdc, uintptr(contentLeft), uintptr(contentTop), uintptr(contentRight), uintptr(contentBottom))
+	y := contentTop - scrollOffset
+	text(hdc, "What do you want to do?", rect{36, int32(y), int32(w - 36), int32(y + 34)}, ui.fontHeading, colText, dtLeft|dtSingleLine|dtNoPrefix)
+	text(hdc, "Choose the path that matches the board’s current state.", rect{36, int32(y + 32), int32(w - 36), int32(y + 54)}, ui.fontSmall, colTextMuted, dtLeft|dtSingleLine|dtNoPrefix)
+	y += 64
+	if stacked {
+		r1 := rect{int32(contentLeft), int32(y), int32(contentRight), int32(y + cardH)}
+		ui.drawActionCard(hdc, r1, "Clean install / reinstall", "Blank board or intentional fresh start. Uses USB and ERASES settings, calibration, logs, and Wi‑Fi details.", "Install (erases board)", "new")
+		y += cardH + gap
+		r2 := rect{int32(contentLeft), int32(y), int32(contentRight), int32(y + cardH)}
+		ui.drawActionCard(hdc, r2, "Update and keep my setup", "Working OpenTurbine board. Uses Wi‑Fi, makes a complete backup, and keeps the existing engine setup.", "Update (keep setup)", "update")
+		y += cardH + gap
+	} else {
+		x1 := margin
+		x2 := x1 + cardW + gap
+		r1 := rect{int32(x1), int32(y), int32(x1 + cardW), int32(y + cardH)}
+		r2 := rect{int32(x2), int32(y), int32(x2 + cardW), int32(y + cardH)}
+		ui.drawActionCard(hdc, r1, "Clean install / reinstall", "Blank board or intentional fresh start. Uses USB and ERASES settings, calibration, logs, and Wi‑Fi details.", "Erase board and install", "new")
+		ui.drawActionCard(hdc, r2, "Update and keep my setup", "Working OpenTurbine board. Uses Wi‑Fi, makes a complete backup, and keeps the existing engine setup.", "Update without resetting", "update")
+		y += cardH + gap
+	}
+	note := "During update the tool will show each phase and tell you when to stay on normal internet Wi‑Fi or switch to the board Wi‑Fi. If a Classic ESP32 is not detected, unplug it, hold BOOT while plugging it back in, then use Rescan."
+	noteRect := rect{int32(contentLeft), int32(y), int32(contentRight), int32(y + noteH)}
+	drawPanel(hdc, noteRect, colInfoBg, colInfoBorder, 18)
+	text(hdc, "Before you begin", rect{noteRect.left + 20, noteRect.top + 14, noteRect.right - 20, noteRect.top + 38}, ui.fontButton, colInfoText, dtLeft|dtSingleLine|dtNoPrefix)
+	text(hdc, note, rect{noteRect.left + 20, noteRect.top + 42, noteRect.right - 20, noteRect.bottom - 12}, ui.fontSmall, colInfoText, dtLeft|dtWordBreak|dtNoPrefix)
+	procRestoreDC.Call(hdc, saved)
+	if ui.currentScrollMax() > 0 {
+		ui.drawScrollBar(hdc, rect{int32(w - 18), int32(contentTop + 8), int32(w - 12), int32(contentBottom - 30)}, scrollOffset)
+	}
 }
 
 func (ui *NativeUI) drawActionCard(hdc uintptr, r rect, heading, body, button, action string) {
 	drawPanel(hdc, r, colPanel, colBorderSoft, 24)
-	text(hdc, heading, rect{r.left + 24, r.top + 22, r.right - 24, r.top + 76}, ui.fontHeading, colText, dtLeft|dtWordBreak|dtNoPrefix)
-	text(hdc, body, rect{r.left + 24, r.top + 86, r.right - 24, r.bottom - 84}, ui.fontBody, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
+	stripColor := colAccent
+	if action == "new" {
+		stripColor = colAccent2
+	}
+	fill(hdc, rect{r.left, r.top + 18, r.left + 4, r.bottom - 18}, stripColor)
+	text(hdc, heading, rect{r.left + 24, r.top + 22, r.right - 24, r.top + 58}, ui.fontHeading, colText, dtLeft|dtSingleLine|dtNoPrefix)
+	text(hdc, body, rect{r.left + 24, r.top + 68, r.right - 24, r.bottom - 72}, ui.fontBody, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
 	if r.right-r.left < 300 {
 		if action == "new" {
 			button = "Install (erases board)"
@@ -1223,12 +1470,15 @@ func (ui *NativeUI) drawActionCard(hdc uintptr, r rect, heading, body, button, a
 		}
 	}
 	br := rect{r.left + 24, r.bottom - 64, r.right - 24, r.bottom - 22}
-	drawButton(hdc, br, button, ui.fontButton, true)
+	buttonColor := colAccent
+	if action == "new" {
+		buttonColor = colAccent2
+	}
+	drawButtonColor(hdc, br, button, ui.fontButton, buttonColor)
 	ui.addZone(br, action)
-	ui.addZone(r, action)
 }
 
-func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, logs []string, showDetails bool, scrollOffset int, choices []driverChoice) {
+func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, logs []string, showDetails bool, scrollOffset int, choices []driverChoice, mode string) {
 	card := rect{34, 112, int32(w - 34), int32(h - 78)}
 	drawPanel(hdc, card, colPanel, colBorderSoft, 24)
 	top := int(card.top) + 28
@@ -1241,8 +1491,8 @@ func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, 
 	procRestoreDC.Call(hdc, saved)
 	if showDetails {
 		dr := rect{card.left + 28, card.bottom - 218, card.right - 28, card.bottom - 132}
-		drawPanel(hdc, dr, colPanelSoft, colBorder, 14)
-		text(hdc, "Additional information", rect{dr.left + 16, dr.top + 10, dr.right - 16, dr.top + 34}, ui.fontSmall, colText, dtLeft|dtSingleLine|dtNoPrefix)
+		drawPanel(hdc, dr, colInfoBg, colInfoBorder, 14)
+		text(hdc, "Additional information", rect{dr.left + 16, dr.top + 10, dr.right - 16, dr.top + 34}, ui.fontSmall, colInfoText, dtLeft|dtSingleLine|dtNoPrefix)
 		logText := latestLogs(logs, 3)
 		if logText == "" {
 			logText = detail
@@ -1250,11 +1500,11 @@ func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, 
 		if logText == "" {
 			logText = "No details yet."
 		}
-		text(hdc, logText, rect{dr.left + 16, dr.top + 40, dr.right - 16, dr.bottom - 10}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
+		text(hdc, logText, rect{dr.left + 16, dr.top + 40, dr.right - 16, dr.bottom - 10}, ui.fontSmall, colInfoText, dtLeft|dtWordBreak|dtNoPrefix)
 	} else if detail != "" {
 		dr := rect{card.left + 28, card.bottom - 194, card.right - 28, card.bottom - 132}
-		drawPanel(hdc, dr, colPanelSoft, colBorder, 14)
-		text(hdc, detail, rect{dr.left + 16, dr.top + 12, dr.right - 16, dr.bottom - 10}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
+		drawPanel(hdc, dr, colInfoBg, colInfoBorder, 14)
+		text(hdc, detail, rect{dr.left + 16, dr.top + 12, dr.right - 16, dr.bottom - 10}, ui.fontSmall, colInfoText, dtLeft|dtWordBreak|dtNoPrefix)
 	}
 	by := int(card.bottom) - 64
 	left := card.left + 28
@@ -1291,14 +1541,14 @@ func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, 
 		x += 214
 	}
 	try := rect{card.right - 192, int32(by), card.right - 28, int32(by + 44)}
-	drawButton(hdc, try, "Try Again", ui.fontButton, true)
+	drawButtonColor(hdc, try, "Try Again", ui.fontButton, workflowAccent(mode))
 	ui.addZone(try, "retryUSB")
 }
 
-func (ui *NativeUI) paintBoardChoice(hdc uintptr, w, h int, boards []detectedBoard, scrollOffset int) {
+func (ui *NativeUI) paintBoardChoice(hdc uintptr, w, h int, boards []detectedBoard, scrollOffset int, mode string) {
 	card := rect{34, 112, int32(w - 34), int32(h - 78)}
 	drawPanel(hdc, card, colPanel, colBorderSoft, 24)
-	text(hdc, "More than one supported board was found. Nothing will be erased until you choose.", rect{card.left + 28, card.top + 24, card.right - 28, card.top + 62}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
+	text(hdc, "More than one supported board was found. Nothing will be erased until you choose. If the Classic is missing, unplug it, hold BOOT while plugging it back in, then use Rescan.", rect{card.left + 28, card.top + 24, card.right - 28, card.top + 68}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
 	listTop, listBottom := card.top+78, card.bottom-74
 	ui.setScrollMax(maxInt(0, len(boards)*64-int(listBottom-listTop)))
 	saved, _, _ := procSaveDC.Call(hdc)
@@ -1307,10 +1557,7 @@ func (ui *NativeUI) paintBoardChoice(hdc uintptr, w, h int, boards []detectedBoa
 	for i, board := range boards {
 		r := rect{card.left + 28, y, card.right - 28, y + 52}
 		label := board.Port + "  —  " + board.Chip
-		if i == 0 {
-			label += "  (suggested)"
-		}
-		drawButton(hdc, r, label, ui.fontButton, i == 0)
+		drawButton(hdc, r, label, ui.fontButton, false)
 		if r.bottom > listTop && r.top < listBottom {
 			ui.addZone(r, fmt.Sprintf("selectBoard:%d", i))
 		}
@@ -1320,39 +1567,54 @@ func (ui *NativeUI) paintBoardChoice(hdc uintptr, w, h int, boards []detectedBoa
 	cancel := rect{card.left + 28, card.bottom - 58, card.left + 150, card.bottom - 16}
 	drawButton(hdc, cancel, "Cancel", ui.fontButton, false)
 	ui.addZone(cancel, "cancelUSB")
+	rescan := rect{card.right - 178, card.bottom - 58, card.right - 28, card.bottom - 16}
+	drawButtonColor(hdc, rescan, "Rescan", ui.fontButton, workflowAccent(mode))
+	ui.addZone(rescan, "rescanUSB")
 }
 
-func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, step, total, progress int, primary, secondary string, busy bool, canDetails bool, logs []string, showDetails bool, scrollOffset int) {
+func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, step, total, progress int, primary, secondary string, busy bool, canDetails bool, logs []string, showDetails bool, scrollOffset int, mode string) {
 	card := rect{34, 112, int32(w - 34), int32(h - 78)}
 	drawPanel(hdc, card, colPanel, colBorderSoft, 24)
+	compact := h < 600
+	detailsEnabled := canDetails && !compact
 	top := int(card.top) + 28
 	if total > 0 {
-		label := fmt.Sprintf("Step %d of %d", step, total)
+		label := fmt.Sprintf("Phase %d of %d", step, total)
 		if step <= 0 {
-			label = fmt.Sprintf("Step 1 of %d", total)
+			label = fmt.Sprintf("Phase 1 of %d", total)
 		}
 		text(hdc, label, rect{card.left + 28, int32(top), card.right - 28, int32(top + 24)}, ui.fontSmall, colTextMuted, dtLeft|dtSingleLine|dtNoPrefix)
-		ui.drawProgress(hdc, rect{card.left + 28, int32(top + 34), card.right - 28, int32(top + 48)}, progress)
+		text(hdc, fmt.Sprintf("%d%%", progress), rect{card.left + 28, int32(top), card.right - 28, int32(top + 24)}, ui.fontSmall, colAccent2, dtRight|dtSingleLine|dtNoPrefix)
+		progressColor := colAccent
+		if mode == "new" {
+			progressColor = colAccent2
+		}
+		ui.drawProgress(hdc, rect{card.left + 28, int32(top + 34), card.right - 28, int32(top + 48)}, progress, progressColor)
 		top += 76
 	}
 	buttonRows := 1
-	if canDetails && (primary != "" || secondary != "" || w < 760) {
+	if detailsEnabled && (primary != "" || secondary != "") {
 		buttonRows = 2
 	}
 	buttonTop := card.bottom - 64
+	if primary == "" && secondary == "" && !detailsEnabled {
+		// Busy progress screens have no action row; give the current activity
+		// panel the space that would otherwise be reserved for buttons.
+		buttonTop = card.bottom - 18
+	}
 	auxButtonTop := buttonTop
 	if buttonRows == 2 {
 		auxButtonTop -= 54
 	}
-	bodyBottom := auxButtonTop - 74
-	if showDetails && canDetails {
+	bodyBottom := auxButtonTop - 20
+	if showDetails && detailsEnabled {
 		bodyBottom = auxButtonTop - 194
 	}
 	bodyTop := int32(top)
-	if busy {
+	if busy && !compact {
 		drawStatusBadge(hdc, rect{card.left + 28, int32(top), card.left + 136, int32(top + 32)}, "Working", ui.fontSmall)
 		bodyTop = int32(top + 48)
-	} else if requiresConfirmationBadge(primary) {
+	} else if requiresConfirmationBadge(primary) && !compact {
 		drawStatusBadge(hdc, rect{card.left + 28, int32(top), card.left + 230, int32(top + 32)}, "Confirmation required", ui.fontSmall)
 		bodyTop = int32(top + 48)
 	}
@@ -1360,16 +1622,32 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 		bodyBottom = bodyTop + 28
 	}
 	bodyArea := rect{card.left + 28, bodyTop, card.right - 28, bodyBottom}
-	bodyHeight := measureTextHeight(hdc, body, ui.fontBody, int(bodyArea.right-bodyArea.left))
-	ui.setScrollMax(maxInt(0, bodyHeight-int(bodyArea.bottom-bodyArea.top)+10))
+	drawPanel(hdc, bodyArea, colPanelSoft, colBorder, 16)
+	instructionLabel := "What to do now"
+	if busy {
+		instructionLabel = "Current activity"
+	} else if requiresConfirmationBadge(primary) {
+		instructionLabel = "Review before continuing"
+	}
+	text(hdc, instructionLabel, rect{bodyArea.left + 18, bodyArea.top + 12, bodyArea.right - 18, bodyArea.top + 38}, ui.fontButton, colText, dtLeft|dtSingleLine|dtNoPrefix)
+	textArea := rect{bodyArea.left + 18, bodyArea.top + 48, bodyArea.right - 18, bodyArea.bottom - 38}
+	if textArea.bottom < textArea.top+4 {
+		textArea.bottom = textArea.top + 4
+	}
+	displayBody := body
+	if detail != "" && !showDetails {
+		displayBody += "\n\nHelpful note: " + detail
+	}
+	bodyHeight := measureTextHeight(hdc, displayBody, ui.fontBody, int(textArea.right-textArea.left))
+	ui.setScrollMax(maxInt(0, bodyHeight-int(textArea.bottom-textArea.top)+10))
 	saved, _, _ := procSaveDC.Call(hdc)
-	procIntersectClipRect.Call(hdc, uintptr(bodyArea.left), uintptr(bodyArea.top), uintptr(bodyArea.right), uintptr(bodyArea.bottom))
-	text(hdc, body, rect{bodyArea.left, bodyArea.top - int32(scrollOffset), bodyArea.right, bodyArea.top + int32(bodyHeight) - int32(scrollOffset)}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
+	procIntersectClipRect.Call(hdc, uintptr(textArea.left), uintptr(textArea.top), uintptr(textArea.right), uintptr(textArea.bottom))
+	text(hdc, displayBody, rect{textArea.left, textArea.top - int32(scrollOffset), textArea.right, textArea.top + int32(bodyHeight) - int32(scrollOffset)}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
 	procRestoreDC.Call(hdc, saved)
 	if ui.currentScrollMax() > 0 {
-		text(hdc, "Mouse wheel: more text", rect{bodyArea.left, bodyArea.bottom - 20, bodyArea.right, bodyArea.bottom}, ui.fontSmall, colAccent2, dtRight|dtSingleLine|dtNoPrefix)
+		ui.drawScrollBar(hdc, rect{bodyArea.right - 8, bodyArea.top + 64, bodyArea.right - 3, bodyArea.bottom - 12}, scrollOffset)
 	}
-	if showDetails && canDetails {
+	if showDetails && detailsEnabled {
 		dr := rect{card.left + 28, auxButtonTop - 182, card.right - 28, auxButtonTop - 10}
 		drawPanel(hdc, dr, colPanelSoft, colBorder, 14)
 		text(hdc, "Additional information", rect{dr.left + 16, dr.top + 10, dr.right - 16, dr.top + 34}, ui.fontSmall, colText, dtLeft|dtSingleLine|dtNoPrefix)
@@ -1378,14 +1656,10 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 			logText = "No details yet."
 		}
 		text(hdc, logText, rect{dr.left + 16, dr.top + 40, dr.right - 16, dr.bottom - 22}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
-	} else if detail != "" {
-		dr := rect{card.left + 28, auxButtonTop - 62, card.right - 28, auxButtonTop - 10}
-		drawPanel(hdc, dr, colPanelSoft, colBorder, 14)
-		text(hdc, detail, rect{dr.left + 16, dr.top + 12, dr.right - 16, dr.bottom - 10}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
 	}
 	by := int(buttonTop)
 	leftX := card.left + 28
-	if canDetails {
+	if detailsEnabled {
 		label := "Show details"
 		if showDetails {
 			label = "Hide details"
@@ -1398,6 +1672,12 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 		drawButton(hdc, copyBtn, "Copy log", ui.fontButton, false)
 		ui.addZone(copyBtn, "copyLog")
 		leftX += 144
+		if primary == "Back to start" && strings.Contains(detail, "Keep fuel disconnected") {
+			dashBtn := rect{leftX, auxButtonTop, leftX + 150, auxButtonTop + 44}
+			drawButton(hdc, dashBtn, "Open dashboard", ui.fontButton, false)
+			ui.addZone(dashBtn, "openDashboard")
+			leftX += 162
+		}
 		if buttonRows == 2 {
 			leftX = card.left + 28
 		}
@@ -1407,6 +1687,10 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 		drawButton(hdc, sr, secondary, ui.fontButton, false)
 		if secondary == "Back" {
 			ui.addZone(sr, "back")
+		} else if secondary == "Cancel" {
+			ui.addZone(sr, "cancelWait")
+		} else if secondary == "Choose package" {
+			ui.addZone(sr, "choosePackage")
 		} else {
 			ui.addZone(sr, "openBackup")
 		}
@@ -1416,7 +1700,7 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 		if primary == "Back to start" {
 			pr = rect{card.right - 230, int32(by), card.right - 28, int32(by + 44)}
 		}
-		drawButton(hdc, pr, primary, ui.fontButton, true)
+		drawButtonColor(hdc, pr, primary, ui.fontButton, workflowAccent(mode))
 		ui.addZone(pr, primaryButtonAction(primary))
 	}
 }
@@ -1431,6 +1715,8 @@ func primaryButtonAction(label string) string {
 		return "start"
 	case "Back to start":
 		return "home"
+	case "Retry":
+		return "retryPrepare"
 	default:
 		return "continue"
 	}
@@ -1447,7 +1733,7 @@ func latestLogs(logs []string, max int) string {
 	return strings.Join(logs[start:], "\n")
 }
 
-func (ui *NativeUI) drawProgress(hdc uintptr, r rect, percent int) {
+func (ui *NativeUI) drawProgress(hdc uintptr, r rect, percent int, color uint32) {
 	if percent < 0 {
 		percent = 0
 	}
@@ -1459,8 +1745,36 @@ func (ui *NativeUI) drawProgress(hdc uintptr, r rect, percent int) {
 	if fillW > 0 {
 		rr := r
 		rr.right = rr.left + int32(fillW)
-		drawPanel(hdc, rr, colAccent, colAccent, 7)
+		drawPanel(hdc, rr, color, color, 7)
 	}
+}
+
+func (ui *NativeUI) drawScrollBar(hdc uintptr, track rect, offset int) {
+	if track.bottom <= track.top+10 {
+		return
+	}
+	drawPanel(hdc, track, colBorderSoft, colBorderSoft, 5)
+	ui.mu.Lock()
+	maxScroll := ui.scrollMax
+	ui.mu.Unlock()
+	if maxScroll <= 0 {
+		return
+	}
+	height := int(track.bottom - track.top)
+	thumb := height * height / (height + maxScroll)
+	if thumb < 24 {
+		thumb = 24
+	}
+	if thumb > height {
+		thumb = height
+	}
+	travel := height - thumb
+	pos := 0
+	if travel > 0 {
+		pos = travel * offset / maxScroll
+	}
+	thumbRect := rect{track.left, track.top + int32(pos), track.right, track.top + int32(pos+thumb)}
+	drawPanel(hdc, thumbRect, colAccent2, colAccent2, 5)
 }
 
 func (ui *NativeUI) addZone(r rect, action string) {
@@ -1533,12 +1847,27 @@ func drawButton(hdc uintptr, r rect, label string, font uintptr, primary bool) {
 	borderColor := colBorder
 	textColor := colText
 	if primary {
-		fillColor = colAccent
-		borderColor = colAccent
-		textColor = colText
+		drawButtonColor(hdc, r, label, font, colAccent)
+		return
 	}
 	drawPanel(hdc, r, fillColor, borderColor, 18)
 	text(hdc, label, r, font, textColor, dtCenter|dtVCenter|dtSingleLine|dtNoPrefix)
+}
+
+func drawButtonColor(hdc uintptr, r rect, label string, font uintptr, color uint32) {
+	textColor := colText
+	if color == colAccent2 {
+		textColor = colPanel
+	}
+	drawPanel(hdc, r, color, color, 18)
+	text(hdc, label, r, font, textColor, dtCenter|dtVCenter|dtSingleLine|dtNoPrefix)
+}
+
+func workflowAccent(mode string) uint32 {
+	if mode == "new" {
+		return colAccent2
+	}
+	return colAccent
 }
 
 func drawStatusBadge(hdc uintptr, r rect, label string, font uintptr) {
@@ -1678,14 +2007,21 @@ func (j *Job) success(title, body string) {
 	j.ui().update(uiUpdate{screen: screenDone, title: title, subtitle: subtitleForMode(j.mode), body: body, detail: "Keep fuel disconnected until Hardware, Config, Calibration, and Sequence have been checked.", step: 0, totalSteps: 0, progress: 100, mode: j.mode, done: true, backupPath: j.backupPath})
 }
 
-func (j *Job) waitContinue() { <-j.continueCh }
+func (j *Job) waitContinue() bool {
+	select {
+	case <-j.continueCh:
+		return true
+	case <-j.cancelCh:
+		return false
+	}
+}
 
 func (j *Job) showDriverHelp(pkg *Package, reason string, bootloaderFailure bool) string {
 	recommendation := detectUSBDriverRecommendation()
 	if bootloaderFailure {
 		recommendation = bootloaderFailureDriverRecommendation(recommendation)
 	}
-	body := "Board not found.\n\nTry this first:\n\n1. Use a USB data cable, not a charge-only cable.\n2. Plug the board directly into this computer.\n3. Hold BOOT on the board, then click Try Again.\n4. Close Arduino IDE, PlatformIO, Cura, serial monitors, or anything else that may use the COM port.\n\n" + recommendation.Message
+	body := "Board not found.\n\nTry this first:\n\n1. Use a USB data cable, not a charge-only cable.\n2. Close Arduino IDE, PlatformIO, Cura, serial monitors, or anything else that may use the COM port.\n3. For the Classic ESP32, unplug USB, hold BOOT while plugging it back in, and keep BOOT held while clicking Try Again. Release BOOT only after the tool starts writing.\n4. For an ESP32-S3, use the same BOOT/retry sequence if normal detection does not work.\n\n" + recommendation.Message
 	detail := reason + "\n\n" + recommendation.Detail
 	j.addLog("Driver Help shown: " + reason)
 	j.ui().update(uiUpdate{screen: screenDriverHelp, title: "Board not found", subtitle: subtitleForMode(j.mode), body: body, detail: detail, step: 0, totalSteps: 0, progress: 0, mode: j.mode, appendLog: []string{reason}, driverChoices: recommendation.Choices})
@@ -1734,8 +2070,11 @@ func (j *Job) runNewBoard() {
 		return
 	}
 
-	j.set(2, total, 20, "Plug in the board", "Plug the ESP32 or ESP32‑S3 board into this computer with USB.\n\nIf it is not found, hold BOOT on the board and then click Continue.", "Use a USB data cable, not a charge-only cable.", true)
-	j.waitContinue()
+	j.set(2, total, 20, "Plug in the board", "Plug the ESP32 or ESP32‑S3 board into this computer with USB.\n\nIf the Classic ESP32 is not found, unplug it, hold BOOT while plugging it back in, and keep BOOT held until detection starts. Then click Continue.", "Use a USB data cable, not a charge-only cable. If the board still is not found, the next screen will guide you through a BOOT-mode retry.", true)
+	if !j.waitContinue() {
+		j.cancelToHome("Clean USB install was cancelled before board detection.")
+		return
+	}
 
 	esptool, err := findEsptool(pkg)
 	if err != nil {
@@ -1783,6 +2122,9 @@ func (j *Job) runNewBoard() {
 				j.cancelToHome("Clean USB install was cancelled before a board was selected.")
 				return
 			}
+			if action == "rescan" {
+				continue
+			}
 			var selected int
 			if _, err := fmt.Sscanf(action, "selectBoard:%d", &selected); err == nil && selected >= 0 && selected < len(supported) {
 				target, port = supported[selected].Target, supported[selected].Port
@@ -1816,14 +2158,14 @@ func (j *Job) runNewBoard() {
 	} else {
 		for i, profile := range targetPackage.PCBProfile.OfficialProfiles {
 			choices = append(choices, pcbProfileChoice{
-				Label:  fmt.Sprintf("2. %s — revision %s", profile.Name, profile.Revision),
+				Label:  fmt.Sprintf("%d. %s — revision %s", i+2, profile.Name, profile.Revision),
 				Detail: "Official immutable pinout supplied with the OpenTurbine PCB design.",
 				Action: fmt.Sprintf("pcbProfile:official:%d", i), Enabled: true,
 			})
 		}
 	}
 	choices = append(choices, pcbProfileChoice{
-		Label:  "3. Custom PCB profile…",
+		Label:  fmt.Sprintf("%d. Custom PCB profile…", len(targetPackage.PCBProfile.OfficialProfiles)+2),
 		Detail: "Choose the .otpcb.json file supplied with a third-party or self-designed PCB. The file must match the detected ESP chip.",
 		Action: "pcbProfileCustom", Enabled: true,
 	})
@@ -1880,14 +2222,20 @@ func (j *Job) runNewBoard() {
 				j.set(4, total, 43, "Review custom PCB warnings",
 					"The profile is structurally valid for this chip, but its designer should review:\n\n• "+strings.Join(warnings, "\n• ")+"\n\nContinue only if these choices match the PCB schematic.",
 					"Custom profiles are intentionally permissive after hard chip, GPIO, reference, size, and output-safe-state checks.", true)
-				j.waitContinue()
+				if !j.waitContinue() {
+					j.cancelToHome("Clean USB install was cancelled while reviewing the PCB profile.")
+					return
+				}
 			}
 			break
 		}
 	}
 	j.addLog("Selected hardware: " + pcbProfileLabel)
 	j.set(5, total, 52, "Confirm complete erase", "Found "+friendlyTarget(target)+" on "+port+".\nSelected hardware: "+pcbProfileLabel+".\n\nContinuing will ERASE THE ENTIRE BOARD, including any existing settings, calibration, logs, Wi-Fi details, and any previous PCB profile, then install a fresh OpenTurbine copy. No backup is made by this clean-install path.", "This is the last confirmation before the selected board is erased. Cancel if you intended to update, keep its setup, or make a backup first.", true)
-	j.waitContinue()
+	if !j.waitContinue() {
+		j.cancelToHome("Clean USB install was cancelled before the board was erased.")
+		return
+	}
 
 	version := packageVersion(pkg)
 	j.addLog("Using package " + version + " for " + friendlyTarget(target))
@@ -1904,7 +2252,7 @@ func (j *Job) runNewBoard() {
 }
 
 func (j *Job) runExistingUpdate() {
-	total := 7
+	total := 9
 	j.set(1, total, 5, "Downloading update", "Stay connected to your normal internet Wi‑Fi. Do not connect to the board Wi‑Fi yet.\n\nThe tool is downloading the recommended OpenTurbine update first.", "The board Wi‑Fi often has no internet, so this step happens before switching Wi‑Fi.", false)
 	pkg, err := j.app.ensurePackage()
 	if err != nil {
@@ -1913,9 +2261,12 @@ func (j *Job) runExistingUpdate() {
 	}
 
 	j.set(2, total, 20, "Connect to board Wi‑Fi", "Now switch Wi‑Fi.\n\nConnect this computer to the OpenTurbine board Wi‑Fi. The Wi‑Fi name may be OpenTurbine, or it may be your own engine/project name. Windows may say 'No internet'; that is normal.\n\nAfter connecting, click Continue.", "The tool will look for the board at http://192.168.4.1.", true)
-	j.waitContinue()
+	if !j.waitContinue() {
+		j.cancelToHome("Wi-Fi update was cancelled before connecting to the board.")
+		return
+	}
 
-	j.set(2, total, 25, "Finding board", "The tool is looking for the board at http://192.168.4.1.", "Check that Windows is still connected to the board Wi‑Fi.", false)
+	j.set(3, total, 25, "Finding board", "The tool is looking for the board at http://192.168.4.1.", "Check that Windows is still connected to the board Wi‑Fi.", false)
 	if err := waitForECU(25 * time.Second); err != nil {
 		j.fail(errors.New("The board was not found. Check that this computer is connected to the board Wi‑Fi, then try again. The Wi‑Fi name may be OpenTurbine or your own engine/project name."))
 		return
@@ -1926,7 +2277,7 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(3, total, 36, "Saving complete engine file", "Before updating, the tool is saving and validating the board's hardware, settings, sequences, and calibration.\n\nThe update will not start unless this restorable file is complete.", "The engine file contains the board Wi‑Fi password. Keep it private.", false)
+	j.set(4, total, 36, "Saving complete engine file", "Before updating, the tool is saving and validating the board's hardware, settings, sequences, and calibration.\n\nThe update will not start unless this restorable file is complete.", "The engine file contains the board Wi‑Fi password. Keep it private.", false)
 	bpath, err := backupConfig()
 	if err != nil {
 		j.fail(errors.New("Engine file backup failed. The update was not started. Reconnect to the board Wi‑Fi and try again."))
@@ -1951,21 +2302,24 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(4, total, 50, "Updating OpenTurbine "+version, "Target: "+friendlyTarget(target)+".\n\nDo not unplug power. The board will restart after this step.", "Package target: "+target+". If Windows disconnects from the board Wi-Fi after restart, the tool will pause and tell you what to do.", false)
-	if err := postMultipartFilesWithProgress(ecuBaseURL+"/update", []string{firmware}, 10*time.Minute, func(done, totalBytes int64) {
+	j.set(5, total, 50, "Updating OpenTurbine "+version, "Target: "+friendlyTarget(target)+".\n\nDo not unplug power. The board will restart after this step.", "Package target: "+target+". If Windows disconnects from the board Wi‑Fi after restart, the tool will pause and tell you what to do.", false)
+	if err := postFirmwareChunks(ecuBaseURL+"/api/firmware_chunk", firmware, 10*time.Minute, func(done, totalBytes int64) {
 		if totalBytes > 0 {
 			p := 50 + int((done*15)/totalBytes)
-			j.ui().update(uiUpdate{screen: screenRunning, title: "Updating board software", subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Sending board software to the OpenTurbine board... %d%%", int((done*100)/totalBytes)), detail: "Do not unplug power. Keep this computer connected to the board Wi-Fi.", step: 4, totalSteps: total, progress: p, mode: j.mode})
+			j.ui().update(uiUpdate{screen: screenRunning, title: "Updating board software", subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Sending board software to the OpenTurbine board... %d%%", int((done*100)/totalBytes)), detail: "Do not unplug power. Keep this computer connected to the board Wi-Fi.", step: 5, totalSteps: total, progress: p, mode: j.mode})
 		}
 	}); err != nil {
 		j.fail(fmt.Errorf("Board software update failed. Make sure the engine is in STANDBY and no actuator test is running. Details: %w", err))
 		return
 	}
 
-	j.set(5, total, 68, "Check Wi‑Fi connection", "The board restarted. Windows may have switched away from the board Wi‑Fi.\n\nCheck that this computer is connected to the correct board Wi‑Fi again before continuing. The Wi‑Fi name may be OpenTurbine, or it may be your own engine/project name.\n\nThen click Continue.", "This check is important before dashboard files are sent to the board.", true)
-	j.waitContinue()
+	j.set(6, total, 68, "Check Wi‑Fi connection", "The board restarted. Windows may have switched away from the board Wi‑Fi.\n\nCheck that this computer is connected to the correct board Wi‑Fi again before continuing. The Wi‑Fi name may be OpenTurbine, or it may be your own engine/project name.\n\nThen click Continue.", "This check is important before dashboard files are sent to the board.", true)
+	if !j.waitContinue() {
+		j.cancelToHome("Wi-Fi update was cancelled before dashboard files were sent.")
+		return
+	}
 
-	j.set(5, total, 72, "Finding board again", "The tool is checking that the board is back online at http://192.168.4.1.", "If this fails, reconnect to the board Wi‑Fi and run the update again.", false)
+	j.set(7, total, 72, "Finding board again", "The tool is checking that the board is back online at http://192.168.4.1.", "If this fails, reconnect to the board Wi‑Fi and run the update again.", false)
 	if err := waitForECU(75 * time.Second); err != nil {
 		j.fail(errors.New("The board software was uploaded, but the tool could not reconnect after restart. Check that this computer is connected to the board Wi‑Fi, then try again."))
 		return
@@ -1976,19 +2330,22 @@ func (j *Job) runExistingUpdate() {
 		j.fail(err)
 		return
 	}
-	j.set(6, total, 82, "Updating dashboard", "Do not unplug power. The tool is updating the OpenTurbine dashboard files.", "Keep this computer connected to the board Wi‑Fi until this step finishes.", false)
-	if err := postMultipartFilesWithProgress(ecuBaseURL+"/api/web_assets", assets, 10*time.Minute, func(done, totalBytes int64) {
+	j.set(8, total, 82, "Updating dashboard", "Do not unplug power. The tool is updating the OpenTurbine dashboard files.", "Keep this computer connected to the board Wi‑Fi until this step finishes.", false)
+	if err := postWebAssetChunks(ecuBaseURL+"/api/web_asset_chunk", assets, 10*time.Minute, func(done, totalBytes int64) {
 		if totalBytes > 0 {
 			p := 82 + int((done*10)/totalBytes)
-			j.ui().update(uiUpdate{screen: screenRunning, title: "Updating dashboard", subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Sending dashboard files to the OpenTurbine board... %d%%", int((done*100)/totalBytes)), detail: "Keep this computer connected to the board Wi-Fi until this finishes.", step: 6, totalSteps: total, progress: p, mode: j.mode})
+			j.ui().update(uiUpdate{screen: screenRunning, title: "Updating dashboard", subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Sending dashboard files to the OpenTurbine board... %d%%", int((done*100)/totalBytes)), detail: "Keep this computer connected to the board Wi-Fi until this finishes.", step: 8, totalSteps: total, progress: p, mode: j.mode})
 		}
 	}); err != nil {
 		j.fail(fmt.Errorf("Dashboard update failed. Check that this computer is still connected to the board Wi‑Fi, then try again. Details: %w", err))
 		return
 	}
 
-	j.set(7, total, 94, "Reconnect for final verification", "The dashboard files were accepted and the board is restarting.\n\nWindows may have switched back to another network. Connect to this OpenTurbine board's Wi-Fi again, wait a few seconds, then click Continue.", "The tool will verify the firmware version and all twelve web assets; it will not report success merely because upload returned quickly.", true)
-	j.waitContinue()
+	j.set(9, total, 94, "Reconnect for final verification", "The dashboard files were accepted and the board is restarting.\n\nWindows may have switched back to another network. Connect to this OpenTurbine board's Wi-Fi again, wait a few seconds, then click Continue.", "The tool will verify the firmware version and all twelve web assets; it will not report success merely because upload returned quickly.", true)
+	if !j.waitContinue() {
+		j.cancelToHome("Wi-Fi update was cancelled before final verification.")
+		return
+	}
 	if err := waitForECU(75 * time.Second); err != nil {
 		j.fail(errors.New("The files were uploaded, but the tool could not reconnect for final verification. Reconnect to the board Wi-Fi and run Update and keep my setup again; it is safe to repeat."))
 		return
@@ -2131,7 +2488,7 @@ func friendlyError(s string) string {
 	case strings.Contains(lower, "not in standby"):
 		return "The board is not in STANDBY.\n\nStop the engine, make sure no actuator test is running, then update again."
 	case strings.Contains(lower, "download"):
-		return "The update could not be downloaded.\n\nStay connected to your normal internet Wi‑Fi and try again. If this is a test build, place OpenTurbine_Recommended.zip next to the app."
+		return "The update could not be downloaded.\n\nStay connected to your normal internet Wi‑Fi and click Retry. If this is an offline or test installation, place OpenTurbine_Recommended.zip next to the app."
 	default:
 		return s
 	}
@@ -2172,42 +2529,33 @@ func (a *App) ensurePackageWithProgress(progress func(string, int)) (*Package, e
 	if exe != "" {
 		base = filepath.Dir(exe)
 	}
-	localCandidates := []string{
-		filepath.Join(base, "OpenTurbine_Recommended.zip"),
-		filepath.Join(base, "package", "OpenTurbine_Recommended.zip"),
-	}
-	var localFallback *Package
-	var localFallbackErr error
-	for _, c := range localCandidates {
-		if !fileExists(c) {
-			continue
-		}
-		pkg, err := loadPackageFromZip(c)
-		if err != nil {
-			localFallbackErr = fmt.Errorf("the local OpenTurbine package could not be opened: %w", err)
-			continue
-		}
-		if _, err := findEsptool(pkg); err != nil {
-			pkg.cleanup()
-			localFallbackErr = fmt.Errorf("the local OpenTurbine package is missing tools\\esptool.exe, needed for clean USB installation: %w", err)
-			continue
-		}
-		localFallback = pkg
-		break
-	}
-	if fileExists(filepath.Join(base, "package", "manifest.json")) {
-		if progress != nil {
-			progress("Checking local OpenTurbine package.", 28)
-		}
-		pkg, err := loadPackageFromDir(filepath.Join(base, "package"))
+	if pkg, found, err := loadExplicitLocalPackage(base); found {
 		if err != nil {
 			return nil, err
 		}
-		if _, eerr := findEsptool(pkg); eerr != nil {
-			return nil, fmt.Errorf("the local OpenTurbine package is missing tools\\esptool.exe, needed for clean USB installation: %w", eerr)
+		if progress != nil {
+			progress("Using the OpenTurbine package placed beside this Setup Tool ("+packageVersion(pkg)+").", 94)
 		}
 		a.packageReady = pkg
 		return pkg, nil
+	}
+	var cachedFallbackErr error
+	// A package downloaded and checksum-verified by this tool is kept in the
+	// setup data directory. Load it as an offline fallback, but still try the
+	// current GitHub release first so the flasher never silently stays on an
+	// old firmware forever. The sidecar hash makes the fallback explicit and
+	// integrity-checked rather than an unverified stale ZIP.
+	cachedPath := filepath.Join(a.workDir, "packages", "OpenTurbine_Recommended.zip")
+	var cachedFallback *Package
+	if fileExists(cachedPath) {
+		if progress != nil {
+			progress("Checking the previously verified package cache.", 18)
+		}
+		if pkg, err := loadVerifiedCachedPackage(cachedPath); err == nil {
+			cachedFallback = pkg
+		} else {
+			cachedFallbackErr = fmt.Errorf("the cached OpenTurbine package is no longer valid: %w", err)
+		}
 	}
 	url := strings.TrimSpace(a.config.PackageURL)
 	if url == "" {
@@ -2220,33 +2568,43 @@ func (a *App) ensurePackageWithProgress(progress func(string, int)) (*Package, e
 	if progress != nil {
 		progress("Downloading the recommended OpenTurbine files from GitHub.", 34)
 	}
+	downloadStarted := time.Now()
 	downloadProgress := func(done, total int64) {
 		if progress == nil {
 			return
 		}
+		elapsed := time.Since(downloadStarted).Seconds()
+		if elapsed < 0.1 {
+			elapsed = 0.1
+		}
+		rate := int64(float64(done) / elapsed)
+		line := fmt.Sprintf("Downloading setup files… %s", formatBytes(done))
 		if total > 0 {
 			pct := 34 + int((done*42)/total)
-			progress(fmt.Sprintf("Downloading OpenTurbine setup files... %d%%", int((done*100)/total)), pct)
+			remaining := total - done
+			eta := time.Duration(float64(remaining)/float64(maxInt64(rate, 1))) * time.Second
+			line = fmt.Sprintf("Downloading setup files… %d%% (%s of %s) • %s/s • about %s left", int((done*100)/total), formatBytes(done), formatBytes(total), formatBytes(rate), formatDuration(eta))
+			progress(line, pct)
 		} else {
-			progress("Downloading OpenTurbine setup files...", 42)
+			progress(line+" • "+formatBytes(rate)+"/s", 42)
 		}
 	}
 	usedURL, downloadErr := downloadRecommendedPackage(url, dst, downloadProgress)
 	if downloadErr != nil {
-		if localFallback != nil {
+		if cachedFallback != nil {
 			if progress != nil {
-				progress("GitHub unavailable; using the package placed beside this Setup Tool ("+packageVersion(localFallback)+").", 80)
+				progress("GitHub unavailable; using previously verified cached package ("+packageVersion(cachedFallback)+").", 80)
 			}
-			a.packageReady = localFallback
-			return localFallback, nil
+			a.packageReady = cachedFallback
+			return cachedFallback, nil
 		}
-		if localFallbackErr != nil {
-			return nil, fmt.Errorf("could not download the latest OpenTurbine package, and the local fallback is invalid: %v; download details: %w", localFallbackErr, downloadErr)
+		if cachedFallbackErr != nil {
+			return nil, fmt.Errorf("could not download the latest OpenTurbine package, and the cached fallback is invalid: %v; download details: %w", cachedFallbackErr, downloadErr)
 		}
 		return nil, fmt.Errorf("could not download the latest OpenTurbine_Recommended.zip from GitHub Releases. Reconnect to normal internet Wi-Fi and reopen the Setup Tool; a cached older release is never installed silently. Details: %w", downloadErr)
 	}
-	if localFallback != nil {
-		localFallback.cleanup()
+	if cachedFallback != nil {
+		cachedFallback.cleanup()
 	}
 	if progress != nil {
 		progress("Checking downloaded OpenTurbine package checksum.", 78)
@@ -2254,6 +2612,12 @@ func (a *App) ensurePackageWithProgress(progress func(string, int)) (*Package, e
 	if err := verifyRemoteSHA256(usedURL+".sha256", dst); err != nil {
 		_ = os.Remove(dst)
 		return nil, err
+	}
+	if sum, err := sha256File(dst); err == nil {
+		// Failure to write the optional cache marker does not invalidate a
+		// freshly verified package; it only means the next launch may download
+		// it again.
+		_ = os.WriteFile(dst+".sha256", []byte(sum+"\n"), 0600)
 	}
 	if progress != nil {
 		progress("Checking downloaded OpenTurbine package.", 80)
@@ -2271,6 +2635,110 @@ func (a *App) ensurePackageWithProgress(progress func(string, int)) (*Package, e
 	}
 	a.packageReady = pkg
 	return pkg, nil
+}
+
+// loadExplicitLocalPackage implements the offline/pinned release contract: a
+// package deliberately placed beside the Setup Tool wins over GitHub and the
+// download cache. If it exists but is invalid, fail loudly instead of silently
+// installing a different release.
+func loadExplicitLocalPackage(base string) (*Package, bool, error) {
+	dir := filepath.Join(base, "package")
+	if fileExists(filepath.Join(dir, "manifest.json")) {
+		pkg, err := loadPackageFromDir(dir)
+		if err != nil {
+			return nil, true, fmt.Errorf("the local OpenTurbine package directory could not be opened: %w", err)
+		}
+		if _, err := findEsptool(pkg); err != nil {
+			pkg.cleanup()
+			return nil, true, fmt.Errorf("the local OpenTurbine package is missing tools\\esptool.exe, needed for clean USB installation: %w", err)
+		}
+		return pkg, true, nil
+	}
+	for _, path := range []string{
+		filepath.Join(base, "OpenTurbine_Recommended.zip"),
+		filepath.Join(dir, "OpenTurbine_Recommended.zip"),
+	} {
+		if !fileExists(path) {
+			continue
+		}
+		pkg, err := loadPackageFromZip(path)
+		if err != nil {
+			return nil, true, fmt.Errorf("the local OpenTurbine package could not be opened: %w", err)
+		}
+		if _, err := findEsptool(pkg); err != nil {
+			pkg.cleanup()
+			return nil, true, fmt.Errorf("the local OpenTurbine package is missing tools\\esptool.exe, needed for clean USB installation: %w", err)
+		}
+		return pkg, true, nil
+	}
+	return nil, false, nil
+}
+
+func loadVerifiedCachedPackage(zipPath string) (*Package, error) {
+	marker, err := os.ReadFile(zipPath + ".sha256")
+	if err != nil {
+		return nil, errors.New("the package checksum marker is missing")
+	}
+	expected := regexp.MustCompile(`(?i)[a-f0-9]{64}`).FindString(string(marker))
+	if expected == "" {
+		return nil, errors.New("the package checksum marker is invalid")
+	}
+	if err := verifySHA256(zipPath, expected); err != nil {
+		return nil, err
+	}
+	pkg, err := loadPackageFromZip(zipPath)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := findEsptool(pkg); err != nil {
+		pkg.cleanup()
+		return nil, fmt.Errorf("cached package is missing tools\\esptool.exe: %w", err)
+	}
+	return pkg, nil
+}
+
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func formatBytes(value int64) string {
+	if value < 1024 {
+		return fmt.Sprintf("%d B", value)
+	}
+	if value < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(value)/1024)
+	}
+	if value < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(value)/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB", float64(value)/(1024*1024*1024))
+}
+
+func formatDuration(value time.Duration) string {
+	if value < time.Second {
+		return "under 1 s"
+	}
+	seconds := int(value.Round(time.Second) / time.Second)
+	if seconds < 60 {
+		return fmt.Sprintf("%d s", seconds)
+	}
+	return fmt.Sprintf("%d min %02d s", seconds/60, seconds%60)
 }
 
 func downloadRecommendedPackage(configuredURL, dst string,
@@ -2850,21 +3318,28 @@ func validStableID(value string, max int) bool {
 	return true
 }
 
-func (ui *NativeUI) paintPCBProfileChoice(hdc uintptr, w, h int, choices []pcbProfileChoice, scrollOffset int) {
+func (ui *NativeUI) paintPCBProfileChoice(hdc uintptr, w, h int, choices []pcbProfileChoice, scrollOffset int, mode string) {
 	card := rect{34, 112, int32(w - 34), int32(h - 78)}
 	drawPanel(hdc, card, colPanel, colBorderSoft, 24)
-	text(hdc, "The board answered over USB. Select the hardware package that matches the physical board. Nothing is erased until the later confirmation.", rect{card.left + 28, card.top + 18, card.right - 28, card.top + 68}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
+	text(hdc, "The board answered over USB. Select the hardware package that matches the physical board, then click Continue. Nothing is erased until the later confirmation.", rect{card.left + 28, card.top + 18, card.right - 28, card.top + 68}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
 	listTop, listBottom := card.top+78, card.bottom-72
 	ui.setScrollMax(maxInt(0, len(choices)*72-int(listBottom-listTop)))
 	saved, _, _ := procSaveDC.Call(hdc)
 	procIntersectClipRect.Call(hdc, uintptr(card.left+20), uintptr(listTop), uintptr(card.right-20), uintptr(listBottom))
 	y := listTop - int32(scrollOffset)
+	ui.mu.Lock()
+	selectedAction := ui.selectedPCBProfile
+	ui.mu.Unlock()
 	for _, choice := range choices {
 		r := rect{card.left + 28, y, card.right - 28, y + 64}
 		drawPanel(hdc, r, colPanelSoft, colBorder, 14)
 		color := colText
 		if !choice.Enabled {
 			color = colTextSoft
+		}
+		if choice.Enabled && choice.Action == selectedAction {
+			color = colText
+			line(hdc, int(r.left+8), int(r.top+8), int(r.left+8), int(r.bottom-8), workflowAccent(mode), 3)
 		}
 		text(hdc, choice.Label, rect{r.left + 16, r.top + 9, r.right - 16, r.top + 31}, ui.fontButton, color, dtLeft|dtSingleLine|dtNoPrefix)
 		text(hdc, choice.Detail, rect{r.left + 16, r.top + 34, r.right - 16, r.bottom - 7}, ui.fontSmall, colTextMuted, dtLeft|dtWordBreak|dtNoPrefix)
@@ -2877,6 +3352,15 @@ func (ui *NativeUI) paintPCBProfileChoice(hdc uintptr, w, h int, choices []pcbPr
 	cancel := rect{card.left + 28, card.bottom - 56, card.left + 150, card.bottom - 14}
 	drawButton(hdc, cancel, "Cancel", ui.fontButton, false)
 	ui.addZone(cancel, "cancelUSB")
+	continueBtn := rect{card.right - 178, card.bottom - 56, card.right - 28, card.bottom - 14}
+	if selectedAction != "" {
+		drawButtonColor(hdc, continueBtn, "Continue", ui.fontButton, workflowAccent(mode))
+	} else {
+		drawButton(hdc, continueBtn, "Continue", ui.fontButton, false)
+	}
+	if selectedAction != "" {
+		ui.addZone(continueBtn, "pcbProfileContinue")
+	}
 }
 
 func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []string, error) {
@@ -3714,72 +4198,6 @@ func backupConfig() (string, error) {
 	return p, nil
 }
 
-func postMultipartFilesWithProgress(url string, paths []string, timeout time.Duration, progress func(done, total int64)) error {
-	if strings.HasSuffix(url, "/api/web_assets") {
-		return postWebAssetChunks(strings.TrimSuffix(url, "/api/web_assets")+"/api/web_asset_chunk", paths, timeout, progress)
-	}
-	if strings.HasSuffix(url, "/update") && len(paths) == 1 {
-		return postFirmwareChunks(strings.TrimSuffix(url, "/update")+"/api/firmware_chunk", paths[0], timeout, progress)
-	}
-	type uploadPart struct {
-		body        []byte
-		contentType string
-	}
-	parts := make([]uploadPart, 0, len(paths))
-	var total int64
-	for _, path := range paths {
-		var body bytes.Buffer
-		mw := multipart.NewWriter(&body)
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		fw, err := mw.CreateFormFile("file", filepath.Base(path))
-		if err != nil {
-			f.Close()
-			return err
-		}
-		_, copyErr := io.Copy(fw, f)
-		f.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if err := mw.Close(); err != nil {
-			return err
-		}
-		payload := append([]byte(nil), body.Bytes()...)
-		parts = append(parts, uploadPart{body: payload, contentType: mw.FormDataContentType()})
-		total += int64(len(payload))
-	}
-	client := &http.Client{Timeout: timeout}
-	var completed int64
-	for _, part := range parts {
-		base := completed
-		reader := &uploadProgressReader{r: bytes.NewReader(part.body), total: int64(len(part.body)), progress: func(done, _ int64) {
-			if progress != nil {
-				progress(base+done, total)
-			}
-		}, last: time.Now().Add(-time.Second)}
-		req, err := http.NewRequest("POST", url, reader)
-		if err != nil {
-			return err
-		}
-		req.ContentLength = int64(len(part.body))
-		req.Header.Set("Content-Type", part.contentType)
-		resp, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("board returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
-		}
-		completed += int64(len(part.body))
-	}
-	return nil
-}
-
 func postFirmwareChunks(endpoint, path string, timeout time.Duration, progress func(done, total int64)) error {
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -3797,20 +4215,8 @@ func postFirmwareChunks(endpoint, path string, timeout time.Duration, progress f
 			final = "1"
 		}
 		u := endpoint + "?offset=" + strconv.Itoa(offset) + "&final=" + final
-		req, err := http.NewRequest("POST", u, bytes.NewReader(payload[offset:end]))
-		if err != nil {
+		if err := postRawChunkWithRetry(client, u, payload[offset:end]); err != nil {
 			return err
-		}
-		req.ContentLength = int64(end - offset)
-		req.Header.Set("Content-Type", "application/octet-stream")
-		resp, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("board returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
 		}
 		if progress != nil {
 			progress(int64(end), int64(len(payload)))
@@ -3846,20 +4252,8 @@ func postWebAssetChunks(endpoint string, paths []string, timeout time.Duration, 
 				final = "1"
 			}
 			u := endpoint + "?name=" + url.QueryEscape(filepath.Base(path)) + "&offset=" + strconv.Itoa(offset) + "&final=" + final
-			req, err := http.NewRequest("POST", u, bytes.NewReader(payload[offset:end]))
-			if err != nil {
+			if err := postRawChunkWithRetry(client, u, payload[offset:end]); err != nil {
 				return err
-			}
-			req.ContentLength = int64(end - offset)
-			req.Header.Set("Content-Type", "application/octet-stream")
-			resp, err := client.Do(req)
-			if err != nil {
-				return err
-			}
-			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-			resp.Body.Close()
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return fmt.Errorf("board returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
 			}
 			completed += int64(end - offset)
 			if progress != nil {
@@ -3870,24 +4264,38 @@ func postWebAssetChunks(endpoint string, paths []string, timeout time.Duration, 
 	return nil
 }
 
-type uploadProgressReader struct {
-	r        *bytes.Reader
-	total    int64
-	done     int64
-	progress func(done, total int64)
-	last     time.Time
-}
-
-func (r *uploadProgressReader) Read(p []byte) (int, error) {
-	n, err := r.r.Read(p)
-	if n > 0 {
-		r.done += int64(n)
-		if r.progress != nil && (time.Since(r.last) > 250*time.Millisecond || r.done >= r.total) {
-			r.progress(r.done, r.total)
-			r.last = time.Now()
+// The ECU's bounded upload endpoints are offset-idempotent. Retry only
+// transport failures: a 4xx response is an authoritative safety/configuration
+// rejection, while a missing response may mean the board already committed the
+// range and should receive the exact same offset again.
+func postRawChunkWithRetry(client *http.Client, endpoint string, payload []byte) error {
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		req, err := http.NewRequest("POST", endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.ContentLength = int64(len(payload))
+		req.Header.Set("Content-Type", "application/octet-stream")
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+		} else {
+			respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+			resp.Body.Close()
+			if readErr != nil {
+				lastErr = readErr
+			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return fmt.Errorf("board returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
+			} else {
+				return nil
+			}
+		}
+		if attempt < 4 {
+			time.Sleep(800 * time.Millisecond)
 		}
 	}
-	return n, err
+	return fmt.Errorf("board upload connection failed after retries: %w", lastErr)
 }
 
 func fileExists(p string) bool { st, err := os.Stat(p); return err == nil && !st.IsDir() }

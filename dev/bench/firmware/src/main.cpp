@@ -567,10 +567,20 @@ static void safeState(const Signal& s) {
             pinMode(s.gpio, OUTPUT);
             digitalWrite(s.gpio, LOW);
             break;
-        case FREQ_OUT:
+        case FREQ_OUT: {
+            int ch = sigLedcChan[sigIndex(s)];
+            if (ch >= 0) {
+                // A zero duty update left a stale waveform running on the S3
+                // after some timer-divider changes. Stop the channel and drive
+                // its idle level explicitly; the next non-zero SET reattaches.
+                ledc_stop(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch, 0);
+                sigLedcAttached[sigIndex(s)] = false;
+            }
+            break;
+        }
         case SERVO_OUT: {
             int ch = sigLedcChan[sigIndex(s)];
-            if (ch >= 0) ledcSetDuty(ch, 0);       // duty 0 -> line low / no pulse
+            if (ch >= 0) ledcSetDuty(ch, 0);       // no servo pulse
             break;
         }
         case DAC_OUT:
@@ -626,7 +636,8 @@ static bool applyOutput(const Signal& s, const char* valStr, String& err) {
             int ch = sigLedcChan[sigIndex(s)];
             float hz = atof(valStr);
             if (hz < 1.0f) {
-                ledcSetDuty(ch, 0);                                    // stop -> line low
+                ledc_stop(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch, 0);  // stop -> line low
+                sigLedcAttached[sigIndex(s)] = false;
             } else {
                 // Changing a live timer's frequency must not detach/recreate
                 // its channel: that inserts a zero-RPM hole into every ramp

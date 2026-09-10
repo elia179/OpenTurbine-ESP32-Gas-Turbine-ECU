@@ -555,7 +555,6 @@ public:
     static size_t toJson(char* buf, size_t len, bool redactPassword = false);
     static void   toJson(JsonDocument& doc, bool redactPassword = false);
     static void   toJson(JsonObject doc, bool redactPassword = false);
-    static bool   validateJson(const char* json, size_t len);
     static bool   validateJson(const JsonDocument& doc, ChannelRegistry* registryWorkspace = nullptr);
     static const char* lastValidationError();
     // The mutable input overload lets ArduinoJson keep strings in the web

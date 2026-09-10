@@ -46,6 +46,11 @@ for fname in os.listdir(SRC):
         # LittleFS space. Only remove complete comment lines; inline tokens,
         # strings, regexes, and executable code remain byte-for-byte intact.
         data = re.sub(rb"(?m)^[ \t]*//[^\r\n]*(?:\r?\n|$)", b"", data)
+    elif os.path.splitext(fname)[1] == ".css":
+        # CSS comments document the editable source but are never observed by
+        # the browser. Removing them keeps the approved UI within the Classic
+        # ESP32 LittleFS working-space reserve.
+        data = re.sub(rb"/\*.*?\*/", b"", data, flags=re.DOTALL)
     with open(tmp_path, "wb") as raw_out:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw_out,
                            compresslevel=9, mtime=0) as f_out:

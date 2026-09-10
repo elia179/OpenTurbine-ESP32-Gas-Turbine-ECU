@@ -5,7 +5,6 @@
     "dut_board": "esp32-s3-devkitc-1",
     "tester_board": "esp32dev (classic)",
     "dut_ip": "192.168.4.1",
-    "dut_ws": "ws://192.168.4.1/ws",
     "tester_baud": 115200,
     "logic_level_v": 3.3,
     "adc_full_scale_counts": 4095,

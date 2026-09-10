@@ -12,6 +12,11 @@ import time
 
 def _nested_matches(cfg, partial):
     for k, v in partial.items():
+        # ArduinoJson intentionally omits empty collections from compact
+        # settings responses. An absent collection therefore verifies an
+        # explicit clear, while missing scalar values must still fail.
+        if isinstance(v, (list, dict)) and not v and k not in cfg:
+            continue
         if isinstance(v, dict):
             if not isinstance(cfg.get(k), dict) or not _nested_matches(cfg[k], v):
                 return False
@@ -35,6 +40,8 @@ def _nested_mismatches(cfg, partial, prefix=""):
     for key, expected in partial.items():
         path = f"{prefix}.{key}" if prefix else key
         actual = cfg.get(key) if isinstance(cfg, dict) else None
+        if isinstance(expected, (list, dict)) and not expected and isinstance(cfg, dict) and key not in cfg:
+            continue
         if isinstance(expected, dict):
             if not isinstance(actual, dict):
                 differences.append(f"{path}: expected object, got {actual!r}")

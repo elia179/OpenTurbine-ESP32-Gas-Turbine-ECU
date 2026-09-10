@@ -65,21 +65,6 @@ public:
                       !strcmp(id, "prop_pitch") ||
                       !strcmp(id, "glow_plug"));
     }
-    static bool isCoreManagedInputId(const char* id) {
-        return id && (!strcmp(id, "n1_main") ||
-                      !strcmp(id, "n2_main") ||
-                      !strcmp(id, "tot_main") ||
-                      !strcmp(id, "primary_n1") ||
-                      !strcmp(id, "primary_n2") ||
-                      !strcmp(id, "primary_egt") ||
-                      !strcmp(id, "oil_pressure_main") ||
-                      !strcmp(id, "p1_main") ||
-                      !strcmp(id, "p2_main") ||
-                      !strcmp(id, "operator_throttle") ||
-                      !strcmp(id, "operator_idle") ||
-                      !strcmp(id, "battery_voltage") ||
-                      !strcmp(id, "batt_voltage_main"));
-    }
     static bool isCoreManagedInputPurpose(const char* purpose) {
         return purpose && (!strcmp(purpose, "n1_speed") || !strcmp(purpose, "n2_speed") ||
                            !strcmp(purpose, "tot") || !strcmp(purpose, "tit") ||
@@ -153,10 +138,6 @@ public:
                            !strcmp(purpose, "ab_pump") ||
                            !strcmp(purpose, "prop_pitch") ||
                            !strcmp(purpose, "air_starter"));
-    }
-    static bool isDedicatedTemperatureId(const char* id) {
-        return id && (!strcmp(id, "tot_main") || !strcmp(id, "tit_main") ||
-                      !strcmp(id, "oil_temperature") || !strcmp(id, "coolant_temperature"));
     }
     enum Direction : uint8_t { Input, Output };
     static bool roleValid(Direction d, const char* role) {
@@ -292,9 +273,6 @@ public:
         float minimumFlow = 0.0f;  // L/min; applies to oil/scavenge pump outputs
         char flowInputId[20] = {}; // optional when exactly one compatible input exists
     };
-    static bool driverIsI2c(Driver d) {
-        return d == I2cDigital || d == I2cAnalog || d == I2cLoadCell || d == I2cRelay;
-    }
     static bool driverIsOnOffOutput(Driver d) {
         return d == Relay || d == I2cRelay;
     }

@@ -4,6 +4,7 @@ import argparse
 import json
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -13,6 +14,11 @@ def main() -> int:
     parser.add_argument("firmware", type=Path)
     parser.add_argument("--base", default="http://192.168.4.1")
     parser.add_argument("--chunk", type=int, default=4096)
+    parser.add_argument(
+        "--replay-first",
+        action="store_true",
+        help="bench proof: resend the first accepted chunk and require an idempotent acknowledgement",
+    )
     args = parser.parse_args()
 
     image = args.firmware.read_bytes()
@@ -37,6 +43,10 @@ def main() -> int:
                 if not result.get("ok"):
                     raise RuntimeError(result)
                 break
+            except urllib.error.HTTPError:
+                # The ECU answered: this is an authoritative safety or image
+                # rejection, not an ambiguous lost response.
+                raise
             except Exception as error:  # transport recovery is offset-safe
                 last_error = error
                 if attempt == 4:
@@ -44,6 +54,12 @@ def main() -> int:
                 time.sleep(0.8)
         else:  # pragma: no cover - loop either breaks or raises
             raise last_error
+        if args.replay_first and offset == 0:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                replay = json.loads(response.read().decode("utf-8"))
+            if not replay.get("ok") or not replay.get("replayed"):
+                raise RuntimeError(f"Firmware chunk replay was not acknowledged: {replay}")
+            print("first chunk replay acknowledged; ", end="", flush=True)
         offset += len(payload)
         print(f"\r{offset}/{len(image)} bytes", end="", flush=True)
     print("\nOTA accepted; waiting for reboot")

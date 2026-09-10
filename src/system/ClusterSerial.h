@@ -58,13 +58,12 @@ namespace ClCode {
 class ClusterSerial {
 public:
     static void begin();
-    // Late-start path for APPLY_CONFIG: if cluster serial was disabled at
-    // boot (begin() early-returned) and Config now enables it, run begin().
-    // No-op once the port is up. Called from Core 1 in STANDBY only.
+    // Late-start path after a staged configuration apply. If cluster serial was
+    // disabled at boot and Config now enables it, run begin(). No-op once the
+    // port is up. Called from Core 1 in STANDBY/FAULT only.
     static void beginIfNeeded();
     static void tick();
     static void sendStatus(uint8_t code);
-    static void sendEvent(uint8_t severity, const char* text);
 
 private:
     static bool          _begun;

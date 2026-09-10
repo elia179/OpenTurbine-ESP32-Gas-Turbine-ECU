@@ -25,8 +25,8 @@
 //    POST /api/start     → queue START
 //    POST /api/stop      → queue STOP (high priority)
 //    POST /api/factory_reset
-//    POST /update        → OTA firmware upload
-//    POST /api/web_assets → gzipped web UI asset upload
+//    POST /api/firmware_chunk → bounded OTA firmware upload
+//    POST /api/web_asset_chunk → bounded gzipped web UI asset upload
 //    GET  /api/status    → mode + health summary
 //    GET  /api/telemetry → compact live telemetry snapshot
 // ============================================================

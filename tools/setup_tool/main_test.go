@@ -3,13 +3,65 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"hash/crc32"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestPostRawChunkRetriesAmbiguousTransportFailure(t *testing.T) {
+	attempts := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, errors.New("response lost")
+		}
+		return &http.Response{
+			StatusCode: http.StatusAccepted,
+			Status:     "202 Accepted",
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true,"replayed":true}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	if err := postRawChunkWithRetry(client, "http://ecu/api/firmware_chunk", []byte("chunk")); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts=%d, want 2", attempts)
+	}
+}
+
+func TestPostRawChunkDoesNotRetryBoardRejection(t *testing.T) {
+	attempts := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		return &http.Response{
+			StatusCode: http.StatusLocked,
+			Status:     "423 Locked",
+			Body:       io.NopCloser(strings.NewReader(`{"error":"maintenance blocked"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	if err := postRawChunkWithRetry(client, "http://ecu/api/firmware_chunk", []byte("chunk")); err == nil {
+		t.Fatal("expected authoritative board rejection")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want 1", attempts)
+	}
+}
 
 func TestBuildCustomPCBProfileContainer(t *testing.T) {
 	root := t.TempDir()
@@ -92,6 +144,22 @@ func TestParseDetectedBoardSupportedFamilies(t *testing.T) {
 	}
 }
 
+func TestScrollRetainsPrecisionWheelDeltas(t *testing.T) {
+	ui := &NativeUI{scrollOffset: 50, scrollMax: 100}
+	ui.scroll(30)
+	if ui.scrollOffset != 43 || ui.scrollRemainder != 2 {
+		t.Fatalf("first precision wheel packet: offset=%d remainder=%d", ui.scrollOffset, ui.scrollRemainder)
+	}
+	ui.scroll(30)
+	if ui.scrollOffset != 35 || ui.scrollRemainder != 0 {
+		t.Fatalf("second precision wheel packet: offset=%d remainder=%d", ui.scrollOffset, ui.scrollRemainder)
+	}
+	ui.scroll(-120)
+	if ui.scrollOffset != 65 || ui.scrollRemainder != 0 {
+		t.Fatalf("reverse wheel notch: offset=%d remainder=%d", ui.scrollOffset, ui.scrollRemainder)
+	}
+}
+
 func TestEsptoolProgressWriter(t *testing.T) {
 	var got []int
 	w := &esptoolProgressWriter{progress: func(percent int) { got = append(got, percent) }}
@@ -117,13 +185,14 @@ func TestEsptoolV5AndMultiFileProgress(t *testing.T) {
 }
 
 func TestPrimaryButtonActions(t *testing.T) {
-	if cleanSafetyButtonLabel != "I understand — choose board" {
+	if cleanSafetyButtonLabel != "Continue to board selection" {
 		t.Fatalf("clean-install safety gate must describe the next selection step, got %q", cleanSafetyButtonLabel)
 	}
 	tests := map[string]string{
 		cleanSafetyButtonLabel:  "start",
 		updateSafetyButtonLabel: "start",
 		"Back to start":         "home",
+		"Retry":                 "retryPrepare",
 		"Continue":              "continue",
 	}
 	for label, want := range tests {
@@ -142,6 +211,14 @@ func TestJobLogPathMatchesWriteLocation(t *testing.T) {
 	job.backupPath = filepath.Join(t.TempDir(), "backups", "engine.json")
 	if got, want := job.logPath(), filepath.Join(filepath.Dir(job.backupPath), "update_log.txt"); got != want {
 		t.Fatalf("backup log path = %q, want %q", got, want)
+	}
+}
+
+func TestShowHomeClearsPreviousBackupPath(t *testing.T) {
+	ui := &NativeUI{backupPath: `C:\old-update\ecu_config.json`}
+	ui.showHome()
+	if ui.backupPath != "" {
+		t.Fatalf("home retained a previous job's backup path: %q", ui.backupPath)
 	}
 }
 
@@ -183,6 +260,60 @@ func TestPackageDownloadRejectsPlainHTTP(t *testing.T) {
 	}
 }
 
+func TestSHA256File(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "package.zip")
+	if err := os.WriteFile(path, []byte("OpenTurbine"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := sha256File(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "26034d70d5c4ac07fbb91b0ebc31f10d3a864e4c322b14f40591e6fd81e119d7"
+	if got != want {
+		t.Fatalf("SHA-256 = %q, want %q", got, want)
+	}
+}
+
+func TestVerifiedCachedPackageRequiresSidecar(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "package.zip")
+	if err := os.WriteFile(path, []byte("not a zip"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadVerifiedCachedPackage(path); err == nil || !strings.Contains(err.Error(), "checksum marker") {
+		t.Fatalf("missing sidecar error = %v", err)
+	}
+}
+
+func TestExplicitLocalPackageIsPinned(t *testing.T) {
+	base := t.TempDir()
+	path := filepath.Join(base, "OpenTurbine_Recommended.zip")
+	writeTestPackageZip(t, path, "2.3.5")
+	pkg, found, err := loadExplicitLocalPackage(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || pkg == nil || pkg.Manifest.Version != "2.3.5" {
+		t.Fatalf("local package selection: found=%v package=%+v", found, pkg)
+	}
+	pkg.cleanup()
+}
+
+func TestInvalidExplicitLocalPackageFailsLoudly(t *testing.T) {
+	base := t.TempDir()
+	path := filepath.Join(base, "OpenTurbine_Recommended.zip")
+	if err := os.WriteFile(path, []byte("not a package"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	pkg, found, err := loadExplicitLocalPackage(base)
+	if pkg != nil {
+		pkg.cleanup()
+	}
+	if !found || err == nil || !strings.Contains(err.Error(), "local OpenTurbine package") {
+		t.Fatalf("invalid explicit package must block fallback: found=%v err=%v", found, err)
+	}
+}
+
 func TestRecommendedPackageURLsPreferResolvedRelease(t *testing.T) {
 	resolved := "https://github.com/example/OpenTurbine/releases/download/v2.3.2/OpenTurbine_Recommended.zip"
 	got := recommendedPackageURLs(defaultPackageURL, resolved)
@@ -210,7 +341,7 @@ func TestManifestCompatibilityUsesMinimumToolVersion(t *testing.T) {
 	if err := validateManifestCompatibility(base); err != nil {
 		t.Fatalf("newer client must accept an older compatible baseline: %v", err)
 	}
-	base.MinimumSetupToolVersion = "0.7.3"
+	base.MinimumSetupToolVersion = "0.7.4"
 	if err := validateManifestCompatibility(base); err == nil {
 		t.Fatal("client must reject a package that requires a newer setup tool")
 	}
@@ -244,6 +375,36 @@ func writeTestFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeTestPackageZip(t *testing.T, path, version string) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	manifest, err := zw.Create("manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = io.WriteString(manifest, `{"project":"OpenTurbine","version":"`+version+`","package_schema":4,"minimum_setup_tool_version":"0.7.0","targets":{}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	esptool, err := zw.Create("tools/esptool.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := esptool.Write([]byte("test")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -1,7 +1,6 @@
 #pragma once
 #include "../engine/EngineData.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -47,7 +46,6 @@ public:
     static void logRelight(uint8_t attemptNum);
     static void logRunSummary();   // called automatically by shutdown handlers
 
-    static void clear();
     static void requestClear();  // Core 1: defer file removal to Core 0
 
     // Current number of records in the log (0 before first write).
@@ -57,9 +55,6 @@ public:
     static bool healthy();
     static uint8_t errorCode();
     static uint32_t lastDurableAppendMs();
-
-    // For web download — writes full log JSON to buf, returns bytes written
-    static size_t toJson(char* buf, size_t len);
 
     // Bracket direct file access (e.g. CSV handler) with these to prevent
     // racing against runEviction()'s file eviction (remove + rename).
@@ -77,7 +72,7 @@ private:
     static uint32_t _uptimeSec();
 
     // Mutex guards file access between Core 0 writers (runEviction/clear)
-    // and readers (toJson, CSV/raw download handlers).
+    // and the CSV/raw/browser download handlers.
     // Protects the remove+rename sequence in log eviction.
     static SemaphoreHandle_t _mutex;
 

@@ -984,7 +984,12 @@ class TenBuildRunner:
             self.t.set("THROTTLE_IN", 0.0)
             time.sleep(0.35)
             lo = self.dut.data().get("throttle_input_raw", 0)
-            self.t.set("THROTTLE_IN", 3.3)
+            # The classic ESP32 DAC is not rail-to-rail. Code 255 at the
+            # nominal 3.3 V endpoint can collapse to zero on some Arduino-ESP32
+            # builds, which tests the stimulus generator rather than the DUT
+            # ADC. 2.8 V still spans well over half the S3 ADC range and is the
+            # fixture's repeatable calibrated high point.
+            self.t.set("THROTTLE_IN", 2.8)
             time.sleep(0.35)
             hi = self.dut.data().get("throttle_input_raw", 0)
             self.check(checks, "throttle ADC input sweep", hi > lo + 1500, f"{lo}->{hi}")

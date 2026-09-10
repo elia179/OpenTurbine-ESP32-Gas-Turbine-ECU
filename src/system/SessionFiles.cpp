@@ -30,4 +30,22 @@ bool parseRunNumber(const char* path, int& runNumber) {
     return true;
 }
 
+bool nextSessionNumber(uint32_t persistedStartAttempts,
+                       uint32_t highestStored,
+                       uint32_t& sessionNumber) {
+    // parseRunNumber() and the web API intentionally use positive signed
+    // integers, so refuse an identity they could not subsequently enumerate.
+    if (highestStored >= static_cast<uint32_t>(INT_MAX)) return false;
+
+    const uint32_t nextStored = highestStored + 1U;
+    const uint32_t durableAttempt = persistedStartAttempts > 0U
+        ? persistedStartAttempts : 1U;
+    const uint32_t selected = durableAttempt > nextStored
+        ? durableAttempt : nextStored;
+    if (selected > static_cast<uint32_t>(INT_MAX)) return false;
+
+    sessionNumber = selected;
+    return true;
+}
+
 }  // namespace SessionFiles

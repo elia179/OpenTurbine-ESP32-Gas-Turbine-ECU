@@ -6,14 +6,15 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Tools</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260910a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260910a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
-.test-settings-card{width:min(760px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.test-settings-card{width:min(840px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:13px}
 .test-settings-head,.test-settings-foot{flex:0 0 auto;padding:1rem}
-.test-settings-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;border-bottom:1px solid var(--border)}
+.test-settings-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;border-bottom:1px solid color-mix(in srgb,var(--accent) 26%,var(--border));border-top:3px solid var(--accent);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 10%,transparent),transparent 100%)}.test-settings-title{font-size:.9rem;color:var(--accent)}.test-settings-subtitle{margin-top:.2rem;font-size:.72rem;color:var(--dim);line-height:1.45}.test-settings-head button{min-height:34px;padding:.25rem .65rem}
 .test-settings-scroll{min-height:0;overflow-y:auto;padding:0 1rem;scrollbar-width:thin;scrollbar-color:var(--border-light) transparent}
 .test-settings-scroll::-webkit-scrollbar{width:8px}.test-settings-scroll::-webkit-scrollbar-track{background:transparent}.test-settings-scroll::-webkit-scrollbar-thumb{background:var(--border-light);border:2px solid var(--surface);border-radius:999px}
-.test-settings-foot{border-top:1px solid var(--border)}
+.test-settings-foot{border-top:1px solid var(--border)}.test-settings-section{padding:.9rem 0}.test-settings-section+.test-settings-section{border-top:1px solid var(--border)}.test-settings-section-head{margin-bottom:.65rem;padding-left:.6rem;border-left:2px solid var(--accent)}.test-settings-section-head b{display:block;font-size:.76rem;color:var(--accent)}.test-settings-section-head span{display:block;margin-top:.12rem;color:var(--dim);font-size:.68rem;line-height:1.4}.test-confirm-row,.test-setting-row{padding:.8rem;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)}.test-confirm-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}.test-confirm-row label{display:block;cursor:pointer}.test-confirm-row b,.test-setting-name{display:block;font-size:.72rem;color:var(--text)}.test-confirm-row span,.test-setting-help{display:block;margin-top:.15rem;color:var(--dim);font-size:.67rem;line-height:1.4}.test-confirm-row input{width:22px;height:22px;accent-color:var(--accent)}.test-setting-list{display:grid;gap:.65rem}.test-setting-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin-top:.6rem}.test-setting-field{display:flex;flex-direction:column;gap:.3rem;color:var(--dim);font-size:.65rem;text-transform:uppercase;letter-spacing:.05em}.test-setting-field input{width:100%;min-height:42px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .55rem;font-family:var(--font-mono)}
+@media(max-width:600px){.test-settings-card{width:100%;max-height:94vh}.test-settings-head,.test-settings-foot{padding:.75rem}.test-settings-scroll{padding:0 .75rem}.test-setting-fields{grid-template-columns:1fr}.test-confirm-row{align-items:flex-start}}
 </style>
 </head>
 <body data-page="tools">
@@ -46,8 +47,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <div id="test-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeTestSettings()">
     <div class="test-settings-card">
-      <div class="test-settings-head"><div><b>Tool settings</b><div style="font-size:.72rem;color:var(--dim)">Settings do not run an actuator. Test durations are saved on the ECU; the confirmation preference is saved in this browser.</div></div><button onclick="closeTestSettings()" title="Close">✕</button></div>
-      <div class="test-settings-scroll"><div id="test-settings-body" style="display:grid;grid-template-columns:minmax(0,1fr);gap:.65rem;padding:.8rem 0"></div></div>
+      <div class="test-settings-head"><div><b class="test-settings-title">Tool settings</b><div class="test-settings-subtitle">Set safe limits for manual hardware tests. Opening this page does not run an actuator.</div></div><button onclick="closeTestSettings()">Close</button></div>
+      <div class="test-settings-scroll"><div id="test-settings-body"></div></div>
       <div class="test-settings-foot"><div style="display:flex;gap:.6rem;justify-content:flex-end"><button onclick="closeTestSettings()">Cancel</button><button class="primary" onclick="saveTestSettings()">Save settings</button></div>
       <div id="test-settings-status" style="font-size:.75rem;color:var(--dim);margin-top:.4rem"></div></div>
     </div>
@@ -214,23 +215,33 @@ function syncRegistryOutputTools(){
 }
 function openTestSettings(){
   if(engineMode!=='STANDBY'&&engineMode!=='FAULT'){alert('Bench-test settings can only be changed in STANDBY or FAULT.');return;}
-  const body=document.getElementById('test-settings-body'); let html='';
+  const body=document.getElementById('test-settings-body');
   let alwaysConfirm=true;
   try{alwaysConfirm=localStorage.getItem(TOOL_CONFIRMATION_SKIP_KEY)!=='1';}catch(_){}
-  html+=`<div class="tool-card" style="margin:0">
-    <div class="tool-name">Actuator safety confirmation</div>
-    <label class="tool-desc" style="display:flex;align-items:flex-start;gap:.55rem;margin-top:.45rem;cursor:pointer">
-      <input id="tool-always-confirm" type="checkbox" ${alwaysConfirm?'checked':''} style="margin-top:.15rem">
-      <span>Show one safety confirmation before every actuator test. Turning this off suppresses confirmations for the entire Tools page on this browser, not one tool at a time.</span>
-    </label>
-  </div>`;
-  TOOLS.filter(t=>t.durationMs>0&&(!t.visibleIf||t.visibleIf(hwCfg))).forEach(t=>{
+  const section=(title,desc,content)=>`<section class="test-settings-section"><div class="test-settings-section-head"><b>${title}</b><span>${desc}</span></div>${content}</section>`;
+  let html=section('Test safety','Confirmation behavior for every manual actuator test.',`<div class="test-confirm-row"><label for="tool-always-confirm"><b>Confirm before starting a test</b><span>Ask for confirmation before connected hardware can be energized. This preference is stored in this browser.</span></label><input id="tool-always-confirm" type="checkbox" ${alwaysConfirm?'checked':''}></div>`);
+  const visibleTimed=TOOLS.filter(t=>t.durationMs>0&&(!t.visibleIf||t.visibleIf(hwCfg)));
+  const groups=[
+    ['Prime tests','Maximum run time for manually priming fluid systems.',t=>/PRIME/.test(t.id)],
+    ['Starter tests','Output level and automatic cutoff for starter hardware.',t=>/START/.test(t.id)],
+    ['Ignition tests','Automatic cutoff for igniter hardware.',t=>/IGN/.test(t.id)],
+    ['Other timed tests','Limits for other fitted hardware tests.',()=>true],
+  ];
+  const used=new Set();
+  groups.forEach(([title,desc,matches])=>{
+    let rows='';
+    visibleTimed.forEach(t=>{
+      if(used.has(t.id)||!matches(t))return;
+      used.add(t.id);
     const durationKey=t.configKey?.split('.')[1]; if(!durationKey)return;
     const ms=Number(cfgData?.tools?.[durationKey]??t.durationMs);
     const outKey=TEST_OUTPUT_KEYS[t.id], out=outKey?Number(cfgData?.tools?.[outKey]??100):null;
-    html+=`<div class="tool-card" style="margin:0"><div class="tool-name">${escHtml(t.name)}</div><label class="tool-desc">Duration (seconds)<input class="test-setting" data-key="${durationKey}" data-kind="seconds" type="number" min="0.05" max="60" step="0.05" value="${ms/1000}" title="How long this test command remains active (maximum 60 seconds)."></label>${outKey?`<label class="tool-desc">Output (%)<input class="test-setting" data-key="${outKey}" data-kind="percent" type="number" min="0" max="100" step="1" value="${out}" title="Proportional output used by this test. Relay outputs ignore percentage."></label>`:''}</div>`;
+      rows+=`<div class="test-setting-row"><b class="test-setting-name">${escHtml(t.name)}</b><span class="test-setting-help">${escHtml(t.desc||'')}</span><div class="test-setting-fields"><label class="test-setting-field">Duration (seconds)<input class="test-setting" data-key="${durationKey}" data-kind="seconds" type="number" min="0.05" max="60" step="0.05" value="${ms/1000}" title="How long this test command remains active (maximum 60 seconds)."></label>${outKey?`<label class="test-setting-field">Output (%)<input class="test-setting" data-key="${outKey}" data-kind="percent" type="number" min="0" max="100" step="1" value="${out}" title="Proportional output used by this test. Relay outputs ignore percentage."></label>`:''}</div></div>`;
+    });
+    if(rows)html+=section(title,desc,`<div class="test-setting-list">${rows}</div>`);
   });
-  body.innerHTML=html||'<div style="color:var(--dim)">No configurable actuator tests match the fitted hardware.</div>';
+  if(!visibleTimed.length)html+=section('Timed tests','No configurable actuator tests match the fitted hardware.','');
+  body.innerHTML=html;
   document.getElementById('test-settings-status').textContent='';
   document.getElementById('test-settings-modal').style.display='flex';
 }
@@ -515,6 +526,25 @@ function setState(id, text, cls) {
 // be diagnosed or fixed from this page.
 function isStandbyLike(m) { return m === 'STANDBY' || m === 'FAULT'; }
 
+function stopToolBlockReason() {
+  if (liveData?.stop_switch_active)
+    return 'Cannot run actuator tools while the STOP input is active. Release STOP first.';
+  if (liveData?.stop_switch_configured && liveData.stop_switch_healthy === false)
+    return 'Cannot run actuator tools because the configured STOP input is unavailable. Check its wiring or device.';
+  return '';
+}
+
+function timedToolBlockReason(tool, cooldownActive, forcedOff) {
+  if (forcedOff) return 'Another actuator tool is active.';
+  const stopReason = stopToolBlockReason();
+  if (stopReason) return stopReason;
+  const effectiveMode = engineMode === 'FAULT' ? 'STANDBY' : engineMode;
+  const modeOk = tool.modes ? tool.modes.includes(effectiveMode) : isStandbyLike(engineMode);
+  if (!modeOk) return `Actuator tools are available only in STANDBY or FAULT (current mode: ${engineMode || 'unknown'}).`;
+  if (cooldownActive) return 'Another actuator output is active for Extra Cooldown.';
+  return '';
+}
+
 function setAllButtons(forcedOff) {
   const inStandby = isStandbyLike(engineMode);
   const ecActive = !!(liveData && liveData.extra_cooldown_active);
@@ -525,28 +555,43 @@ function setAllButtons(forcedOff) {
     // FAULT counts as STANDBY for per-tool mode lists.
     const effMode = engineMode === 'FAULT' ? 'STANDBY' : engineMode;
     const modeOk = t.modes ? t.modes.includes(effMode) : (isToggle || inStandby);
-    btn.disabled = forcedOff || !modeOk || (ecActive && !isToggle);
+    const blockReason = !isToggle ? timedToolBlockReason(t, ecActive, forcedOff) : '';
+    btn.disabled = forcedOff || !modeOk || (ecActive && !isToggle) || !!blockReason;
+    btn.title = blockReason;
+    const card = document.getElementById('card-' + t.id);
+    if (card) card.title = blockReason || t.desc;
   });
   // Cooldown start button — only standby-like and not already running
   const ecBtn = document.getElementById('btn-EXTRA_COOLDOWN');
-  if (ecBtn) ecBtn.disabled = forcedOff || !inStandby || ecActive || !extraCooldownAvailable();
+  if (ecBtn) {
+    const stopReason = stopToolBlockReason();
+    const reason = forcedOff ? 'Another actuator tool is active.' :
+      stopReason || (!inStandby ? `Extra Cooldown is available only in STANDBY or FAULT (current mode: ${engineMode || 'unknown'}).` :
+      (ecActive ? 'Extra Cooldown is already running.' : ''));
+    ecBtn.disabled = forcedOff || !inStandby || ecActive || !extraCooldownAvailable() || !!stopReason;
+    ecBtn.title = reason;
+    const card = document.getElementById('card-EXTRA_COOLDOWN');
+    if (card && reason) card.title = reason;
+  }
 }
 function refreshTimedToolLockStates() {
   const cooldownLocked = !!(liveData && liveData.extra_cooldown_active);
-  const locked = !isStandbyLike(engineMode) || cooldownLocked;
+  const stopReason = stopToolBlockReason();
+  const locked = !isStandbyLike(engineMode) || cooldownLocked || !!stopReason;
   TOOLS.filter(tool => tool.durationMs > 0).forEach(tool => {
     if (activeId === tool.id) return;
     const state = document.getElementById('state-' + tool.id);
     if (!state) return;
     if (locked) {
-      setState(tool.id, cooldownLocked ? 'Locked · cooldown' : `Locked · ${engineMode}`, 'off');
+      setState(tool.id, stopReason ? (liveData.stop_switch_active ? 'Locked · STOP active' : 'Locked · STOP unavailable') :
+        (cooldownLocked ? 'Locked · cooldown' : `Locked · ${engineMode}`), 'off');
     } else if (state.textContent.startsWith('Locked ·')) {
       setState(tool.id, 'Ready', '');
     }
   });
 }
 
-// ── WS integration ────────────────────────────────────────────
+// ── Compact telemetry integration ─────────────────────────────
 function installToolsTelemetryExtension() {
 const _base = window.applyData;
 if (typeof _base !== 'function' || _base._toolsExtended) return;
@@ -554,7 +599,7 @@ window.applyData = function(d) {
   const merged = _base(d);
   if (!merged) return;
   // Use _lastData (accumulated by app.js) so fields from successive compact
-  // frames remain available while the page updates its controls.
+  // polls remain available while the page updates its controls.
   liveData = merged;
   d = merged;
   if (!d.mode) return;
@@ -563,7 +608,22 @@ window.applyData = function(d) {
   const mb = document.getElementById('mode-badge');
   if (mb) { mb.textContent = d.mode; mb.className = 'mode-badge ' + d.mode; }
   const lw = document.getElementById('lock-warn');
-  if (lw) lw.style.display = !isStandbyLike(d.mode) ? '' : 'none';
+  if (lw) {
+    const reason = stopToolBlockReason() || (!isStandbyLike(d.mode) ? 'Stop engine before using actuator tools' : '');
+    lw.textContent = reason;
+    lw.style.display = reason ? '' : 'none';
+  }
+  if (activeTick && stopToolBlockReason()) {
+    clearInterval(activeTick);
+    activeTick = null;
+    const cancelledId = activeId;
+    activeId = null;
+    if (cancelledId) {
+      const progress = document.getElementById('prog-' + cancelledId);
+      if (progress) { progress.style.width = '0%'; progress.classList.remove('running'); }
+      setState(cancelledId, 'Cancelled · STOP', 'off');
+    }
+  }
   if (!activeTick) {
     setAllButtons(false);
     refreshTimedToolLockStates();

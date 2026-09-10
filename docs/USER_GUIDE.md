@@ -1,4 +1,4 @@
-# OpenTurbine 2.0 detailed user guide
+# OpenTurbine 2.3.5 detailed user guide
 
 OpenTurbine is an open-source ESP32 turbine engine controller with a built-in web interface. It is intended for experimental turbojets, APUs, generators, turboshafts, turboprops, and other small turbine installations.
 

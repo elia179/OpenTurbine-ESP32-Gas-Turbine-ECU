@@ -27,10 +27,10 @@ def session_cfg(**enabled):
     cfg = {key: False for key in SESSION_FIELDS}
     cfg.update(enabled)
     # The logger deliberately retains 64 newest rows in RAM while engine
-    # control is active. 500 ms still stresses live capture at twice the
-    # product default without making an ordinary bounded shutdown exceed the
-    # queue by construction.
-    cfg["interval_ms"] = 500
+    # control is active. Use the product default here so the campaign proves
+    # the ordinary user path without depending on a deliberately aggressive
+    # diagnostic interval.
+    cfg["interval_ms"] = 1000
     return {"session_log": cfg}
 
 
@@ -68,7 +68,9 @@ def main():
         q.runner = type("ClassicSessionRunner", (), {"dc": q.dc})()
         q.t = q.tester
         q.firmware_before = q.dut.data().get("fw_version", "unknown")
-        original_session_cfg = dict(q.original_cfg.get("session_log", {}))
+        original_session_cfg = dict(
+            q.original_ecu.get("settings", {}).get("session_log", {})
+        )
     else:
         q = SafetyQualification()
         original_session_cfg = None

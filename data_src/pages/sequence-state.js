@@ -7,7 +7,6 @@ let _seqDirty = false;
 let paramVals = {}; // shared block settings plus per-slot TimedDelay edits
 let activeTab = 'startup';
 let engineMode = 'STANDBY';
-let ws;
 let lastIdleRaw = null;
 
 const SEQUENCE_INPUT_PURPOSE = {

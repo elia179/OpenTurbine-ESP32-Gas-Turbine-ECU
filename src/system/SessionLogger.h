@@ -25,7 +25,7 @@ public:
     // currentPath() becomes valid after the completed run is persisted.
     static const char* currentPath();
 
-    static bool begin();         // init (mkdir /logs, create queue); call once in setup()
+    static bool begin();         // init /logs; capture queue is allocated per run
     static void startSession();  // begin bounded RAM capture; call at STARTUP
     static void endSession();    // request persist + close; call at STANDBY
     static void tick();          // Core 1: snapshot → queue push (no file I/O)

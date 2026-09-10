@@ -51,8 +51,6 @@
 #include "engine/sequencer/blocks/AdvancedBlocks.h"
 #include "engine/sequencer/blocks/OilPrime.h"
 #include "engine/sequencer/blocks/StarterSpin.h"
-#include "engine/sequencer/blocks/PreIgnSpark.h"
-#include "engine/sequencer/blocks/FuelOpen.h"
 #include "engine/sequencer/blocks/FlameConfirm.h"
 #include "engine/sequencer/blocks/TempConfirm.h"
 #include "engine/sequencer/blocks/TimedDelay.h"

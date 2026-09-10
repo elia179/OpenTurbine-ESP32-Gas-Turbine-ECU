@@ -13,6 +13,7 @@ def main() -> int:
     parser.add_argument("port")
     parser.add_argument("output")
     parser.add_argument("--seconds", type=float, default=600)
+    parser.add_argument("--reset", action="store_true", help="Reset once after opening UART to capture the complete boot and any later panic")
     args = parser.parse_args()
 
     uart = serial.Serial(baudrate=115200, timeout=0.2)
@@ -20,6 +21,11 @@ def main() -> int:
     uart.dtr = False
     uart.rts = False
     uart.open()
+    if args.reset:
+        uart.rts = True
+        time.sleep(0.1)
+        uart.rts = False
+    print(f"Capturing {args.port} to {args.output}", flush=True)
     deadline = time.time() + args.seconds
     with open(args.output, "w", encoding="utf-8", newline="") as log:
         while time.time() < deadline:

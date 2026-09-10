@@ -16,11 +16,3 @@ void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
     return std::malloc(size ? size : 1);
 }
-
-void operator delete(void* pointer, const std::nothrow_t&) noexcept {
-    std::free(pointer);
-}
-
-void operator delete[](void* pointer, const std::nothrow_t&) noexcept {
-    std::free(pointer);
-}

@@ -2981,7 +2981,6 @@ static void enterStandby() {
     _manualOilPct          = 0.0f;
     ed.manualLimpRequested = false;
     ed.automaticLimpLatched = false;
-    ed.limpFailureMask    = FeedbackRequirements::NONE;
     ed.limpMode           = false;
     ed.limpOverrideSensor = FeedbackRequirements::NONE;
     ed.clusterCode        = 0;
@@ -3646,7 +3645,6 @@ static void handleCommand(const OTPacket& pkt) {
                 ed.startupEgtBaseline = Config::primaryEgtHealthy(ed)
                     ? Config::primaryEgtC(ed) : 0.0f;
                 ed.limpOverrideSensor = limited ? overrideSensor : FeedbackRequirements::NONE;
-                ed.limpFailureMask = limited ? overrideSensor : FeedbackRequirements::NONE;
                 ed.automaticLimpLatched = limited;
                 ed.limpMode = ed.manualLimpRequested || ed.automaticLimpLatched;
                 ConfigApplyGate::release();
@@ -3691,6 +3689,13 @@ static void handleCommand(const OTPacket& pkt) {
                 cutCombustionAndStarterNow();
                 if (HardwareConfig::hasAfterburner) enterABShutdown();
                 // Already shutting down — do nothing
+            } else if (standbyLike) {
+                // STOP is also the immediate escape from any timed/manual
+                // maintenance output. This includes FAULT, where tools remain
+                // available so the operator can diagnose and repair the ECU.
+                cancelTemporaryOutputOwners();
+                strncpy(ed.lastEvent, "STOP: temporary outputs cancelled",
+                        sizeof(ed.lastEvent) - 1);
             }
             break;
 
@@ -3953,32 +3958,6 @@ static void handleCommand(const OTPacket& pkt) {
             }
             break;
 
-        case OTCommand::APPLY_CONFIG:
-            // Re-apply block params from config — only safe in STANDBY.
-            // Controller static values (gains, limits) are updated by Config::fromJson
-            // in the PATCH handler immediately; applyConfig() copies them into block
-            // instances and reinitialises actuator mappings.
-            if (standbyLike) {
-                Hardware::applyConfig();
-                // Readiness issues include setting-dependent checks (for
-                // example a newly configured hard N2 safety limit). Rebuild
-                // them after every live settings apply so a valid correction
-                // cannot remain blocked by the pre-save cache until reboot.
-                validateSequences();
-                // Cluster serial can be enabled live in Config, but begin()
-                // only ran at boot (and early-returned if disabled then) —
-                // without this the setting looks saved while the UART stays
-                // dead until reboot.
-                ClusterSerial::beginIfNeeded();
-                Serial.println("[OT] APPLY_CONFIG: block params reloaded from config");
-            } else {
-                // In any other mode the command is deferred — config values are live
-                // in memory but hardware block instances won't be updated until the
-                // next STANDBY transition.  Log so this isn't a silent surprise.
-                Serial.println("[OT] APPLY_CONFIG: deferred - not in STANDBY, hardware blocks update on next STANDBY");
-            }
-            break;
-
         // ── Actuator tests (STANDBY only, auto-expire via checkToolTimers) ────
         case OTCommand::OIL_SCAV_TEST:
             if (HardwareConfig::hasOilScavengePump && standbyLike && !anyToolTimerActive() && !ed.extraCooldownActive) {
@@ -4183,10 +4162,8 @@ static void checkStartSwitch() {
                                                        registryActiveHigh);
     auto& ed = EngineData::instance();
     ed.startSwitchConfigured = hca.startPin >= 0 || registryConfigured;
-    ed.startSwitchActiveHigh = registryConfigured ? registryActiveHigh : hca.startActiveH;
     if (hca.startPin < 0 && !registryConfigured) {
         ed.startSwitchActive = false;
-        ed.startSwitchRawLevel = false;
         ed.startSwitchHealthy = false;
         ed.startSwitchReady = true;
         ed.startReleasedSinceBoot = true;
@@ -4194,7 +4171,6 @@ static void checkStartSwitch() {
     }
     if (registryConfigured && !registryHealthy) {
         ed.startSwitchActive = false;
-        ed.startSwitchRawLevel = false;
         ed.startSwitchHealthy = false;
         ed.startSwitchReady = false;
         ed.startReleasedSinceBoot = false;
@@ -4209,7 +4185,6 @@ static void checkStartSwitch() {
     const bool rawPressed = registryConfigured
         ? registryPressed
         : (hca.startActiveH ? (rawLevel == HIGH) : (rawLevel == LOW));
-    ed.startSwitchRawLevel = registryConfigured ? registryPressed : rawLevel == HIGH;
     // Debounce the raw level first — the edge detect and the manual-relight
     // hold logic below both act on the debounced state.
     static bool          _rawLast    = false;
@@ -4371,11 +4346,6 @@ void setup() {
                       " - update both sections to the same value\n",
                       HardwareConfig::profileId, Config::profileId);
     }
-
-#ifdef OT_DEV_MODE
-    EngineData::instance().devMode = true;
-    Serial.println("[OT] DEV_MODE: enabled - config locks bypassed, NEVER ship this build");
-#endif
 
     Hardware::applyConfig();
 

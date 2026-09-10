@@ -85,6 +85,10 @@ def main() -> int:
                 str(ROOT / "dev" / "host" / "command_queue_behavior.cpp"),
                 str(ROOT / "src" / "system" / "CommandQueue.cpp"),
             ], []),
+            ("session_files", [
+                str(ROOT / "dev" / "host" / "session_files_behavior.cpp"),
+                str(ROOT / "src" / "system" / "SessionFiles.cpp"),
+            ], []),
             ("controllers", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")], []),
             ("controllers_s3", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")],
              ["-DOT_PLATFORM_ESP32S3"]),
@@ -99,6 +103,7 @@ def main() -> int:
                 "relay_demand": "relay_demand_behavior",
                 "servo_actuator": "servo_actuator_behavior",
                 "command_queue": "command_queue_behavior",
+                "session_files": "session_files_behavior",
                 "controllers": "controller_behavior",
                 "controllers_s3": "controller_behavior_s3",
                 "feedback_control": "feedback_control_behavior",

@@ -10,6 +10,110 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.3.5] — 2026-09-10
+
+### Fixed
+
+- The safety monitor now uses a fixed relight callback instead of generic
+  `std::function` machinery. Relight behavior is unchanged, while the firmware
+  carries less unnecessary callback code and state.
+- The dashboard's one-time snapshot no longer carries obsolete, unconsumed
+  diagnostic fields that duplicated the compact live stream. This leaves more
+  of the Classic's bounded response capacity available for fitted devices and
+  actionable status without changing any displayed value.
+- Removed the corresponding write-only switch, sequence-timestamp, and limp
+  diagnostic state from the live and published engine snapshots.
+- System loop diagnostics now use their small dedicated endpoint instead of
+  rebuilding and transferring the complete dashboard bootstrap document every
+  two seconds, reducing Classic heap churn, CPU work, and Wi-Fi traffic.
+- STOP now cancels temporary maintenance outputs in STANDBY and FAULT, and the
+  Tools page explains why output tests are unavailable when STOP is active or
+  its configured input is unhealthy.
+- Session CSV files use durable start-attempt identities without overwriting
+  restored logs, reject truncated rows, and preserve an earlier session when a
+  rapid restart overlaps its final flush.
+- Session capture now reserves its roughly 14 KiB row queue only while a run
+  with selected data is active, then releases it after the CSV closes. Classic
+  ESP32 therefore regains that heap before and between logged runs.
+- PCB profiles are tokenized in their already-owned partition buffer during
+  boot instead of duplicating every JSON string at peak parse time.
+- Boot applies the filtered settings tree directly instead of copying the
+  complete tree into a second ArduinoJson arena on memory-constrained Classic.
+- Session-log deletion and factory reset now wait for final CSV rows, remove
+  files without mutating an active directory iterator, verify every removal,
+  and report storage failures instead of claiming success.
+- Event-log deletion is verified before it is acknowledged, remains queued for
+  retry after a storage failure, and reports a failed clear in the Log UI.
+- Classic session capture now protects 72 KiB of filesystem headroom. The event
+  recorder compacts from its actual retained line count and refuses a write
+  before it can consume the space required to recover or replace the engine
+  configuration.
+- ECU loop-timing values retain their last complete sample across a transient
+  poll failure instead of blinking to dashes.
+
+### Changed
+
+- The Windows Setup Tool has a resizable, workflow-coloured interface with
+  clearer clean-install and update guidance, smoother scrolling, improved BOOT
+  recovery instructions, local package selection, and checksum-verified cache.
+- Hardware, Controllers, System, Sequence, Log and Tools now share the same
+  theme-derived card hierarchy, accent treatment and spacing. Dense controller
+  fields are grouped by purpose, while Dashboard keeps its compact live-engine
+  layout and adds only a restrained profile accent.
+- The documentation site, screenshots, favicon and Setup Tool use the current
+  OpenTurbine logo and the approved 2.3.5 interface.
+- A verified `OpenTurbine_Recommended.zip` placed beside the Setup Tool is now
+  pinned for that run, so release and offline installs cannot be replaced by a
+  different GitHub release. Invalid local packages stop with a clear error.
+- Removed unreachable legacy sequencer block implementations that duplicated
+  the target-aware sequence system.
+- Removed an unused hardware-capability HTTP formatter and route; authoritative
+  capability validation remains in the firmware save and startup paths.
+- Removed the obsolete compile-time path that could force Developer Mode on at
+  boot; bench diagnostics remain available through the guarded Tools control.
+- Removed linker-proven unused configuration wrappers, profile lookup, direct
+  event-log clear, and unused cluster event sender; active API and protocol
+  paths are unchanged.
+- Removed the orphaned `APPLY_CONFIG` command handler; current saves already
+  apply through the atomic staged configuration gate on the ECU core.
+- Replaced the long generic-command comparison chain with one auditable static
+  name table while preserving the complete current command set.
+- Removed the final dead WebSocket status field and navigation/save waits now
+  that every live page uses bounded REST polling; navigation no longer performs
+  an unnecessary status round trip before changing pages.
+- Consolidated repeated static page/asset route handlers so the compiler emits
+  one handler implementation per behavior instead of one per URL.
+- Unified normal and reduced-power START HTTP acknowledgement handling so queue
+  claim, cancellation, timeout, and definitive-result behavior cannot diverge.
+- Unified maintenance-upload conflict responses and removed the obsolete
+  always-zero TIME_WAIT-reaped diagnostic field.
+- Unified browser and Setup Tool firmware updates on the bounded chunked OTA
+  transport. This removes the duplicate multi-megabyte multipart route and
+  keeps Classic ESP32 network memory stable while its OTA partition is written.
+- Web-asset chunk uploads now safely acknowledge retries of already-written
+  ranges, including a lost final response, without duplicate flash writes.
+- The dashboard and Setup Tool now retry interrupted bounded uploads at the
+  same offset, using the ECU's idempotent firmware and web-asset transports.
+- Upload clients distinguish ambiguous connection loss from an explicit ECU
+  rejection, so safety/configuration errors are reported without blind retries.
+- Retrying a manual maintenance upload now resets stale error styling and the
+  previous progress bar before sending the new selection.
+- Removed the obsolete second engine-identity mismatch banner from Dashboard;
+  the detailed recovery guidance remains the single authoritative message.
+- Consolidated overlapping session-row, event-drop, and recorder-health notices
+  into one actionable Dashboard logging banner linked to the Log page.
+- Removed the Setup Tool's unreachable legacy multipart uploader now that both
+  maintenance payload types use the bounded transports directly.
+- Removed the obsolete WebSocket message-queue build flag and corrected the
+  AsyncTCP queue documentation for the current REST-only transport/library.
+- Firmware chunk retries are idempotent: if Wi-Fi drops a response after flash
+  accepted it, resending that completed range no longer aborts the update.
+- Removed obsolete WebSocket-only mock-server code, comments, request-header
+  retention, and test exceptions now that live pages use compact REST polling.
+- Removed the duplicate multipart web-asset upload route; the browser, Setup
+  Tool, and bench uploader already share the proven bounded chunk transport.
+- Added clearer Log-page tooltips and serial boot-capture support.
+
 ## [2.3.3] — 2026-09-07
 
 ### Changed

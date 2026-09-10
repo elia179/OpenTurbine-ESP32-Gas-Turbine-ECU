@@ -100,27 +100,6 @@
       window.addEventListener('load', loaded, { once: true });
     });
   };
-  const waitForServerTelemetryClose = async (timeoutMs = 2500) => {
-    const started = Date.now();
-    do {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), Math.min(800, timeoutMs));
-      try {
-        const response = await nativeFetch('/api/status?navigation_close=1', {
-          cache: 'no-store', signal: controller.signal
-        });
-        if (response.ok) {
-          const status = await response.json();
-          if (Number(status.ws_clients || 0) === 0) return true;
-        }
-      } catch (_) {
-      } finally {
-        clearTimeout(timer);
-      }
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } while (Date.now() - started < timeoutMs);
-    return false;
-  };
   window.addEventListener('pagehide', abortPageFetches);
   window.addEventListener('beforeunload', abortPageFetches);
   window.addEventListener('pageshow', event => {
@@ -154,18 +133,13 @@
       typeof window.OTWaitForPageTelemetryIdle === 'function'
         ? window.OTWaitForPageTelemetryIdle(1600) : Promise.resolve(true)
     ]);
-    // Only close the page's sockets after their current multipart telemetry
-    // reply has drained. Closing a Hardware/Sequence/Tools socket mid-frame
-    // can strand AsyncTCP send buffers on Classic until heap is exhausted.
+    // Stop page-local polling only after its current complete REST response
+    // has drained; abandoning a large response mid-frame can retain a scarce
+    // Classic TCP connection until the stack releases it.
     window.dispatchEvent(new Event('ot:navigation-start'));
-    // close() is asynchronous. A page-local Hardware/Sequence/Tools socket can
-    // still own multipart telemetry buffers after JavaScript has discarded its
-    // WebSocket object. Starting the next large HTML/API load in that window
-    // exhausted Classic ESP32 heap during ordinary one-tab navigation.
-    await waitForServerTelemetryClose(2500);
     abortPageFetches();
-    // Give the async TCP task one scheduling window to process the old page's
-    // request aborts and WebSocket close before opening the replacement page.
+    // Give AsyncTCP one scheduling window to process request completion and
+    // cancellation before opening the replacement page.
     setTimeout(() => location.assign(target.href), 200);
   });
 

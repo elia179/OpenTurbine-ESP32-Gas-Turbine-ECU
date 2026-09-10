@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260907a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260907a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260910a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260910a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <a href="/log.html" class="active" title="View fault/event history and per-run CSV session logs.">Log</a>
   <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
   <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
-  <span id="conn" class="conn-dot disconnected" title="WebSocket"></span><span id="conn-label" class="conn-label">Disconnected</span>
+  <span id="conn" class="conn-dot disconnected" title="ECU connection"></span><span id="conn-label" class="conn-label">Disconnected</span>
 </nav>
 <main>
   <div class="page-heading">
@@ -28,10 +28,10 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <p class="page-subtitle">Review event history, fault snapshots and detailed per-run session data.</p>
     </div>
     <div class="page-heading-actions">
-      <button onclick="loadLog()">Refresh</button>
+      <button onclick="loadLog()" title="Reload the event history and run summary from the ECU.">Refresh</button>
       <button onclick="downloadLog('raw')" title="Download newline-delimited JSON: one detailed event object per line for diagnostics and scripts.">Event NDJSON</button>
       <button onclick="downloadLog('csv')" title="Download the recent event window as a small spreadsheet-friendly CSV. Use NDJSON for the complete black-box event log.">Event CSV</button>
-      <button onclick="askClear('eventlog')" class="danger">Clear</button>
+      <button onclick="askClear('eventlog')" class="danger" title="Permanently delete the event history after confirmation. Session CSV files are kept.">Clear</button>
     </div>
   </div>
   <div style="font-size:.74rem;color:var(--dim);padding:.55rem .75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);margin-bottom:.8rem;line-height:1.55">
@@ -41,9 +41,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
   <div class="tab-strip">
-    <button class="tab-btn active" id="tab-summary" onclick="showTab('summary')">Summary</button>
-    <button class="tab-btn"        id="tab-events"  onclick="showTab('events')">All Events</button>
-    <button class="tab-btn"        id="tab-session" onclick="showTab('session')">Session Data</button>
+    <button class="tab-btn active" id="tab-summary" onclick="showTab('summary')" title="Completed engine runs and their outcomes.">Summary</button>
+    <button class="tab-btn"        id="tab-events"  onclick="showTab('events')" title="Detailed event and fault records from the ECU.">All Events</button>
+    <button class="tab-btn"        id="tab-session" onclick="showTab('session')" title="Per-run CSV recordings and logging settings.">Session Data</button>
   </div>
 
   <!-- Summary tab -->
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div style="margin-bottom:1rem">
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem">
         <span style="font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">Past Sessions</span>
-        <button onclick="loadSessionList()" style="font-size:.72rem;padding:.25rem .75rem">Refresh</button>
+        <button onclick="loadSessionList()" style="font-size:.72rem;padding:.25rem .75rem" title="Reload the list of saved run CSV files.">Refresh</button>
       </div>
       <div id="session-list-wrap" style="display:flex;flex-direction:column;gap:.3rem;max-height:200px;overflow-y:auto">
         <div style="font-size:.78rem;color:var(--dim)">Loading…</div>
@@ -144,8 +144,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         <span id="session-lock-msg" style="font-size:.72rem;color:var(--yellow);margin-left:.5rem;display:none">Settings locked until STANDBY</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:.4rem">
-        <button id="session-current-download" onclick="downloadSessionLog()" disabled>Download Current CSV</button>
-        <button onclick="askClear('sessions')" class="danger">Delete All Sessions</button>
+        <button id="session-current-download" onclick="downloadSessionLog()" disabled title="Download the currently open session CSV, when one is available.">Download Current CSV</button>
+        <button onclick="askClear('sessions')" class="danger" title="Permanently delete every saved session CSV after confirmation.">Delete All Sessions</button>
         <div id="session-rows" style="font-size:.72rem;color:var(--dim);margin-top:.2rem"></div>
       </div>
     </div>
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div style="margin-top:.75rem">
       <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
         <span style="font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em">Session Preview</span>
-        <button onclick="loadSessionPreview()" style="font-size:.72rem;padding:.25rem .75rem">Refresh</button>
+        <button onclick="loadSessionPreview()" style="font-size:.72rem;padding:.25rem .75rem" title="Reload the selected session preview and chart.">Refresh</button>
         <span id="session-preview-msg" style="font-size:.72rem;color:var(--dim)"></span>
       </div>
 
@@ -206,8 +206,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div style="font-size:1rem;font-weight:600;margin-bottom:.5rem" id="clear-confirm-title"></div>
       <div style="font-size:.8rem;color:var(--dim);margin-bottom:1.4rem" id="clear-confirm-body"></div>
       <div style="display:flex;gap:.6rem;justify-content:flex-end">
-        <button onclick="cancelClear()">Cancel</button>
-        <button class="danger" onclick="confirmClear()" id="clear-confirm-btn"></button>
+        <button onclick="cancelClear()" title="Close this confirmation without deleting anything.">Cancel</button>
+        <button class="danger" onclick="confirmClear()" id="clear-confirm-btn" title="Confirm the selected permanent deletion."></button>
       </div>
     </div>
   </div>
@@ -231,7 +231,7 @@ function renderPersistenceHealth(d) {
   const el = document.getElementById('persistence-health');
   if (!el) return;
   const sessionErrors = ['OK','queue unavailable','file open failed','CSV header failed','RAM backlog/dropped rows','storage reserve reached','file write failed','run identity failed'];
-  const eventErrors = ['OK','recorder mutex unavailable','event file open failed','event write failed'];
+  const eventErrors = ['OK','recorder mutex unavailable','event file open failed','event write failed','event log clear failed'];
   const sessionCode = Number(d.session_logger_error || 0);
   const eventCode = Number(d.event_recorder_error || 0);
   const sessionState = d.session_logger_healthy === false
@@ -617,6 +617,7 @@ async function waitForEventLogClear() {
     const events = await r.json().catch(() => null);
     if (Array.isArray(events) && events.length === 0) return;
   }
+  throw new Error('ECU did not confirm that the event log was cleared');
 }
 
 function confirmClear() {
@@ -1142,8 +1143,8 @@ function loadSessionList() {
       wrap.innerHTML = list.map(run => `
         <div style="display:flex;align-items:center;gap:.6rem;padding:.3rem .5rem;background:var(--surface-2);border:1px solid var(--border);border-radius:5px">
           <span style="font-size:.78rem;color:var(--text);min-width:5rem">Run #${run}</span>
-          <button onclick="downloadSession(${run})" style="font-size:.72rem;padding:.2rem .6rem">Download CSV</button>
-          <button onclick="previewSession(${run})" style="font-size:.72rem;padding:.2rem .6rem">Preview</button>
+          <button onclick="downloadSession(${run})" style="font-size:.72rem;padding:.2rem .6rem" title="Download the complete CSV for run #${run}.">Download CSV</button>
+          <button onclick="previewSession(${run})" style="font-size:.72rem;padding:.2rem .6rem" title="Preview the values and trend chart for run #${run}.">Preview</button>
         </div>`).join('');
     })
     .catch(() => {

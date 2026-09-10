@@ -1,10 +1,11 @@
 # OpenTurbine Setup Tool
 
-This document describes the OpenTurbine 2.0 package and setup workflow. A v2
+This document describes the OpenTurbine 2.3.5 package and setup workflow. A 2.3.5
 release package must contain firmware and web assets built from the same commit
-and must report version `2.3.3` during post-install verification.
+and must report version `2.3.5` during post-install verification.
 
-The Windows setup tool provides two deliberately distinct paths: **Clean install
+OpenTurbine 2.3.5 ships with Setup Tool 0.7.3. The Windows setup tool provides
+two deliberately distinct paths: **Clean install
 / reinstall** erases a blank or previously used board over USB, while **Update
 and keep my setup** updates an existing OpenTurbine board over Wi-Fi without a
 factory reset. Users download only:
@@ -86,7 +87,7 @@ dist/setup_tool/OpenTurbine_Recommended.zip.sha256
 
 ## Release Checklist
 
-Before packaging v2.0, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
+Before packaging 2.3.5, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
 verify a clean Development-board install, bundled official PCB profile install,
 custom chip-matched profile install, and Wi-Fi update of an existing v2 ECU.
 
@@ -204,9 +205,13 @@ an exact-match requirement.
 
 On each normal launch, the tool downloads and verifies the current
 `releases/latest` package. If GitHub is temporarily unavailable, it can use a
-previously verified cached package. A ZIP deliberately placed beside the EXE is
-a local/offline override and therefore stays pinned until it is replaced or
-removed.
+previously verified cached package from `%LOCALAPPDATA%\\OpenTurbine\\SetupTool`.
+The cache is accepted only when its `.sha256` sidecar still matches the ZIP.
+A ZIP deliberately placed beside the EXE is a local/offline override and
+therefore stays pinned until it is replaced or removed. During USB detection,
+Classic ESP32 boards that do not answer normally should be unplugged, then
+plugged back in while holding BOOT; keep BOOT held through the retry until the
+tool starts writing.
 
 Recommended driver sources:
 

@@ -70,6 +70,17 @@ async function json(response, label) {
   const started = Date.now();
   const deadline = started + durationSec * 1000;
 
+  function acceptExpectedRebootDisconnects(fromIndex, purpose) {
+    const rebootTransportFailure = /^https?:\/\/[^/]+\/api\/[^:]*: net::ERR_(?:CONNECTION_(?:TIMED_OUT|RESET|REFUSED|CLOSED)|NETWORK_CHANGED|FAILED)$/;
+    const observed = failures.splice(fromIndex);
+    const unexpected = observed.filter(item => !rebootTransportFailure.test(item));
+    failures.push(...unexpected);
+    const recovered = observed.length - unexpected.length;
+    if (recovered) {
+      console.log(`${label} ${purpose}: accepted ${recovered} API disconnect(s) during the verified software reboot.`);
+    }
+  }
+
   page.on('pageerror', error => failures.push(`page error: ${error.message}`));
   page.on('console', msg => {
     if (msg.type() === 'error') consoleErrors.push(`${page.url()}: ${msg.text()}`);
@@ -132,7 +143,7 @@ async function json(response, label) {
     if (failure === 'net::ERR_ABORTED' && pathname.startsWith('/api/')) return;
     // Classic deliberately closes completed HTTP responses to keep its small
     // TCP pool bounded. Chrome can report a reset on a disposable GET while
-    // the page's WebSocket/next poll reconnects successfully. Treat this as a
+    // the page's next live poll reconnects successfully. Treat this as a
     // transport recovery and rely on each page's connected/content assertions
     // plus the final direct device check to decide whether the user workflow
     // actually failed. Mutating requests remain fatal.
@@ -263,7 +274,7 @@ async function json(response, label) {
       const statusResponse = await page.request.get(`${base}/api/status`, { timeout: 8000 });
       if (statusResponse.ok()) {
         const status = await statusResponse.json();
-        heapNote = ` heap=${status.free_heap}/${status.max_alloc_heap} ws=${status.ws_clients} tw=${status.http_time_wait} boot=${status.boot_count} reset=${status.reset_reason}`;
+        heapNote = ` heap=${status.free_heap}/${status.max_alloc_heap} tw=${status.http_time_wait} boot=${status.boot_count} reset=${status.reset_reason}`;
       }
     } catch (_) {}
     console.log(`${label} navigation ${navigations}: ${route} connected${heapNote}`);
@@ -398,6 +409,15 @@ async function json(response, label) {
 
   async function exerciseEngineFileRoundTrip() {
     await navigate('/system.html');
+    await page.waitForSelector('#system-backup-restore', { state:'attached', timeout:10000 });
+    // Backup & restore is nested inside the collapsed Maintenance category.
+    // Open every ancestor first, just as a user would, before requiring its
+    // own summary and controls to be visible.
+    await page.locator('#system-backup-restore').evaluate(card => {
+      for (let parent = card.parentElement; parent; parent = parent.parentElement) {
+        if (parent.tagName === 'DETAILS') parent.open = true;
+      }
+    });
     await page.waitForSelector('#system-backup-restore > summary:visible', { timeout:10000 });
     const maintenance = page.locator('#system-backup-restore');
     if (!await maintenance.getAttribute('open')) await maintenance.locator('summary').click();
@@ -532,14 +552,19 @@ async function json(response, label) {
     assert.notEqual(editedRamp, originalRamp);
     console.log(`${label} ${info.chip} build=${info.build_id}; original ramp=${originalRamp} ms; duration=${durationSec}s`);
 
+    const editRebootFailureIndex = failures.length;
     rampEdited = await saveRamp(editedRamp, 'edit', originalRamp);
     const editedBootCount = rampEdited
       ? (classicStandbySaveReboots
           ? await waitForExpectedReboot(initialTelemetry.boot_count, 'Classic controller save')
           : await proveSaveWithoutReboot(initialTelemetry.boot_count, 'controller save'))
       : Number(initialTelemetry.boot_count);
+    if (rampEdited && classicStandbySaveReboots)
+      acceptExpectedRebootDisconnects(editRebootFailureIndex, 'controller save');
+    const engineRestoreFailureIndex = failures.length;
     await exerciseEngineFileRoundTrip();
     const soakBootCount = await waitForExpectedReboot(editedBootCount, 'engine-file restore');
+    acceptExpectedRebootDisconnects(engineRestoreFailureIndex, 'engine-file restore');
     const actions = [exerciseDashboard, exerciseHardware, exerciseSystem, exerciseCalibration, exerciseSequence, exerciseLog, exerciseTools];
     let round = 0;
     while (Date.now() < deadline - 45000) {
@@ -556,10 +581,13 @@ async function json(response, label) {
       `ECU rebooted unexpectedly during ordinary browsing (boot ${soakBootCount} -> ${beforeCleanup.boot_count}, reset reason ${beforeCleanup.reset_reason})`);
     let cleanupBootCount = Number(soakBootCount);
     if (rampEdited) {
+      const cleanupRebootFailureIndex = failures.length;
       await saveRamp(originalRamp, 'restore', editedRamp);
       cleanupBootCount = classicStandbySaveReboots
         ? await waitForExpectedReboot(soakBootCount, 'Classic cleanup controller save')
         : await proveSaveWithoutReboot(soakBootCount, 'cleanup controller save');
+      if (classicStandbySaveReboots)
+        acceptExpectedRebootDisconnects(cleanupRebootFailureIndex, 'cleanup controller save');
     }
     restored = true;
     await exerciseDashboard();

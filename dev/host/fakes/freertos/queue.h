@@ -37,3 +37,6 @@ inline BaseType_t xQueueReset(QueueHandle_t q) {
     q->items.clear();
     return pdTRUE;
 }
+inline void vQueueDelete(QueueHandle_t q) {
+    delete q;
+}

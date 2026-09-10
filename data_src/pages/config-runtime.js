@@ -47,7 +47,7 @@ function updateLiveBadges(d) {
   });
 }
 
-// ── WS integration — track locked state ──────────────────────
+// ── Compact telemetry integration — track locked state ──────
 let configTelemetryInstallAttempts = 0;
 function installConfigTelemetryExtension() {
 const _base = window.applyData;
@@ -165,32 +165,32 @@ document.addEventListener('DOMContentLoaded', installConfigTelemetryExtension, {
 
 function updateLoopDiagnostics(d) {
   if (!d) return;
-  const hz = Number(d.loop_hz);
-  const period = Number(d.loop_period_ms);
-  const periodMax = Number(d.loop_period_max_ms);
-  const avg = Number(d.loop_exec_avg_ms);
-  const max = Number(d.loop_exec_max_ms);
-  const overruns = Number(d.loop_overrun_count);
-  const count = Number(d.loop_counter);
   const fmtMs = v => Number.isFinite(v) ? v.toFixed(3) + ' ms' : '-';
   const fmtInt = v => Number.isFinite(v) ? v.toLocaleString() : '-';
-  const set = (id, text) => {
+  const setValue = (id, key, format) => {
+    // The shared status heartbeat contains mode and lock state but deliberately
+    // omits loop diagnostics. Preserve the last valid diagnostics sample when
+    // that partial frame arrives instead of flashing every value back to '-'.
+    if (d[key] === undefined || d[key] === null) return;
+    const value = Number(d[key]);
+    if (!Number.isFinite(value)) return;
     const el = document.getElementById(id);
-    if (el) el.textContent = text;
+    if (el) el.textContent = format(value);
   };
-  set('diag-loop-hz', Number.isFinite(hz) ? hz.toFixed(1) + ' Hz' : '-');
-  set('diag-loop-period', Number.isFinite(period) ? period.toFixed(2) + ' ms' : '-');
-  set('diag-loop-period-max', fmtMs(periodMax));
-  set('diag-loop-avg', fmtMs(avg));
-  set('diag-loop-max', fmtMs(max));
-  set('diag-loop-overruns', Number.isFinite(overruns) ? fmtInt(overruns) : '-');
-  set('diag-loop-count', Number.isFinite(count) ? fmtInt(count) : '-');
-  set('diag-loop-sensors', fmtMs(Number(d.loop_sensors_ms)));
-  set('diag-loop-sequencer', fmtMs(Number(d.loop_sequencer_ms)));
-  set('diag-loop-controllers', fmtMs(Number(d.loop_controllers_ms)));
-  set('diag-loop-actuators', fmtMs(Number(d.loop_actuators_ms)));
-  set('diag-loop-logging', fmtMs(Number(d.loop_logging_ms)));
-  set('diag-loop-led', fmtMs(Number(d.loop_led_ms)));
+  setValue('diag-loop-hz', 'loop_hz', value => value.toFixed(1) + ' Hz');
+  setValue('diag-loop-period', 'loop_period_ms', value => value.toFixed(2) + ' ms');
+  setValue('diag-loop-period-max', 'loop_period_max_ms', fmtMs);
+  setValue('diag-loop-avg', 'loop_exec_avg_ms', fmtMs);
+  setValue('diag-loop-max', 'loop_exec_max_ms', fmtMs);
+  setValue('diag-loop-overruns', 'loop_overrun_count', fmtInt);
+  setValue('diag-loop-count', 'loop_counter', fmtInt);
+  setValue('diag-loop-sensors', 'loop_sensors_ms', fmtMs);
+  setValue('diag-loop-sequencer', 'loop_sequencer_ms', fmtMs);
+  setValue('diag-loop-controllers', 'loop_controllers_ms', fmtMs);
+  setValue('diag-loop-actuators', 'loop_actuators_ms', fmtMs);
+  setValue('diag-loop-logging', 'loop_logging_ms', fmtMs);
+  setValue('diag-loop-led', 'loop_led_ms', fmtMs);
+  const hz = Number(d.loop_hz);
   const stateEl = document.getElementById('loop-diag-state');
   if (stateEl && Number.isFinite(hz) && hz > 0) {
     stateEl.textContent = 'Live';
@@ -432,12 +432,11 @@ async function pollSystemTelemetry() {
   if (CONFIG_SURFACE !== 'system' || _systemTelemetryInFlight || document.hidden) return;
   _systemTelemetryInFlight = true;
   try {
-    const r = await fetch('/api/data', { cache: 'no-store' });
+    const r = await fetch('/api/loop_diagnostics', { cache: 'no-store' });
     if (r.ok) {
       const d = await r.json();
       window._lastSystemData = d;
-      if (window.applyData) window.applyData(d);
-      else updateLoopDiagnostics(d);
+      updateLoopDiagnostics(d);
     }
   } catch (_) {}
   finally {
@@ -1148,7 +1147,7 @@ function systemMaintenanceAllowed() {
   return ['STANDBY', 'FAULT'].includes(runtimeMode);
 }
 
-function startSystemOTA(input) {
+async function startSystemOTA(input) {
   const file = input.files?.[0];
   if (!file) return;
   if (!systemMaintenanceAllowed()) {
@@ -1163,37 +1162,58 @@ function startSystemOTA(input) {
   const msg = document.getElementById('ota-msg');
   btn.disabled = true;
   track.style.display = '';
+  fill.style.width = '0%';
   state.textContent = 'Uploading…';
+  state.className = 'maintenance-state';
   msg.style.display = 'none';
-  const form = new FormData();
-  form.append('firmware', file, file.name);
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/update');
-  xhr.upload.onprogress = event => {
-    if (!event.lengthComputable) return;
-    const pct = Math.round(event.loaded / event.total * 100);
-    fill.style.width = pct + '%';
-    state.textContent = 'Uploading ' + pct + '%';
-  };
   const fail = message => {
     state.textContent = 'Error'; state.className = 'maintenance-state fault';
     msg.textContent = message; msg.style.color = 'var(--red)'; msg.style.display = '';
     btn.disabled = false;
   };
-  xhr.onload = () => {
-    try {
-      const result = JSON.parse(xhr.responseText);
-      if (!result.ok) throw new Error(result.error || 'Unknown error');
-      fill.style.width = '100%';
-      state.textContent = 'Done — rebooting…'; state.className = 'maintenance-state done';
-      msg.textContent = 'Firmware updated. Reconnect to the ECU Wi-Fi after it restarts.';
-      msg.style.color = 'var(--green)'; msg.style.display = '';
-      window.OTShowRebootOverlay?.({returnPath:'/system.html'});
-    } catch (error) { fail('Firmware update failed: ' + error.message); }
-  };
-  xhr.onerror = () => fail('Network error — reconnect to the ECU and try again.');
-  xhr.send(form);
   input.value = '';
+  try {
+    // Keep every request small. A single multi-megabyte multipart request can
+    // exhaust or destabilize the Classic ESP32 network stack while flash is
+    // being programmed; the bounded endpoint retains OTA state between chunks.
+    const chunkSize = 4096;
+    for (let offset = 0; offset < file.size; offset += chunkSize) {
+      const end = Math.min(offset + chunkSize, file.size);
+      const final = end === file.size;
+      let response;
+      let error;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          response = await fetch(`/api/firmware_chunk?offset=${offset}&final=${final ? 1 : 0}`, {
+            method:'POST', body:file.slice(offset, end), cache:'no-store'
+          });
+        } catch (caught) {
+          error = caught;
+          if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 800));
+          continue;
+        }
+        // A received HTTP rejection is authoritative (engine state, active
+        // outputs, invalid image, etc.). Only an ambiguous lost response is
+        // safe and useful to retry at the same offset.
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          throw new Error(result.error || `HTTP ${response.status}`);
+        }
+        break;
+      }
+      if (!response?.ok) throw error || new Error('Firmware chunk rejected');
+      const pct = Math.round(end / file.size * 100);
+      fill.style.width = pct + '%';
+      state.textContent = `Uploading ${pct}%`;
+    }
+    fill.style.width = '100%';
+    state.textContent = 'Done — rebooting…'; state.className = 'maintenance-state done';
+    msg.textContent = 'Firmware updated. Reconnect to the ECU Wi-Fi after it restarts.';
+    msg.style.color = 'var(--green)'; msg.style.display = '';
+    window.OTShowRebootOverlay?.({returnPath:'/system.html'});
+  } catch (error) {
+    fail('Firmware update failed: ' + (error?.message || 'network error — reconnect and try again'));
+  }
 }
 
 function startSystemWebAssetsUpdate(input) {
@@ -1224,7 +1244,9 @@ function startSystemWebAssetsUpdate(input) {
   const msg = document.getElementById('assets-msg');
   btn.disabled = true;
   track.style.display = '';
+  fill.style.width = '0%';
   state.textContent = 'Uploading…';
+  state.className = 'maintenance-state';
   msg.style.display = 'none';
   const ordered = required.map(name => files.find(file => file.name === name));
   const totalBytes = ordered.reduce((sum, file) => sum + file.size, 0);
@@ -1234,14 +1256,16 @@ function startSystemWebAssetsUpdate(input) {
     msg.textContent = message; msg.style.color = 'var(--red)'; msg.style.display = '';
     btn.disabled = false;
   };
-  const sendNext = (index, offset = 0) => {
+  const sendNext = (index, offset = 0, attempt = 0) => {
     const file = ordered[index];
     const end = Math.min(offset + 8192, file.size);
     const chunk = file.slice(offset, end);
     const xhr = new XMLHttpRequest();
+    let retryScheduled = false;
     xhr.open('POST', '/api/web_asset_chunk?name=' + encodeURIComponent(file.name) +
       '&offset=' + offset + '&final=' + (end === file.size ? '1' : '0'));
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.timeout = 20000;
     xhr.upload.onprogress = event => {
       if (!event.lengthComputable) return;
       const pct = Math.round((completedBytes + Math.min(event.loaded, chunk.size)) / totalBytes * 100);
@@ -1262,7 +1286,18 @@ function startSystemWebAssetsUpdate(input) {
         window.OTShowRebootOverlay?.({returnPath:'/system.html'});
       } catch (error) { fail('Web asset update failed: ' + error.message); }
     };
-    xhr.onerror = () => fail('Network error — reconnect and select the complete asset set again.');
+    const retryTransport = () => {
+      if (retryScheduled) return;
+      retryScheduled = true;
+      if (attempt < 4) {
+        state.textContent = `Connection interrupted — retrying ${attempt + 1}/4…`;
+        setTimeout(() => sendNext(index, offset, attempt + 1), 800);
+      } else {
+        fail('Network error — reconnect and select the complete asset set again.');
+      }
+    };
+    xhr.onerror = retryTransport;
+    xhr.ontimeout = retryTransport;
     xhr.send(chunk);
   };
   sendNext(0);

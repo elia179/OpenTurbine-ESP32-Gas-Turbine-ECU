@@ -37,7 +37,6 @@ enum FrameType : uint8_t {
     FT_LIMITS     = 3,
     FT_TELEMETRY  = 4,
     FT_STATUS     = 5,
-    FT_EVENT      = 6,
     FT_ACK        = 7,
     FT_SCHEMA_END = 8,
     FT_STATUS_DEF = 9,
@@ -651,14 +650,6 @@ void ClusterSerial::sendStatus(uint8_t code) {
     payload[1] = msg ? msg->sev : 0;
     strncpy((char*)payload + 2, msg ? msg->label : "Status", sizeof(payload) - 3);
     sendFrame(FT_STATUS, _seq++, payload, (uint16_t)(3 + strlen((char*)payload + 2)));
-}
-
-void ClusterSerial::sendEvent(uint8_t severity, const char* text) {
-    if (!HardwareConfig::hasClusterSerial) return;
-    uint8_t payload[96] = {};
-    payload[0] = severity;
-    strncpy((char*)payload + 1, text ? text : "", sizeof(payload) - 2);
-    sendFrame(FT_EVENT, _seq++, payload, (uint16_t)(2 + strlen((char*)payload + 1)));
 }
 
 void ClusterSerial::_sendTelemetry() {

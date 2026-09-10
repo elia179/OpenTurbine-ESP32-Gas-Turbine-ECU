@@ -127,11 +127,9 @@ public:
     static State state() { return _state; }
     static bool active() { return _state == State::Valid; }
     static bool faulted() { return _state == State::Fault; }
-    static const char* faultReason() { return _fault; }
     static const Catalog* catalog() { return _catalog; }
     static const Port* findPort(const char* id);
     static const Mode* findMode(const Port& port, const char* id);
-    static const Device* findDevice(const char* id);
     static const Device* deviceForMode(const Mode& mode);
     static const char* adapterName(Adapter adapter);
     static const Bus* findBus(const char* id);
@@ -150,7 +148,7 @@ private:
     static char _fault[128];
 
     static void setFault(const char* reason);
-    static bool parsePayload(const uint8_t* payload, size_t length,
+    static bool parsePayload(uint8_t* payload, size_t length,
                              uint8_t formatMajor, uint8_t formatMinor,
                              Origin origin);
     static bool validTargetPin(int pin, bool output);

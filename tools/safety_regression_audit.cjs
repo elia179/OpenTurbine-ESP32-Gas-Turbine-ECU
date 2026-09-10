@@ -29,6 +29,7 @@ expect('validated runtime restore carries its matching engine identity into the 
   configSerialize.includes('strlcpy(profileId, id, sizeof(profileId));'));
 const configCpp = read('src/system/Config.cpp') + configSerialize;
 const configHtml = read('data_src/config.html');
+const configRuntime = read('data_src/pages/config-runtime.js');
 const hardware = read('src/Hardware.h');
 const hwConfig = read('src/system/HardwareConfig.cpp') +
   read('src/system/HardwareConfigSerialize.cpp');
@@ -96,6 +97,7 @@ const phase2Hil = read('dev/bench/campaign/phase2_safety_hil.py');
 const commandQueue = read('src/system/CommandQueue.h');
 const platformio = read('platformio.ini');
 const buildPatches = read('tools/pio_s3_dynconfig.py');
+const setupMain = read('tools/setup_tool/main.go');
 
 const commandEnumBody = commandQueue.match(
   /enum class OTCommand[^{]*\{([\s\S]*?)\};/
@@ -169,6 +171,15 @@ expect('configuration writes and START share an atomic gate',
 expect('config PATCH acknowledgement follows the exact ECU-core generation',
   configGate.includes('completeCoreApply') && configGate.includes('_completedGeneration') &&
   web.includes('_awaitConfigApply') && main.includes('ConfigApplyGate::completeCoreApply'));
+expect('STOP cancels every temporary output in standby and fault',
+  main.includes('else if (standbyLike)') &&
+  main.includes('cancelTemporaryOutputOwners();') &&
+  main.includes('STOP: temporary outputs cancelled'));
+expect('tool output preflight reports active or unavailable STOP input',
+  web.includes('_mayEnergizeOutput(pkt) && ed.stopSwitchActive') &&
+  web.includes('_mayEnergizeOutput(pkt) && ed.stopSwitchConfigured && !ed.stopSwitchHealthy') &&
+  webApp.includes('out.stop_switch_configured = bit(frame.h, 0)') &&
+  webApp.includes('out.stop_switch_healthy = bit(frame.h, 1)'));
 expect('live governor tuning cannot transfer between fuel and pitch authority',
   web.includes('_runtimeGovernorAuthorityPreserved') &&
   web.includes('Pitch Gain cannot cross zero while running'));
@@ -267,13 +278,14 @@ expect('START readiness is consumer-aware on both command paths',
   feedback.includes('requiredStartFailureMask') &&
   main.includes('FeedbackRequirements::requiredStartFailureMask') &&
   web.includes('FeedbackRequirements::eligibleSingleStartOverride'));
-expect('sensor-fault restart is one-sensor-only and latches reduced-power safeguards',
+expect('sensor-fault restart override is one-sensor-only and latches reduced-power safeguards',
   feedback.includes('(failed & (failed - 1UL)) != 0') &&
   feedback.includes('bypassUnhealthyStartupCheck') &&
   !feedback.includes('startupConsumes(failed)') &&
   main.includes('ed.limpOverrideSensor = limited ? overrideSensor') &&
   main.includes('ed.automaticLimpLatched = limited') &&
-  safety.includes('ed.limpFailureMask |= observedFailure') &&
+  !engineData.includes('limpFailureMask') &&
+  !safety.includes('limpFailureMask') &&
   !safety.includes('_trigger("MULTIPLE_SENSOR_FAILURE")') &&
   web.includes('Afterburner is disabled while reduced-power mode is active'));
 expect('reduced-power startup bypasses only its unavailable feedback while retaining timed actuator behavior',
@@ -665,6 +677,10 @@ const pioHook = fs.readFileSync(path.join(root, 'tools', 'pio_s3_dynconfig.py'),
 expect('Tools polls compact live telemetry after loading its configuration and hardware documents',
   toolsHtml.includes("fetchJsonWithTimeout('/api/telemetry', 3000)") &&
   !toolsHtml.includes("fetchJsonWithTimeout('/api/data', 3000)"));
+expect('System polls the bounded loop diagnostics endpoint instead of the full dashboard snapshot',
+  /async function pollSystemTelemetry\(\)\s*\{[\s\S]{0,800}fetch\('\/api\/loop_diagnostics'/.test(configRuntime) &&
+  !/async function pollSystemTelemetry\(\)\s*\{[\s\S]{0,800}fetch\('\/api\/data'/.test(configRuntime) &&
+  web.includes('\\"loop_counter\\":%lu'));
 expect('Classic and S3 browser telemetry use one compact persistent HTTP transport',
   webApp.includes("fetch('/api/telemetry'") &&
   webApp.includes('const LIVE_TELEMETRY_PERIOD_MS = 333;') &&
@@ -721,8 +737,8 @@ expect('top-level HTTP response allocation fails closed instead of terminating o
 expect('HTTP requests retain only headers needed after parsing on the Classic heap',
   pioHook.includes('patch_async_webserver_header_retention') &&
   pioHook.includes('const bool retainHeader') &&
-  pioHook.includes('Sec-WebSocket-Key') &&
-  pioHook.includes('If-None-Match'));
+  !pioHook.slice(pioHook.indexOf('retain_needed ='), pioHook.indexOf('# The replacement itself')).includes('Sec-WebSocket-Key') &&
+  pioHook.includes('If-None-Match') && pioHook.includes('Last-Event-ID'));
 expect('protocol-owned HTTP response headers do not allocate STL nodes at send time',
   pioHook.includes('patch_async_webserver_default_response_headers') &&
   pioHook.includes('appendDefault(T_Connection, T_close)') &&
@@ -733,8 +749,27 @@ expect('Classic rejects unrelated HTTP work while an atomic config apply owns it
   web.includes('(ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||') &&
   web.includes('AsyncBasicResponse builds several throwing STL header nodes'));
 expect('OTA releases live browser telemetry before streaming flash data',
-  web.includes('OTA is a maintenance takeover') &&
-  web.includes('_releaseLiveTelemetryWorkspace();'));
+  /POST \/api\/firmware_chunk[\s\S]{0,1600}_releaseLiveTelemetryWorkspace\(\);/.test(web));
+expect('bounded OTA safely acknowledges a completely committed retry without writing it twice',
+  web.includes('const bool replayed = _otaInProgress && offset < _otaChunkReceived') &&
+  web.includes('&& !replayed') && web.includes('"replayed\\\":true'));
+expect('bounded web-asset uploads safely acknowledge committed chunk retries',
+  web.includes('static size_t        _assetChunkReceived') &&
+  web.includes('const bool replayed = asset >= 0') &&
+  web.includes('_assetChunkReceived += len') &&
+  web.includes('if (fileFinal && !replayed)') &&
+  web.includes('Keep the completed generation state until the scheduled'));
+expect('browser web-asset upload retries transport interruptions at the same offset',
+  configRuntime.includes('const sendNext = (index, offset = 0, attempt = 0)') &&
+  configRuntime.includes('sendNext(index, offset, attempt + 1)') &&
+  configRuntime.includes('xhr.ontimeout = retryTransport'));
+expect('browser firmware upload does not retry authoritative ECU rejections',
+  configRuntime.includes('A received HTTP rejection is authoritative') &&
+  /catch \(caught\)[\s\S]{0,240}continue;[\s\S]{0,240}if \(!response\.ok\)/.test(configRuntime));
+expect('Setup Tool bounded uploads retry only ambiguous transport failures',
+  setupMain.includes('func postRawChunkWithRetry') &&
+  setupMain.includes('postRawChunkWithRetry(client, u, payload[offset:end])') &&
+  setupMain.includes('authoritative safety/configuration'));
 expect('maintenance transactions release disposable compact telemetry state',
   web.includes('static void _releaseLiveTelemetryWorkspace()') &&
   web.includes('s_restTelemetryDoc.clear();') &&
@@ -756,7 +791,10 @@ expect('live telemetry has no dead WebSocket transport or client ownership state
   !web.includes('AsyncWebSocket') &&
   !web.includes('s_activeWsClient') &&
   !web.includes('_sendTelemetryFrame') &&
-  !web.includes('_ws.cleanupClients'));
+  !web.includes('_ws.cleanupClients') &&
+  !web.includes('ws_clients') &&
+  !read('data_src/ui_dialog.js').includes('waitForServerTelemetryClose') &&
+  !read('data_src/pages/config-validation-save.js').includes('ws_clients'));
 expect('Classic live telemetry is a bounded complete REST document',
   web.includes('static constexpr size_t COMPACT_TELEMETRY_MAX = 1400;') &&
   web.includes('static size_t _buildCompactTelemetry(') &&
@@ -769,7 +807,7 @@ expect('compact telemetry carries reboot identity so clients discard stale snaps
 expect('full engine restore resolves custom controllers against uploaded hardware',
   web.includes('Config::resolveRuleHandlesForHardware()') &&
   configCpp.includes('bool Config::resolveRuleHandlesForHardware()') &&
-  configCpp.includes('_fromDoc(doc, validateHardwareDependencies)'));
+  configSerialize.includes('_fromDoc(doc.as<JsonVariantConst>(), validateHardwareDependencies)'));
 expect('OTA success uses delayed guarded restart so its HTTP response can leave first',
   web.includes('_scheduleRestart("firmware OTA", 3000)') &&
   !web.includes('if (_otaPendingRestart) {\n        _restartCleanly("firmware OTA")'));
@@ -786,7 +824,8 @@ expect('compact telemetry keeps live session-recorder state current',
   web.includes('setFlag(f2,30, SessionLogger::captureActive())') &&
   web.includes('doc["session_log_path"] = SessionLogger::currentPath();'));
 expect('session logger reports an unavailable queue instead of pretending to record',
-  /void SessionLogger::startSession\(\) \{[\s\S]{0,300}if \(!_rowQueue\) \{[\s\S]{0,180}_healthy = false;[\s\S]{0,100}_errorCode = 1;/.test(sessionLogger));
+  sessionLogger.includes('if (!_rowQueue) _rowQueue = xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow));') &&
+  /if \(!_rowQueue\) \{[\s\S]{0,180}_healthy = false;[\s\S]{0,100}_errorCode = 1;/.test(sessionLogger));
 expect('flight recorder overflow preserves newest fault and shutdown evidence',
   flightRecorder.includes('s_drainActive') &&
   flightRecorder.includes('s_ringTail = (uint8_t)((s_ringTail + 1) % RING_SLOTS)') &&
@@ -937,6 +976,13 @@ expect('bench-test timing is edited only from Tools',
 expect('hardware loading cannot clear a platform storage-fault START lock',
   hwConfig.includes('!PcbProfileManager::faulted() && !bootState.configStorageFault') &&
   !hwConfig.includes('EngineData::instance().configStorageFault = false'));
+expect('PCB profile parsing tokenizes its owned payload without duplicating strings',
+  pcbProfileManager.includes('parsePayload(uint8_t* payload') &&
+  pcbProfileManager.includes("reinterpret_cast<char*>(payload), length"));
+expect('boot settings load applies the filtered tree without a duplicate JSON arena',
+  configCpp.includes('JsonVariantConst workDoc = fullDoc[SECTION]') &&
+  !configCpp.includes('workDoc.set(fullDoc[SECTION])') &&
+  configSerialize.includes('void Config::_fromDoc(JsonVariantConst doc'));
 expect('thermistor calibration explains the configured divider orientation',
   calibrationHtml.includes('ntc-divider-note') && calibrationHtml.includes('ntc_pullup: registryOil.ntc_pullup'));
 expect('reduced-power cap discloses automatic safety-feedback activation',
@@ -1346,8 +1392,25 @@ expect('web START timeout cancels unclaimed work and the ECU discards every canc
   commandQueue.includes('claimPendingResult(uint32_t requestId)') &&
   commandQueue.includes('cancelPendingResult(uint32_t requestId)') &&
   main.includes('!CommandQueue::claimPendingResult(pkt.requestId)') &&
-  (web.match(/CommandQueue::cancelPendingResult\(requestId\)/g) || []).length === 2 &&
-  web.includes('ECU core did not claim START in time; request canceled'));
+  (web.match(/CommandQueue::cancelPendingResult\(requestId\)/g) || []).length === 1 &&
+  web.includes('_handleStartRequest(req, false)') &&
+  web.includes('_handleStartRequest(req, true)') &&
+  web.includes('ECU core did not claim START in time; request canceled') &&
+  web.includes('ECU core did not claim reduced-power START in time; request canceled'));
+expect('session files use durable START identities without overwriting restored logs',
+  sessionLogger.includes('SessionFiles::nextSessionNumber(Config::startAttemptCount') &&
+  read('src/system/SessionFiles.cpp').includes('const uint32_t nextStored = highestStored + 1U'));
+expect('session rollover preserves the previous RAM backlog and rejects malformed short CSV rows',
+  sessionLogger.includes('if (_startPending || _endPending || _open) {') &&
+  sessionLogger.includes('if (!rowComplete) {') &&
+  sessionLogger.includes('if (wrote < 0 || (size_t)wrote >= available) rowComplete = false;'));
+expect('disabled session capture does not reserve the Classic row queue',
+  !/SessionLogger::begin\(\)[\s\S]{0,300}xQueueCreate/.test(sessionLogger) &&
+  sessionLogger.indexOf('Config::sessionLogMask == 0 && _registryCaptureMask == 0') <
+    sessionLogger.indexOf('xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow))'));
+expect('completed session capture returns its row queue memory',
+  sessionLogger.includes('vQueueDelete(_rowQueue);') &&
+  (sessionLogger.match(/_rowQueue = nullptr;/g) || []).length >= 2);
 expect('pending reboot releases and freezes automation ownership so a rule cannot strand the restart',
   main.includes('if (!WebServer::rebootPending()) RulesEngine::evaluate();') &&
   main.includes('Rule ownership was released above'));
@@ -1390,7 +1453,8 @@ expect('low-heap request rejection uses the framework-safe abort path only on Cl
   !web.includes('req->client()->close()'));
 expect('dependency header-retention patch is idempotent across repeated builds',
   buildPatches.includes('if retain_needed in text:') &&
-  buildPatches.includes('pass\n    elif retain_all in text:'));
+  buildPatches.includes('elif retain_previous in text:') &&
+  buildPatches.includes('elif retain_all in text:'));
 expect('both targets use the bounded transfer workspace for large config reads',
   web.includes('Settings can exceed 7 KB') &&
   web.includes('_sendLargeReadJson(req, g_webTxBuf, n);') &&
@@ -1416,8 +1480,10 @@ expect('session logging keeps usable target-aware filesystem headroom',
   sessionLogger.includes('LittleFS.totalBytes() / 8U') &&
   sessionLogger.includes('SESSION_MIN_RESERVE_BYTES = 32 * 1024') &&
   sessionLogger.includes('SESSION_MAX_RESERVE_BYTES = 150 * 1024') &&
-  sessionLogger.includes('SESSION_MAX_RESERVE_BYTES = 48 * 1024') &&
-  sessionLogger.includes('return min(SESSION_MAX_RESERVE_BYTES'));
+  sessionLogger.includes('SESSION_MAX_RESERVE_BYTES = 72 * 1024') &&
+  sessionLogger.includes('return min(SESSION_MAX_RESERVE_BYTES') &&
+  flightRecorder.includes('const size_t reserveBytes = SessionLogger::reserveBytes();') &&
+  flightRecorder.includes('freeBytes < reserveBytes + RING_SLOT_LEN'));
 expect('idle event snapshots honor the disabled toggle in both STANDBY and FAULT and omit absent channels',
   flightRecorder.includes('ed.mode == SysMode::STANDBY || ed.mode == SysMode::FAULT') &&
   flightRecorder.includes('if (idleMode && !Config::logStandby) return;') &&
@@ -1531,5 +1597,24 @@ expect('uncalibrated operator inputs accept fail-safe zero but reject the high A
   hardware.includes('healthyMax = 4085.0f;') &&
   hardware.includes('short-to-high throttle') &&
   hardware.includes('raw >= healthyMin && raw <= healthyMax'));
+expect('session deletion waits for final rows and verifies stable per-file removal',
+  web.includes('static bool _removeAllSessionFiles()') &&
+  web.includes('SessionLogger::captureActive() || SessionLogger::queuedRows() > 0') &&
+  web.includes('if (!LittleFS.remove(path) || LittleFS.exists(path)) return false;') &&
+  web.includes('if (!_removeAllSessionFiles())') &&
+  !web.includes('LittleFS.remove(path);\n                } else'));
+expect('factory reset reuses verified session deletion before scheduling reboot',
+  web.includes('if (!_removeAllSessionFiles()) wipeOk = false;') &&
+  web.indexOf('if (!_removeAllSessionFiles()) wipeOk = false;') <
+    web.indexOf('_scheduleRestart("factory reset")'));
+expect('event-log clear verifies removal and preserves queued post-clear events on failure',
+  flightRecorder.includes('(LittleFS.remove(PATH) && !LittleFS.exists(PATH))') &&
+  flightRecorder.includes('s_lastError = 4;') &&
+  flightRecorder.includes('Keep the clear request pending') &&
+  flightRecorder.indexOf('s_lastError = 4;') <
+    flightRecorder.indexOf('s_clearPending = false;', flightRecorder.indexOf('s_lastError = 4;')));
+expect('Log UI reports a clear timeout and decodes event clear storage failures',
+  logHtml.includes("'event log clear failed'") &&
+  logHtml.includes("throw new Error('ECU did not confirm that the event log was cleared')"));
 
 console.log(`Safety regression audit passed (${checks.length} checks).`);

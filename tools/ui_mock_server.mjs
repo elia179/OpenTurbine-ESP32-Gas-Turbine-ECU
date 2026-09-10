@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
@@ -7,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data_src');
 const port = Number(globalThis.OT_UI_SIM_PORT || process.env.OT_UI_SIM_PORT || 8765);
 const host = globalThis.OT_UI_SIM_HOST || process.env.OT_UI_SIM_HOST || '127.0.0.1';
-const sockets = new Set();
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -421,42 +419,6 @@ async function bodyJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-function wsFrame(text) {
-  const payload = Buffer.from(text);
-  if (payload.length < 126) return Buffer.concat([Buffer.from([0x81, payload.length]), payload]);
-  const header = Buffer.alloc(4);
-  header[0] = 0x81;
-  header[1] = 126;
-  header.writeUInt16BE(payload.length, 2);
-  return Buffer.concat([header, payload]);
-}
-
-function pushData(socket) {
-  if (socket.writable) socket.write(wsFrame(JSON.stringify(state.data)));
-}
-
-function broadcast() {
-  for (const socket of sockets) pushData(socket);
-}
-
-function acceptWebSocket(req, socket) {
-  const key = req.headers['sec-websocket-key'];
-  if (!key) return socket.destroy();
-  const accept = crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
-  socket.write([
-    'HTTP/1.1 101 Switching Protocols',
-    'Upgrade: websocket',
-    'Connection: Upgrade',
-    `Sec-WebSocket-Accept: ${accept}`,
-    '', ''
-  ].join('\r\n'));
-  sockets.add(socket);
-  pushData(socket);
-  socket.on('data', () => pushData(socket));
-  socket.on('close', () => sockets.delete(socket));
-  socket.on('error', () => sockets.delete(socket));
-}
-
 async function serveStatic(urlPath, res) {
   const portalPaths = new Set([
     '/generate_204',
@@ -624,7 +586,6 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/start') {
       state.data = scenarios.startup();
-      broadcast();
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/api/start-limited') {
@@ -633,12 +594,10 @@ const server = http.createServer(async (req, res) => {
         limp_mode: true, limp_automatic: true,
         limp_override_sensor: state.data.limited_start_sensor || 'failed sensor'
       });
-      broadcast();
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/api/stop') {
       state.data = scenarios.minimal();
-      broadcast();
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/api/command') {
@@ -652,40 +611,30 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/factory_reset') {
       state = initialState();
-      broadcast();
       return sendJson(res, 200, { ok: true, reboot: true });
     }
     if (req.method === 'POST' && url.pathname === '/__sim/reset') {
       state = initialState();
-      broadcast();
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/__sim/blank') {
       state = blankCommissioningState();
-      broadcast();
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/__sim/data') {
       state.data = merge(state.data, await bodyJson(req));
-      broadcast();
       return sendJson(res, 200, state.data);
     }
     if (req.method === 'POST' && url.pathname.startsWith('/__sim/scenario/')) {
       const name = url.pathname.split('/').pop();
       if (!scenarios[name]) return sendJson(res, 404, { error: 'unknown scenario', known: Object.keys(scenarios) });
       state.data = scenarios[name]();
-      broadcast();
       return sendJson(res, 200, { ok: true, scenario: name, data: state.data });
     }
     return serveStatic(url.pathname, res);
   } catch (error) {
     sendJson(res, 500, { error: error.message });
   }
-});
-
-server.on('upgrade', (req, socket) => {
-  if (new URL(req.url, `http://${host}:${port}`).pathname !== '/ws') return socket.destroy();
-  acceptWebSocket(req, socket);
 });
 
 server.listen(port, host, () => {

@@ -377,7 +377,11 @@ class SafetyQualification:
         if not ok:
             raise RuntimeError(f"could not configure shared reduced-power test: {resp}")
         self.start_running()
-        self.t.set("THROTTLE_IN", 3.3)
+        # Keep the Classic ESP32 OTBench DAC below its exact full-scale code.
+        # On the current Arduino core, 3.3 V maps to code 255 and that endpoint
+        # wraps to zero on this channel. 2.8 V remains a clear high-demand
+        # stimulus while preserving the ECU-side reduced-power distinction.
+        self.t.set("THROTTLE_IN", 2.8)
         full_ok, full = self.dut.poll_until(
             lambda d: float(d.get("throttle_effective") or 0) > 0.65,
             timeout=4, interval=0.15,

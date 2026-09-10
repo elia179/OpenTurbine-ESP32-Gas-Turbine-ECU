@@ -116,9 +116,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(gs, /Calibrate/i);
     assert.match(gs, /not physical verification/i);
     assert.doesNotMatch(gs, /completed on this browser/i);
-    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20260907a"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20260907a"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20260907a"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20260910a"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20260910a"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20260910a"]').count(), 1);
     await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1',
       JSON.stringify({ hardware: Date.now(), tools: Date.now() })));
     await page.reload();
@@ -228,9 +228,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await oilPumpCard.locator('button', {hasText:'Edit'}).click();
     assert.match((await oilPumpCard.textContent()).trim(), /Flow sensing & monitoring.*Main oil-pump flow sensor.*Pulses \/ litre.*Minimum flow.*Safety & Limits.*Oil Pressure Safety/is);
     assert.match((await oilPumpCard.textContent()).trim(), /Current sensing.*Calibration page/is);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260907a#cf-oil_mm"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260907a#cf-so_en"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20260907a#tab-startup"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260910a#cf-oil_mm"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260910a#cf-so_en"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20260910a#tab-startup"]').count(), 1);
     results.push('add-device catalog reserves singleton checks for sensors while multi-instance outputs and pump-owned monitoring remain clear');
 
     const savedHardware = await page.evaluate(() => structuredClone(cfg));
@@ -1145,7 +1145,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await throttleCard.textContent(), /RC pulse calibration.*1075.*1925.*Calibration page.*authoritative/is);
     assert.equal(await throttleCard.locator('input[oninput*="updateRegistryRangeField"]').count(), 0,
       'Hardware must not expose RC endpoints that the ECU does not consume');
-    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20260907a#throttle-cal-row"]').count() >= 1);
+    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20260910a#throttle-cal-row"]').count() >= 1);
     results.push('canonical RC operator endpoints have one visible authority on the Calibration page');
 
     await reset(page);
@@ -1157,6 +1157,10 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.locator('#tab-session').click();
     await page.waitForTimeout(300);
     assert.match(await text(page, 'body'), /No session|No data|empty|CSV/i);
+    assert.match(await page.locator('button[onclick="loadLog()"]').getAttribute('title') || '', /event history.*run summary/i);
+    assert.match(await page.locator('button[onclick="askClear(\'eventlog\')"]').getAttribute('title') || '', /permanently delete.*event history/i);
+    assert.match(await page.locator('#tab-session').getAttribute('title') || '', /per-run CSV/i);
+    assert.match(await page.locator('#session-current-download').getAttribute('title') || '', /currently open session CSV/i);
     results.push('session log page handles empty log state without breaking controls');
 
     await reset(page);
@@ -1165,6 +1169,30 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await text(page, '#state-OIL_PRIME'), /Locked.*RUNNING/i);
     assert.equal(await page.locator('#btn-OIL_PRIME').isDisabled(), true);
     results.push('running-engine tool cards say they are locked instead of contradicting disabled controls with Ready');
+
+    await patchData(page, {
+      mode: 'STANDBY',
+      stop_switch_active: true,
+      stop_switch_configured: true,
+      stop_switch_healthy: true
+    });
+    await page.waitForFunction(() => /STOP input is active/i.test(document.querySelector('#lock-warn')?.textContent || ''));
+    assert.match(await text(page, '#lock-warn'), /STOP input is active/i);
+    assert.match(await text(page, '#state-OIL_PRIME'), /Locked.*STOP active/i);
+    assert.match(await page.locator('#btn-OIL_PRIME').getAttribute('title'), /STOP input is active/i);
+    assert.equal(await page.locator('#btn-OIL_PRIME').isDisabled(), true);
+
+    await patchData(page, {
+      stop_switch_active: false,
+      stop_switch_configured: true,
+      stop_switch_healthy: false
+    });
+    await page.waitForFunction(() => /STOP input is unavailable/i.test(document.querySelector('#lock-warn')?.textContent || ''));
+    assert.match(await text(page, '#lock-warn'), /STOP input is unavailable/i);
+    assert.match(await text(page, '#state-OIL_PRIME'), /Locked.*STOP unavailable/i);
+    assert.match(await page.locator('#btn-OIL_PRIME').getAttribute('title'), /STOP input is unavailable/i);
+    assert.equal(await page.locator('#btn-OIL_PRIME').isDisabled(), true);
+    results.push('Tools explains and ghosts output commands when STOP is active or unavailable');
 
     await patchData(page, {
       config_version_mismatch: true,

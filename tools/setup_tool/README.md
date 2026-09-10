@@ -13,6 +13,7 @@ official Silicon Labs or WCH download page for the user.
 Build from this directory:
 
 ```powershell
+python -X utf8 generate_icon.py
 go test ./...
 go run github.com/akavel/rsrc@v0.10.2 -ico OpenTurbineSetupTool.ico -manifest OpenTurbineSetupTool.manifest -o rsrc_windows_amd64.syso
 go build -ldflags="-H windowsgui -s -w" -o OpenTurbineSetupTool.exe .
@@ -26,7 +27,11 @@ publishing it. See `docs/SETUP_TOOL.md` for the Authenticode signing workflow
 and GitHub Actions secrets.
 
 The app downloads `OpenTurbine_Recommended.zip` from the latest GitHub release,
-or uses a local `OpenTurbine_Recommended.zip` placed next to the EXE.
+or uses a checksum-verified cached copy. A local
+`OpenTurbine_Recommended.zip` placed next to the EXE remains the explicit
+offline override. If a Classic ESP32 is not detected, unplug it, hold BOOT
+while plugging it back in, and keep BOOT held through the retry until writing
+starts.
 
 Build the recommended ZIP from the repository root:
 

@@ -215,7 +215,7 @@ def patch_async_webserver_header_retention(env):
 
     Chromium sends many advisory headers on every local request. The pinned
     server copied every one into an STL list for the full request lifetime,
-    even though routing needs only parsed fields and WebSocket/cache handlers
+    even though routing needs only parsed fields and cache/SSE/CORS handlers
     inspect a small named subset. Concurrent Classic requests could therefore
     exhaust heap in list-node allocation before low-heap middleware ran.
     """
@@ -229,7 +229,7 @@ def patch_async_webserver_header_retention(env):
     with open(request_cpp, "r", encoding="utf-8") as handle:
         text = handle.read()
     retain_all = "    _headers.emplace_back(std::move(header));"
-    retain_needed = """    // Parsed Host, Content-Type/Length, auth, Upgrade, Accept and
+    retain_previous = """    // Parsed Host, Content-Type/Length, auth, Upgrade, Accept and
     // Transfer-Encoding already live in dedicated request members. Preserve
     // only the headers queried later by WebSocket, cache, SSE or CORS code.
     const bool retainHeader =
@@ -243,11 +243,24 @@ def patch_async_webserver_header_retention(env):
     if (retainHeader) {
       _headers.emplace_back(std::move(header));
     }"""
+    retain_needed = """    // Parsed Host, Content-Type/Length, auth, Upgrade and Accept
+    // already live in dedicated request members. Preserve only headers queried
+    // later by the cache, SSE, or CORS code used by this firmware.
+    const bool retainHeader =
+      name.equalsIgnoreCase("If-None-Match") ||
+      name.equalsIgnoreCase("If-Modified-Since") ||
+      name.equalsIgnoreCase("Last-Event-ID") ||
+      name.equalsIgnoreCase("Origin");
+    if (retainHeader) {
+      _headers.emplace_back(std::move(header));
+    }"""
     # The replacement itself contains ``_headers.emplace_back``. Check for the
     # complete patched form first; otherwise every PlatformIO invocation wraps
     # the already-patched line in another copy and produces a different image.
     if retain_needed in text:
         pass
+    elif retain_previous in text:
+        text = text.replace(retain_previous, retain_needed, 1)
     elif retain_all in text:
         text = text.replace(retain_all, retain_needed, 1)
     else:

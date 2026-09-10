@@ -51,7 +51,7 @@ src/
     RulesEngine.h                            — up to 8 sensor→actuator threshold rules
     ClusterSerial.{h,cpp}                    — OTC framed external display/device protocol (UART1)
     MAVLinkOutput.h                          — TX-only MAVLink v1 HEARTBEAT / NAMED_VALUE_FLOAT / STATUSTEXT
-    web/WebServer.{h,cpp}                    — HTTP+WS+OTA+captive portal and safe-state persistence
+    web/WebServer.{h,cpp}                    — HTTP+REST telemetry+OTA+captive portal and safe-state persistence
   platform/esp32/
     PlatformInit.h                           — boot sequence (LittleFS, ADC config, Preferences, reset reason)
     StatusLED.h                              — millis-based blink FSM
@@ -71,7 +71,7 @@ platformio.ini       — esp32dev + esp32s3dev; AsyncTCP pinned to Core 0 and ex
 | Task | Where created | Core | Prio | Stack | Role |
 |---|---|---:|---:|---:|---|
 | `loopTask` (Arduino default) | implicit, `main.cpp:loop()` | 1 | 1 | 8192 | All control: sensors, sequencer, safety, controllers, actuators, comms tick, RAM logging |
-| `web` | `main.cpp:1598` `xTaskCreatePinnedToCore(webTask, "web", 12288, nullptr, 8, nullptr, 0)` | 0 | 8 | 12288 | WebServer::tick (HTTP + WS + DNS captive). 20 ms delay when engine active, 5 ms in STANDBY |
+| `web` | `main.cpp` `xTaskCreatePinnedToCore(webTask, "web", 12288, nullptr, 8, nullptr, 0)` | 0 | 8 | 12288 | WebServer::tick (HTTP + compact REST telemetry + captive DNS). 20 ms delay when engine active, 5 ms in STANDBY |
 | `async_tcp` | ESPAsyncWebServer library | 0 (build flag) | 10 | (lib) | Priority-10 network callbacks cannot pre-empt the Core-1 engine loop |
 
 > No per-subsystem tasks. The entire control chain runs serially on `loopTask`.
@@ -133,8 +133,8 @@ LP64 model). Wraparound at ~49 days, relevant for `millis()` math throughout.
 
 ### 3.2 `Config` (`system/Config.h`, `system/Config.cpp`, `system/ConfigSerialize.cpp`)
 
-LittleFS-backed (`/ecu_config.json`, with `/config.json` legacy fallback at
-`Config.cpp:225-330`). Static members organised by section:
+LittleFS-backed in the unified `/ecu_config.json` settings section. Static
+members are organised by section:
 
 - Engine limits: `rpmLimit`, `totLimit`, `titLimit`, `oilMinBar`, `oilTempLimit`, `fuelPressMin`, `battVoltMin`, `hotStartTotThreshold`, `totRiseRateLimit`.
 - Idle / governor: `idleTargetRpm`, `idleUseN2`, `idleMinMultiplier`, `idleMaxMultiplier`, `idleRampUpMs`, `idleRampDownMs`, `idleIGain`, `idleIMax`, `governorTargetRpm`, `governorKp`, `governorBandRpm`, `usePropPitch`, `pitchRampSec`.
@@ -156,16 +156,21 @@ Persistence:
   used for both reading and writing.
 - `ConfigInternal.h` is the narrow shared interface for rule-handle resolution
   and the runtime-statistics critical section.
-- `load()` calls `_applyDefaults()`, then tries `/ecu_config.json`, falls back to `/config.json`.
-- `save()` writes to `/ecu_config.json.tmp` then atomic-renames.
+- `load()` calls `_applyDefaults()`, then reads the settings section from
+  `/ecu_config.json`; a missing file is regenerated from compiled defaults.
+- `save()` writes `/ecu_config.tmp`, verifies it, and swaps it into place with
+  `/ecu_config.bak` rollback protection.
 - No CRC, no HMAC, no version-migration steps (only `configVersionMismatch` UI flag).
 - `requestSave()` sets `_savePending`; the Core-0 web task calls `flushPendingSave()` only in STANDBY/FAULT. Runtime-stat NVS writes, session CSV persistence, event-log persistence, and filesystem-stat refresh use the same safe-state gate because ESP32 flash writes can suspend both cores.
-- `isLocked()` returns true in STARTUP/RUNNING/SHUTDOWN unless `EngineData::devMode` is active. Dev Mode itself is only toggleable in STANDBY. Hardware/full-restore/OTA paths have separate STANDBY gates.
+- `isLocked()` keeps complete settings writes locked in STARTUP/RUNNING/SHUTDOWN.
+  Developer Mode is toggleable only in STANDBY/FAULT and exposes a separate,
+  narrow RUNNING PATCH allowlist. Hardware/full-restore/OTA paths remain
+  STANDBY/FAULT-only.
 
 ### 3.3 `HardwareConfig` (`system/HardwareConfig.h`, `system/HardwareConfig.cpp`,
 `system/HardwareConfigSerialize.cpp`)
 
-LittleFS JSON (`/ecu_config.json` "hardware" section; legacy `/hardware.json`). All
+LittleFS JSON (`/ecu_config.json` hardware section). All
 ~150 static members: pins, feature `has*` flags, actuator type selectors, sequence
 block name arrays (`startupSeq`, `shutdownSeq`, `abSeq`, `abShutSeq`), DI channel
 configs (role, debounce, faultMsg, faultCode, activeModes), profile_id, baud, sensor
@@ -251,7 +256,7 @@ apply. OpenTurbine is easier to reason about through these ownership areas:
 | **limits-protection** | `engine/SafetyMonitor.h`, `system/RulesEngine.h`, relight FSM, standby-oil/cooldown monitors, and DI fault handling in `main.cpp` |
 | **calibration-storage** | `system/Config.{h,cpp}`, `system/HardwareConfig.{h,cpp}`, `_savePending` deferred-write path, `applyDefaults`, partition layout |
 | **comms-protocols** | `system/ClusterSerial.{h,cpp}`, `system/MAVLinkOutput.h`, `system/CommandQueue.{h,cpp}` |
-| **wireless-web** | `system/web/WebServer.{h,cpp}` (HTTP/WS/OTA/captive portal), AP setup in `PlatformInit.h` + WebServer, mDNS, `Update` flow, JSON request handling |
+| **wireless-web** | `system/web/WebServer.{h,cpp}` (HTTP/REST telemetry/OTA/captive portal), AP setup in `PlatformInit.h` + WebServer, mDNS, `Update` flow, JSON request handling |
 | **rtos-architecture** | `webTask` creation, queue depths, mutex usage, watchdog config, IRAM placement, RCInput ISR safety, cross-core EngineData access pattern, `loop()` body ordering |
 | **boot-init** | `setup()` in `main.cpp:1500-1616`, `PlatformInit.h`, GPIO default states before driver attach, sequence build/validation, profile mismatch handling, `partitions.csv` |
 | **persistence-logging** | `FlightRecorder.{h,cpp}`, `SessionLogger.{h,cpp}` (deferred-write Core 0, LittleFS wear, eviction policy) |
@@ -269,14 +274,17 @@ From `platformio.ini`:
   and block on `portMAX_DELAY`, causing periodic WDT panics.
 - `-DCONFIG_ASYNC_TCP_RUNNING_CORE=0` — pins priority-10 network callbacks away
   from the Core-1 engine loop.
-- `-DCONFIG_ASYNC_TCP_QUEUE_SIZE=128` — default is 32, raised to absorb captive-portal
-  HTTP+DNS bursts. Implication: more RAM pressure on async_tcp task.
+- `-DCONFIG_ASYNC_TCP_QUEUE_SIZE=128` — default is 64, raised to absorb short
+  captive-portal and REST/page-transfer bursts. The current AsyncTCP uses a
+  dynamically allocated intrusive event list; this value is a congestion
+  threshold, not a permanently reserved queue buffer.
 - `-DCORE_DEBUG_LEVEL=0` — no library-level logging in release.
 - `-mtext-section-literals` — keep ISR literal pools adjacent (Xtensa `l32r` reloc).
-- `OT_DEV_MODE` is an opt-in build flag that boots runtime Dev Mode already enabled. Normal beta builds leave it off and use the STANDBY-only web toggle when diagnostics or live Config tuning are intentionally needed.
+- Developer Mode is available only through the guarded STANDBY/FAULT control in
+  the Tools page; release builds have no compile-time force-enable path.
 
-Classic partition: 4 MB flash, dual 1.5625 MiB OTA slots, a 64 KiB immutable
-PCB-profile partition, 704 KiB LittleFS, and a 64 KiB coredump partition. `nvs`
+Classic partition: 4 MB flash, dual 1.625 MiB OTA slots, a 64 KiB immutable
+PCB-profile partition, 576 KiB LittleFS, and a 64 KiB coredump partition. `nvs`
 is reserved, but most configuration lives in LittleFS JSON.
 
 ---
@@ -285,8 +293,8 @@ is reserved, but most configuration lives in LittleFS JSON.
 
 | Surface | Where parsed | Notes |
 |---|---|---|
-| HTTP/WS web requests | `system/web/WebServer.cpp` | One 16 KiB RX and one 16 KiB TX workspace reserved from internal heap before Wi-Fi; body ownership and bounded response copies prevent concurrent corruption; no endpoint authentication |
-| OTA upload | `WebServer.cpp:817-859` (`/update`) | STANDBY-only gate; `Update.write()` streamed; no size limit declared |
+| HTTP/REST web requests | `system/web/WebServer.cpp` | Shared bounded RX/TX workspaces, body ownership, and bounded response copies prevent concurrent corruption; no endpoint authentication |
+| OTA upload | `WebServer.cpp` (`/api/firmware_chunk`) | STANDBY-only gate; bounded 4 KB requests stream through `Update.write()` |
 | WiFi credentials | `WebServer.cpp` AP setup | AP password is optional; SSID = profile_id (broadcasts profile name) |
 | LittleFS config files | `Config::load`, `HardwareConfig::load` | JSON; no CRC; corrupt → parse error → defaults |
 | Cluster serial RX | `ClusterSerial::_pollRx()` | Optional wired OTC commands when `cluster_serial.rx_pin` is fitted |

@@ -1226,13 +1226,7 @@ void Config::load() {
         return;
     }
 
-    JsonDocument workDoc;
-    if (fullDoc[SECTION].is<JsonObject>()) {
-        workDoc.set(fullDoc[SECTION]);
-        fullDoc.clear();
-        fullDoc.shrinkToFit();
-        delay(0);
-    } else {
+    if (!fullDoc[SECTION].is<JsonObject>()) {
         Serial.println("[Config] Settings missing from ecu_config.json - adding defaults");
         strncpy(profileId, HardwareConfig::profileId, sizeof(profileId) - 1);
         profileId[sizeof(profileId) - 1] = '\0';
@@ -1243,6 +1237,10 @@ void Config::load() {
         profileMatch = true;
         return;
     }
+    // The filtered document already owns the complete settings tree. Apply a
+    // read-only view directly instead of duplicating that tree into a second
+    // ArduinoJson arena at the Classic's peak boot-memory point.
+    JsonVariantConst workDoc = fullDoc[SECTION];
 
     const char* id = workDoc["profile_id"] | "";
     strncpy(profileId, id, sizeof(profileId) - 1);
@@ -1632,14 +1630,6 @@ float Config::primaryEgtLimitC() {
     }
 }
 
-const char* Config::primaryEgtLabel() {
-    switch (effectiveEgtSource()) {
-        case 1: return "TOT";
-        case 2: return "TIT";
-        default: return "EGT";
-    }
-}
-
 float Config::effectiveRelightMinRpm() {
     // relightMinRpm remains independently tunable, but automatic ignition
     // must never be fired below the engine's configured minimum
@@ -1985,26 +1975,8 @@ bool Config::isLocked() {
     return active;
 }
 
-size_t Config::toJson(char* buf, size_t len) {
-    JsonDocument doc;
-    _toDoc(doc);
-    const size_t required = measureJson(doc);
-    if (!buf || len == 0 || required >= len) {
-        if (buf && len) buf[0] = '\0';
-        return len;  // explicit overflow sentinel for bounded-buffer callers
-    }
-    return serializeJson(doc, buf, len);
-}
-
 void Config::toJson(JsonDocument& doc) {
     _toDoc(doc);
-}
-
-bool Config::validateJson(const char* json, size_t len) {
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json, len);
-    if (err) return false;
-    return validateJson(doc);
 }
 
 bool Config::validateJson(const JsonDocument& doc) {
@@ -2106,41 +2078,4 @@ void Config::clearStagedJsonCandidate() {
     ConfigStorageWriteRelease release;
     LittleFS.remove(APPLY_PATH);
 #endif
-}
-
-bool Config::fromJson(const char* json, size_t len) {
-    if (isLocked() || !validateJson(json, len)) return false;
-    JsonDocument doc;
-    if (deserializeJson(doc, json, len)) return false;
-    if (strcmp(doc["profile_id"] | "", HardwareConfig::profileId) != 0) return false;
-    JsonDocument previous;
-    _toDoc(previous);
-    bool previousMismatch = EngineData::instance().configVersionMismatch;
-    _fromDoc(doc);
-    if (!save()) {
-        _fromDoc(previous);
-        EngineData::instance().configVersionMismatch = previousMismatch;
-        return false;
-    }
-    profileMatch = true;
-    EngineData::instance().configVersionMismatch = false;
-    return true;
-}
-
-bool Config::fromJson(const JsonDocument& doc) {
-    if (isLocked() || !validateJson(doc)) return false;
-    const char* id = doc["profile_id"] | "";
-    if (!id[0] || strcmp(id, HardwareConfig::profileId) != 0) return false;
-    JsonDocument previous;
-    _toDoc(previous);
-    bool previousMismatch = EngineData::instance().configVersionMismatch;
-    _fromDoc(doc);
-    if (!save()) {
-        _fromDoc(previous);
-        EngineData::instance().configVersionMismatch = previousMismatch;
-        return false;
-    }
-    profileMatch = true;
-    EngineData::instance().configVersionMismatch = false;
-    return true;
 }

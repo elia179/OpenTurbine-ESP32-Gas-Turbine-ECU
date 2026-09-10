@@ -107,9 +107,9 @@ function installedBrowser() {
     const status = await page.request.get(`${base}/api/status`, { timeout: 5000 });
     assert.equal(status.ok(), true, `status failed after navigation cycle ${cycle + 1}`);
     const statusData = await status.json();
-    console.log(`cycle ${cycle + 1}/${cycles} status ws=${statusData.ws_clients} ` +
+    console.log(`cycle ${cycle + 1}/${cycles} status ` +
       `heap=${statusData.free_heap} max=${statusData.max_alloc_heap} ` +
-      `tw=${statusData.http_time_wait} reaped=${statusData.http_time_wait_reaped}`);
+      `tw=${statusData.http_time_wait}`);
   }
 
   await navigate(`${base}/`, { waitUntil: 'domcontentloaded' });

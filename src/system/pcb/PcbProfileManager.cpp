@@ -283,11 +283,17 @@ void PcbProfileManager::driveEarlySafeStates() {
     }
 }
 
-bool PcbProfileManager::parsePayload(const uint8_t* payload, size_t length,
+bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                      uint8_t formatMajor, uint8_t formatMinor,
                                      Origin origin) {
     JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, payload, length);
+    // The partition payload already belongs exclusively to this boot-time
+    // parser. ArduinoJson can therefore tokenize it in place instead of
+    // duplicating every string while the original payload is still resident.
+    // All strings retained after this function returns are copied into the
+    // fitted Catalog before begin() releases the payload.
+    DeserializationError error = deserializeJson(
+        doc, reinterpret_cast<char*>(payload), length);
     if (error) {
         snprintf(_fault, sizeof(_fault), "profile JSON: %s", error.c_str());
         return false;
@@ -723,13 +729,6 @@ const PcbProfileManager::Mode* PcbProfileManager::findMode(const Port& port, con
     if (!id) return nullptr;
     for (uint8_t i = 0; i < port.modeCount; ++i)
         if (!strcmp(port.modes[i].id, id)) return &port.modes[i];
-    return nullptr;
-}
-
-const PcbProfileManager::Device* PcbProfileManager::findDevice(const char* id) {
-    if (!_catalog || !id) return nullptr;
-    for (uint8_t i = 0; i < _catalog->deviceCount; ++i)
-        if (!strcmp(_catalog->devices[i].id, id)) return &_catalog->devices[i];
     return nullptr;
 }
 

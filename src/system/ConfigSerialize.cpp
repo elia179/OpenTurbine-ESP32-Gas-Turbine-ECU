@@ -367,7 +367,7 @@ bool Config::applyJsonRuntimeOnly(const JsonDocument& doc, bool allowActiveLive,
                       id, HardwareConfig::profileId);
         return false;
     }
-    _fromDoc(doc, validateHardwareDependencies);
+    _fromDoc(doc.as<JsonVariantConst>(), validateHardwareDependencies);
     // Full engine-file restore may intentionally replace the device identity.
     // The caller temporarily aligns HardwareConfig for validation, so carry the
     // validated settings identity into runtime before the atomic unified save.
@@ -658,7 +658,7 @@ void Config::resetToCompiledDefaults() {
     _applyDefaults();
 }
 
-void Config::_fromDoc(const JsonDocument& doc, bool resolveRuleHandles) {
+void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     controllerSchema = constrain((int)(doc["controller_schema"] | 0), 0, 1);
     // Warn if an expected top-level section is entirely absent.
     // This typically means the file is truncated or severely corrupted —

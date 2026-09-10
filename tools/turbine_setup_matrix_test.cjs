@@ -647,7 +647,7 @@ const setups = [
       }
       if (setup.id === 'dry_sump_flow_monitored_turbine') {
         await page.goto(`${base}/controllers.html#${setup.id}`);
-        await page.waitForSelector('#simple-controls');
+        await page.waitForSelector('#controller-overview:not([style*="display:none"])');
         const simpleChannels = await page.evaluate(() => ({
           inputs: simpleControlInputs().map(item => item.id),
           outputs: simpleControlOutputs().map(item => item.id)

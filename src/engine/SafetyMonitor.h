@@ -6,7 +6,6 @@
 #include "../system/FeedbackRequirements.h"
 #include "../system/OutputActivity.h"
 #include <Arduino.h>
-#include <functional>
 #include <string.h>
 
 // ============================================================
@@ -24,7 +23,7 @@
 class SafetyMonitor {
 public:
     using ShutdownFn = void(*)();
-    using RelightFn  = std::function<void()>;
+    using RelightFn  = void(*)();
 
     // Config parameters (populated from Config before begin())
     float         rpmLimit              = 100000.0f;
@@ -432,15 +431,6 @@ public:
         // abandon an already fuel-capped engine. Keep the complete mask for
         // diagnostics and latch ECU-imposed limp until STANDBY. Critical
         // control-path loss is handled separately and still shuts down.
-        const uint32_t observedFailure =
-            m == SysMode::STARTUP
-                ? FeedbackRequirements::requiredStartFailureMask(ed, millis())
-                : m == SysMode::RUNNING
-                    ? FeedbackRequirements::protectionFailureMask(ed, millis())
-                    : FeedbackRequirements::NONE;
-        if (m == SysMode::STARTUP || m == SysMode::RUNNING)
-            ed.limpFailureMask |= observedFailure;
-
         if (m == SysMode::RUNNING && !ed.automaticLimpLatched) {
             const bool n1Blind = HardwareConfig::hasN1Rpm &&
                 FeedbackRequirements::n1ForProtectionOrControl() && !ed.n1Healthy;

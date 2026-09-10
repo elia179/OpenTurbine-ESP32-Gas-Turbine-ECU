@@ -3,19 +3,14 @@ const { chromium, firefox, webkit } = require('playwright');
 
 const port = 8781;
 const base = `http://127.0.0.1:${port}`;
-const pages = ['/', '/hardware.html', '/config.html', '/sequence.html', '/log.html', '/tools.html'];
+const pages = ['/', '/hardware.html', '/controllers.html', '/system.html', '/calibration.html', '/sequence.html', '/log.html', '/tools.html', '/config.html'];
 const viewports = [
+  { name: 'compact-phone', width: 320, height: 568 },
+  { name: 'phone', width: 390, height: 844 },
+  { name: 'tablet', width: 768, height: 1024 },
   { name: 'desktop', width: 1366, height: 768 },
-  { name: 'narrow', width: 390, height: 844 },
+  { name: 'wide-desktop', width: 1920, height: 1080 },
 ];
-
-// The UI simulator is intentionally HTTP-only. Browser engines report the
-// missing optional telemetry socket through different channels and wording.
-// Ignore only localhost /ws connection diagnostics; all application errors
-// and every other console error remain release failures.
-function isExpectedMockWsError(text) {
-  return /(?:WebSocket connection to ['"]?ws:\/\/127\.0\.0\.1:8781\/ws|Firefox can.t establish a connection to the server at ws:\/\/127\.0\.0\.1:8781\/ws|connection to ws:\/\/127\.0\.0\.1:8781\/ws was interrupted)/i.test(String(text));
-}
 
 (async () => {
   globalThis.OT_UI_SIM_PORT = port;
@@ -45,18 +40,10 @@ function isExpectedMockWsError(text) {
       for (const viewport of viewports) {
         const page = await browser.newPage({ viewport });
         const errors = [];
-        page.on('pageerror', error => {
-          if (!isExpectedMockWsError(error.message)) errors.push(error.message);
-        });
+        page.on('pageerror', error => errors.push(error.message));
         page.on('console', message => {
           if (message.type() !== 'error') return;
-          const text = message.text();
-          // The HTTP-only simulator deliberately has no /ws endpoint. WebKit
-          // reports navigation closing that optional telemetry socket as a
-          // console error; production reconnect behavior is covered by the
-          // simulator's dedicated dashboard soak/reconnect audit.
-          if (isExpectedMockWsError(text)) return;
-          errors.push(text);
+          errors.push(message.text());
         });
         await page.addInitScript(() => {
           localStorage.setItem('ot_beta_notice_ack_v1', '1');

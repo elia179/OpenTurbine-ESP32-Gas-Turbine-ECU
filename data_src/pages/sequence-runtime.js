@@ -1,4 +1,4 @@
-// ------ WebSocket for engine mode ------------------------------------------------------------------------------------------------------------------------------------------
+// ------ Compact REST polling for engine mode -------------------------------------------------------------------------------------------------------------------------------
 function updateEngineMode(mode) {
   engineMode = mode;
   const active = (engineMode === 'STANDBY' || engineMode === 'FAULT');

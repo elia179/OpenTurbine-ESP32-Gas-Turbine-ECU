@@ -11,6 +11,7 @@
     "fixture_limitations": [
       "The S3 tester has no DAC; intermediate analogue calibration and threshold sweeps require the planned external DAC fixture.",
       "The known-dead starter GPIO17-to-GPIO19 jumper is omitted; closed-loop plant HIL re-purposes the captured oil-PWM channel for starter demand.",
+      "With starter PWM active on the re-purposed oil channel, the present jumper loom couples that 5 kHz waveform into Classic N1 and reports about 30000 RPM at 10 PPR; use a revised isolated loom before claiming a causal Classic plant pass.",
       "This baseline file is development-only and cannot by itself satisfy the release transport matrix."
     ]
   },

@@ -547,6 +547,8 @@ function decodeCompactTelemetry(frame, previous) {
     'recovery_lockout','session_logger_healthy','session_capture_active','limited_start_allowed'
   ];
   bools2.forEach((name, index) => { out[name] = bit(frame.g, index); });
+  out.stop_switch_configured = bit(frame.h, 0);
+  out.stop_switch_healthy = bit(frame.h, 1);
   out.cool_fan_on = Number(v[30]) >= 50;
   out.oil_scavenge_on = Number(v[31]) >= 50;
   out.bleed_valve_open = Number(v[32]) >= 50;
@@ -601,7 +603,7 @@ function applyData(d) {
   if (!_lastData) _lastData = {};
   applyFastDiscreteStates(d, _lastData);
   // di_channels: fast frames only carry {state,pin} — merge per-entry so the
-  // label/role fields from the /api/data snapshot survive fast WS frames.
+  // label/role fields from the /api/data snapshot survive compact REST frames.
   if (d && Array.isArray(d.di_channels) && Array.isArray(_lastData.di_channels)) {
     d.di_channels = d.di_channels.map((ch, i) => Object.assign({}, _lastData.di_channels[i], ch));
   }
@@ -929,30 +931,20 @@ function applyData(d) {
         '% and afterburner is disabled.';
     }
   }
-  const logDropBanner = document.getElementById('session-log-drop-banner');
-  if (logDropBanner) {
-    const dropped = Number(d.session_dropped_rows || 0);
-    logDropBanner.style.display = dropped > 0 ? '' : 'none';
-    if (dropped > 0) {
-      logDropBanner.textContent = 'Session log dropped ' + dropped + ' row' + (dropped === 1 ? '' : 's') + '. CSV for this run is incomplete.';
-    }
-  }
-  const eventDropBanner = document.getElementById('event-log-drop-banner');
-  if (eventDropBanner) {
-    const dropped = Number(d.event_dropped_events ?? 0);
-    eventDropBanner.style.display = dropped > 0 ? '' : 'none';
-    if (dropped > 0) {
-      eventDropBanner.textContent = 'Event recorder dropped ' + dropped + ' event' + (dropped === 1 ? '' : 's') + '. Event log may be incomplete.';
-    }
-  }
   const storageBanner = document.getElementById('config-storage-banner');
   const loggingHealthBanner = document.getElementById('logging-health-banner');
   if (loggingHealthBanner) {
-    const degraded = d.session_logger_healthy === false || d.event_recorder_healthy === false || d.runtime_stats_healthy === false;
-    loggingHealthBanner.style.display = degraded ? '' : 'none';
-    if (degraded) loggingHealthBanner.textContent =
-      'Run logging is degraded' + (d.session_log_path ? ' (' + d.session_log_path + ')' : '') +
-      '. Engine control is unaffected. See Log for details.';
+    const problems = [];
+    const sessionDropped = Number(d.session_dropped_rows || 0);
+    const eventDropped = Number(d.event_dropped_events || 0);
+    if (sessionDropped > 0) problems.push('Session CSV dropped ' + sessionDropped + ' row' + (sessionDropped === 1 ? '' : 's') + '.');
+    if (eventDropped > 0) problems.push('Event recorder dropped ' + eventDropped + ' event' + (eventDropped === 1 ? '' : 's') + '.');
+    if (d.session_logger_healthy === false || d.event_recorder_healthy === false || d.runtime_stats_healthy === false)
+      problems.push('Run logging is degraded' + (d.session_log_path ? ' (' + d.session_log_path + ')' : '') + '.');
+    if (problems.length) problems.push('Engine control is unaffected.');
+    loggingHealthBanner.style.display = problems.length ? '' : 'none';
+    const text = document.getElementById('logging-health-text');
+    if (text && problems.length) text.textContent = problems.join(' ');
   }
   if (storageBanner) storageBanner.style.display = d.config_storage_fault ? '' : 'none';
   // Boot-config load warning (full frames: config_load_warning = string|null).
@@ -1058,9 +1050,6 @@ function applyData(d) {
     const mismatch = d.profile_match === false;
     mismatchBanner.style.display = mismatch ? '' : 'none';
   }
-  // Older pages may still include this compact profile-error element.
-  const profErr = document.getElementById('profile-error');
-  if (profErr) profErr.style.display = (d.profile_match === false) ? '' : 'none';
 
   // ── Config version mismatch banner ────────────────────────
   const verBanner = document.getElementById('config-version-banner');
@@ -2054,7 +2043,7 @@ async function resetPeaks() {
     .catch(e => alert('Peak reset failed: ' + e.message));
 }
 
-// ── Boot: prime dashboard via REST for instant first paint, then WS takes over ─
+// ── Boot: prime the dashboard, then continue bounded REST telemetry polling ─
 function initializeSharedDom() {
   applyUnitLabels();
   organizeDashboardCards();

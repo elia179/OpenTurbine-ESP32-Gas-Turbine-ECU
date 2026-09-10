@@ -269,6 +269,7 @@ button.danger.remove-action:active {
   color: var(--red);
 }
 button:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.tool-card button:disabled { pointer-events: auto; cursor: not-allowed; }
 button.primary {
   background: var(--accent);
   color: color-mix(in srgb, var(--accent) 22%, #000);
@@ -803,6 +804,12 @@ textarea.field-error {
 }
 /* #lock-warn and #standby-warn use .error-banner for visual treatment;
    JS controls visibility with style.display on each page. */
+#tools-status-row { flex-wrap: wrap; }
+#tools-status-row #lock-warn {
+  flex: 1 1 100%;
+  min-width: 0;
+  line-height: 1.4;
+}
 
 /* ── Tools page ─────────────────────────────────────────────── */
 .tool-card {
@@ -818,22 +825,26 @@ textarea.field-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .45rem .75rem;
   margin-bottom: 0.5rem;
 }
-.tool-name  { font-size: 0.7rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.09em; font-family: var(--font-ui); }
-.tool-state { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--dim); font-family: var(--font-ui); }
+.tool-name  { min-width: 0; font-size: 0.7rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.09em; font-family: var(--font-ui); overflow-wrap: anywhere; }
+.tool-state { flex: 0 0 auto; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--dim); font-family: var(--font-ui); white-space: nowrap; }
 .tool-state.active { color: var(--yellow); }
 .tool-state.done   { color: var(--green); }
 .tool-state.on     { color: var(--green); }
 .tool-state.off    { color: var(--dim); }
 .tool-state.fault  { color: var(--red); }
 .prog-track {
+  display: none;
   height: 4px;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 0.55rem;
 }
+.prog-track:has(.prog-fill.running) { display: block; }
 .prog-fill {
   height: 100%;
   border-radius: 2px;
@@ -847,7 +858,7 @@ textarea.field-error {
   align-items: center;
   gap: 0.75rem;
 }
-.tool-desc  { font-size: 0.71rem; color: var(--dim); flex: 1; line-height: 1.4; font-family: var(--font-ui); }
+.tool-desc  { min-width: 0; font-size: 0.71rem; color: var(--dim); flex: 1 1 auto; line-height: 1.4; font-family: var(--font-ui); overflow-wrap: anywhere; }
 .tool-time  { font-size: 0.68rem; color: var(--dim); min-width: 2.8rem; text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 .tool-divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0 0.9rem; }
 
@@ -859,7 +870,7 @@ body[data-page="tools"] main { max-width: 1180px; }
   align-items: start;
 }
 #tool-area > .tool-card { max-width: none; margin: 0; }
-#tool-area > .tool-divider { grid-column: 1 / -1; width: 100%; margin: .35rem 0; }
+#tool-area > .tool-divider { grid-column: 1 / -1; width: 100%; height: .4rem; margin: .2rem 0; border-top: 0; }
 #tool-area > #card-CONFIG_BACKUP,
 #tool-area > #card-OTA,
 #tool-area > #card-WEB-ASSETS,
@@ -1015,6 +1026,22 @@ body[data-page="tools"] main { max-width: 1180px; }
 .ab-fire-btn:disabled { opacity: 0.35; cursor: default; }
 .ab-stop-btn { background: var(--red); color: color-mix(in srgb, var(--red) 22%, #000); border: none; border-radius: var(--r-sm); cursor: pointer; font-weight: 700; }
 .ab-stop-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Tablet-width navigation keeps every destination reachable without widening
+   the page. Content grids retain their tablet layout until the phone rule. */
+@media (max-width: 850px) {
+  nav {
+    padding: 0 0.5rem;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a { flex: 0 0 auto; padding-left: .65rem; padding-right: .65rem; }
+  .conn-dot { margin-left: .55rem; }
+  .conn-label { display: none; }
+}
 
 /* ── Mobile ──────────────────────────────────────────────────── */
 @media (max-width: 600px) {
@@ -1649,7 +1676,6 @@ select option.pin-inonly { color: #5ba3e0; }
     gap: .7rem 1rem;
   }
   .run-expand-btn { order: 1; }
-  #tools-status-row { flex-wrap: wrap; }
   #tools-page-head { align-items: flex-start !important; }
   #btn-test-settings { flex: 0 0 auto; max-width: 55%; }
 }
@@ -2040,4 +2066,130 @@ body.telemetry-stale .gauge,
 body.telemetry-stale .sparkline {
   filter: grayscale(1);
   opacity: .48;
+}
+
+/* ── Shared visual hierarchy ──────────────────────────────────
+   Keep page identity, section titles, nested controls, and status colours
+   consistent across every editor and utility page. All decorative colour is
+   derived from the active appearance theme. */
+.page-heading,
+.cfg-workspace-card {
+  position: relative;
+  overflow: hidden;
+  padding: .95rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-top: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%),
+    var(--surface);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+}
+.page-title,
+.cfg-workspace-title { color: var(--accent); }
+
+/* Main section containers use the same outer surface and title treatment. */
+.hw-section,
+.sensor-row,
+.tool-card,
+.run-card,
+.log-wrap,
+.cblk-section {
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-top: 3px solid var(--accent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 4.5rem),
+    var(--surface-2);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
+}
+.hw-title,
+.sensor-name {
+  margin: -1rem -1.2rem .8rem;
+  padding: .72rem 1rem .68rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 100%);
+  color: var(--accent);
+  font-weight: 750;
+}
+.tool-header {
+  margin: -.9rem -1.1rem .7rem;
+  padding: .68rem 1rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 100%);
+}
+.tool-name,
+.cblk-section-title { color: var(--accent); }
+.run-header { background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,transparent),transparent 100%) }
+.block-header { border-left:3px solid var(--accent);background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent),transparent 66%) }
+.block-params.open { border-top: 0; }
+.ab-section-hdr {
+  padding: .62rem .72rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 68%);
+  color: var(--accent);
+}
+.log-table th { color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+
+/* Configuration groups share the same open-section cue as System. */
+.config-group:not([data-controller-card])[open] > summary {
+  border-top: 3px solid var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 100%);
+}
+.config-group:not([data-controller-card])[open] > summary .group-title { color: var(--accent); }
+.save-recap-header,
+.registry-add-panel > h2:first-child {
+  border-top: 3px solid var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 100%);
+}
+
+/* Dashboard feedback stays light: identify groups without enclosing the live
+   instruments in another heavy card. */
+body[data-page="dashboard"] .telemetry-group-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--accent);
+}
+body[data-page="dashboard"] .telemetry-group-title::before {
+  content: '';
+  width: 1.25rem;
+  height: 2px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: var(--accent);
+}
+body[data-page="dashboard"] :is(
+  .telemetry-group,
+  .telemetry,
+  #di-states-wrap,
+  #governor-section,
+  #adv-act-section,
+  #ab-section
+) .card {
+  border-top: 2px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 3.5rem),
+    var(--surface-2);
+}
+
+/* Safety-specific cards keep semantic colours instead of inheriting the
+   appearance accent. */
+#card-dev-mode { border-top-color: var(--red) !important; }
+#card-dev-mode .tool-header {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 100%);
+}
+
+/* System categories are major sections, so their accent belongs on the top
+   edge. Repeated controller stages and sequencer blocks retain left rails. */
+.system-surface .system-category { border-top: 3px solid var(--accent); }
+.system-surface .system-category > summary {
+  border-left: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 100%);
+}
+
+@media (max-width: 700px) {
+  .page-heading { padding: .8rem .85rem; }
+  .hw-title,
+  .sensor-name { margin-left: -1rem; margin-right: -1rem; }
 }

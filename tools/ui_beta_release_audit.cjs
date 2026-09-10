@@ -340,7 +340,7 @@ function enumNames(source, marker) {
     assert.match(mainSource, /Governor target plus no-correction band reaches the hard N2 shutdown limit/);
     assert.match(mainSource, /N2-based idle target is at\/above the hard N2 shutdown limit/);
     assert.match(mainSource, /Cluster N2 warning is at\/above the hard N2 shutdown limit/);
-    assert.match(mainSource, /case OTCommand::APPLY_CONFIG:[\s\S]*Hardware::applyConfig\(\);[\s\S]*validateSequences\(\);/);
+    assert.match(mainSource, /static void applyConfigOnEcuCore\(\)[\s\S]*Hardware::applyConfig\(\);[\s\S]*validateSequences\(false\);[\s\S]*ClusterSerial::beginIfNeeded\(\);/);
     assert.match(mainSource, /Selected EGT hard limit is 0 - overtemperature shutdown is disabled", false/);
     assert.match(mainSource, /Running oil minimum is 0 - low-oil shutdown is disabled", false/);
     assert.match(mainSource, /Both EGT flameout conditions are disabled", false/);
@@ -437,12 +437,12 @@ function enumNames(source, marker) {
     assert.doesNotMatch(indexHtml, /20260612b|20260617b|20260619a|20260625a|20260705a|Primary thermal limit/);
     assert.doesNotMatch(indexHtml, />Not saved<|No calibration saved|No successful test recorded/);
     assert.match(indexHtml, /Run a safe actuator or dry-sequence test/);
-    assert.match(indexHtml, /20260907a/);
+    assert.match(indexHtml, /20260910a/);
     for (const pageName of ['index.html', 'hardware.html', 'controllers.html', 'system.html', 'calibration.html', 'sequence.html', 'log.html', 'tools.html']) {
       const pageSource = fs.readFileSync(path.join('data_src', pageName), 'utf8');
       const sharedRefs = [...pageSource.matchAll(/\/(?:style\.css|app\.js|theme\.js|ui_dialog\.js)\?v=([^"'&]+)/g)];
       assert.ok(sharedRefs.length > 0, `${pageName} must version its shared assets`);
-      assert.ok(sharedRefs.every(match => match[1] === '20260907a'), `${pageName} has a stale shared-asset cache key`);
+      assert.ok(sharedRefs.every(match => match[1] === '20260910a'), `${pageName} has a stale shared-asset cache key`);
     }
     const themeSource = fs.readFileSync(path.join('data_src', 'theme.js'), 'utf8');
     assert.match(themeSource, /function versionLocalLinks\(root\)/,
@@ -488,8 +488,9 @@ function enumNames(source, marker) {
     // every navigation must revalidate CSS/JS instead of retaining an old
     // immutable copy under the same URL.
     assert.match(webServer, /max-age=31536000, immutable/);
-    assert.match(webServer, /app\.js\.gz", "application\/javascript", SHARED_ASSET_CACHE/);
-    assert.match(webServer, /style\.css\.gz", "text\/css", SHARED_ASSET_CACHE/);
+    assert.match(webServer, /registerSharedAsset\("\/app\.js", "\/app\.js\.gz", "application\/javascript"\)/);
+    assert.match(webServer, /registerSharedAsset\("\/style\.css", "\/style\.css\.gz", "text\/css"\)/);
+    assert.match(webServer, /_sendGzipAsset\(req, asset, mime, SHARED_ASSET_CACHE\)/);
     results.push('shared CSS and JavaScript are revalidated after maintenance updates');
     assert.match(webServer, /static void _mergeJsonObject\(JsonObject dst, JsonObjectConst patch\)/);
     assert.equal((webServer.match(/_mergeJsonObject\(current\.as<JsonObject>\(\), patch\.as<JsonObjectConst>\(\)\)/g) || []).length, 2);
@@ -503,7 +504,8 @@ function enumNames(source, marker) {
 
     assert.match(webServer, /#if defined\(OT_PLATFORM_ESP32S3\)[\s\S]*String writePath = _assetPath\(\(uint16_t\)asset, true\)/);
     assert.match(webServer, /String writePath = _assetPath\(\(uint16_t\)asset, false\)/);
-    assert.match(webServer, /START inhibited until the complete set is uploaded again/);
+    assert.match(webServer, /_server\.on\("\/api\/web_asset_chunk"/);
+    assert.doesNotMatch(webServer, /_server\.on\("\/api\/web_assets"/);
     const toolsSource = fs.readFileSync(path.join('data_src', 'tools.html'), 'utf8');
     const webAssetOrder = toolsSource.match(/const required = \[([\s\S]*?)\];/);
     assert.ok(webAssetOrder);

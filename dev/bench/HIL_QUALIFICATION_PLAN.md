@@ -341,7 +341,7 @@ Acceptance: no partial/crossed configuration, no active-mode filesystem/NVS stal
 
 ## 16. Concurrency, endurance, and environmental bench tests (Q110)
 
-- 24-hour soak per target in RUNNING simulation with fast telemetry, WebSocket plus HTTP clients, cluster/MAVLink traffic, logging enabled, N1/N2/analog changes, rules, controllers, and I2C polling.
+- 24-hour soak per target in RUNNING simulation with compact REST telemetry plus concurrent HTTP clients, cluster/MAVLink traffic, logging enabled, N1/N2/analog changes, rules, controllers, and I2C polling.
 - 100 complete synthetic start-run-shutdown cycles per target, including at least 20 AB cycles where fitted.
 - 100 I2C disconnect/reconnect cycles per device type at random lifecycle points.
 - 50 configuration-save/reboot cycles, 20 OTA cycles, 20 web-asset update cycles, and 20 backup/factory-reset/restore cycles.

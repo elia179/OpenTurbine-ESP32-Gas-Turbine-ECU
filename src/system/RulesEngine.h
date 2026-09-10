@@ -225,14 +225,6 @@ private:
                act == AIRSTARTER;
     }
 
-    static bool _warningIndicator(uint8_t act) {
-        if (!ChannelRegistry::isOutputActuator(act)) return false;
-        const uint8_t idx = ChannelRegistry::outputIndexFromActuator(act);
-        return idx < HardwareConfig::channelRegistry.outputCount &&
-               !strcmp(HardwareConfig::channelRegistry.outputs[idx].purpose,
-                       "warning_indicator");
-    }
-
     static bool _targetPresent(const uint8_t* targets, uint8_t count, uint8_t target) {
         for (uint8_t i = 0; i < count; ++i) if (targets[i] == target) return true;
         return false;

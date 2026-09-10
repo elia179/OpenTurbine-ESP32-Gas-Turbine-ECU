@@ -37,7 +37,6 @@ enum class OTCommand : uint8_t {
     CLEAR_FAULT,           // acknowledge a latched fault after every output is safely off
     AB_FIRE,              // manual afterburner ignition (from web UI)
     AB_STOP,              // manual afterburner shutdown (from web UI)
-    APPLY_CONFIG,         // re-apply block params from config (safe in STANDBY only)
     // ── Actuator test commands (STANDBY only, auto-expire) ─────
     OIL_SCAV_TEST,        // run oil scavenge pump briefly
     COOL_FAN_TEST,        // run cooling fan briefly

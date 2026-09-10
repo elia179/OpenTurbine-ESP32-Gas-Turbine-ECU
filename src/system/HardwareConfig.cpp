@@ -3464,16 +3464,6 @@ void HardwareConfig::toJson(JsonObject doc, bool redactPassword) {
 }
 
 // ── fromJson ──────────────────────────────────────────────────
-bool HardwareConfig::validateJson(const char* json, size_t len) {
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json, len);
-    if (err) {
-        setHardwareValidationError("malformed JSON data");
-        return false;
-    }
-    return validateJson(doc);
-}
-
 bool HardwareConfig::validateJson(const JsonDocument& doc, ChannelRegistry* registryWorkspace) {
     setHardwareValidationError("unknown hardware validation error");
     auto reject = [](const char* reason) {

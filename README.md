@@ -1,6 +1,8 @@
+<p align="center"><img src="site/assets/images/openturbine-logo.png" width="128" height="128" alt="OpenTurbine turbine-wheel logo"></p>
+
 <h1 align="center">OpenTurbine</h1>
 
-<p align="center">OpenTurbine 2.3.3 — open-source ESP32 turbine ECU with guided Windows setup and a browser-based dashboard.</p>
+<p align="center">OpenTurbine 2.3.5 — open-source ESP32 turbine ECU with guided Windows setup and a browser-based dashboard.</p>
 
 <p align="center">
   <a href="https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbineSetupTool.exe"><strong>Download for Windows</strong></a>
@@ -25,10 +27,11 @@ The normal Windows installation does not require Git, PlatformIO, or source-code
 - Optional flash-time PCB profiles that replace raw GPIO setup with board-labelled, capability-filtered connections
 - Per-pump oil-flow monitoring, electric drain-valve sequencing/controllers, and calibrated torque/thrust measurement
 - Simple and rate-predictive gradual fuel limiting for N1, N2, TOT/TIT, P1, P2, and torque, backed by independent hard trips
+- A consistent, theme-aware interface across Hardware, Controllers, System, Calibration, Sequence, Log, and Tools, while the live Dashboard stays compact
 - Dedicated Controllers and System workspaces that open on the configured system, with Explore all features and Changed views
 - Startup, shutdown, afterburner, and custom sequence blocks with final-state previews
 - Simple threshold/hysteresis and direct input-to-variable-output controls on Controllers
-- Guided calibration, standby-only actuator tests, complete engine-file backup/restore, event logs, and per-run session data
+- Guided calibration, standby-only actuator tests, stable live ECU loop diagnostics, complete engine-file backup/restore, event logs, and per-run session data
 
 The setup flow is **Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard**. Hardware says what physically exists; Controllers shows what owns each output; System contains ECU-wide runtime and communications settings; Sequence owns ordered transitions.
 
