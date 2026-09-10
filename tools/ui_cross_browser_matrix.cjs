@@ -57,8 +57,22 @@ const viewports = [
           // documentElement.clientWidth does not. Comparing the two document
           // widths therefore reports the Linux scrollbar (normally 15 px) as
           // horizontal overflow on tall pages such as Calibration.
-          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-          assert.ok(overflow <= 2, `${name}/${viewport.name} horizontal overflow ${overflow}px on ${route}`);
+          const metrics = await page.evaluate(() => ({
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+            innerWidth: window.innerWidth,
+            offenders: [...document.querySelectorAll('body *')].map(element => {
+              const rect = element.getBoundingClientRect();
+              return `${element.tagName}${element.id ? `#${element.id}` : ''}.${String(element.className).replace(/\s+/g, '.')}:x=${Math.round(rect.x)},right=${Math.round(rect.right)},width=${Math.round(rect.width)}`;
+            }).filter((description, index) => {
+              const rect = document.querySelectorAll('body *')[index].getBoundingClientRect();
+              return rect.left < -2 || rect.right > window.innerWidth + 2;
+            }).slice(0, 12),
+          }));
+          assert.ok(metrics.overflow <= 2,
+            `${name}/${viewport.name} horizontal overflow ${metrics.overflow}px on ${route}; ` +
+            `scroll=${metrics.scrollWidth} client=${metrics.clientWidth} inner=${metrics.innerWidth}; ${metrics.offenders.join(', ')}`);
         }
         assert.deepEqual(errors, [], `${name}/${viewport.name} console errors`);
         await page.close();
