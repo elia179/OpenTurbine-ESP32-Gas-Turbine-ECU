@@ -53,7 +53,11 @@ const viewports = [
           const response = await page.goto(base + route, { waitUntil: 'domcontentloaded' });
           assert.ok(response && response.ok(), `${name}/${viewport.name} failed ${route}`);
           assert.ok(await page.locator('body').isVisible(), `${name}/${viewport.name} blank ${route}`);
-          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+          // window.innerWidth includes a non-overlay vertical scrollbar while
+          // documentElement.clientWidth does not. Comparing the two document
+          // widths therefore reports the Linux scrollbar (normally 15 px) as
+          // horizontal overflow on tall pages such as Calibration.
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           assert.ok(overflow <= 2, `${name}/${viewport.name} horizontal overflow ${overflow}px on ${route}`);
         }
         assert.deepEqual(errors, [], `${name}/${viewport.name} console errors`);
