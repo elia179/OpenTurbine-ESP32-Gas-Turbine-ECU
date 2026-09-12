@@ -41,12 +41,12 @@ Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically t
   SHA-256 `1CBF1F84CCAE6911C6B7E8C25E14CF8D998CFDF0189F6A076C9AEC5EE45FAFC4`.
   It leaves 47,696 bytes of OTA headroom and 19,304 bytes static DRAM, 40,288
   bytes IRAM and 116 bytes RTC slow-memory headroom. The matching LittleFS image
-  SHA-256 is `3DE4951B59E61ED1AC25488DC7CA8F86FA82398B1C2FF62E6EF01F734479C7CF`.
+  SHA-256 is `8773EC9A0A0B3A151F0B3F105EB48510FF1C21DB3DFEF2E1CB33315F04CD61CE`.
 - ✅ The final S3 publication image is `build_id 97c50aee8f342df1`, 1,640,448 bytes,
   SHA-256 `28452387C43E4C4B27F6E660664A1DEDD28409B13073BC953CBA6C6D7F6E8244`.
   It leaves 1,505,280 bytes of OTA headroom and 150,632 bytes static DRAM,
   278,528 bytes IRAM and 7,640 bytes RTC slow-memory headroom. Its LittleFS
-  SHA-256 is `72F7771CCDC8C0D138370C10AEB5EE4088467F49F2EE7880985C7FA0ED01EB18`.
+  SHA-256 is `998F24C2F3D8A5681A82653ABB03B04CDF73EC5C68072C71B701162FC7BC587E`.
 - ✅ The final post-bench delta adds only the saved dashboard-decoration
   preference, its appearance endpoint/UI, mobile documentation-image handling,
   and hosted compact-viewport coverage. Both target builds and the complete

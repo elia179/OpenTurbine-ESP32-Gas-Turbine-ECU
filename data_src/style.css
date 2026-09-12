@@ -1157,7 +1157,7 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
   flex: 0 0 auto;
   flex-wrap: nowrap;
 }
-@media (max-width: 700px) {
+@media (max-width: 850px) {
   .registry-card-summary { flex-direction: column; }
   .registry-card-actions { align-self: stretch; flex-wrap: wrap; justify-content: flex-start; }
 }
