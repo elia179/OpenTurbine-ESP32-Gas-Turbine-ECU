@@ -10,7 +10,7 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
-## [2.3.5] — 2026-09-10
+## [2.3.5] — 2026-09-12
 
 ### Fixed
 
@@ -58,10 +58,12 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
   recovery instructions, local package selection, and checksum-verified cache.
 - Hardware, Controllers, System, Sequence, Log and Tools now share the same
   theme-derived card hierarchy, accent treatment and spacing. Dense controller
-  fields are grouped by purpose, while Dashboard keeps its compact live-engine
-  layout and adds only a restrained profile accent.
+  fields are grouped by purpose. Dashboard keeps its compact live-engine layout;
+  its theme accents are enabled by default and can be removed from System >
+  Appearance. That preference travels in the saved engine file.
 - The documentation site, screenshots, favicon and Setup Tool use the current
-  OpenTurbine logo and the approved 2.3.5 interface.
+  OpenTurbine logo and the approved 2.3.5 interface. Documentation images now
+  fit phone lightboxes and support an explicit zoom-and-pan view.
 - A verified `OpenTurbine_Recommended.zip` placed beside the Setup Tool is now
   pinned for that run, so release and offline installs cannot be replaced by a
   different GitHub release. Invalid local packages stop with a clear error.

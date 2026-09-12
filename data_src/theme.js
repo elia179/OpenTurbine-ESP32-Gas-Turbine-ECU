@@ -1,7 +1,5 @@
-/* OpenTurbine UI theming — applies the saved theme, renders the pickers,
-   and drives the one-time first-run chooser. Loaded on every page.
-   Stage 1: choice persists per-browser in localStorage. (A portable
-   ecu_config.json ui_theme field can be layered on later.) */
+/* OpenTurbine UI theming — applies the saved appearance, renders the pickers,
+   and drives the one-time first-run chooser. Loaded on every page. */
 (function () {
   'use strict';
   var bootScript = document.currentScript;
@@ -42,13 +40,29 @@
     // Persist to the device so the theme travels inside ecu_config.json.
     if (!silent) { try { fetch('/api/theme?t=' + encodeURIComponent(k), { method: 'POST' }).catch(function () {}); } catch (e) {} }
   }
-  // Fresh browser with no local choice yet → adopt whatever the device has saved,
-  // so a theme stored in the engine file follows it to any new phone/browser.
+  var dashboardAccents = true;
+  function applyDashboardAccents(show) {
+    dashboardAccents = show !== false;
+    if (dashboardAccents) document.documentElement.setAttribute('data-dashboard-accents', 'on');
+    else document.documentElement.removeAttribute('data-dashboard-accents');
+    var toggle = document.getElementById('ot-dashboard-accents');
+    if (toggle) toggle.checked = dashboardAccents;
+  }
+  function setDashboardAccents(show, silent) {
+    applyDashboardAccents(show);
+    if (!silent) { try { fetch('/api/theme?a=' + (dashboardAccents ? '1' : '0'), { method: 'POST' }).catch(function () {}); } catch (e) {} }
+  }
+  // Adopt device appearance so it follows the engine file to every browser.
+  // A browser-local theme remains useful while viewing offline files, but the
+  // dashboard decoration setting always comes from the connected ECU.
   function reconcileFromDevice() {
-    try { if (localStorage.getItem(KEY)) return; } catch (e) { return; }
+    var hasLocalTheme = false;
+    try { hasLocalTheme = !!localStorage.getItem(KEY); } catch (e) {}
     try {
       fetch('/api/theme').then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.theme && VALID.indexOf(d.theme) >= 0) set(d.theme, true);
+        if (!d) return;
+        if (!hasLocalTheme && d.theme && VALID.indexOf(d.theme) >= 0) set(d.theme, true);
+        applyDashboardAccents(d.dashboard_accents !== false);
       }).catch(function () {});
     } catch (e) {}
   }
@@ -69,7 +83,10 @@
   function renderPicker(el) {
     if (!el) return;
     el.innerHTML = '<div class="ot-appx-label">Appearance</div><div class="ot-appx-grid">' +
-      THEMES.map(tile).join('') + '</div>';
+      THEMES.map(tile).join('') + '</div>' +
+      '<label class="ot-dashboard-accent-option"><input id="ot-dashboard-accents" type="checkbox" ' +
+      (dashboardAccents ? 'checked ' : '') + 'onchange="OTTheme.setDashboardAccents(this.checked)">' +
+      '<span><b>Dashboard accents</b><small>Show theme-coloured group lines and card highlights on the live dashboard.</small></span></label>';
     markActive(get());
   }
 
@@ -101,6 +118,10 @@
     '.ot-tile-dots i{width:12px;height:12px;border-radius:3px;display:block}' +
     '.ot-tile-name{display:block;padding:6px 9px 9px;font-size:.73rem;font-weight:600;line-height:1.25}' +
     '.ot-tile-tag{display:block;font-weight:400;font-size:.6rem;margin-top:1px}' +
+    '.ot-dashboard-accent-option{display:flex;align-items:flex-start;gap:.55rem;margin-top:1rem;padding:.75rem .8rem;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer}' +
+    '.ot-dashboard-accent-option input{margin:.15rem 0 0;flex:0 0 auto}' +
+    '.ot-dashboard-accent-option span{display:flex;flex-direction:column;gap:.18rem;color:var(--text);font-size:.78rem}' +
+    '.ot-dashboard-accent-option small{color:var(--dim);font-size:.7rem;line-height:1.4}' +
     '.theme-firstrun-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:1100;padding:1rem}' +
     '.theme-firstrun-box{background:var(--surface-2);border:1px solid var(--border-light);border-radius:12px;padding:20px 22px;max-width:580px;width:100%;max-height:calc(100vh - 2rem);overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.6)}' +
     '.tfr-kicker{font-size:.64rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem}' +
@@ -115,7 +136,7 @@
   } catch (e) {}
 
   window.OTTheme = {
-    get: get, set: set, apply: apply,
+    get: get, set: set, apply: apply, setDashboardAccents: setDashboardAccents,
     renderPicker: renderPicker, maybeFirstRun: maybeFirstRun, finishFirstRun: finishFirstRun,
     THEMES: THEMES
   };

@@ -63,8 +63,12 @@ if (zoomableImages.length) {
     lightbox.hidden = true;
     document.body.classList.remove('lightbox-open');
     fullImage.removeAttribute('src');
+    fullImage.classList.remove('is-zoomed');
     opener?.focus();
   };
+  fullImage.addEventListener('click', () => {
+    fullImage.classList.toggle('is-zoomed');
+  });
   const openLightbox = image => {
     opener = image;
     fullImage.src = image.currentSrc || image.src;

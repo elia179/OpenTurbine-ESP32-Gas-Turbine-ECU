@@ -31,12 +31,13 @@ nav a[aria-current="page"] { color:var(--accent); box-shadow:inset 0 -2px var(--
 .zoomable-image { cursor:zoom-in; }
 .zoomable-image:focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
 .image-lightbox[hidden] { display:none; }
-.image-lightbox { position:fixed; inset:0; z-index:1000; display:grid; grid-template-rows:auto minmax(0,1fr); padding:max(1rem,env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) max(1rem,env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left)); background:#05080cf2; }
-.image-lightbox__bar { display:flex; align-items:center; justify-content:space-between; gap:1rem; width:min(1400px,100%); margin:0 auto .75rem; }
-.image-lightbox__caption { margin:0; color:#eef4f8; font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.image-lightbox__close { min-width:44px; min-height:44px; padding:.6rem .85rem; border:1px solid #73808b; border-radius:.5rem; background:#17212b; color:#fff; cursor:pointer; }
-.image-lightbox__viewport { min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; overflow:auto; overscroll-behavior:contain; }
-.image-lightbox__image { display:block; width:auto; height:auto; max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 1rem 4rem #000; }
+.image-lightbox { position:fixed; inset:0; z-index:1000; display:grid; grid-template-rows:auto minmax(0,1fr); min-width:0; overflow:hidden; padding:max(1rem,env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) max(1rem,env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left)); background:#05080cf2; }
+.image-lightbox__bar { display:flex; align-items:center; justify-content:space-between; gap:1rem; width:min(1400px,100%); min-width:0; margin:0 auto .75rem; }
+.image-lightbox__caption { flex:1 1 auto; min-width:0; margin:0; color:#eef4f8; font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.image-lightbox__close { flex:0 0 auto; min-width:44px; min-height:44px; padding:.6rem .85rem; border:1px solid #73808b; border-radius:.5rem; background:#17212b; color:#fff; cursor:pointer; }
+.image-lightbox__viewport { width:100%; min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; overflow:auto; overscroll-behavior:contain; }
+.image-lightbox__image { display:block; width:auto; height:auto; max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 1rem 4rem #000; cursor:zoom-in; }
+.image-lightbox__image.is-zoomed { width:1100px; max-width:none; max-height:none; cursor:zoom-out; }
 .section { padding:3.5rem 0; }
 .section.alt { background:var(--surface); }
 h2 { font-size:clamp(1.6rem,3vw,2.4rem); line-height:1.2; }

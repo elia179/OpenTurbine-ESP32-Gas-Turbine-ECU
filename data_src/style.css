@@ -343,6 +343,16 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
   font-family: var(--font-ui);
   margin: 0.8rem 0 0.42rem;
 }
+.dashboard-view-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-bottom: .5rem;
+  color: var(--dim);
+  font-size: .7rem;
+}
 .telemetry-card-bin:empty { display: none !important; margin: 0; }
 .gs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
 .gs-title  { font-weight: 700; font-size: 0.9rem; color: var(--text); }
@@ -1047,6 +1057,11 @@ body[data-page="tools"] main { max-width: 1180px; }
 @media (max-width: 600px) {
   main { padding: 0.75rem; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .sensor-row button {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .card.big .value { font-size: 2.2rem; }
   .controls { flex-wrap: wrap; }
   .controls button { flex: 1 1 auto; min-width: 80px; }
@@ -2145,13 +2160,13 @@ body.telemetry-stale .sparkline {
 
 /* Dashboard feedback stays light: identify groups without enclosing the live
    instruments in another heavy card. */
-body[data-page="dashboard"] .telemetry-group-title {
+html[data-dashboard-accents="on"] body[data-page="dashboard"] .telemetry-group-title {
   display: flex;
   align-items: center;
   gap: .5rem;
   color: var(--accent);
 }
-body[data-page="dashboard"] .telemetry-group-title::before {
+html[data-dashboard-accents="on"] body[data-page="dashboard"] .telemetry-group-title::before {
   content: '';
   width: 1.25rem;
   height: 2px;
@@ -2159,7 +2174,7 @@ body[data-page="dashboard"] .telemetry-group-title::before {
   border-radius: 2px;
   background: var(--accent);
 }
-body[data-page="dashboard"] :is(
+html[data-dashboard-accents="on"] body[data-page="dashboard"] :is(
   .telemetry-group,
   .telemetry,
   #di-states-wrap,

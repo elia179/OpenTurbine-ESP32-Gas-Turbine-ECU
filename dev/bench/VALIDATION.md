@@ -30,23 +30,29 @@ superseded EGT-rate and old configuration behavior are not v2 requirements.
 
 Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically testable
 
-## v2.3.5 final release verification — 2026-09-10
+## v2.3.5 final release verification — 2026-09-12
 
-- ✅ The uninterrupted publication gate passed 11 UI audit programs, 315 safety
+- ✅ The uninterrupted publication gate passed 12 UI audit programs, 315 safety
   regression checks, 17 representative turbine setups, native command,
   controller and session behavior, 32 sensor-protocol vectors, 12 release-tool
   tests, 33 bench-harness tests, Setup Tool tests, and firmware plus LittleFS
   builds and enforced memory budgets for both targets.
-- ✅ The final Classic image is `build_id 8900fff4383ed5f5`, 1,655,712 bytes,
-  SHA-256 `E15CFE8C376143BDB37806CCEA7921AFD27245BCBD6D2043D7EFA784DCFA52BF`.
-  It leaves 48,224 bytes of OTA headroom and 19,320 bytes static DRAM, 40,288
+- ✅ The final Classic publication image is `build_id 594bc32270fcc6a2`, 1,656,240 bytes,
+  SHA-256 `1CBF1F84CCAE6911C6B7E8C25E14CF8D998CFDF0189F6A076C9AEC5EE45FAFC4`.
+  It leaves 47,696 bytes of OTA headroom and 19,304 bytes static DRAM, 40,288
   bytes IRAM and 116 bytes RTC slow-memory headroom. The matching LittleFS image
-  SHA-256 is `BF27E1B77EAD8213C2EA869E6C264BB9312D8CA9AE7EE3C16D6349D0F463312A`.
-- ✅ The final S3 image is `build_id 520f7e61fba604d3`, 1,640,016 bytes,
-  SHA-256 `8D6D28EE6F273901ABBD7FD9E4FA1D91D65F1BC730CAF0A0F0B23CDF40915F70`.
-  It leaves 1,505,712 bytes of OTA headroom and 150,632 bytes static DRAM,
+  SHA-256 is `3DE4951B59E61ED1AC25488DC7CA8F86FA82398B1C2FF62E6EF01F734479C7CF`.
+- ✅ The final S3 publication image is `build_id 97c50aee8f342df1`, 1,640,448 bytes,
+  SHA-256 `28452387C43E4C4B27F6E660664A1DEDD28409B13073BC953CBA6C6D7F6E8244`.
+  It leaves 1,505,280 bytes of OTA headroom and 150,632 bytes static DRAM,
   278,528 bytes IRAM and 7,640 bytes RTC slow-memory headroom. Its LittleFS
-  SHA-256 is `42863F11D610375285E12FCF8D41116D3E335AF6EB2C07BEB4A7F02ADB927338`.
+  SHA-256 is `72F7771CCDC8C0D138370C10AEB5EE4088467F49F2EE7880985C7FA0ED01EB18`.
+- ✅ The final post-bench delta adds only the saved dashboard-decoration
+  preference, its appearance endpoint/UI, mobile documentation-image handling,
+  and hosted compact-viewport coverage. Both target builds and the complete
+  publication gate passed again. The exact hardware qualification images before
+  that cosmetic follow-up were Classic `8900fff4383ed5f5` and S3
+  `520f7e61fba604d3`; no turbine-control path changed in the follow-up.
 - ✅ Three repeated Classic role-reversed pin/function campaigns passed 11/11,
   three digital sensor/protocol campaigns passed 9/9, the physical-output
   campaign passed 5/5, and the 20-cycle safety/storage soak passed 40/40 while
@@ -72,7 +78,7 @@ Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically t
 - ✅ Setup Tool 0.7.3 performed a clean install and a full firmware plus 12-asset
   update on each connected board. Every flashed image was verified, each ECU
   rebooted into 2.3.5 in safe STANDBY, and all served compressed assets matched
-  the release package byte for byte. The 17,834,295-byte recommended package
+  the hardware-qualification package byte for byte. That 17,834,295-byte package
   SHA-256 is `7BDD172249CBA036F812D4FEF014BF0864C9DBAE678ADDD82480C892AE8355DA`;
   the 7,251,456-byte Setup Tool SHA-256 is
   `34FC47C84F232FB55260CD5A1AEDE25B17209DB00F9BA45569260ACFC0109B04`.

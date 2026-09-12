@@ -433,6 +433,7 @@ float Config::fuelFlowValMax        = 10.0f;
 
 char  Config::profileId[64]         = {};
 char  Config::uiTheme[16]           = "carbon";
+bool  Config::dashboardAccents      = true;
 bool  Config::profileMatch          = false;
 char  Config::loadWarning[192]      = {};
 static SemaphoreHandle_t s_configWriteMutex = nullptr;

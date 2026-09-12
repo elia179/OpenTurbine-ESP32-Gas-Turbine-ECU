@@ -474,7 +474,9 @@ const server = http.createServer(async (req, res) => {
           ign_current:!!hardware.actuators?.igniter?.has_current,
           ign2_current:!!hardware.actuators?.igniter2?.has_current,
           oil_current:!!hardware.actuators?.oil_pump?.has_current,
-          fp2:actuatorOn('fuel_pump2'), ab:true, prop:actuatorOn('prop_pitch'), mode:true, loop:true
+          fp2:actuatorOn('fuel_pump2'),
+          ab:!!hardware.has_afterburner || actuatorOn('ab_sol') || actuatorOn('ab_pump'),
+          prop:actuatorOn('prop_pitch'), mode:true, loop:true
         },
         labels: {p1:hardware.labels?.p1 || 'Pressure 1', p2:hardware.labels?.p2 || 'Pressure 2'},
         registry_inputs: (hardware.channel_registry?.inputs || []).filter(channel =>
@@ -509,7 +511,10 @@ const server = http.createServer(async (req, res) => {
       target: 'esp32s3dev', chip: 'ESP32-S3', state: state.data.mode,
       outputs_active: false, ota_allowed: true
     });
-    if (req.method === 'GET' && url.pathname === '/api/theme') return sendJson(res, 200, { theme: state.settings.ui_theme || 'carbon' });
+    if (req.method === 'GET' && url.pathname === '/api/theme') return sendJson(res, 200, {
+      theme: state.settings.ui_theme || 'carbon',
+      dashboard_accents: state.settings.dashboard_accents !== false
+    });
     if (req.method === 'GET' && url.pathname === '/api/config') return sendJson(res, 200, state.settings);
     if (req.method === 'GET' && url.pathname === '/api/hardware') {
       const hardware = clone(state.hardware);
@@ -551,6 +556,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/theme') {
       state.settings.ui_theme = url.searchParams.get('t') || state.settings.ui_theme;
+      if (url.searchParams.has('a')) state.settings.dashboard_accents = url.searchParams.get('a') === '1';
       return sendJson(res, 200, { ok: true });
     }
     if ((req.method === 'POST' || req.method === 'PATCH') && url.pathname === '/api/hardware') {

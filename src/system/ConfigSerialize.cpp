@@ -580,6 +580,7 @@ void Config::_applyDefaults() {
     toolStarterEnTestMs = 1000; toolPropPitchTestMs = 3000; toolPropPitchTestPct = 50.0f;
     wsIntervalMs = 333; snapshotIntervalMs = 10000; controlLoopHz = 400; logStandby = false;
     strcpy(uiTheme, "carbon");
+    dashboardAccents = true;
     starterAssistEnabled = false; starterAssistPwmPct = 15.0f; starterAssistUntilRpm = 1000.0f;
     starterAssistOnMs = 500; starterAssistOffMs = 250; starterStartupRampPctPerSec = 10.0f;
     oilZeroBar = 0.1f; oilPressureDeadband = 0.2f;
@@ -680,6 +681,7 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     // UI theme (cosmetic; the browser falls back to the default for unknown keys)
     { const char* th = doc["ui_theme"] | "";
       if (th[0]) { strncpy(uiTheme, th, sizeof(uiTheme) - 1); uiTheme[sizeof(uiTheme) - 1] = '\0'; } }
+    dashboardAccents = doc["dashboard_accents"] | true;
 
     auto eng = doc["engine"];
     readConfigFields(eng, ENGINE_FLOAT_FIELDS);
@@ -1269,6 +1271,7 @@ void Config::_writeDoc(JsonObject doc) {
     doc["config_version"] = CONFIG_VERSION;
     doc["controller_schema"] = controllerSchema;
     doc["ui_theme"]       = uiTheme;
+    doc["dashboard_accents"] = dashboardAccents;
 
     auto eng = doc["engine"].to<JsonObject>();
     writeConfigFields(eng, ENGINE_FLOAT_FIELDS);

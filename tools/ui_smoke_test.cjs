@@ -490,7 +490,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20260910a"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20260912a"]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');
@@ -792,16 +792,27 @@ function installedBrowser() {
       sensors: { n1_rpm: { enabled: false }, n2_rpm: { enabled: false } }
     } });
     await page.goto(`${base}/system.html`);
-    await page.locator('#system-device-setup details.config-group').filter({hasText:'Interface color palette and display theme'}).locator('summary').click();
+    await page.locator('#system-device-setup details.config-group').filter({hasText:'Interface theme and dashboard decoration'}).locator('summary').click();
     await page.waitForSelector('#appearance-picker .ot-tile');
     assert.equal(await page.locator('#appearance-picker .ot-tile').count(), 6);
+    assert.equal(await page.locator('#ot-dashboard-accents').isChecked(), true);
+    await page.locator('#ot-dashboard-accents').uncheck();
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-dashboard-accents') === null);
+    assert.equal((await state(page)).settings.dashboard_accents, false);
     await page.locator('#appearance-picker [data-theme-key="daylight"]').click();
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'daylight');
     await page.waitForTimeout(100);
     assert.equal((await state(page)).settings.ui_theme, 'daylight');
     await page.locator('#appearance-picker [data-theme-key="carbon"]').click();
+    await page.goto(base);
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-dashboard-accents') === null);
+    await page.goto(`${base}/system.html`);
+    await page.locator('#system-device-setup details.config-group').filter({hasText:'Interface theme and dashboard decoration'}).locator('summary').click();
+    await page.locator('#ot-dashboard-accents').check();
+    await page.waitForFunction(() => document.documentElement.dataset.dashboardAccents === 'on');
+    assert.equal((await state(page)).settings.dashboard_accents, true);
     assert.match(await text(page, '#manual-update-tools'), /Web UI assets.*configuration and logs are retained/is);
-    results.push('appearance is owned by System and persists the selected ECU theme');
+    results.push('appearance is owned by System and persists the selected ECU theme and dashboard accents');
     await page.goto(`${base}/tools.html`);
     await page.waitForFunction(() => {
       const devButton = document.querySelector('#btn-dev-mode');

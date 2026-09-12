@@ -661,7 +661,7 @@ function renderSystemSetup() {
     category('Identity & access','Engine name, Wi-Fi connection, and dashboard appearance',
       group('Engine identity','Name used by the dashboard, Wi-Fi AP, and saved engine file',identity,true) +
       group('Wi-Fi access','Password and radio settings for the local ECU network',wifi,false,'system-wifi-access') +
-      group('Appearance','Interface color palette and display theme',appearanceFields,false),true,'system-identity-access') +
+      group('Appearance','Interface theme and dashboard decoration',appearanceFields,false),true,'system-identity-access') +
     category('Connections & runtime','External telemetry links and ECU execution diagnostics',
       group('Instrument cluster','Optional OpenTurbine serial display',clusterFields,false) +
       group('MAVLink telemetry','Optional serial telemetry for external systems',mavFields,false) +

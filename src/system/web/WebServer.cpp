@@ -2444,6 +2444,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["config_load_warning"]   = Config::loadWarning[0] ? Config::loadWarning : nullptr;
         doc["profile_id"]            = HardwareConfig::profileId;
         doc["ui_theme"]              = Config::uiTheme;
+        doc["dashboard_accents"]     = Config::dashboardAccents;
         // Session / boot stats
         doc["run_count"]             = Config::runCount;   // persisted lifetime count
         doc["start_attempt_count"]   = Config::startAttemptCount;
@@ -3317,28 +3318,40 @@ void WebServer::_setupRoutes() {
     // GET /api/theme — tiny first-visit bootstrap. Avoid downloading the full
     // telemetry/config snapshot merely to adopt the ECU's saved appearance.
     _server.on("/api/theme", HTTP_GET, [](AsyncWebServerRequest* req) {
-        char body[48];
-        snprintf(body, sizeof(body), "{\"theme\":\"%s\"}", Config::uiTheme);
+        char body[80];
+        snprintf(body, sizeof(body), "{\"theme\":\"%s\",\"dashboard_accents\":%s}",
+                 Config::uiTheme, Config::dashboardAccents ? "true" : "false");
         req->send(200, "application/json", body);
     });
 
-    // POST /api/theme?t=<key> — persist the web UI theme into ecu_config.json so it
-    // travels with the engine file. Cosmetic: not mode-gated and no event log.
+    // POST /api/theme?t=<key>&a=<0|1> — persist appearance into ecu_config.json so
+    // it travels with the engine file. Either field may be updated independently.
+    // Cosmetic: not mode-gated and no event log.
     _server.on("/api/theme", HTTP_POST, [](AsyncWebServerRequest* req) {
-        if (!req->hasParam("t")) {
-            req->send(400, "application/json", "{\"ok\":false,\"error\":\"missing t\"}");
+        if (!req->hasParam("t") && !req->hasParam("a")) {
+            req->send(400, "application/json", "{\"ok\":false,\"error\":\"missing appearance field\"}");
             return;
         }
-        String t = req->getParam("t")->value();
-        static const char* const VALID[] = { "carbon", "ember", "slate", "midnight", "contrast", "daylight" };
-        bool ok = false;
-        for (const char* v : VALID) if (t == v) { ok = true; break; }
-        if (!ok) {
-            req->send(400, "application/json", "{\"ok\":false,\"error\":\"unknown theme\"}");
-            return;
+        if (req->hasParam("t")) {
+            String t = req->getParam("t")->value();
+            static const char* const VALID[] = { "carbon", "ember", "slate", "midnight", "contrast", "daylight" };
+            bool ok = false;
+            for (const char* v : VALID) if (t == v) { ok = true; break; }
+            if (!ok) {
+                req->send(400, "application/json", "{\"ok\":false,\"error\":\"unknown theme\"}");
+                return;
+            }
+            strncpy(Config::uiTheme, t.c_str(), sizeof(Config::uiTheme) - 1);
+            Config::uiTheme[sizeof(Config::uiTheme) - 1] = '\0';
         }
-        strncpy(Config::uiTheme, t.c_str(), sizeof(Config::uiTheme) - 1);
-        Config::uiTheme[sizeof(Config::uiTheme) - 1] = '\0';
+        if (req->hasParam("a")) {
+            String a = req->getParam("a")->value();
+            if (a != "0" && a != "1") {
+                req->send(400, "application/json", "{\"ok\":false,\"error\":\"unknown dashboard accent value\"}");
+                return;
+            }
+            Config::dashboardAccents = a == "1";
+        }
         Config::requestSave();
         req->send(200, "application/json", "{\"ok\":true,\"persist\":\"deferred_until_safe\"}");
     });
