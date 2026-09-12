@@ -1,10 +1,10 @@
 # OpenTurbine Setup Tool
 
-This document describes the OpenTurbine 2.3.5 package and setup workflow. A 2.3.5
+This document describes the OpenTurbine 2.3.6 package and setup workflow. A 2.3.6
 release package must contain firmware and web assets built from the same commit
-and must report version `2.3.5` during post-install verification.
+and must report version `2.3.6` during post-install verification.
 
-OpenTurbine 2.3.5 ships with Setup Tool 0.7.3. The Windows setup tool provides
+OpenTurbine 2.3.6 ships with Setup Tool 0.7.3. The Windows setup tool provides
 two deliberately distinct paths: **Clean install
 / reinstall** erases a blank or previously used board over USB, while **Update
 and keep my setup** updates an existing OpenTurbine board over Wi-Fi without a
@@ -87,7 +87,7 @@ dist/setup_tool/OpenTurbine_Recommended.zip.sha256
 
 ## Release Checklist
 
-Before packaging 2.3.5, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
+Before packaging 2.3.6, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
 verify a clean Development-board install, bundled official PCB profile install,
 custom chip-matched profile install, and Wi-Fi update of an existing v2 ECU.
 

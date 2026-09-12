@@ -169,6 +169,7 @@ function makeSettings() {
     profile_id: 'sim-dev',
     config_version: 9,
     controller_schema: 1,
+    dashboard_accents: true,
     engine: { rpm_limit: 95000, n2_rpm_limit: 30000, min_rpm: 12000, tot_limit: 720, tot_cooldown_target: 110, tot_safe_margin: 40 },
     oil: { startup_pressure: 1.5, startup_pct: 35, startup_min_bar: 0.5, running_min: 1.2, map_min: 1.5, map_max: 3.6, use_throttle_map: true, adjust_scale: 0.1, min_pct: 12, failsafe_delay_ms: 500, failsafe_pct: 70 },
     sequence: {
@@ -513,7 +514,7 @@ const server = http.createServer(async (req, res) => {
     });
     if (req.method === 'GET' && url.pathname === '/api/theme') return sendJson(res, 200, {
       theme: state.settings.ui_theme || 'carbon',
-      dashboard_accents: state.settings.dashboard_accents !== false
+      dashboard_accents: state.settings.dashboard_accents === true
     });
     if (req.method === 'GET' && url.pathname === '/api/config') return sendJson(res, 200, state.settings);
     if (req.method === 'GET' && url.pathname === '/api/hardware') {

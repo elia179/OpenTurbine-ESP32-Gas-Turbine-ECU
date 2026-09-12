@@ -482,7 +482,7 @@ public:
     // ── Profile ID (read-only after load) ─────────────────────
     static char    profileId[64];
     static char    uiTheme[16];   // web UI theme key (cosmetic); travels in ecu_config.json
-    static bool    dashboardAccents; // dashboard decoration preference; travels with appearance
+    static bool    dashboardAccents; // true = themed accents (default); travels with appearance
     static bool    profileMatch;
 
     // ── Boot-load warning (accept + warn, never block) ────────

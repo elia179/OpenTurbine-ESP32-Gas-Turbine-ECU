@@ -45,12 +45,19 @@
     dashboardAccents = show !== false;
     if (dashboardAccents) document.documentElement.setAttribute('data-dashboard-accents', 'on');
     else document.documentElement.removeAttribute('data-dashboard-accents');
-    var toggle = document.getElementById('ot-dashboard-accents');
-    if (toggle) toggle.checked = dashboardAccents;
+    var toggle = document.getElementById('ot-dashboard-simple');
+    if (toggle) toggle.checked = !dashboardAccents;
   }
   function setDashboardAccents(show, silent) {
     applyDashboardAccents(show);
     if (!silent) { try { fetch('/api/theme?a=' + (dashboardAccents ? '1' : '0'), { method: 'POST' }).catch(function () {}); } catch (e) {} }
+  }
+  function setSimpleDashboard(simple, silent) {
+    applyDashboardAccents(!simple);
+    if (silent) return;
+    // Appearance applies immediately and persists through its lightweight
+    // endpoint, just like the theme tiles. It is not a pending form edit.
+    try { fetch('/api/theme?a=' + (dashboardAccents ? '1' : '0'), { method: 'POST' }).catch(function () {}); } catch (e) {}
   }
   // Adopt device appearance so it follows the engine file to every browser.
   // A browser-local theme remains useful while viewing offline files, but the
@@ -62,7 +69,7 @@
       fetch('/api/theme').then(function (r) { return r.json(); }).then(function (d) {
         if (!d) return;
         if (!hasLocalTheme && d.theme && VALID.indexOf(d.theme) >= 0) set(d.theme, true);
-        applyDashboardAccents(d.dashboard_accents !== false);
+        applyDashboardAccents(d.dashboard_accents === true);
       }).catch(function () {});
     } catch (e) {}
   }
@@ -84,9 +91,9 @@
     if (!el) return;
     el.innerHTML = '<div class="ot-appx-label">Appearance</div><div class="ot-appx-grid">' +
       THEMES.map(tile).join('') + '</div>' +
-      '<label class="ot-dashboard-accent-option"><input id="ot-dashboard-accents" type="checkbox" ' +
-      (dashboardAccents ? 'checked ' : '') + 'onchange="OTTheme.setDashboardAccents(this.checked)">' +
-      '<span><b>Dashboard accents</b><small>Show theme-coloured group lines and card highlights on the live dashboard.</small></span></label>';
+      '<label class="ot-dashboard-accent-option cfg-field" data-search="simple clean dashboard accents"><input id="ot-dashboard-simple" type="checkbox" ' +
+      (!dashboardAccents ? 'checked ' : '') + 'oninput="event.stopPropagation()" onchange="event.stopPropagation();OTTheme.setSimpleDashboard(this.checked)">' +
+      '<span><b class="cfg-label">Show simple, clean dashboard</b><small>Remove decorative group lines and card highlights. Turn this off to show accents from the selected theme.</small></span></label>';
     markActive(get());
   }
 
@@ -137,6 +144,7 @@
 
   window.OTTheme = {
     get: get, set: set, apply: apply, setDashboardAccents: setDashboardAccents,
+    setSimpleDashboard: setSimpleDashboard,
     renderPicker: renderPicker, maybeFirstRun: maybeFirstRun, finishFirstRun: finishFirstRun,
     THEMES: THEMES
   };

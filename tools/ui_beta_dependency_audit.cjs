@@ -716,6 +716,7 @@ async function optionDisabled(page, selector, value) {
     assert.match(await page.locator('#cal-th-raw').textContent(), /us|µs/);
     assert.match(await page.locator('#idle-raw-label').textContent(), /voltage|mV/i);
     await page.evaluate(() => {
+      stopGlobalTelemetry();
       live = {};
       window.applyData({
         fuel_flow_type: 0,

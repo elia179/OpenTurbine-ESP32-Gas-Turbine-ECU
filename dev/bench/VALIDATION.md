@@ -18,7 +18,7 @@ either target to a build-only-by-a-few-bytes state.
 
 Systematic hardware-in-the-loop validation of the OpenTurbine firmware on the
 bench rig, aimed at finding defects **before** they reach a real turbine engine.
-The current release candidate is OpenTurbine 2.3.5. DUT and tester roles may be
+The current release candidate is OpenTurbine 2.3.6. DUT and tester roles may be
 swapped between the ESP32-S3 and Classic ESP32 as a campaign requires. Tests
 drive physical ADC/PCNT/SPI/digital paths where wired and use explicit simulator
 coverage for unavailable I²C devices.
@@ -29,6 +29,39 @@ the **v2.0.0 release-candidate HIL** section as the baseline and the newer
 superseded EGT-rate and old configuration behavior are not v2 requirements.
 
 Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically testable
+
+## v2.3.6 final release verification — 2026-09-12
+
+- ✅ The uninterrupted publication gate passed all 12 UI audit programs across
+  Chromium, Firefox and WebKit from 320 to 1,920 pixels, 315 safety regression
+  checks, 17 representative turbine setups, native command/controller/session
+  behavior, 32 sensor-protocol vectors, 12 release-tool tests, 33 HIL harness
+  tests, Setup Tool tests, and firmware plus LittleFS builds and enforced memory
+  budgets for both targets.
+- ✅ The Classic image is `build_id 64f0538db9a14930`, 1,656,240 bytes, SHA-256
+  `514430B37CBF2E81A59E243AF4EEC87E554C2205B401472EAFD5649E13F3C0F4`.
+  It leaves 47,696 bytes of OTA headroom and 19,304 bytes static DRAM, 40,288
+  bytes IRAM and 116 bytes RTC slow-memory headroom. The LittleFS SHA-256 is
+  `45E126F7DB3F698AC3A17A9390032843CCD718DCF94B26F3046AF6B5D08198D6`.
+- ✅ The S3 image is `build_id 71aa3803b22b689c`, 1,640,448 bytes, SHA-256
+  `A3E6B0556F2C2D78D322EE9A69E3C29B994B2FDBD21C7F70C5A0799F679A2637`.
+  It leaves 1,505,280 bytes of OTA headroom and 150,632 bytes static DRAM,
+  278,528 bytes IRAM and 7,640 bytes RTC slow-memory headroom. Its LittleFS
+  SHA-256 is `7011CC940EC2C3217BB9069D5D98AA46DB0E622561C438AD8A51F0B6D4AB0540`.
+- ✅ A clean erase/install of those exact Classic images passed esptool hash
+  verification and booted as 2.3.6 in STANDBY with OTA allowed, build ID
+  `64f0538db9a14930`, and asset cache key `20260912c`. The fresh appearance
+  setting showed the theme-accent dashboard by default; enabling and disabling
+  the simple-dashboard option applied and persisted immediately without dirty
+  state, then restored the accented default.
+- ✅ Before the final clean flash, the same web assets passed 96 connected page
+  loads and a 113-second realistic Classic session with six navigations, two
+  persisted saves, a full engine-file download/upload/reboot cycle and exact
+  restoration. Idle heap remained about 73–75 KiB with a 38.9 KiB largest
+  allocation and zero accumulated TIME_WAIT sockets.
+- ✅ This follow-up changes appearance persistence, naming and defaults plus its
+  regression coverage and release documentation. Turbine control and hardware
+  execution paths are unchanged from the v2.3.5 hardware-qualified release.
 
 ## v2.3.5 final release verification — 2026-09-12
 

@@ -498,7 +498,10 @@ async function saveConfig() {
   // engine safety acknowledgements for a Wi-Fi name or loop-rate change.
   if (CONFIG_SURFACE === 'controllers' && !await validateBeforeSave(cfg)) return;
   if (CONFIG_SURFACE === 'system') {
-    const invalid = document.querySelector('#cfg-form input:invalid, #cfg-form select:invalid');
+    // Legacy or future-hardware values elsewhere on System must not block an
+    // unrelated Appearance save. Validate only controls changed in this edit.
+    const invalid = Array.from(document.querySelectorAll('#cfg-form input:invalid, #cfg-form select:invalid'))
+      .find(element => element.classList.contains('field-changed'));
     if (invalid) {
       invalid.reportValidity();
       invalid.focus();

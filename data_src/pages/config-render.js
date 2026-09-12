@@ -676,6 +676,7 @@ function renderSystemSetup() {
     if (openGroups.size) card.open = openGroups.has(title);
   });
   if (window.OTTheme?.renderPicker) {
+    window.OTTheme.setDashboardAccents(cfg.dashboard_accents === true, true);
     window.OTTheme.renderPicker(document.getElementById('appearance-picker'));
   }
   if (window._lastSystemData && typeof window.updateLoopDiagnostics === 'function') {
@@ -687,6 +688,7 @@ function renderSystemSetup() {
   if (cfgRestoreBtn) cfgRestoreBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
   ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, !cluster.enabled));
 }
+
 // OT_SYSTEM_ONLY_END
 // OT_CONTROLLERS_ONLY_BEGIN
 function renderSimpleControls() {

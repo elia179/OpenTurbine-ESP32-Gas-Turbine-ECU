@@ -10,6 +10,19 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.3.6] — 2026-09-12
+
+### Fixed
+
+- The dashboard presentation switch now applies and persists immediately like
+  the theme selector without creating a false unsaved-settings warning.
+
+### Changed
+
+- System → Appearance labels the option **Show simple, clean dashboard**.
+  Fresh installations leave it off and show accents from the selected theme;
+  enabling it removes the dashboard's decorative group and card accents.
+
 ## [2.3.5] — 2026-09-12
 
 ### Fixed
