@@ -18,7 +18,7 @@ either target to a build-only-by-a-few-bytes state.
 
 Systematic hardware-in-the-loop validation of the OpenTurbine firmware on the
 bench rig, aimed at finding defects **before** they reach a real turbine engine.
-The current release candidate is OpenTurbine 2.3.6. DUT and tester roles may be
+The current release candidate is OpenTurbine 2.4.0. DUT and tester roles may be
 swapped between the ESP32-S3 and Classic ESP32 as a campaign requires. Tests
 drive physical ADC/PCNT/SPI/digital paths where wired and use explicit simulator
 coverage for unavailable I²C devices.
@@ -29,6 +29,102 @@ the **v2.0.0 release-candidate HIL** section as the baseline and the newer
 superseded EGT-rate and old configuration behavior are not v2 requirements.
 
 Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically testable
+
+## v2.4.0 final focused two-target acceptance — 2026-09-15
+
+- ✅ Classic candidate `9facface408c96e7` passed the short realistic browser
+  session, persisted-value edit/restore, and complete engine-file browser
+  download/upload/reboot round trip. The role-reversed physical campaign then
+  passed 11/11 checks: PWM and relay outputs, servo output, frequency, ADC and
+  digital inputs, pulsed starter operation and physical STOP cut. Its original
+  complete engine file was restored exactly.
+- ✅ S3 candidate `8a10befa48f27f9e` passed the same short browser and complete
+  engine-file round trip. Its minimal turbine profile passed 1/1 with physical
+  observation of oil-pump PWM, fuel-shutoff relay, igniter relay and main-fuel
+  servo, plus ADC input, calibration save and a short bench startup that drove
+  outputs. Its original complete engine file was restored exactly.
+- ✅ Final bench state is S3 product firmware in STANDBY with no active outputs
+  or hardware fault; Classic runs OTBench 0.10 for the normal fixture orientation.
+
+## v2.4.0 Torque-card and running-calibration UI follow-up — 2026-09-15
+
+- ✅ The picker now offers one primary Torque card; its settings select ESP32
+  ADC, TLA2528, HX711, NAU7802, or shaft torsion by phase difference.
+  Repeatable General / additional torque cards remained addable in the browser
+  audit, and switching the primary card from phase capture to NAU7802 removed
+  the phase-only virtual speed companion.
+- ✅ The phase calibration browser audit rejected stopped-shaft zero capture.
+  It captured zero and known-torque sensitivity with telemetry in RUNNING,
+  staged both in the tab without PATCH, refused a save while still RUNNING,
+  then sent one calibration PATCH after STANDBY. The firmware's own hardware
+  PATCH gate remains STANDBY-only, preventing mid-run coefficient changes.
+- ✅ All 13 UI audit programs, 315 safety checks, 17 turbine setups and the
+  I2C/load-cell audit passed. The candidate web assets were installed on the
+  standby Classic DUT and verified served with the unified selector and
+  deferred-save control.
+- ⚠️ The last broad quick-check run stopped when Windows Application Control
+  intermittently denied a generated native test executable (WinError 4551).
+  An immediate standalone rerun of all native behavior tests passed, including
+  the phase-registry vectors. The broad run is still not an uninterrupted
+  release-gate result.
+
+## v2.4.0 pickup-count and running-zero follow-up — 2026-09-15
+
+- ✅ Separate reference/phase pulse counts are visible in Hardware. The Classic
+  ECU serializes the new `phase_pulses_per_unit` value, and a mismatched value
+  received HTTP 400. After the rejection reboot, the saved value remained 1.
+- ✅ Candidate Classic build `9facface408c96e7` and updated web assets were
+  installed on the standby bench DUT. OTBench drove both pickups at 10 Hz and
+  36°: live telemetry reported healthy torque, 600 reference RPM, 18 Nm and
+  1.13 kW. After `PHASE 0 0`, `torque_phase_rpm` fell to zero, torque was
+  unhealthy and shaft power absent, so a stale phase raw value cannot pass
+  the running-zero calibration gate.
+- ✅ Classic and S3 release-mode builds, the phase-torque browser audit, the
+  beta UI audit and 315 safety-regression checks passed. Browser audit verified
+  an attempted stopped-shaft phase-zero capture made no calibration PATCH.
+- ⚠️ Unequal unindexed wheel counts remain unsupported. Their varying tooth
+  correspondence cannot be corrected by one zero offset; an indexed or
+  per-tooth estimator is needed before such hardware can be accepted.
+
+## v2.4.0 phase-torque pre-push verification — 2026-09-15
+
+- ✅ Classic ESP32 was the primary DUT, with the S3 running OTBench 0.10 and
+  generating two synchronized square waves on the existing GPIO4/GPIO18 loom.
+  At 5 Hz and 72° the common 80 MHz MCPWM timer measured 299.9 RPM, 36 Nm at
+  2°/Nm, and 1.13 kW. At 10 Hz and 36° it measured 599.7 RPM, 18 Nm and the
+  same power, proving that the angular torque calibration is speed-independent.
+- ✅ Removing only the phase pickup invalidated torque and power while the
+  reference-derived RPM stayed healthy. Removing the reference invalidated
+  both. Zero-phase and direct 3°/Nm sensitivity calibration passed across real
+  save/reboot/readback cycles.
+- ✅ Torque-only, N1, N2, and Torque Shaft Speed configurations were exercised.
+  Torque-only omitted RPM and power. N1 and N2 each read about 599 RPM and
+  rejected a second owner for the selected shaft without changing the stored
+  configuration. Torque Shaft Speed was available as the virtual companion
+  without allocating another GPIO or PCNT unit.
+- ✅ Chip Detector and Differential Pressure Switch each followed low/high
+  signals through the ordinary digital-input path on both targets, stayed
+  healthy, and did not leave STANDBY or trigger an automatic shutdown.
+- ✅ Role-reversed S3 product validation used Classic OTBench 0.10 on the
+  GPIO14/GPIO8 loom. S3 measured 599.5 RPM, 18 Nm and 1.13 kW and passed both
+  independent pickup-loss cases plus both named-switch input transitions.
+- ✅ The exact Classic product image (`b4e660eb2eb04c98`) completed a 594-second
+  realistic browser session with 34 connected navigations, two persisted saves
+  restored to the original value, and a complete engine-file download/upload/
+  reboot round trip. The S3 image (`0cf5fa871e95e1c9`) passed the same workflows
+  in a 153-second session with 11 navigations. Neither target rebooted outside
+  the intentional restore. Classic heap settled around 71–74 KiB during page
+  cycling and returned to about 77 KiB with a 38.9 KiB largest allocation.
+- ✅ The Classic chunked web updater accepted all 12 assets, acknowledged
+  replay of both the first and final chunks, and restarted cleanly. Every asset
+  served afterward was byte-identical to `data/*.gz`. A separate live audit
+  passed 28 phase-feature page loads at 320, 390, 768 and 1920 pixels with no
+  horizontal overflow; dashboard RPM/power and both Hardware subcards were
+  present.
+- ✅ Final builds use 1,660,796 flash / 105,088 static RAM on Classic and
+  1,646,284 flash / 128,236 static RAM on S3. Classic remains the review DUT in
+  STANDBY with Torque Shaft Speed selected and live 600 RPM / 18 Nm / 1.13 kW
+  stimulus; both named switch cards are installed and inactive.
 
 ## v2.3.6 final release verification — 2026-09-12
 

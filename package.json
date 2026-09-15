@@ -5,6 +5,7 @@
     "docs:config-reference": "node tools/generate_site_config_reference.cjs"
   },
   "dependencies": {
-    "playwright": "1.61.1"
+    "playwright": "1.61.1",
+    "terser": "5.44.0"
   }
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include "../../system/Diagnostics.h"
 #include "IActuator.h"
 #include <Arduino.h>
 
@@ -68,7 +69,7 @@ public:
             _maxDuty = (1u << _resBits) - 1;
             ok = ledcAttach(_pin, _freqHz, _resBits);
         }
-        Serial.printf("[%s] LEDC attach pin=%d freq=%luHz bits=%u %s\n",
+        OT_DEBUG_PRINTF("[%s] LEDC attach pin=%d freq=%luHz bits=%u %s\n",
                       _name, _pin, (unsigned long)_freqHz, (unsigned)_resBits,
                       ok ? "OK" : "FAILED");
         _ready = ok;
@@ -117,7 +118,7 @@ private:
         if (_lastDuty != NO_DUTY &&
             ((duty == 0) != (_lastDuty == 0) ||
              (duty == _maxDuty) != (_lastDuty == _maxDuty))) {
-            Serial.printf("[%s] LEDC duty pin=%d duty=%lu/%lu\n",
+            OT_DEBUG_PRINTF("[%s] LEDC duty pin=%d duty=%lu/%lu\n",
                           _name, _pin, (unsigned long)duty, (unsigned long)_maxDuty);
         }
 

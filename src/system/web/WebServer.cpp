@@ -1977,6 +1977,7 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount && i < 32; ++i)
         if (ed.registryOutputCurrentHealthy[i]) outputCurrentHealthyMask |= (1UL << i);
     doc["io"] = inputOnMask; doc["ih"] = inputHealthyMask;
+    doc["pr"] = (int)lroundf(ed.phaseTorqueRpm);
     doc["oo"] = outputOnMask; doc["oh"] = outputCurrentHealthyMask;
     doc["di"] = diOnMask;
 
@@ -2097,6 +2098,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["last_run_flame_avg"]    = (float)(int)(ed.lastRunFlameAvg * 10) / 10.0f;
     doc["last_run_flame_samples"] = ed.lastRunFlameSamples;
     doc["torque_raw"]            = ed.torqueRaw;
+    doc["torque_phase_rpm"]     = (int)lroundf(ed.phaseTorqueRpm);
     doc["p1"]                    = (float)(int)(std::max(0.0f, p1Bar) * 100) / 100.0f;
     doc["p2"]                    = (float)(int)(std::max(0.0f, p2Bar) * 100) / 100.0f;
     doc["p1_raw"]                = ed.p1Raw;
@@ -2298,8 +2300,29 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["batt_healthy"]          = ed.battHealthy;
     doc["max_batt_voltage"]      = (float)(int)(ed.maxBattVoltage * 100) / 100.0f;
     doc["torque"]                = (float)(int)(ed.torque * 10) / 10.0f;
-    if (HardwareConfig::hasTorque && HardwareConfig::hasN2Rpm &&
-        ed.torqueHealthy && ed.n2Healthy && ed.n2Rpm > 0) {
+    uint8_t phaseSpeedSource = 0;
+    bool hasPhaseTorque = false;
+    bool phasePowerReady = false;
+    for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
+        const auto& input = HardwareConfig::channelRegistry.inputs[i];
+        if (!input.installed || input.torqueInterface != 2 || strcmp(input.purpose, "torque")) continue;
+        hasPhaseTorque = true;
+        phaseSpeedSource = input.phaseSpeedSource;
+        if (phaseSpeedSource == 1) phasePowerReady = ed.n1Healthy && ed.n1Rpm > 0;
+        else if (phaseSpeedSource == 2) phasePowerReady = ed.n2Healthy && ed.n2Rpm > 0;
+        else if (phaseSpeedSource == 3) {
+            for (uint8_t j = 0; j < HardwareConfig::channelRegistry.inputCount; ++j) {
+                const auto& speed = HardwareConfig::channelRegistry.inputs[j];
+                if (speed.mirrorOf[0] && !strcmp(speed.mirrorOf, input.id)) {
+                    phasePowerReady = ed.registryInputHealthy[j] && ed.registryInputValue[j] > 0;
+                    break;
+                }
+            }
+        }
+        break;
+    }
+    if (HardwareConfig::hasTorque && ed.torqueHealthy &&
+        hasPhaseTorque && phasePowerReady) {
         doc["turbo_power_w"]     = (int)ed.turboPower;
     } else {
         doc["turbo_power_w"]     = nullptr;
@@ -2576,6 +2599,8 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["name"] = c.name;
             ch["role"] = c.role;
             ch["purpose"] = c.purpose;
+            if (c.mirrorOf[0]) ch["mirror_of"] = c.mirrorOf;
+            if (c.torqueInterface == 2) ch["phase_speed_source"] = c.phaseSpeedSource;
             ch["driver"] = (uint8_t)c.driver;
             ch["pin"] = c.pin;
             ch["min"] = c.minValue;
@@ -4493,8 +4518,10 @@ void WebServer::_setupRoutes() {
                                  strcmp(key, "ntc_r_fixed") != 0 &&
                                  strcmp(key, "temp_resolution") != 0 &&
                                  strcmp(key, "loadcell_zero") != 0 &&
-                                  strcmp(key, "loadcell_n_per_count") != 0 &&
-                                  strcmp(key, "lever_arm_m") != 0 &&
+                                 strcmp(key, "loadcell_n_per_count") != 0 &&
+                                 strcmp(key, "phase_zero_deg") != 0 &&
+                                 strcmp(key, "phase_deg_per_nm") != 0 &&
+                                 strcmp(key, "lever_arm_m") != 0 &&
                                   strcmp(key, "digital_threshold_raw") != 0 &&
                                   strcmp(key, "filter_alpha") != 0) {
                             patchAllowed = false;

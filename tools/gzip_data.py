@@ -3,7 +3,7 @@
 Compress web assets from data_src/ into data/ as .gz files.
 Run this after editing any HTML/JS/CSS file, then do: pio run -t uploadfs
 """
-import gzip, hashlib, os, re
+import gzip, hashlib, os, re, subprocess
 
 from build_web_sources import main as build_web_sources
 
@@ -46,6 +46,16 @@ for fname in os.listdir(SRC):
         # LittleFS space. Only remove complete comment lines; inline tokens,
         # strings, regexes, and executable code remain byte-for-byte intact.
         data = re.sub(rb"(?m)^[ \t]*//[^\r\n]*(?:\r?\n|$)", b"", data)
+        # Keep editable sources readable while reducing the installed shared
+        # scripts enough to preserve the Classic ESP32 working/log reserve.
+        # Terser's default non-top-level mangling retains globals referenced by
+        # page markup and other scripts.
+        data = subprocess.run(
+            ["node", os.path.join(os.path.dirname(__file__), "minify_web_js.cjs")],
+            input=data,
+            stdout=subprocess.PIPE,
+            check=True,
+        ).stdout
     elif os.path.splitext(fname)[1] == ".css":
         # CSS comments document the editable source but are never observed by
         # the browser. Removing them keeps the approved UI within the Classic

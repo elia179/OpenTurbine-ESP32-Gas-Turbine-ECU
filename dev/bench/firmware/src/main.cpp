@@ -18,6 +18,9 @@
 //                              digital_out    : value !=0 = HIGH (3.3 V), 0 = LOW (0 V)
 //                              freq_out       : value = Hz (square wave), 0 = off
 //                              dac_out        : value = volts 0..3.3 (true DAC, GPIO25/26)
+//    PHASE <Hz> <deg> [mask] -> synchronized N1/N2 square waves; mask bits enable each pickup
+//    PHASE 0 0            -> stop the synchronized phase-pair generator
+//    PHASESTAT            -> report configured timing and observed pickup levels
 //    GET <name>           -> read an input-kind signal:
 //                              digital_in     : VAL <name> level=<0|1>
 //                              pwm_in_*        : VAL <name> us=<high> hz=<f> duty=<d> level=<0|1>
@@ -35,8 +38,10 @@
 #include <stdlib.h>    // atoi, atof
 #include "soc/gpio_reg.h"  // GPIO_OUT_W1TS_REG / GPIO_IN1_REG for fast ISR pin access
 #include "driver/ledc.h"   // raw ESP-IDF LEDC: explicit per-timer control so N1/N2 are independent
+#include "esp_timer.h"     // synchronized dual-pickup phase stimulus (tester only)
+#include "driver/gpio.h"
 
-static const char* OTBENCH_VER = "0.9";
+static const char* OTBENCH_VER = "0.10";
 
 // ── Signal kinds ─────────────────────────────────────────────
 enum Kind {
@@ -614,6 +619,54 @@ static void initSignals() {
     }
 }
 
+// Bench-only paired square waves on the two existing RPM jumper paths. Four
+// scheduled edges share one clock, so the ECU can distinguish a calibrated
+// phase shift from two independent LEDC oscillators drifting against each other.
+// Mask bit 0 drives the reference, bit 1 the phase pickup; masking the latter
+// tests that torque loss leaves reference-derived speed healthy.
+static esp_timer_handle_t phaseTimer = nullptr;
+static uint32_t phaseHalfUs = 0, phaseDelayUs = 0;
+static uint8_t phaseStage = 0, phaseMask = 0;
+static void phaseTick(void*) {
+    const Signal* ref = findSignal("N1");
+    const Signal* pickup = findSignal("N2");
+    if (!ref || !pickup || !phaseHalfUs) return;
+    if (phaseStage == 0) digitalWrite(ref->gpio, phaseMask & 1 ? HIGH : LOW);
+    else if (phaseStage == 1) digitalWrite(pickup->gpio, phaseMask & 2 ? HIGH : LOW);
+    else if (phaseStage == 2) digitalWrite(ref->gpio, LOW);
+    else digitalWrite(pickup->gpio, LOW);
+    const uint32_t waitUs = (phaseStage & 1) ? phaseHalfUs - phaseDelayUs : phaseDelayUs;
+    phaseStage = (phaseStage + 1) & 3;
+    esp_timer_start_once(phaseTimer, waitUs);
+}
+static void stopPhasePair() {
+    phaseHalfUs = 0;
+    if (phaseTimer && esp_timer_is_active(phaseTimer)) esp_timer_stop(phaseTimer);
+    const Signal* ref = findSignal("N1");
+    const Signal* pickup = findSignal("N2");
+    if (ref) digitalWrite(ref->gpio, LOW);
+    if (pickup) digitalWrite(pickup->gpio, LOW);
+}
+static bool startPhasePair(float hz, float degrees, uint8_t mask) {
+    if (!phaseTimer || !isfinite(hz) || hz < 1 || hz > 500 ||
+        !isfinite(degrees) || degrees < 1 || degrees > 179 || mask > 3) return false;
+    stopPhasePair();
+    for (const char* name : {"N1", "N2"}) {
+        const Signal* s = findSignal(name);
+        if (!s) return false;
+        safeState(*s); // release the independently clocked LEDC channels
+        gpio_reset_pin((gpio_num_t)s->gpio); // release LEDC's output-matrix route
+        pinMode(s->gpio, OUTPUT);
+        digitalWrite(s->gpio, LOW);
+    }
+    phaseHalfUs = (uint32_t)(500000.0f / hz);
+    phaseDelayUs = (uint32_t)(degrees * phaseHalfUs / 180.0f);
+    phaseDelayUs = constrain(phaseDelayUs, 1U, phaseHalfUs - 1U);
+    phaseMask = mask;
+    phaseStage = 0;
+    return esp_timer_start_once(phaseTimer, 1000) == ESP_OK;
+}
+
 // ── Output application ───────────────────────────────────────
 static bool applyOutput(const Signal& s, const char* valStr, String& err) {
     switch (s.kind) {
@@ -783,6 +836,7 @@ static void handleLine(char* line) {
         return;
     }
     if (strcasecmp(cmd, "RESET") == 0) {
+        stopPhasePair();
 #if defined(OTBENCH_S3)
         if (g_emuMode != EMU_NONE) emuStop();
 #else
@@ -895,9 +949,31 @@ static void handleLine(char* line) {
         Signal* s = findSignal(name);
         if (!s) { Serial.printf("ERR unknown signal %s\n", name); return; }
         if (!isOutputKind(s->kind)) { Serial.printf("ERR %s is not an output\n", name); return; }
+        if (s->kind == FREQ_OUT && phaseHalfUs) stopPhasePair();
         String err;
         if (applyOutput(*s, val, err)) Serial.println("OK");
         else                          Serial.printf("ERR %s\n", err.c_str());
+        return;
+    }
+    if (strcasecmp(cmd, "PHASE") == 0) {
+        char* hz = strtok(nullptr, " \t");
+        char* deg = strtok(nullptr, " \t");
+        char* mask = strtok(nullptr, " \t");
+        if (!hz || !deg) { Serial.println("ERR usage: PHASE <hz or 0> <degrees> [mask=3]"); return; }
+        if (atof(hz) == 0) { stopPhasePair(); Serial.println("OK"); return; }
+        if (startPhasePair(atof(hz), atof(deg), mask ? atoi(mask) : 3)) Serial.println("OK");
+        else Serial.println("ERR phase range: 1..500 Hz, 1..179 degrees, mask 0..3");
+        return;
+    }
+    if (strcasecmp(cmd, "PHASESTAT") == 0) {
+        const Signal* ref = findSignal("N1");
+        const Signal* pickup = findSignal("N2");
+        uint32_t high = ref ? pulseIn(ref->gpio, HIGH, 300000) : 0;
+        uint32_t low = ref ? pulseIn(ref->gpio, LOW, 300000) : 0;
+        uint32_t other = pickup ? pulseIn(pickup->gpio, HIGH, 300000) : 0;
+        Serial.printf("VAL PHASE half=%lu delay=%lu mask=%u ref_high=%lu ref_low=%lu pickup_high=%lu\n",
+                      (unsigned long)phaseHalfUs, (unsigned long)phaseDelayUs, phaseMask,
+                      (unsigned long)high, (unsigned long)low, (unsigned long)other);
         return;
     }
     if (strcasecmp(cmd, "GET") == 0) {
@@ -929,6 +1005,10 @@ void setup() {
     Serial.begin(115200);
     delay(200);
     initSignals();
+    esp_timer_create_args_t timerArgs = {};
+    timerArgs.callback = phaseTick;
+    timerArgs.name = "phase_pair";
+    esp_timer_create(&timerArgs, &phaseTimer);
 #if !defined(OTBENCH_S3)
     totBegin();
     Serial.printf("OK OTBench %s ready (%d signals + TOT thermocouple)\n", OTBENCH_VER, NUM_SIGNALS);

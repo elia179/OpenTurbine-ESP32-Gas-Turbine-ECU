@@ -1,0 +1,26 @@
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:4640
+load:0x40078000,len:15660
+load:0x40080400,len:3164
+entry 0x4008059c
+
+[OT] OpenTurbine booting - default profile: OpenTurbine
+[OT] LittleFS OK
+[OT] Boot #6
+[OT] Reset reason: POWER_ON (1)
+[OT] system diagnostics ready
+[HWCfg] Loaded OK - profile: OpenTurbine
+[Config] Completing missing settings sections in ecu_config.json
+[Config] Loaded OK - profile: OpenTurbine
+[VALIDATE] WARN startup: No starter, spool, or air-starter action is present. The sequence assumes the rotor is spooled externally; add a starter action unless manual/external starting is intentional.
+[OT] Starting web server
+[WiFi] AP: OpenTurbine  IP: 192.168.4.1  (open network)  TX=8 dBm
+[WiFi] Captive portal DNS started
+[WiFi] mDNS: http://ot.local
+[WebServer] Started on port 80
+[OT] Web server ready

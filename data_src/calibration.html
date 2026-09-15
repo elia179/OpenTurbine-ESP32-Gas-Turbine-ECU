@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260912c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260912c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260915c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260915c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -535,6 +535,20 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       </div>
       <div id="torque-hx711-status" style="font-size:.75rem;color:var(--dim)"></div>
     </div>
+    <div class="wizard" id="torque-phase-wizard" style="display:none">
+      <div class="wizard-title">Shaft torsion calibration (phase difference)</div>
+      <div class="wizard-steps">Use equal effective tooth counts on both conditioned pickups. Stopped tooth positions do not establish phase zero: both calibration points require fresh pickup edges while the shaft is spinning.<br>
+        1. Spin the shaft with verified zero transmitted torque, then capture the running phase zero.<br>
+        2. Keep it spinning, apply trusted known torque, enter Nm and capture shaft sensitivity. If you cannot safely produce a spinning zero-load state, use a trusted previously measured running zero; do not guess from static tooth alignment.<br>
+        In engine RUNNING mode, captures are held in this browser tab and must be saved after returning to STANDBY. Calibration is never changed mid-run.</div>
+      <div class="wiz-buttons" style="margin-bottom:.4rem">
+        <button onclick="capturePhaseTorqueZero()">Capture zero phase</button>
+        <label>Known torque (Nm) <input id="torque-phase-known" type="number" step="0.01" style="width:7rem"></label>
+        <button onclick="savePhaseTorqueKnown()">Capture known torque</button>
+        <button id="torque-phase-pending-save" style="display:none" onclick="savePendingPhaseTorqueCalibration()">Save captured calibration in STANDBY</button>
+      </div>
+      <div id="torque-phase-status" style="font-size:.75rem;color:var(--dim)"></div>
+    </div>
     <div id="torque-loadcell-wizard"></div>
   </div>
 
@@ -990,15 +1004,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Torque sensor type — switch ADC vs HX711 wizard ──────────────────────────
   const torqueRegistry = registryChannelByPurpose(c.hardware, 'inputs', 'torque');
   const isHX711 = Number(torqueRegistry?.torque_interface || 0) === 1;
+  const isPhaseTorque = Number(torqueRegistry?.torque_interface || 0) === 2;
   const isNauTorque = Number(torqueRegistry?.driver) === 10;
-  setText('torque-raw-label', (isHX711 || isNauTorque) ? 'Raw load-cell count' : 'ADC pin voltage');
+  setText('torque-raw-label', isPhaseTorque ? 'Measured shaft phase' :
+    ((isHX711 || isNauTorque) ? 'Raw load-cell count' : 'ADC pin voltage'));
   const thrustRegistry = registryChannelByPurpose(c.hardware, 'inputs', 'thrust');
   setText('thrust-raw-label', Number(thrustRegistry?.driver) === 10
     ? 'Raw load-cell count' : 'ADC pin voltage');
   const adcWiz  = document.getElementById('torque-adc-wizard');
   const hxWiz   = document.getElementById('torque-hx711-wizard');
-  if (adcWiz) adcWiz.style.display  = (isHX711 || isNauTorque) ? 'none' : '';
+  const phaseWiz = document.getElementById('torque-phase-wizard');
+  if (adcWiz) adcWiz.style.display  = (isHX711 || isNauTorque || isPhaseTorque) ? 'none' : '';
   if (hxWiz)  hxWiz.style.display   = isHX711 ? '' : 'none';
+  if (phaseWiz) phaseWiz.style.display = isPhaseTorque ? '' : 'none';
+  if (isPhaseTorque) showPendingPhaseTorqueCalibration();
   renderLoadCellWizard('torque', torqueRegistry);
   renderLoadCellWizard('thrust', thrustRegistry);
   revealCalibrationDeepLink();
@@ -1306,7 +1325,10 @@ window.applyData = function(d) {
     const torqueChannel = registryChannelByPurpose(cfg.hardware || {}, 'inputs', 'torque');
     const torqueIsLoadCell = Number(torqueChannel?.driver) === 10 ||
       Number(torqueChannel?.torque_interface || 0) === 1;
-    setText('cal-torque-raw', torqueIsLoadCell ? (d.torque_raw ?? '—') : adcMvText(d.torque_raw));
+    const torqueIsPhase = Number(torqueChannel?.torque_interface || 0) === 2;
+    setText('cal-torque-raw', torqueIsPhase ?
+      (Number.isFinite(Number(d.torque_raw)) ? (Number(d.torque_raw)/1000000).toFixed(4) + '°' : '—') :
+      (torqueIsLoadCell ? (d.torque_raw ?? '—') : adcMvText(d.torque_raw)));
     bar('bar-torque', d.torque, 0, parseFloat(document.getElementById('torque-fullscale')?.value || '100'), true);
   }
   if (hasThrust && d.thrust !== undefined) {
@@ -2502,6 +2524,112 @@ function saveLoadCellKnown(kind) {
   });
 }
 
+let _phaseTorqueZeroDeg = null;
+const PHASE_TORQUE_PENDING_KEY = 'ot-phase-torque-running-calibration';
+function phaseTorqueCalibrationFingerprint(channel) {
+  return JSON.stringify([cfg?.profile_id ?? '',channel?.id,channel?.pin,channel?.phase_pin,
+    channel?.pulses_per_unit ?? 1,channel?.phase_pulses_per_unit ?? channel?.pulses_per_unit ?? 1]);
+}
+function pendingPhaseTorqueCalibration() {
+  const channel = registryInputById('torque');
+  if (!channel || Number(channel.torque_interface) !== 2) return null;
+  try {
+    const pending = JSON.parse(sessionStorage.getItem(PHASE_TORQUE_PENDING_KEY) || 'null');
+    if (pending?.fingerprint !== phaseTorqueCalibrationFingerprint(channel)) return null;
+    return pending;
+  } catch (_) { return null; }
+}
+function showPendingPhaseTorqueCalibration() {
+  const pending = pendingPhaseTorqueCalibration();
+  const button = document.getElementById('torque-phase-pending-save');
+  if (button) button.style.display = pending ? '' : 'none';
+  return pending;
+}
+function stagePhaseTorqueCalibration(fields) {
+  const channel = registryInputById('torque');
+  if (!channel) return false;
+  const pending = {...pendingPhaseTorqueCalibration(),fingerprint:phaseTorqueCalibrationFingerprint(channel),...fields};
+  sessionStorage.setItem(PHASE_TORQUE_PENDING_KEY,JSON.stringify(pending));
+  showPendingPhaseTorqueCalibration();
+  return true;
+}
+function savePendingPhaseTorqueCalibration() {
+  const pending = showPendingPhaseTorqueCalibration();
+  if (!pending) { alert('No matching captured phase calibration is pending. Capture it again with this hardware configuration.'); return; }
+  if (live.mode !== 'STANDBY') { alert('Stop the engine and wait for STANDBY before saving captured calibration.'); return; }
+  const fields = {};
+  if (Number.isFinite(pending.zero_deg)) fields.phase_zero_deg = pending.zero_deg;
+  if (Number.isFinite(pending.deg_per_nm)) fields.phase_deg_per_nm = pending.deg_per_nm;
+  if (!Object.keys(fields).length) return;
+  const patch = registryCalibrationPatch('torque',fields);
+  if (!patch) return;
+  patchHardware(patch,() => {
+    const channel = registryInputById('torque');
+    if (channel) Object.assign(channel,fields);
+    sessionStorage.removeItem(PHASE_TORQUE_PENDING_KEY);
+    showPendingPhaseTorqueCalibration();
+    document.getElementById('torque-phase-status').textContent = 'Captured running calibration saved in STANDBY.';
+  });
+}
+document.addEventListener('DOMContentLoaded',showPendingPhaseTorqueCalibration,{once:true});
+function livePhaseTorqueDegrees() {
+  if (live.torque_healthy !== true || !(Number(live.torque_phase_rpm) > 0) ||
+      !Number.isFinite(Number(live.torque_raw))) return null;
+  return Number(live.torque_raw) / 1000000;
+}
+function capturePhaseTorqueZero() {
+  const phase = livePhaseTorqueDegrees();
+  if (phase === null) { alert('Spin the shaft at verified zero torque and wait for healthy, fresh readings from both pickups. Static tooth alignment cannot be calibrated.'); return; }
+  if (live.mode === 'RUNNING') {
+    _phaseTorqueZeroDeg = phase;
+    if (stagePhaseTorqueCalibration({zero_deg:phase,deg_per_nm:null}))
+      document.getElementById('torque-phase-status').textContent =
+        `Running zero captured at ${phase.toFixed(3)} shaft degrees. Capture known torque, then save in STANDBY.`;
+    return;
+  }
+  const patch = registryCalibrationPatch('torque', {phase_zero_deg:phase});
+  if (!patch) return;
+  patchHardware(patch, () => {
+    _phaseTorqueZeroDeg = phase;
+    const channel = registryInputById('torque');
+    if (channel) channel.phase_zero_deg = phase;
+    document.getElementById('torque-phase-status').textContent =
+      `Zero saved at ${phase.toFixed(3)} shaft degrees. Apply a known torque to set sensitivity.`;
+  });
+}
+function savePhaseTorqueKnown() {
+  const knownNm = Number(document.getElementById('torque-phase-known').value);
+  const phase = livePhaseTorqueDegrees();
+  const channel = registryInputById('torque');
+  const zero = _phaseTorqueZeroDeg ?? pendingPhaseTorqueCalibration()?.zero_deg ?? Number(channel?.phase_zero_deg ?? 0);
+  const ppr = Number(channel?.pulses_per_unit ?? 1);
+  if (!Number.isFinite(knownNm) || Math.abs(knownNm) < 0.001 || phase === null ||
+      !Number.isFinite(ppr) || ppr <= 0) {
+    alert('Enter nonzero known torque while the shaft is spinning and wait for healthy phase readings.'); return;
+  }
+  const tooth = 360 / ppr;
+  let delta = phase - zero;
+  while (delta >= tooth/2) delta -= tooth;
+  while (delta < -tooth/2) delta += tooth;
+  const sensitivity = delta / knownNm;
+  if (!Number.isFinite(sensitivity) || Math.abs(sensitivity) < 0.000001 ||
+      Math.abs(sensitivity) > 180) {
+    alert('The measured phase change is too small or outside the supported sensitivity. Check the pickup signals and applied torque.'); return;
+  }
+  const patch = registryCalibrationPatch('torque', {phase_deg_per_nm:sensitivity});
+  if (!patch) return;
+  if (live.mode === 'RUNNING') {
+    if (stagePhaseTorqueCalibration({deg_per_nm:sensitivity}))
+      document.getElementById('torque-phase-status').textContent =
+        `Known-torque point captured: ${sensitivity.toFixed(6)} shaft degrees per Nm. Save after STANDBY.`;
+    return;
+  }
+  patchHardware(patch, () => {
+    if (channel) channel.phase_deg_per_nm = sensitivity;
+    document.getElementById('torque-phase-status').textContent =
+      `Saved ${sensitivity.toFixed(6)} shaft degrees per Nm from ${knownNm} Nm.`;
+  });
+}
 let _torqueZeroRaw = null;
 function captureTorqueZero() {
   const raw = live.torque_raw;

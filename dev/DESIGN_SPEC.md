@@ -939,16 +939,15 @@ framework = arduino
 board_build.filesystem = littlefs
 
 lib_deps =
-    adafruit/MAX6675 library
     bblanchon/ArduinoJson
     ESP32Async/ESPAsyncWebServer
     ESP32Async/AsyncTCP
     paulstoffregen/OneWire
-    milesburton/DallasTemperature
 
 build_flags =
     -std=gnu++17
     -DCORE_DEBUG_LEVEL=0
+    # Add -DOT_ENABLE_DEBUG_SERIAL=1 for verbose bench/state tracing.
 
 monitor_speed = 115200
 ```

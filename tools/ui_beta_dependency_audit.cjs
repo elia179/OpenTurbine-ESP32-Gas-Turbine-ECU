@@ -121,11 +121,11 @@ async function optionDisabled(page, selector, value) {
     for (const [id, isShown] of Object.entries(cards)) assert.equal(isShown, true, `${id} should show with full hardware`);
     results.push('dashboard shows every fitted full-hardware card and advanced section');
 
-    await patchData(page, { has_torque: true, has_n2: true, n2_healthy: false, turbo_power_w: 12345 });
-    await page.waitForFunction(() => document.getElementById('turbo-power')?.textContent.trim() === 'N2 required', null, {timeout:4000});
+    await patchData(page, { has_torque: true, has_n2: true, n2_healthy: false, turbo_power_w: null });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('torque-power-row')).display === 'none', null, {timeout:4000});
     assert.equal(await shown(page, '#torque-card'), true, 'torque card should still show when torque is fitted without N2');
-    assert.equal((await page.locator('#turbo-power').textContent()).trim(), 'N2 required');
-    results.push('dashboard shaft power display requires healthy fitted N2 feedback');
+    assert.equal(await shown(page, '#torque-power-row'), false, 'unavailable shaft power should not add dashboard clutter');
+    results.push('dashboard keeps torque visible and hides unavailable shaft power');
 
     await patchData(page, {
       has_n2: false, has_tit: false, has_oil_press: false, has_flame: false, has_p1: false, has_p2: false,
@@ -217,7 +217,7 @@ async function optionDisabled(page, selector, value) {
     }));
     assert.deepEqual(typeMatrix, {
       mainFuel:[5,6], starter:[4,5,6,11], oilPump:[4,5,6,11], igniter:[4,5,11],
-      abPump:[4,5,6,11], propPitch:[4,5,6,11], tot:[1,9], torque:[1,9,10],
+      abPump:[4,5,6,11], propPitch:[4,5,6,11], tot:[1,9], torque:[1,2,9,10],
       abFlame:[0,1,8,9], throttle:[1,3,2,7,9]
     });
     results.push('hardware editor type selectors include only compatible native and shared-I2C signal types');
@@ -274,7 +274,8 @@ async function optionDisabled(page, selector, value) {
     assert.match(sensorInterfaceUx.totEditor, /Sensor interface/);
     assert.match(sensorInterfaceUx.torqueEditor, /HX711 SCK GPIO/);
     assert.match(sensorInterfaceUx.torqueEditor, /Sensor interface/);
-    assert.match(sensorInterfaceUx.torqueSignalEditor, /NAU7802 load cell/);
+    assert.match(sensorInterfaceUx.torqueEditor, /NAU7802 I2C load cell/);
+    assert.equal(sensorInterfaceUx.torqueSignalEditor, '');
     assert.match(sensorInterfaceUx.torquePins, /DOUT GPIO5 \/ SCK GPIO6/);
     assert.equal(sensorInterfaceUx.digitalRangeProblem, '');
     assert.match(sensorInterfaceUx.unsafeTotInterface, /low-range or general temperature/i);

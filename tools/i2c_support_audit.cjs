@@ -55,6 +55,9 @@ assert.match(main, /Control command queue allocation failed/);
 assert.match(web, /New I2C assignments can only use a device detected on the live bus/);
 
 assert.match(hwUi, /Only devices responding on the live bus can be assigned/);
+assert.match(hwUi, /NAU7802 I2C load cell/);
+assert.match(hwUi, /NAU7802 I2C load cell.*not detected/s);
+assert.doesNotMatch(hwUi, /Torque load cell \(NAU7802\)/);
 assert.match(hwUi, /Remove device and assignments/);
 assert.match(hwUi, /removeDisconnectedI2cDevice/);
 assert.match(hwUi, /Native ESP GPIO is recommended/);

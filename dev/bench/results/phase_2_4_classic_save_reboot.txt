@@ -1,0 +1,2 @@
+[PhaseCapture] Hz=80000000 period=8004058 ref=283 phase=284 rpm=599.7
+[PhaseCapture] Hz=80000000 period=8003977 ref=313 phase=314 rpm=599.7

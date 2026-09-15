@@ -1,4 +1,5 @@
 #pragma once
+#include "../../system/Diagnostics.h"
 #include "IActuator.h"
 #include <Arduino.h>
 
@@ -35,7 +36,7 @@ public:
             _maxDuty = (1UL << _resBits) - 1UL;
             ok = ledcAttach(_pin, PWM_FREQ_HZ, _resBits);
         }
-        Serial.printf("[%s] servo attach pin=%d freq=%uHz bits=%u %s\n",
+        OT_DEBUG_PRINTF("[%s] servo attach pin=%d freq=%uHz bits=%u %s\n",
                       _name, _pin, (unsigned)PWM_FREQ_HZ, (unsigned)_resBits,
                       ok ? "OK" : "FAILED");
         _ready = ok;

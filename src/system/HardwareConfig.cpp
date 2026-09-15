@@ -406,6 +406,10 @@ bool registryHasPurpose(const ChannelRegistry* registry, ChannelRegistry::Direct
         : registry->outputCount;
     for (uint8_t i = 0; i < count; ++i) {
         if (channels[i].installed && strcmp(channels[i].purpose, purpose) == 0) return true;
+        if (direction == ChannelRegistry::Input && channels[i].installed &&
+            channels[i].torqueInterface == 2 && !strcmp(channels[i].purpose, "torque") &&
+            ((!strcmp(purpose, "n1_speed") && channels[i].phaseSpeedSource == 1) ||
+             (!strcmp(purpose, "n2_speed") && channels[i].phaseSpeedSource == 2))) return true;
     }
     return false;
 }
@@ -1541,6 +1545,14 @@ bool validatePlatformPins(const JsonDocument& doc,
         registryHasPurpose(parsedRegistry, ChannelRegistry::Output, "ab_pump") ||
         registryHasPurpose(parsedRegistry, ChannelRegistry::Output, "ab_igniter");
     const bool hasN2Rpm = enabled(doc["sensors"]["n2_rpm"]);
+    const ChannelRegistry::Channel* phaseN1 = nullptr;
+    const ChannelRegistry::Channel* phaseN2 = nullptr;
+    if (parsedRegistry) for (uint8_t i = 0; i < parsedRegistry->inputCount; ++i) {
+        const auto& ch = parsedRegistry->inputs[i];
+        if (!ch.installed || ch.torqueInterface != 2 || strcmp(ch.purpose, "torque")) continue;
+        if (ch.phaseSpeedSource == 1) phaseN1 = &ch;
+        if (ch.phaseSpeedSource == 2) phaseN2 = &ch;
+    }
     JsonVariantConst controls = doc["controls"];
     int stopPin = jsonPin(controls, "stop_pin");
     int startPin = jsonPin(controls, "start_pin");
@@ -1575,10 +1587,18 @@ bool validatePlatformPins(const JsonDocument& doc,
 
     JsonVariantConst sensors = doc["sensors"];
     validationStage("platform shaft-speed GPIOs");
-    if (enabled(sensors["n1_rpm"]) &&
+    // The legacy sensor object may be a serialized mirror of the reference
+    // pickup; a different GPIO would be a second independent speed source.
+    if (phaseN1 && enabled(sensors["n1_rpm"]) &&
+        jsonPin(sensors["n1_rpm"], "pin") >= 0 &&
+        jsonPin(sensors["n1_rpm"], "pin") != phaseN1->pin) return false;
+    if (phaseN2 && enabled(sensors["n2_rpm"]) &&
+        jsonPin(sensors["n2_rpm"], "pin") >= 0 &&
+        jsonPin(sensors["n2_rpm"], "pin") != phaseN2->pin) return false;
+    if (enabled(sensors["n1_rpm"]) && !phaseN1 &&
         !registryInputUsesI2c("n1_speed") &&
         !requiredPinAllowed(sensors["n1_rpm"], "pin", gpioAllowed)) return false;
-    if (hasN2Rpm &&
+    if (hasN2Rpm && !phaseN2 &&
         !registryInputUsesI2c("n2_speed") &&
         !requiredPinAllowed(sensors["n2_rpm"], "pin", gpioAllowed)) return false;
 
@@ -1984,8 +2004,8 @@ bool validatePlatformPins(const JsonDocument& doc,
     }
 
     validationStage("platform legacy/core GPIO collision");
-    if (enabled(sensors["n1_rpm"]) && !addPin(jsonPin(sensors["n1_rpm"], "pin"))) return false;
-    if (hasN2Rpm && !addPin(jsonPin(sensors["n2_rpm"], "pin"))) return false;
+    if (enabled(sensors["n1_rpm"]) && !phaseN1 && !addPin(jsonPin(sensors["n1_rpm"], "pin"))) return false;
+    if (hasN2Rpm && !phaseN2 && !addPin(jsonPin(sensors["n2_rpm"], "pin"))) return false;
     for (const auto& mirror : analogSensors)
         if (enabled(sensors[mirror.key]) &&
             !addPin(jsonPin(sensors[mirror.key], "pin"))) return false;
@@ -2110,6 +2130,16 @@ bool validatePlatformPins(const JsonDocument& doc,
         if (registryNeedsMosi && (spi["mosi_pin"] | -1) < 0) return false;
         for (uint8_t i = 0; i < registry.inputCount; i++) {
             const auto& ch = registry.inputs[i];
+            // A derived input reuses its source capture and makes no separate
+            // GPIO claim.
+            if (ch.mirrorOf[0]) continue;
+            if (ch.torqueInterface == 2) {
+                if (ch.driver != ChannelRegistry::Pulse ||
+                    !gpioAllowed(ch.pin) || !gpioAllowed(ch.phasePin) ||
+                    ch.pin == ch.phasePin || !addPin(ch.pin) ||
+                    !addPin(ch.phasePin)) return false;
+                continue;
+            }
             const bool hx711LoadCell =
                 (!strcmp(ch.role, "torque") || !strcmp(ch.role, "thrust")) &&
                 ch.torqueInterface == 1;
@@ -4316,7 +4346,21 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
             }
         }
         if (const auto* torque = byIdOrRole(ChannelRegistry::Input, "torque_main", nullptr)) {
-            if (torque->driver == ChannelRegistry::I2cLoadCell) {
+            if (torque->installed && torque->driver == ChannelRegistry::Pulse &&
+                torque->torqueInterface == 2) {
+                hasTorque = true;
+                torqueHx711 = false;
+                torquePin = -1;
+                if (torque->phaseSpeedSource == 1) {
+                    hasN1Rpm = true;
+                    n1RpmPin = torque->pin;
+                    n1RpmPpr = torque->pulsesPerUnit;
+                } else if (torque->phaseSpeedSource == 2) {
+                    hasN2Rpm = true;
+                    n2RpmPin = torque->pin;
+                    n2RpmPpr = torque->pulsesPerUnit;
+                }
+            } else if (torque->driver == ChannelRegistry::I2cLoadCell) {
                 hasTorque = true;
                 torqueHx711 = false;
                 torquePin = -1;

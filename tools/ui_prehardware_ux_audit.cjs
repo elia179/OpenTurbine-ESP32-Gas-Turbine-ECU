@@ -116,9 +116,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(gs, /Calibrate/i);
     assert.match(gs, /not physical verification/i);
     assert.doesNotMatch(gs, /completed on this browser/i);
-    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20260912c"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20260912c"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20260912c"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20260915c"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20260915c"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20260915c"]').count(), 1);
     await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1',
       JSON.stringify({ hardware: Date.now(), tools: Date.now() })));
     await page.reload();
@@ -228,9 +228,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await oilPumpCard.locator('button', {hasText:'Edit'}).click();
     assert.match((await oilPumpCard.textContent()).trim(), /Flow sensing & monitoring.*Main oil-pump flow sensor.*Pulses \/ litre.*Minimum flow.*Safety & Limits.*Oil Pressure Safety/is);
     assert.match((await oilPumpCard.textContent()).trim(), /Current sensing.*Calibration page/is);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260912c#cf-oil_mm"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260912c#cf-so_en"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20260912c#tab-startup"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260915c#cf-oil_mm"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260915c#cf-so_en"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20260915c#tab-startup"]').count(), 1);
     results.push('add-device catalog reserves singleton checks for sensors while multi-instance outputs and pump-owned monitoring remain clear');
 
     const savedHardware = await page.evaluate(() => structuredClone(cfg));
@@ -433,7 +433,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     results.push('hardware page reaches a clear loaded state before edits');
 
     await page.locator('button', { hasText: '+ Add input' }).click();
-    await page.getByRole('button', { name: /N2 speed/i }).click();
+    await page.getByRole('button', { name: /^N2 speed\b/i }).click();
     const draftedN2 = page.locator('#registry-inputs .registry-card').last();
     const gpio32Option = draftedN2.locator('select').nth(2).locator('option[value="32"]');
     assert.equal(await gpio32Option.isDisabled(), false);
@@ -1145,7 +1145,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await throttleCard.textContent(), /RC pulse calibration.*1075.*1925.*Calibration page.*authoritative/is);
     assert.equal(await throttleCard.locator('input[oninput*="updateRegistryRangeField"]').count(), 0,
       'Hardware must not expose RC endpoints that the ECU does not consume');
-    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20260912c#throttle-cal-row"]').count() >= 1);
+    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20260915c#throttle-cal-row"]').count() >= 1);
     results.push('canonical RC operator endpoints have one visible authority on the Calibration page');
 
     await reset(page);

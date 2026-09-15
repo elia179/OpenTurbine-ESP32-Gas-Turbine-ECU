@@ -5,7 +5,7 @@ description: OpenTurbine is open-source ESP32 turbine ECU software with guided W
 ---
 
 <section class="hero"><div class="shell hero-grid"><div>
-<p class="eyebrow">OpenTurbine 2.3.6 · open-source ESP32 turbine ECU</p>
+<p class="eyebrow">OpenTurbine · open-source ESP32 turbine ECU</p>
 <h1>A configurable ECU for experimental turbine engines</h1>
 <p class="lede"><strong>OpenTurbine turns a supported Classic ESP32 or ESP32-S3 board into a browser-configured engine control unit.</strong> It can manage starting, fuel, oil, ignition, shutdown, protection and logging for hobby and development turbines.</p>
 <p>Describe the sensors and actuators actually fitted, then build the operating sequence around your engine instead of adapting the engine to one fixed ECU layout.</p>

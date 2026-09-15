@@ -457,7 +457,7 @@ function pcbModeCompatible(direction, purpose, role, mode) {
   if (direction === 'input') {
     const analog = ['analog_input','i2c_adc_input'];
     const digital = ['digital_input','i2c_digital_input','i2c_adc_digital_input'];
-    const switchPurposes = ['digital_switch','inhibit_start','estop','fault','low_oil_switch',
+    const switchPurposes = ['digital_switch','chip_detector','diff_press_switch','inhibit_start','estop','fault','low_oil_switch',
       'oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode','start_switch','stop_switch'];
     if (['throttle','idle','ab_command'].includes(purpose) &&
         ![...analog,'rc_pwm_input','pwm_duty_input'].includes(adapter)) return false;
@@ -490,7 +490,7 @@ function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
   const score = choice => {
     const adapter = String(choice.mode?.adapter || '');
     const portId = String(choice.port?.id || '');
-    if (['start_switch','stop_switch','digital_switch','inhibit_start','estop','fault',
+    if (['start_switch','stop_switch','digital_switch','chip_detector','diff_press_switch','inhibit_start','estop','fault',
          'low_oil_switch','oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode'].includes(purpose)) {
       if (portId.startsWith('switch_input_')) return 0;
       if (adapter === 'digital_input') return 10;
