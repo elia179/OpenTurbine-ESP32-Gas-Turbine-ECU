@@ -78,6 +78,31 @@ function setPumpFlowSensorEnabled(outputIndex, enabled) {
   refreshAllPins(); dirty(); updateSaveButton(); renderRegistryInventory();
 }
 
+function updateRegistryTorqueSensorType(index, type) {
+  const c = registryRoot().inputs[index];
+  if (!c || !['torque','general_torque'].includes(registryDerivedPurpose('input',c))) return;
+  const i2cDriver = type === 'tla2528' ? 9 : type === 'nau7802' ? 10 : 0;
+  if (i2cDriver) {
+    const expected = i2cDriver === 9 ? 'TLA2528' : 'NAU7802';
+    if (!cfg.i2c?.enabled || !(cfg._i2c_discovery?.devices || []).some(d => d.type === expected && d.present)) {
+      alert(`${expected} requires an enabled I2C bus and a detected device.`);
+      renderRegistryInventory(); return;
+    }
+    if (Number(c.torque_interface || 0) === 2)
+      updateRegistryChannel('input',index,'torque_interface',0);
+    updateRegistryChannel('input',index,'driver',i2cDriver);
+    return;
+  }
+  if (type === 'phase' && registryDerivedPurpose('input',c) === 'torque')
+    updateRegistryChannel('input',index,'torque_interface',2);
+  else if (type === 'hx711')
+    updateRegistryChannel('input',index,'torque_interface',1);
+  else if (type === 'adc') {
+    updateRegistryChannel('input',index,'torque_interface',0);
+    updateRegistryChannel('input',index,'driver',1);
+  }
+}
+
 function updateRegistryChannel(direction, index, key, value) {
   const r = registryRoot();
   const c = r[direction + 's'][index];
@@ -95,6 +120,18 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'driver') {
     if ((direction === 'input' && ![0,1,2,3,7,8,9,10].includes(value)) || (direction === 'output' && ![4,5,6,11].includes(value))) return;
     if (!registryAllowedDrivers(direction, c.role, registryDerivedPurpose(direction,c)).includes(value)) return;
+    if (direction === 'input' && registryDerivedPurpose(direction,c) === 'torque' && value === 2) {
+      c.torque_interface = 2;
+      c.phase_pin ??= -1;
+      c.phase_pulses_per_unit ??= Number(c.pulses_per_unit ?? 1);
+      c.phase_speed_source = 0;
+      c.phase_zero_deg ??= 0;
+      c.phase_deg_per_nm ??= 1;
+      c.filter_alpha ??= 0.25;
+    } else if (direction === 'input' && Number(c.torque_interface || 0) === 2) {
+      c.torque_interface = 0;
+      c.phase_speed_source = 0;
+    }
     if (value >= 8 && !pcbProfileActive() && !cfg.i2c?.enabled) {
       alert('Enable the shared I2C bus near the top of Hardware before choosing an I2C device.');
       document.getElementById('hardware-buses-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -143,6 +180,11 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'purpose') {
     const def = registryPurposeDefinitions(direction).find(p => p.value === value);
     if (!def) return;
+    if (direction === 'input' && ['n1_speed','n2_speed'].includes(value) &&
+        registryPhaseShaftOwner(value === 'n1_speed' ? 1 : 2,c)) {
+      alert(`${value === 'n1_speed' ? 'N1' : 'N2'} speed is already supplied by the torque reference pickup.`);
+      renderRegistryInventory(); return;
+    }
     const oldPurpose = registryDerivedPurpose(direction,c);
     c.purpose = def.value;
     c.role = def.role;
@@ -242,16 +284,35 @@ function updateRegistryChannel(direction, index, key, value) {
   }
   if (key === 'current_pin') value = Number.isFinite(value) ? value : -1;
   if (key === 'torque_interface') {
-    value = Number(value) === 1 ? 1 : 0;
-    c.driver = 1; c.min = 0; c.max = 4095; c.torque_interface = value;
+    if (Number(c.torque_interface || 0) === 2) clearRegistryPhaseSpeedAdapter(c);
+    value = Math.max(0, Math.min(2, Number(value) || 0));
+    c.driver = value === 2 ? 2 : 1; c.min = 0; c.max = value === 2 ? 1 : 4095; c.torque_interface = value;
     if (value === 1) c.calibration_points = [];
+    if (value === 2) {
+      c.calibration_points = [];
+      c.phase_pin ??= -1; c.phase_speed_source = 0;
+      c.phase_pulses_per_unit ??= Number(c.pulses_per_unit ?? 1);
+      c.phase_zero_deg ??= 0; c.phase_deg_per_nm ??= 1;
+      c.pulses_per_unit ??= 1; c.filter_alpha = 0.25;
+    }
     if (value === 1) {
       c.hx711_clk ??= -1; c.hx711_scale ??= 1; c.hx711_zero ??= 0;
-    } else if ((c.pin ?? -1) >= 0 && !GPIO_DB?.[c.pin]?.adc1) {
+    } else if (value === 0 && (c.pin ?? -1) >= 0 && !GPIO_DB?.[c.pin]?.adc1) {
       c.pin = -1;
     }
     syncRegistryTorqueAdapter(c);
     dirty(); updateSaveButton(); renderRegistryInventory(); return;
+  }
+  if (key === 'phase_speed_source') {
+    value = Number(value);
+    if (![0,1,2,3].includes(value) || ([1,2].includes(value) && registryOrdinaryShaftOwner(value,c))) {
+      alert(`${value === 1 ? 'N1' : 'N2'} already has a speed sensor.`); renderRegistryInventory(); return;
+    }
+    const companion = registryPhaseSpeedCompanion(c);
+    if (value === 3 && !companion && registryRoot().inputs.length >= registryCapacity('input')) {
+      alert('Input registry capacity is full. Remove an unused input before enabling Torque shaft speed.');
+      renderRegistryInventory(); return;
+    }
   }
   if (key === 'temp_interface') {
     value = Math.max(0, Math.min(5, Number(value) || 0));
@@ -271,7 +332,11 @@ function updateRegistryChannel(direction, index, key, value) {
     if (value === 5) { c.pin ??= -1; c.temp_resolution ??= 10; }
     dirty(); updateSaveButton(); renderRegistryInventory(); return;
   }
-  if (key === 'pulses_per_unit') value = Math.max(0.001, Number(value) || 1);
+  if (key === 'pulses_per_unit') value = Math.max(0.001, Math.min(1024, Number(value) || 1));
+  if (key === 'phase_pin') value = Number.isFinite(Number(value)) ? Number(value) : -1;
+  if (key === 'phase_pulses_per_unit') value = Number(value);
+  if (key === 'phase_zero_deg') value = Math.max(-180,Math.min(180,Number(value) || 0));
+  if (key === 'phase_deg_per_nm') value = Number(value);
   if (key === 'analog_zero_mv') value = Math.max(0, Math.min(3300, Number(value) || 0));
   if (key === 'analog_mv_per_unit') value = Math.max(0.000001, Number(value) || 1);
   if (key === 'analog_divider') value = Math.max(1, Math.min(100, Number(value) || 1));
@@ -323,7 +388,7 @@ function updateRegistryChannel(direction, index, key, value) {
       ['spi_cs','tc_type'].includes(key)) syncSharedSpiChannels();
   if (direction === 'input' && registryDerivedPurpose(direction, c) === 'torque') syncRegistryTorqueAdapter(c);
   dirty(); updateSaveButton();
-  if (['pin','current_pin','spi_clk','spi_cs','spi_miso','spi_mosi','hx711_clk',
+  if (['pin','phase_pin','phase_speed_source','current_pin','spi_clk','spi_cs','spi_miso','spi_mosi','hx711_clk',
        'pullup','pulldown','active_high','invert','ntc_pullup','has_current','has_flow_monitor',
        'min_run_demand','force_safe_on_fault','ignition_mode','ignition_wait_hot'].includes(key)) renderRegistryInventory();
 }
@@ -333,15 +398,78 @@ function syncRegistryTorqueAdapter(c) {
   const hx = registryLoadCellIsHx711(c);
   runtimeTorque.enabled = true;
   runtimeTorque.hx711 = hx;
-  runtimeTorque.pin = hx ? -1 : Number(c.pin ?? -1);
+  runtimeTorque.pin = hx || Number(c.torque_interface || 0) === 2 ? -1 : Number(c.pin ?? -1);
   runtimeTorque.dt_pin = hx ? Number(c.pin ?? -1) : -1;
   runtimeTorque.clk_pin = hx ? Number(c.hx711_clk ?? -1) : -1;
   runtimeTorque.hx_scale = Number(c.hx711_scale ?? 1);
   runtimeTorque.hx_zero = Math.round(Number(c.hx711_zero ?? 0));
+  if (Number(c.torque_interface || 0) === 2) {
+    const source = Number(c.phase_speed_source || 0);
+    for (const [shaft, value] of [['n1_rpm',1],['n2_rpm',2]]) {
+      if (registryOrdinaryShaftOwner(value,c)) continue;
+      const speed = cfg.sensors[shaft] ||= {};
+      if (source === value) {
+        speed.enabled = true;
+        speed.pin = Number(c.pin ?? -1);
+        speed.ppr = Number(c.pulses_per_unit ?? 1);
+      } else if (Number(speed.pin ?? -1) === Number(c.pin ?? -1)) {
+        speed.enabled = false;
+        speed.pin = -1;
+      }
+    }
+    syncRegistryPhaseSpeedCompanion(c, source === 3);
+  } else {
+    syncRegistryPhaseSpeedCompanion(c, false);
+  }
   if (!hx) {
     const mvPerNm = Math.max(0.000001, Number(c.analog_mv_per_unit ?? 1000));
     runtimeTorque.scale = 1000 / mvPerNm;
     runtimeTorque.offset = Number(c.analog_zero_mv ?? 0) / mvPerNm;
+  }
+}
+function registryPhaseSpeedCompanion(c) {
+  return (registryRoot().inputs || []).find(row => row !== c &&
+    (String(row?.mirror_of || '') === String(c?.id || '') || String(row?.id || '') === 'torque_shaft_speed')) || null;
+}
+function syncRegistryPhaseSpeedCompanion(c, enabled) {
+  const inputs = registryRoot().inputs || [];
+  let speed = registryPhaseSpeedCompanion(c);
+  if (!enabled) {
+    if (!speed) return;
+    const index = inputs.indexOf(speed);
+    if (index < 0) return;
+    cleanupRegistryReferences('input', speed.id);
+    shiftRegistryNumericHandlesAfterRemoval('input', index, inputs.length);
+    inputs.splice(index, 1);
+    return;
+  }
+  if (!speed) {
+    speed = {
+      id:'torque_shaft_speed', name:'Torque Shaft Speed', purpose:'shaft_speed', role:'speed',
+      driver:2, installed:true, pin:Number(c.pin ?? -1), min:0, max:200000,
+      pulses_per_unit:Number(c.pulses_per_unit ?? 1), mirror_of:String(c.id || 'torque_main')
+    };
+    inputs.push(speed);
+  }
+  speed.installed = true;
+  speed.name = 'Torque Shaft Speed';
+  speed.purpose = 'shaft_speed'; speed.role = 'speed'; speed.driver = 2;
+  speed.pin = Number(c.pin ?? -1);
+  speed.pulses_per_unit = Number(c.pulses_per_unit ?? 1);
+  speed.mirror_of = String(c.id || 'torque_main');
+  speed.min = 0; speed.max = 200000;
+}
+function clearRegistryPhaseSpeedAdapter(c) {
+  const source = Number(c?.phase_speed_source || 0);
+  syncRegistryPhaseSpeedCompanion(c, false);
+  if (!source) return;
+  if (source === 3) return;
+  const key = source === 1 ? 'n1_rpm' : 'n2_rpm';
+  const speed = cfg.sensors?.[key];
+  if (speed && Number(speed.pin ?? -1) === Number(c.pin ?? -1) &&
+      !registryOrdinaryShaftOwner(source,c)) {
+    speed.enabled = false;
+    speed.pin = -1;
   }
 }
 function registryBindingAccepts(key, direction, c) {
@@ -518,8 +646,10 @@ function renderRegistryAddCatalog() {
     <div class="registry-add-group-grid">${group.rows.map(({p, i}) => {
       const purpose = p.purpose || registryDerivedPurpose(_registryAddDirection, p);
       const requiredSlots = 1;
-      const alreadyInstalled = registryPurposeIsSingleton(_registryAddDirection, purpose) &&
-        (r[_registryAddDirection + 's'] || []).some(c => registryDerivedPurpose(_registryAddDirection, c) === purpose);
+      const alreadyInstalled = (registryPurposeIsSingleton(_registryAddDirection, purpose) &&
+        (r[_registryAddDirection + 's'] || []).some(c => registryDerivedPurpose(_registryAddDirection, c) === purpose)) ||
+        (_registryAddDirection === 'input' && ['n1_speed','n2_speed'].includes(purpose) &&
+          !!registryPhaseShaftOwner(purpose === 'n1_speed' ? 1 : 2));
       const capacityFull = used + requiredSlots > max;
       const disabled = capacityFull || alreadyInstalled;
       const detail = alreadyInstalled ? 'Already installed' : (capacityFull ? (requiredSlots > 1 ? 'Capacity full — needs 2 free output slots' : 'Capacity full') :
@@ -545,6 +675,9 @@ function selectRegistryAddPreset(index) {
   if (rows.length + requiredSlots > max)
     return registryAddError(`Registry capacity is full (${rows.length}/${max}). Remove an unused ${_registryAddDirection} first.`);
   const purpose = preset.purpose || registryDerivedPurpose(_registryAddDirection,preset);
+  if (_registryAddDirection === 'input' && ['n1_speed','n2_speed'].includes(purpose) &&
+      registryPhaseShaftOwner(purpose === 'n1_speed' ? 1 : 2))
+    return registryAddError(`${purpose === 'n1_speed' ? 'N1' : 'N2'} speed is already supplied by the torque reference pickup.`);
   const existing = rows.filter(c=>registryDerivedPurpose(_registryAddDirection,c)===purpose).length;
   if (existing > 0 && registryPurposeIsSingleton(_registryAddDirection, purpose))
     return registryAddError(`${preset.label} is already installed. Edit or remove its existing card instead.`);
@@ -599,6 +732,24 @@ function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {
   const safe = _registryAddDirection === 'output'
     ? (purpose === 'prop_pitch' ? 1 : 0) : undefined;
   const channel = {id, name:name.slice(0, 23), purpose, role:preset.role, driver:selectedDriver, pin:-1, min:range.min, max:range.max, invert:false};
+  if (selectedDriver >= 8) {
+    const expected = selectedDriver === 8 || selectedDriver === 11 ? 'TCA9554'
+      : selectedDriver === 9 ? 'TLA2528' : 'NAU7802';
+    const detected = (cfg._i2c_discovery?.devices || []).find(d => d.type === expected && d.present);
+    channel.i2c_address = Number(detected?.address ?? preset.i2c_address ?? 0);
+    channel.device_channel = Number(preset.device_channel ?? 0);
+    if (selectedDriver === 9) {
+      channel.i2c_reference_mv = Number(preset.i2c_reference_mv ?? 3300);
+      channel.filter_alpha = Number(preset.filter_alpha ?? 1);
+    } else if (selectedDriver === 10) {
+      channel.loadcell_gain = Number(preset.loadcell_gain ?? 128);
+      channel.loadcell_rate_sps = Number(preset.loadcell_rate_sps ?? 80);
+      channel.loadcell_zero = Number(preset.loadcell_zero ?? 0);
+      channel.loadcell_n_per_count = Number(preset.loadcell_n_per_count ?? 1);
+      channel.lever_arm_m = Number(preset.lever_arm_m ?? 1);
+      channel.filter_alpha = Number(preset.filter_alpha ?? 0.25);
+    }
+  }
   if (bareGpio) {
     channel.physical_port = '';
     channel.physical_mode = '';
@@ -974,6 +1125,7 @@ function confirmRegistryRemoveChannel() {
   cleanupRegistryReferences(direction, id);
   const removed = r[direction + 's'][index];
   if (direction === 'input') {
+    if (Number(removed.torque_interface || 0) === 2) clearRegistryPhaseSpeedAdapter(removed);
     const key = registryCoreSensorKey(removed);
     if (key && cfg.sensors?.[key]) cfg.sensors[key].enabled = false;
   } else {

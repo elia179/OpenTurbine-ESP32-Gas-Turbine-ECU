@@ -10,6 +10,42 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+### Added
+
+- Dual MCPWM capture for shaft phase-displacement torque, with optional N1, N2, or named Torque Shaft Speed RPM, conditional shaft-power calculation,
+  shaft-angle calibration, and optional N1 or N2 speed assignment.
+- One Torque Hardware card now owns its analog ADC, TLA2528, HX711, NAU7802,
+  and shaft-torsion phase-difference interface choices. Repeatable General /
+  additional torque inputs remain independent named measurements.
+- Running phase-zero and known-torque captures can be staged in the browser
+  tab and saved after the engine returns to STANDBY, without changing torque
+  calibration mid-run.
+- Separate reference and torque-pickup pulse-count entries, with mismatched
+  unindexed wheels explicitly rejected; phase zero and sensitivity calibration
+  require a healthy, rotating shaft rather than static tooth alignment.
+- Named Chip detector and Differential pressure switch inputs, using ordinary
+  switch configuration and status paths.
+
+### Changed
+
+- The public website's main heading no longer includes a firmware version.
+- MAX6675 now uses a direct bounded software-SPI read, and DS18B20 setup uses
+  OneWire directly; the MAX6675 and DallasTemperature dependencies were removed.
+- Routine serial trace messages compile out of release builds while fault,
+  warning, recovery, and useful boot diagnostics remain available.
+- MAX6675 and MAX31855 share their smaller read-only software-SPI clock loop.
+
+### Fixed
+
+- Hardware now keeps supported shared-I2C signal types visible while marking
+  unavailable devices as disabled, and offers NAU7802 inside the Torque card
+  instead of a duplicate add-device choice.
+- Torque-shaft power is calculated only from the phase-torque reference pickup;
+  an unrelated N2 sensor is no longer assumed to be on the measured shaft.
+- The dashboard no longer duplicates the Torque Shaft Speed companion channel,
+  no longer shows the obsolete `N2 required` power hint, and redraws rebuilt
+  auxiliary sparklines every telemetry frame so they do not blink.
+
 ## [2.3.6] — 2026-09-12
 
 ### Fixed

@@ -1,6 +1,7 @@
 #include "../src/hal/sensors/SensorProtocolDecode.h"
 #include "../src/hal/AdcThreshold.h"
 #include "../src/hal/sensors/PiecewiseCalibration.h"
+#include "../src/hal/sensors/PhaseTorqueMath.h"
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -63,5 +64,13 @@ int main() {
     const float valueHuge[] = {-3.0e38f, 3.0e38f};
     assert(!PiecewiseCalibration::valid(2, rawHuge, valueHuge));
     assert(PiecewiseCalibration::valid(0, nullptr, nullptr));
-    std::cout << "sensor protocol, ADC threshold and calibration vectors passed (32 checks)\n";
+    // Two edges captured on one MCPWM timer: shaft angle survives a speed
+    // change and timer rollover, while negative/positive phase wraps cleanly.
+    assert(near(PhaseTorqueMath::shaftPhaseDegrees(250, 100, 1000, 2), 27.0f));
+    assert(near(PhaseTorqueMath::shaftPhaseDegrees(400, 100, 2000, 2), 27.0f));
+    assert(near(PhaseTorqueMath::shaftPhaseDegrees(44, UINT32_MAX - 55, 1000, 2), 18.0f));
+    assert(near(PhaseTorqueMath::shaftPhaseDegrees(950, 100, 1000, 2), -27.0f));
+    assert(near(PhaseTorqueMath::wrappedDeltaDegrees(-27, 27, 2), -54.0f));
+    assert(std::isnan(PhaseTorqueMath::shaftPhaseDegrees(100, 0, 0, 2)));
+    std::cout << "sensor protocol, ADC threshold, calibration and phase vectors passed\n";
 }

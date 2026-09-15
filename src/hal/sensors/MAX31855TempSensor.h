@@ -1,6 +1,6 @@
 #pragma once
 #include "ISensor.h"
-#include <SPI.h>
+#include "SoftwareSpiRead.h"
 #include <Arduino.h>
 
 // ============================================================
@@ -86,7 +86,6 @@ private:
     // A conservative software-SPI clock is effectively free at a 10 Hz
     // conversion rate and gives isolators, long hobby wiring, and slower GPIO
     // targets time to settle before each sample.
-    static constexpr unsigned int SPI_HALF_PERIOD_US = 5;
 
     int         _clk, _cs, _miso;
     const char* _name;
@@ -96,17 +95,6 @@ private:
     uint32_t      _sampleSeq = 0;
 
     uint32_t _read32() {
-        uint32_t val = 0;
-        digitalWrite(_cs, LOW);
-        delayMicroseconds(1);
-        for (int i = 31; i >= 0; i--) {
-            digitalWrite(_clk, LOW);
-            delayMicroseconds(SPI_HALF_PERIOD_US);
-            if (digitalRead(_miso)) val |= (1UL << i);
-            digitalWrite(_clk, HIGH);
-            delayMicroseconds(SPI_HALF_PERIOD_US);
-        }
-        digitalWrite(_cs, HIGH);
-        return val;
+        return SoftwareSpiRead::bits(_clk, _cs, _miso, 32, false);
     }
 };

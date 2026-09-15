@@ -184,6 +184,9 @@ LIST                 -> SIG <name> <kind> gpio=<n> ...  then OK
 RESET                -> OK                 (all driven outputs to safe/idle)
 SET <name> <value>   -> OK | ERR ...       digital: 1/0 · freq: Hz · analog: volts
 SET IDLE_IN HIGH|LOW -> OK                 (S3 role-reversed tester: static ADC rail test)
+PHASE <Hz> <deg> [mask] -> OK              synchronized N1/N2 square waves; mask 1=reference, 2=phase, 3=both
+PHASE 0 0            -> OK                 stop the synchronized phase-pair generator
+PHASESTAT            -> VAL PHASE ...      inspect generated timing and pickup levels
 GET <name>           -> VAL <name> level=.. | us=.. hz=.. duty=.. level=..
 STATE                -> VAL STATE <name>=.. ...   (all inputs in one shot)
 EMU MAX6675 <C|open> -> OK                 (S3 tester in role-reversed harness)
@@ -192,6 +195,11 @@ EMU MAX31856 <C|open> -> OK
 EMU HX711 <counts>   -> OK
 EMU OFF 0            -> OK                 (restore normal bench signal roles)
 ```
+
+`campaign/phase_torque_2_4_hil.py` uses `PHASE` to exercise the shared-timer
+phase-torque input, angular calibration, independent pickup failures, all
+explicit speed-source choices, and duplicate shaft-speed ownership rejection.
+It leaves Torque Shaft Speed enabled for inspection.
 
 ## 7. Limits / next steps
 

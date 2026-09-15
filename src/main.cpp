@@ -1,4 +1,5 @@
 #include "system/version.h"
+#include "system/Diagnostics.h"
 #include "Hardware.h"
 #include "platform/esp32/PlatformInit.h"
 #include "system/Config.h"
@@ -704,7 +705,7 @@ static void buildSequences() {
                  _abShutDelays[i],
                  _abShutBlocks, _abShutCount);
     }
-    Serial.printf("[OT] Sequences: startup=%d, shutdown=%d, ab_ign=%d, ab_shut=%d blocks\n",
+    OT_DEBUG_PRINTF("[OT] Sequences: startup=%d, shutdown=%d, ab_ign=%d, ab_shut=%d blocks\n",
                   _startupCount, _shutdownCount, _abIgnCount, _abShutCount);
     validateSequences();
 }
@@ -1641,7 +1642,7 @@ static void validateSequences(bool report) {
     }
 
     if (report && ed.seqIssueCount == 0)
-        Serial.println("[VALIDATE] All sequences OK");
+        OT_DEBUG_PRINTLN("[VALIDATE] All sequences OK");
 }
 
 // Forward declarations for helpers that call mode-transition functions
@@ -1890,7 +1891,7 @@ static void checkExtraCooldown() {
         ed.oilPumpPct          = 0;
         ed.oilScavengeDemand   = 0.0f;
         ed.extraCooldownUntilMs  = 0;
-        Serial.println("[OT] Extra cooldown complete (timeout)");
+        OT_DEBUG_PRINTLN("[OT] Extra cooldown complete (timeout)");
     }
 }
 
@@ -1952,7 +1953,7 @@ static void checkRelight() {
         _relightActive  = false;
         commandConfiguredIgnitionOutput(Config::relightOutputId, (uint8_t)Config::relightIgnitionTarget, false);
         _relightBeginMs = 0;
-        Serial.println("[OT] Relight successful");
+        OT_DEBUG_PRINTLN("[OT] Relight successful");
         return;
     }
     const unsigned long hardRelightLimitMs = 30000;
@@ -2057,7 +2058,7 @@ static void checkStandbyOilFeed() {
             _standbyOilActuator = selectedActuator;
             _standbyOilOutputIndex = selectedIndex;
             _standbyOilLastMs = millis();
-            Serial.printf("[OT] Windmilling oil protection ON (N1=%.0f N2=%.0f)\n",
+            OT_DEBUG_PRINTF("[OT] Windmilling oil protection ON (N1=%.0f N2=%.0f)\n",
                 (double)ed.n1Rpm, (double)ed.n2Rpm);
         }
         float demandPct = constrain(Config::standbyOilFeedPct, 0.0f, 100.0f);
@@ -2109,7 +2110,7 @@ static void checkStandbyOilFeed() {
                                          constrain(demandPct / 100.0f, 0.0f, 1.0f));
     } else if (ed.standbyOilFeedActive) {
         releaseOwnedPump();
-        Serial.printf("[OT] Windmilling oil protection OFF (oil %.0f%%)\n", (double)ed.oilPumpPct);
+        OT_DEBUG_PRINTF("[OT] Windmilling oil protection OFF (oil %.0f%%)\n", (double)ed.oilPumpPct);
     }
 }
 
@@ -2210,16 +2211,16 @@ static void checkGeneralDI() {
 
             if (strcmp(role, "ab_arm") == 0) {
                 ed.abArmSwitchOn = true;
-                Serial.printf("[DI] ch%d ab_arm active\n", i);
+                OT_DEBUG_PRINTF("[DI] ch%d ab_arm active\n", i);
 
             } else if (strcmp(role, "limp_mode") == 0) {
-                Serial.printf("[DI] ch%d limp_mode activated\n", i);
+                OT_DEBUG_PRINTF("[DI] ch%d limp_mode activated\n", i);
 
             } else if (strcmp(role, "ab_fire") == 0) {
                 // Trigger AB fire — same effect as pressing AB FIRE button in the UI.
                 // DI polling already runs on the ECU core, so avoid losing the
                 // one-shot edge if the web command queue happens to be full.
-                Serial.printf("[DI] ch%d ab_fire request active\n", i);
+                OT_DEBUG_PRINTF("[DI] ch%d ab_fire request active\n", i);
             }
             // "inhibit_start" role: state is stored in ed.diState[i] and checked in handleCommand(START)
         }
@@ -2229,9 +2230,9 @@ static void checkGeneralDI() {
             const char* role = hw.diCh[i].role;
             if (strcmp(role, "ab_arm") == 0) {
                 ed.abArmSwitchOn = false;
-                Serial.printf("[DI] ch%d ab_arm inactive\n", i);
+                OT_DEBUG_PRINTF("[DI] ch%d ab_arm inactive\n", i);
             } else if (strcmp(role, "limp_mode") == 0) {
-                Serial.printf("[DI] ch%d limp_mode deactivated\n", i);
+                OT_DEBUG_PRINTF("[DI] ch%d limp_mode deactivated\n", i);
             }
         }
 
@@ -2347,7 +2348,7 @@ static void beginABSequenceAfterArming() {
     setABReason("");
     _abInShutSeq = false;
     FlightRecorder::logBlockEnter("AB_IGN_START");
-    Serial.println("[AB] Entering ignition sequence");
+    OT_DEBUG_PRINTLN("[AB] Entering ignition sequence");
 
     // Default sequence if nothing configured:
     //   ABCheckReady → ABSolOpen → ABPumpOn → ABIgnite(torch) → ABFlameConfirm → ABStabilize
@@ -2383,7 +2384,7 @@ static void enterABShutdown() {
     ed.abSolOpen = false;
     ed.abPumpDemand = 0.0f;
 
-    Serial.println("[AB] Entering shutdown sequence");
+    OT_DEBUG_PRINTLN("[AB] Entering shutdown sequence");
     if (_abShutCount == 0) {
         // Default: close solenoid then cut pump — AB flame dies immediately
         static IBlock* _defAbShut[] = { &g_blkABSolClose, &g_blkABPumpOff };
@@ -2405,7 +2406,7 @@ static void abSequenceDone(const char*, BlockResult) {
         ed.abPumpDemand = 0;
         ed.igniter2On     = false;
         _abInShutSeq      = false;
-        Serial.println("[AB] Shutdown complete - AB Off");
+        OT_DEBUG_PRINTLN("[AB] Shutdown complete - AB Off");
     }
     // Ignition seq done: abMode is normally set to Running by ABStabilize.onExit().
     // A custom sequence may omit stabilization, but it may never omit the
@@ -2430,7 +2431,7 @@ static void abSequenceDone(const char*, BlockResult) {
             Serial.printf("[AB] Ignition sequence rejected: %s\n", ed.abFaultReason);
         } else if (ed.abMode == ABMode::Igniting) {
             ed.abMode = ABMode::Running;
-            Serial.println("[AB] Ignition confirmed - entering Running without stabilization hold");
+            OT_DEBUG_PRINTLN("[AB] Ignition confirmed - entering Running without stabilization hold");
         }
     }
 }
@@ -2445,7 +2446,7 @@ static void abSequenceAbort(const char*, BlockResult) {
         // Shutdown sequence aborted — treat as complete; AB is off
         ed.abMode    = ABMode::Off;
         _abInShutSeq = false;
-        Serial.println("[AB] Shutdown sequence aborted - AB Off");
+        OT_DEBUG_PRINTLN("[AB] Shutdown sequence aborted - AB Off");
     } else {
         // Ignition sequence aborted (e.g. ABCheckReady conditions not met).
         // Set Fault rather than Off so checkABTrigger() doesn't immediately
@@ -2750,7 +2751,7 @@ static void checkCooldownSkip() {
                  >= (unsigned long)Config::cooldownSkipHoldMs)
         {
             _cooldownSkipHoldStart = 0;
-            Serial.println("[OT] Cooldown skip - both buttons held");
+            OT_DEBUG_PRINTLN("[OT] Cooldown skip - both buttons held");
             strncpy(ed.lastEvent, "Cooldown skipped by operator", sizeof(ed.lastEvent) - 1);
             enterStandby();
         }
@@ -2793,7 +2794,7 @@ static void enterRunning() {
     _buzzerPattern = 2;  // startup OK beep
     Hardware::initControllers();
     FlightRecorder::logRunningEntry();
-    Serial.println("[OT] RUNNING");
+    OT_DEBUG_PRINTLN("[OT] RUNNING");
 }
 
 static void enterShutdown() {
@@ -2824,7 +2825,7 @@ static void enterShutdown() {
     g_sequencer.startSequence(_shutdownBlocks, _shutdownCount,
                               HardwareConfig::shutdownEnterActions,
                               HardwareConfig::shutdownExitActions);
-    Serial.println("[OT] SHUTDOWN");
+    OT_DEBUG_PRINTLN("[OT] SHUTDOWN");
 }
 
 static void enterFaultShutdown() {
@@ -3016,7 +3017,7 @@ static void enterStandby() {
         ed.dryOilPumpUntilMs = 0;
         ed.faultShutdownActive = false;
     }
-    Serial.println(ed.mode == SysMode::FAULT ? "[OT] FAULT LATCHED" : "[OT] STANDBY");
+    OT_DEBUG_PRINTLN(ed.mode == SysMode::FAULT ? "[OT] FAULT LATCHED" : "[OT] STANDBY");
 }
 
 static void enterAbortStandby(const char* resultBlock, BlockResult) {
@@ -3137,7 +3138,7 @@ static void enterABIgniting() {
     _abEgtBaselineCount = 0;
     _abEgtBaselineSeenSeq = primaryEgtSampleSeq(ed);
     setABReason("WAITING FOR PRE-IGNITION CHECK");
-    Serial.println("[AB] Arming - collecting pre-fuel evidence");
+    OT_DEBUG_PRINTLN("[AB] Arming - collecting pre-fuel evidence");
 }
 
 static void continueABArming() {
@@ -3676,7 +3677,7 @@ static void handleCommand(const OTPacket& pkt) {
                                   FeedbackRequirements::sensorName(overrideSensor),
                                   (double)Config::limpMaxThrottlePct);
                 } else {
-                    Serial.println("[OT] START commanded");
+                    OT_DEBUG_PRINTLN("[OT] START commanded");
                 }
             }
             break;
@@ -3731,7 +3732,7 @@ static void handleCommand(const OTPacket& pkt) {
                     ed.skipSafetyChecks = false;
                     ed.benchMode        = false;
                 }
-                Serial.printf("[OT] Dev mode %s\n", ed.devMode ? "ENABLED" : "disabled");
+                OT_DEBUG_PRINTF("[OT] Dev mode %s\n", ed.devMode ? "ENABLED" : "disabled");
             }
             break;
 
@@ -3740,7 +3741,7 @@ static void handleCommand(const OTPacket& pkt) {
             if (ed.devMode && standbyLike) {
                 ed.benchMode = !ed.benchMode;
                 if (!ed.benchMode) ed.skipSafetyChecks = false;
-                Serial.printf("[OT] Bench mode %s\n", ed.benchMode ? "ENABLED - safety/sensor waits bypassed" : "disabled");
+                OT_DEBUG_PRINTF("[OT] Bench mode %s\n", ed.benchMode ? "ENABLED - safety/sensor waits bypassed" : "disabled");
             }
             break;
 
@@ -3868,7 +3869,7 @@ static void handleCommand(const OTPacket& pkt) {
                         : 0.0f;
                     ed.oilScavengeDemand      = ecUseScavenge ? 1.0f : 0.0f;
                     ed.extraCooldownUntilMs = deadlineAfter(millis(), durationMs);
-                    Serial.printf("[OT] Extra cooldown started (%lu s)\n",
+                    OT_DEBUG_PRINTF("[OT] Extra cooldown started (%lu s)\n",
                         (unsigned long)seconds);
                 } else if (pkt.iParam <= 0) {
                     // Only an explicit zero/negative command cancels. A
@@ -3881,7 +3882,7 @@ static void handleCommand(const OTPacket& pkt) {
                     ed.oilPumpPct          = 0;
                     ed.oilScavengeDemand   = 0.0f;
                     ed.extraCooldownUntilMs  = 0;
-                    Serial.println("[OT] Extra cooldown cancelled");
+                    OT_DEBUG_PRINTLN("[OT] Extra cooldown cancelled");
                 }
             }
             }
@@ -3928,7 +3929,7 @@ static void handleCommand(const OTPacket& pkt) {
                 strncpy(ed.lastEvent, "Fault acknowledged and cleared", sizeof(ed.lastEvent) - 1);
                 g_safety.clearFault();
                 _buzzerPattern = 0;
-                Serial.println("[OT] Fault latch explicitly cleared");
+                OT_DEBUG_PRINTLN("[OT] Fault latch explicitly cleared");
             }
             break;
 
@@ -3942,7 +3943,7 @@ static void handleCommand(const OTPacket& pkt) {
                 && (!HardwareConfig::abRequiresArmSwitch || ed.abArmSwitchOn)
                 && (ed.abMode == ABMode::Off || ed.abMode == ABMode::Fault))
             {
-                Serial.println("[AB] Manual fire command received");
+                OT_DEBUG_PRINTLN("[AB] Manual fire command received");
                 enterABIgniting();
             }
             break;
@@ -3953,7 +3954,7 @@ static void handleCommand(const OTPacket& pkt) {
                 && ed.abMode != ABMode::Off
                 && ed.abMode != ABMode::ShuttingDown)
             {
-                Serial.println("[AB] Manual stop command received");
+                OT_DEBUG_PRINTLN("[AB] Manual stop command received");
                 enterABShutdown();
             }
             break;
@@ -4235,7 +4236,7 @@ static void checkStartSwitch() {
                 if (configuredIgnitionOutputAvailable(Config::manualRelightOutputId, target)) {
                     ed.manualRelightActive = true;
                     commandConfiguredIgnitionOutput(Config::manualRelightOutputId, target, true);
-                    Serial.printf("[OT] Manual relight - START held (%s)\n",
+                    OT_DEBUG_PRINTF("[OT] Manual relight - START held (%s)\n",
                                   configuredIgnitionOutputName(Config::manualRelightOutputId, target));
                 }
             }
@@ -4243,7 +4244,7 @@ static void checkStartSwitch() {
             // START released, or manual relight disabled live → cut the igniter
             ed.manualRelightActive = false;
             commandConfiguredIgnitionOutput(Config::manualRelightOutputId, (uint8_t)Config::manualRelightIgnitionTarget, false);
-            Serial.println("[OT] Manual relight - igniter cut");
+            OT_DEBUG_PRINTLN("[OT] Manual relight - igniter cut");
         }
     } else {
         // Not RUNNING (fault, shutdown) — cut igniter immediately if it was lit
@@ -4452,7 +4453,7 @@ void setup() {
             _relightBeginFlameSeq = ed.flameSampleSeq;
             ed.clusterCode     = 2;   // ClCode::RelightActive
             FlightRecorder::logRelight(ed.relightAttempts);
-            Serial.printf("[OT] Relight started - N1=%.0f RPM\n", (double)ed.n1Rpm);
+            OT_DEBUG_PRINTF("[OT] Relight started - N1=%.0f RPM\n", (double)ed.n1Rpm);
         }
         // Keep igniter on — checkRelight() clears this when flame returns or N1 drops
         commandConfiguredIgnitionOutput(Config::relightOutputId, (uint8_t)Config::relightIgnitionTarget, true);
@@ -4475,7 +4476,7 @@ void setup() {
         _mavSerial.begin(HardwareConfig::mavlinkBaud, SERIAL_8N1,
                          -1, HardwareConfig::mavlinkTxPin);
         g_mavlink.begin(_mavSerial);
-        Serial.printf("[OT] MAVLink TX on GPIO %d @ %d baud\n",
+        OT_DEBUG_PRINTF("[OT] MAVLink TX on GPIO %d @ %d baud\n",
                       HardwareConfig::mavlinkTxPin, HardwareConfig::mavlinkBaud);
     }
 
@@ -4483,7 +4484,7 @@ void setup() {
     if (!EngineData::instance().watchdogReady)
         Serial.println("[OT] ERROR: control-loop watchdog initialization failed; START inhibited");
 
-    Serial.println("[OT] Setup complete");
+    OT_DEBUG_PRINTLN("[OT] Setup complete");
 }
 
 void loop() {
@@ -4581,13 +4582,13 @@ void loop() {
             Hardware::applyLiveControllerTuning();
             if (livePatchCandidate) Config::requestSave();
             _configApplyDeferred = false;
-            Serial.println("[OT] Developer tuning applied live; flash save deferred until safe");
+            OT_DEBUG_PRINTLN("[OT] Developer tuning applied live; flash save deferred until safe");
         } else {
             if (livePatchCandidate) Config::requestSave();
             // Active non-running modes reject web settings writes. Retain this
             // guard for any future producer using the transaction gate.
             _configApplyDeferred = true;
-            Serial.println("[OT] Config apply deferred until STANDBY");
+            OT_DEBUG_PRINTLN("[OT] Config apply deferred until STANDBY");
         }
         if (retryForHeap && configHeapRetryCount >= 8) {
             // A failed live publication must neither reboot the ECU nor leave

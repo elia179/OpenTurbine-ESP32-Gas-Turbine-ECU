@@ -169,6 +169,7 @@ function collectPinUsage() {
   };
   (r.inputs || []).forEach(ch => {
     if (!ch || ch.installed === false) return;
+    if (String(ch.mirror_of || '')) return;
     if (addProfilePortPin(ch, 'input') ||
         (profileActive && ch.purpose === 'battery_voltage' &&
          pcbProfile?.fixed_functions?.supply_voltage?.available)) return;
@@ -176,6 +177,10 @@ function collectPinUsage() {
       const label = registryDisplayName('input', ch, ch.id || 'Torque');
       add(ch.pin, `${label} DOUT`);
       add(ch.hx711_clk, `${label} SCK`);
+    } else if (Number(ch.torque_interface || 0) === 2) {
+      const label = registryDisplayName('input', ch, ch.id || 'Torque');
+      add(ch.pin, `${label} reference`);
+      add(ch.phase_pin, `${label} phase`);
     } else if (registryTemperatureIsSpi(ch)) {
       const label = registryDisplayName('input', ch, ch.id || 'Temperature');
       add(ch.spi_clk, `${label} CLK`, 'spi-clk');

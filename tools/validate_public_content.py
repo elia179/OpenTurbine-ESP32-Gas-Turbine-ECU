@@ -244,14 +244,18 @@ def main() -> int:
         firmware_version = version_match.group(1)
     project_data = (SITE / "_data/project.yml").read_text(encoding="utf-8")
     site_version_match = re.search(r'(?m)^version:\s*["\']?([^"\'\s]+)', project_data)
-    if not site_version_match or site_version_match.group(1) != firmware_version:
+    development_build = firmware_version.endswith("-dev")
+    if (not development_build and
+            (not site_version_match or site_version_match.group(1) != firmware_version)):
         fail(errors, "site project version does not match the firmware version")
-    if firmware_version:
+    if firmware_version and not development_build:
         display_version = firmware_version.rsplit(".", 1)[0]
         if f"OpenTurbine {display_version}" not in (ROOT / "README.md").read_text(encoding="utf-8"):
             fail(errors, "root README does not identify the current firmware version")
         if f"## [{firmware_version}]" not in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"):
             fail(errors, "changelog has no entry for the current firmware version")
+    elif development_build and "## [Unreleased]" not in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"):
+        fail(errors, "development firmware needs an Unreleased changelog section")
     for name in PUBLIC_PAGES:
         path = SITE / name
         if not path.is_file():

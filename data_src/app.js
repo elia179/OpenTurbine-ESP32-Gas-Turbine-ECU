@@ -516,6 +516,7 @@ function decodeCompactTelemetry(frame, previous) {
     total_run_seconds:v[67], run_count:v[68], start_attempt_count:v[69],
     ab_seq_block_idx:v[70], ab_seq_block_total:v[71], ab_flame_raw:v[72],
     ri_on:frame.io, ri_ok:frame.ih, ro_on:frame.oo, di_on:frame.di,
+    torque_phase_rpm:frame.pr,
     uptime_s:frame.u, boot_count:frame.bc, reset_reason:frame.rr,
     session_dropped_rows:frame.lg, session_queued_rows:frame.lq,
     session_logger_error:frame.lc,
@@ -1337,11 +1338,32 @@ function applyData(d) {
     if (d.has_torque) {
       setText('torque', d.torque !== undefined ? Number(d.torque).toFixed(1) : '—');
       setDot('torque-health', d.torque_healthy, 'Torque sensor');
-      if (d.has_n2 && d.n2_healthy !== false && d.turbo_power_w !== undefined && d.turbo_power_w !== null) {
+      const registryInputs = Array.isArray(d.registry_inputs) ? d.registry_inputs : [];
+      const phaseTorque = registryInputs.find(ch => String(ch?.purpose || '') === 'torque' &&
+        Number(ch?.phase_speed_source || 0) > 0);
+      const speedSource = Number(phaseTorque?.phase_speed_source || 0);
+      const torqueSpeed = speedSource === 3
+        ? registryInputs.find(ch => String(ch?.mirror_of || '') === String(phaseTorque?.id || '') &&
+            String(ch?.purpose || '') === 'shaft_speed')
+        : speedSource === 1 ? {value:d.n1,healthy:d.n1_healthy}
+        : speedSource === 2 ? {value:d.n2,healthy:d.n2_healthy} : null;
+      const speedRow = document.getElementById('torque-speed-row');
+      if (speedRow) speedRow.style.display = torqueSpeed ? '' : 'none';
+      if (torqueSpeed) setText('torque-speed', torqueSpeed.healthy !== false && Number.isFinite(Number(torqueSpeed.value))
+        ? fmtInt(Number(torqueSpeed.value)) : '—');
+      const powerRow = document.getElementById('torque-power-row');
+      // Compact telemetry carries a numeric zero even when the slower full
+      // snapshot reports no phase speed source. Keep the optional power row
+      // hidden for torque-only installations on both telemetry paths.
+      // Shaft power is valid only when the phase-torque reference pickup also
+      // supplies an explicitly selected speed. Never infer that an unrelated
+      // N2 sensor is mounted on the torque-measurement shaft.
+      const hasPower = speedSource > 0 &&
+        d.turbo_power_w !== undefined && d.turbo_power_w !== null;
+      if (powerRow) powerRow.style.display = hasPower ? '' : 'none';
+      if (hasPower) {
         const kw = Number(d.turbo_power_w) / 1000;
         setText('turbo-power', kw.toFixed(2));
-      } else {
-        setText('turbo-power', 'N2 required');
       }
     }
   }
@@ -2251,7 +2273,7 @@ const DASHBOARD_CORE_INPUT_IDS = new Set([
 function registryInputAlreadyHasCoreCard(ch) {
   const id = String(ch?.id || '');
   const purpose = String(ch?.purpose || '');
-  return DASHBOARD_CORE_INPUT_IDS.has(id) || DASHBOARD_CORE_INPUT_PURPOSES.has(purpose);
+  return !!String(ch?.mirror_of || '') || DASHBOARD_CORE_INPUT_IDS.has(id) || DASHBOARD_CORE_INPUT_PURPOSES.has(purpose);
 }
 function registryInputIsOperator(ch) {
   const id = String(ch?.id || '');
@@ -2372,9 +2394,12 @@ function renderRegistryInputCards(d, sampleSparklines = false) {
   cardRows.forEach((ch, i) => {
     const safeId = String(ch.id || `input_${i}`).replace(/[^a-zA-Z0-9_-]/g, '_');
     const display = registryInputDisplay(ch);
-    if (sampleSparklines && display.numeric !== null) {
+    if (display.numeric !== null) {
       const arr = registryInputSparkSeries(ch.id);
-      pushSparkline(arr, display.numeric);
+      if (sampleSparklines) pushSparkline(arr, display.numeric);
+      // The registry-card markup is rebuilt on every 3 Hz telemetry frame.
+      // Redraw the replacement canvas every frame even though new samples are
+      // intentionally collected only at 1 Hz, otherwise it appears to blink.
       drawSparkline('regin-spark-' + safeId, arr, 'var(--accent)');
     }
   });

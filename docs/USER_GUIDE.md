@@ -1,4 +1,4 @@
-# OpenTurbine 2.3.6 detailed user guide
+# OpenTurbine 2.4.0 development user guide
 
 OpenTurbine is an open-source ESP32 turbine engine controller with a built-in web interface. It is intended for experimental turbojets, APUs, generators, turboshafts, turboprops, and other small turbine installations.
 
@@ -256,9 +256,13 @@ Enter the real pull-up resistance, NTC R₀, and beta value. For another analog 
 
 ### Torque, thrust, and load-cell sensors
 
-Torque can use an **Analog 0–3.3 V transmitter**, **TLA2528 analog channel**, **HX711 load-cell amplifier**, or a detected **NAU7802**. Thrust supports the same conditioned local/TLA2528 analog transmitters and NAU7802 bridge channels. An HX711 requires two GPIOs: DOUT is an ECU input and SCK is an ECU output.
+The primary **Torque** Hardware card offers one Sensor interface selector: **Analog 0–3.3 V transmitter**, **TLA2528 analog channel**, **HX711 load-cell amplifier**, a detected **NAU7802**, or **shaft torsion by phase difference** using two conditioned square-wave pickups. The I²C choices require the shared bus and detected device. Add repeatable **General / additional torque** cards for separately named measurements; they do not replace or combine with primary shaft torque or its power calculation. Thrust supports the conditioned local/TLA2528 analog transmitters and NAU7802 bridge channels. An HX711 requires two GPIOs: DOUT is an ECU input and SCK is an ECU output.
 
 For a NAU7802, use Calibration to capture unloaded zero and a known force/mass. Thrust is stored in newtons. Torque uses the calibrated force multiplied by the entered perpendicular lever arm in metres and is stored in newton-metres. The known-load wizard accepts N, kg mass, g, kgf, or lbf and converts them to canonical newtons. Conditioned analog transmitters use the normal linear or advanced sensor-curve calibration. Do not treat default scale or zero values as a calibration.
+
+For **shaft-torsion phase-difference torque**, fit a conditioned 3.3 V square-wave reference pickup and a matching torque/phase pickup. They occupy two subcards inside Torque and share the ESP32 MCPWM capture timer; do not connect an unconditioned VR signal directly. Enter the effective pulses per shaft revolution for each pickup separately, including any wheel or gearing multiplier. The two counts must match: this estimator pairs corresponding rising edges one-to-one. Unequal unindexed wheels cannot be made valid by adjusting a single phase-zero value; they need an index or per-tooth mapping and are rejected as torque inputs. With the shaft rotating at verified zero load, capture the running phase zero in Calibration; then apply trusted known torque while it keeps rotating to calculate shaft degrees per Nm. Static tooth alignment is not a valid calibration. If the engine is RUNNING, the two captured values are staged in the current browser tab; stop the engine and use **Save captured calibration in STANDBY** to apply them. Calibration is never changed mid-run. Alternatively enter a previously measured running zero and signed shaft sensitivity directly on Hardware. Calibration uses shaft angle rather than time delay, so it remains valid as speed changes. The phase pickup losing pulses invalidates torque; a healthy reference still provides RPM.
+
+The reference is **torque-only by default**. Choose exactly one optional speed use in the reference subcard: **N1 speed**, **N2 speed**, or **Torque shaft speed**. N1 and N2 feed their normal engine-speed paths; Torque shaft speed is a named RPM input available to the dashboard, controllers, rules, logging, and sequencer conditions without acquiring the GPIO a second time. A shaft that already has an N1/N2 speed card cannot be selected, and fitting another card for a selected N1/N2 shaft is blocked. Selecting any speed use enables shaft-power calculation from torque and the measured reference RPM. With all three off, OpenTurbine reports torque only and skips shaft-power calculation. Existing torque logging and protection use the same torque reading as the other torque interfaces.
 
 ### DS18B20 temperature sensor
 
@@ -279,6 +283,8 @@ Configured input -> switch -> GND
 ```
 
 with a pull-up keeping the released input high. For long/noisy wiring, use suitable filtering, shielding, transient protection, and a fail-safe circuit. The physical STOP must be tested independently and should remove fuel or actuator power even if the ESP32 or software is unavailable.
+
+**Chip detector** and **Differential pressure switch** are ordinary named switch purposes. Their state is available for display, logging, rules, and sequence conditions with the usual polarity and debounce settings. Neither purpose requests shutdown automatically; configure any desired response explicitly.
 
 ## First setup
 

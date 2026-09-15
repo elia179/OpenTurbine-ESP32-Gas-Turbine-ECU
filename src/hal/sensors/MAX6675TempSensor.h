@@ -1,8 +1,8 @@
 #pragma once
 #include "ISensor.h"
-#include <max6675.h>
+#include "SensorProtocolDecode.h"
+#include "SoftwareSpiRead.h"
 #include <Arduino.h>
-#include <new>
 
 // MAX6675 K-type thermocouple SPI sensor.
 // Returns °C. isHealthy() = false when chip reports open-circuit
@@ -11,13 +11,13 @@
 // Ring buffer averaging: NUM_AVG samples averaged before reporting.
 // Smooths igniter electrical noise spikes that could cause false TOT faults.
 //
-// Runtime-pin support: pins stored separately; MAX6675 object is
-// constructed in begin() via placement new (no heap allocation).
+// The protocol is only a 16-bit read, so keeping it here avoids a separate
+// library while retaining the same open-circuit and range checks.
 class MAX6675TempSensor : public ISensor {
 public:
     MAX6675TempSensor(int clkPin, int csPin, int misoPin, const char* sensorName)
         : _clkPin(clkPin), _csPin(csPin), _misoPin(misoPin),
-          _name(sensorName), _tc(nullptr) {}
+          _name(sensorName) {}
 
     // Runtime-pin overload — update pins then reinitialise.
     void begin(int clk, int cs, int miso) {
@@ -28,11 +28,10 @@ public:
     }
 
     void begin() override {
-        // Placement-new: construct MAX6675 into our local storage (zero heap).
-        // Call destructor first so double-init (e.g. pin change + reinit) is safe
-        // even if a future library version adds teardown logic.
-        if (_tc) _tc->~MAX6675();
-        _tc = new (_tcBuf) MAX6675(_clkPin, _csPin, _misoPin);
+        pinMode(_csPin, OUTPUT);
+        digitalWrite(_csPin, HIGH);
+        pinMode(_clkPin, OUTPUT);
+        digitalWrite(_clkPin, LOW);
         // An absent converter otherwise leaves MISO floating and may appear
         // as a plausible turbine temperature.
         pinMode(_misoPin, INPUT_PULLUP);
@@ -45,18 +44,18 @@ public:
     }
 
     void update() override {
-        if (!_tc) return;
         unsigned long now = millis();
         if (now - _lastMs < READ_INTERVAL_MS) return;
         _lastMs = now;
-        float t = _tc->readCelsius();
-        // NaN = the chip's open-thermocouple bit (D2) — the reliable fault
+        float t = 0.0f;
+        const bool valid = SensorProtocolDecode::max6675(_read16(), t);
+        // D2 is the chip's open-thermocouple indication — the reliable fault
         // indication (a disconnected converter reads all-1s via the MISO
         // pull-up, which also sets D2).  0 °C is the range floor and a
         // legitimate reading at freezing ambient, so it is NOT a fault.
         // MAX6675 physical range: 0 to 1023.75 °C (0.25 °C/LSB); anything
         // outside is impossible.
-        if (isnan(t) || t < 0.0f || t > 1023.75f) {
+        if (!valid) {
             _healthy = false;
             // Retain the last value but reset filter history after a fault.
             _filled = 0;
@@ -89,10 +88,6 @@ private:
     int8_t      _misoPin;
     const char* _name;
 
-    // Placement-new storage — sizeof/alignof MAX6675 (avoids heap alloc)
-    alignas(MAX6675) uint8_t _tcBuf[sizeof(MAX6675)];
-    MAX6675*    _tc;
-
     float       _buf[NUM_AVG] = {};
     int         _idx          = 0;
     int         _filled       = 0;
@@ -100,4 +95,8 @@ private:
     bool        _healthy      = false;
     unsigned long _lastMs     = 0;
     uint32_t      _sampleSeq  = 0;
+
+    uint16_t _read16() {
+        return (uint16_t)SoftwareSpiRead::bits(_clkPin, _csPin, _misoPin, 16, true);
+    }
 };

@@ -61,7 +61,8 @@ struct EngineData {
     volatile int      battVoltageRaw  = 0;
     volatile float    torque          = 0;      // Nm   output shaft torque (turboshaft, optional)
     volatile float    thrust          = 0;      // N    measured engine thrust (optional)
-    volatile float    turboPower      = 0;      // W    shaft power = torque × n2AngularVel (turboshaft)
+    volatile float    turboPower      = 0;      // W    torque × its explicitly associated shaft angular speed
+    volatile float    phaseTorqueRpm  = 0;      // RPM from torque reference pickup, zero when stopped/unhealthy
     volatile int      oilPressureRaw  = 0;      // raw ADC counts
     volatile int      flameSensorRaw  = 0;      // raw ADC counts
     volatile float    lastRunFlameAvg = 0;      // sparse 1 Hz average from latest run

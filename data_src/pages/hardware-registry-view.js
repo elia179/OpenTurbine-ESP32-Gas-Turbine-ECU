@@ -51,12 +51,33 @@ function registryStatus(c) {
   if (!registryPurposeDefinitions(direction).some(p=>p.value===purpose)) return {kind:'error', text:'Unknown device purpose'};
   if (registryPurposeIsSingleton(direction, purpose) && (registryRoot()[direction+'s']||[]).filter(row=>registryDerivedPurpose(direction,row)===purpose).length > 1)
     return {kind:'error', text:`${registryPurposeLabel(direction,c)} is already assigned`};
+  if (direction === 'input' && ['n1_speed','n2_speed'].includes(purpose) &&
+      registryPhaseShaftOwner(purpose === 'n1_speed' ? 1 : 2,c))
+    return {kind:'error', text:`${purpose === 'n1_speed' ? 'N1' : 'N2'} speed is already supplied by the torque reference pickup`};
+  if (direction === 'input' && purpose === 'torque' && Number(c.torque_interface || 0) === 2) {
+    const refPpr = Number(c.pulses_per_unit ?? 1);
+    const phasePpr = Number(c.phase_pulses_per_unit ?? refPpr);
+    if (!Number.isFinite(refPpr) || !Number.isFinite(phasePpr) ||
+        refPpr <= 0 || phasePpr <= 0 || refPpr > 1024 || phasePpr > 1024)
+      return {kind:'error', text:'Enter valid pulses per revolution for both pickups'};
+    if (Math.abs(refPpr - phasePpr) > 0.0001)
+      return {kind:'error', text:'Reference and torque pickup tooth counts differ; unequal unindexed pickups cannot produce one stable phase zero'};
+    const source = Number(c.phase_speed_source || 0);
+    if (source && registryOrdinaryShaftOwner(source,c))
+      return {kind:'error', text:`${source === 1 ? 'N1' : 'N2'} already has a speed sensor`};
+    if (Number(c.phase_pin ?? -1) < 0 || Number(c.phase_pin) === Number(c.pin))
+      return {kind:'error', text:'Assign a separate phase pickup GPIO'};
+    if (!GPIO_DB?.[Number(c.phase_pin)] || GPIO_DB?.[Number(c.phase_pin)]?.r)
+      return {kind:'error', text:`Phase GPIO ${c.phase_pin} is unavailable on this board`};
+    if (!Number.isFinite(Number(c.phase_deg_per_nm)) || Math.abs(Number(c.phase_deg_per_nm)) < 0.000001)
+      return {kind:'error', text:'Enter nonzero phase sensitivity or calibrate with known torque'};
+  }
   if (direction === 'input' && (purpose === 'shaft_speed' || purpose.startsWith('general_')) &&
       (registryRoot().inputs || []).some(row => row !== c && registryDerivedPurpose('input',row) === purpose &&
         String(row.name || '').trim() === String(c.name || '').trim()))
     return {kind:'error', text:'Rename repeated general sensors so every channel is identifiable'};
-  if (direction === 'input' && purpose === 'shaft_speed' && Number(c.driver) === 2 &&
-      (registryRoot().inputs || []).filter(row => registryDerivedPurpose('input',row) === 'shaft_speed' && Number(row.driver) === 2).length > 2)
+  if (direction === 'input' && purpose === 'shaft_speed' && Number(c.driver) === 2 && !String(c.mirror_of || '') &&
+      (registryRoot().inputs || []).filter(row => !String(row?.mirror_of || '') && registryDerivedPurpose('input',row) === 'shaft_speed' && Number(row.driver) === 2).length > 2)
     return {kind:'error', text:'Only two additional pulse shaft-speed counters are available; use analog/I2C or remove one'};
   const profileBacked = pcbProfileActive();
   if (profileBacked) {
@@ -163,6 +184,7 @@ function registryDemandProblem(value) {
   return !Number.isFinite(n) || n < 0 || n > 1 ? 'Demand 0-100%' : '';
 }
 function registryRangeProblem(c) {
+  if (Number(c?.torque_interface || 0) === 2) return '';
   if (Number(c?.driver) >= 8) return '';
   if (registryLoadCellIsHx711(c)) return '';
   if (String(c?.role || '') === 'temperature' && Number(c?.temp_interface || 0) !== 0) return '';
@@ -206,6 +228,8 @@ function registryPinSummary(c) {
     return port ? pcbChoiceLabel({port,mode}) : 'PCB connection missing';
   }
   if (Number(c?.driver) >= 8) return `I2C 0x${Number(c.i2c_address||0).toString(16).toUpperCase().padStart(2,'0')} channel ${Number(c.device_channel||0)}`;
+  if (Number(c?.torque_interface || 0) === 2)
+    return `Reference GPIO${c.pin} / phase GPIO${c.phase_pin ?? 'not set'}`;
   if (registryLoadCellIsHx711(c)) return `DOUT GPIO${c.pin} / SCK GPIO${c.hx711_clk ?? 'not set'}`;
   if (registryTemperatureIsSpi(c)) {
     return `Shared SPI bus / CS GPIO${c.spi_cs}`;
@@ -260,6 +284,7 @@ function updateRegistryProfilePort(direction,index,value) {
   dirty(); renderRegistryInventory(); updateSaveButton();
 }
 function registrySignalSummary(c) {
+  if (Number(c?.torque_interface || 0) === 2) return 'Shaft torsion by phase difference';
   if (registryLoadCellIsHx711(c)) return 'HX711 load-cell amplifier';
   const tempNames = {1:'MAX6675 thermocouple', 2:'MAX31855 thermocouple', 3:'MAX31856 thermocouple', 4:'NTC thermistor divider', 5:'DS18B20 OneWire'};
   return tempNames[Number(c.temp_interface)] || driverName(c.driver);
@@ -499,6 +524,11 @@ function registryHas(direction, predicate) {
   return rows.some(c => c?.installed !== false && predicate(c));
 }
 function registryHasPurpose(direction, purpose) {
+  if (direction === 'input' && ['n1_speed','n2_speed'].includes(purpose)) {
+    const source = purpose === 'n1_speed' ? 1 : 2;
+    if (registryHas('input', c => Number(c.torque_interface || 0) === 2 &&
+      Number(c.phase_speed_source || 0) === source && registryStatus(c).kind === 'ok')) return true;
+  }
   return registryHas(direction, c => registryDerivedPurpose(direction, c) === purpose && registryStatus(c).kind === 'ok');
 }
 function hardwareHasDiRole(role) {
@@ -1174,6 +1204,7 @@ function renderRegistryInventory() {
     const rows = r[direction + 's'];
     let visibleRows = rows.map((c, i) => ({c, i})).filter(({c}) => {
       if (direction !== 'input') return true;
+      if (String(c?.mirror_of || '')) return false;
       const purpose = registryDerivedPurpose('input', c);
       if (!['oil_flow','scavenge_flow'].includes(purpose)) return true;
       const ownerPurpose = purpose === 'oil_flow' ? 'oil_pump' : 'scavenge_pump';
@@ -1241,7 +1272,8 @@ function renderRegistryInventory() {
            ${pcbProfileActive() ? '' : registryI2cEditor(direction, c, i)}
            ${pcbProfileActive() ? '' : (direction==='input' ? registryTemperatureInterfaceEditor(c, i) : '')}
            ${pcbProfileActive() ? '' : registryTorqueInterfaceEditor(direction, c, i)}
-           ${(!pcbProfileActive() || !c.physical_port) && Number(c.driver)<8 && !(direction==='input' && registryTemperatureIsSpi(c)) ? `<div class="hw-field"><span class="hw-label">${direction==='input' ? registryInputPinLabel(c) : 'GPIO pin'}</span><select class="${pinClass}" onchange="updateRegistryChannel('${direction}',${i},'pin',+this.value)">${buildPinOptions(c.pin, registryLoadCellIsHx711(c) || Number(c.temp_interface||0)===5 ? 'in' : registryPinMode(direction, c.driver))}</select>${pcbProfileActive()?'<span class="hw-desc">Only unreserved ESP32 pins are offered. PCB-labelled connections are preferred when suitable.</span>':''}</div>` : ''}
+           ${registryPhaseTorqueSubcards(direction,c,i)}
+           ${(!pcbProfileActive() || !c.physical_port) && Number(c.driver)<8 && !(direction==='input' && (registryTemperatureIsSpi(c) || Number(c.torque_interface||0)===2)) ? `<div class="hw-field"><span class="hw-label">${direction==='input' ? registryInputPinLabel(c) : 'GPIO pin'}</span><select class="${pinClass}" onchange="updateRegistryChannel('${direction}',${i},'pin',+this.value)">${buildPinOptions(c.pin, registryLoadCellIsHx711(c) || Number(c.temp_interface||0)===5 ? 'in' : registryPinMode(direction, c.driver))}</select>${pcbProfileActive()?'<span class="hw-desc">Only unreserved ESP32 pins are offered. PCB-labelled connections are preferred when suitable.</span>':''}</div>` : ''}
            ${pcbProfileActive() ? '' : registryInputOptionsEditor(direction, c, i)}
            ${registryProfileInputTuningEditor(direction, c, i)}
            ${pcbProfileActive() ? '' : registryInvertEditor(direction, c, i)}

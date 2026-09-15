@@ -2,7 +2,6 @@
 #include "ISensor.h"
 #include <Arduino.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
 #include <new>
 
 // ============================================================
@@ -37,7 +36,7 @@ public:
     // parasite-powered two-wire mode needs a strong pull-up that is not fitted.
     explicit DS18B20TempSensor(const char* sensorName)
         : _pin(-1), _resolution(10), _name(sensorName),
-          _ow(nullptr), _dt(nullptr) {}
+          _ow(nullptr) {}
 
     // Runtime init — call once at boot (or on pin/resolution change).
     void begin(int pin, uint8_t resolution = 10) {
@@ -48,26 +47,19 @@ public:
         if (_ow) { _ow->~OneWire(); }
         _ow = new (_owBuf) OneWire(_pin);
 
-        if (_dt) { _dt->~DallasTemperature(); }
-        _dt = new (_dtBuf) DallasTemperature(_ow);
-
-        _dt->begin();
-        _numDevices = _dt->getDeviceCount();
-
         _haveAddr  = false;
-
-        if (_numDevices > 0) {
-            // Cache the ROM address once — getTempCByIndex() would repeat a
-            // full bus search every read (~15-25 ms blocking the ECU core).
-            _haveAddr = _dt->getAddress(_addr, 0) &&
-                        _addr[0] == 0x28 &&
-                        OneWire::crc8(_addr, 7) == _addr[7];
-            _dt->setResolution(_resolution);
-            if (_haveAddr) _startConversion(millis());
-            else _state = ST_IDLE;
-        } else {
-            _state = ST_IDLE;
+        // Discover and cache the first DS18B20 directly. Search is boot-only;
+        // runtime sampling never scans the bus.
+        _ow->reset_search();
+        while (_ow->search(_addr)) {
+            if (_addr[0] == 0x28 && OneWire::crc8(_addr, 7) == _addr[7]) {
+                _haveAddr = true;
+                break;
+            }
         }
+        _ow->reset_search();
+        if (_haveAddr && _setResolution()) _startConversion(millis());
+        else { _haveAddr = false; _state = ST_IDLE; }
 
         _temp    = 0.0f;
         _healthy = false;
@@ -79,7 +71,7 @@ public:
     void begin() override { begin(_pin, _resolution); }
 
     void update() override {
-        if (!_dt || _numDevices == 0 || !_haveAddr) return;
+        if (!_ow || !_haveAddr) return;
 
         unsigned long now = millis();
 
@@ -117,7 +109,7 @@ public:
     }
 
     float       getValue()  override { return _temp; }
-    bool        isHealthy() override { return _healthy && _numDevices > 0; }
+    bool        isHealthy() override { return _healthy && _haveAddr; }
     const char* name()      override { return _name; }
     uint32_t sampleSequence() override { return _sampleSeq; }
     uint32_t sampleTimestampMs() override { return _sampleMs; }
@@ -148,6 +140,28 @@ private:
         return present;
     }
 
+    bool _readScratchpad(uint8_t* data) {
+        if (!_ow->reset()) return false;
+        _ow->select(_addr);
+        _ow->write(0xBE);
+        for (uint8_t i = 0; i < 9; ++i) data[i] = _ow->read();
+        return OneWire::crc8(data, 8) == data[8];
+    }
+
+    bool _setResolution() {
+        uint8_t data[9];
+        if (!_readScratchpad(data)) return false;
+        const uint8_t config = (uint8_t)(0x1F | ((_resolution - 9U) << 5));
+        if (!_ow->reset()) return false;
+        _ow->select(_addr);
+        _ow->write(0x4E); // WRITE SCRATCHPAD
+        _ow->write(data[2]); // preserve alarm-high setting
+        _ow->write(data[3]); // preserve alarm-low setting
+        _ow->write(config);
+        if (!_readScratchpad(data)) return false;
+        return (data[4] & 0x7F) == config;
+    }
+
     void _processScratchpad() {
         if (OneWire::crc8(_scratch, 8) != _scratch[8]) {
             _healthy = false;                 // garbled read / device gone
@@ -175,13 +189,9 @@ private:
     int8_t      _pin;
     uint8_t     _resolution;
     const char* _name;
-    int         _numDevices  = 0;
-
     // Placement-new storage — avoids heap allocation.
-    alignas(OneWire)           uint8_t _owBuf[sizeof(OneWire)];
-    alignas(DallasTemperature) uint8_t _dtBuf[sizeof(DallasTemperature)];
-    OneWire*           _ow;
-    DallasTemperature* _dt;
+    alignas(OneWire) uint8_t _owBuf[sizeof(OneWire)];
+    OneWire* _ow;
 
     uint8_t       _addr[8]      = {};
     bool          _haveAddr     = false;

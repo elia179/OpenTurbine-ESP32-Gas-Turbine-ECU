@@ -1,0 +1,89 @@
+{
+  "run_id": "20260915_230642",
+  "firmware": "2.4.0-dev",
+  "firmware_after": "2.4.0-dev",
+  "firmware_match": true,
+  "backup_path": "dev/bench/results/ten_build_backup_20260915_230642.json",
+  "results": [
+    {
+      "id": "hil_minimal_timer_turbojet",
+      "name": "Minimal timer turbojet",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "throttle ADC input sweep",
+          "ok": true,
+          "detail": "97->3276"
+        },
+        {
+          "name": "throttle calibration save",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "oil prime command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "oil prime physical output",
+          "ok": true,
+          "detail": "OILPUMP_OUT {'us': 0, 'hz': 0.0, 'duty': 1.0, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "fuel solenoid command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "fuel solenoid physical output",
+          "ok": true,
+          "detail": "FUEL_SOL {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "igniter command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "igniter physical output",
+          "ok": true,
+          "detail": "IGNITER {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "main fuel/throttle servo command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "main fuel/throttle servo physical output",
+          "ok": true,
+          "detail": "THROTTLE_OUT {'us': 1499, 'hz': 50.0, 'duty': 0.075, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "minimum reliable fuel command save",
+          "ok": true,
+          "detail": "saved=14"
+        },
+        {
+          "name": "bench start accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True, 'started': True, 'request_id': 1}"
+        },
+        {
+          "name": "bench startup run reaches active states",
+          "ok": true,
+          "detail": "startup=True running=True"
+        },
+        {
+          "name": "bench startup drives at least one output",
+          "ok": true,
+          "detail": "{'THROTTLE_OUT_us': 1744, 'THROTTLE_OUT_hz': 50.0, 'THROTTLE_OUT_duty': 0.087, 'THROTTLE_OUT_level': 1, 'STARTER_OUT_us': 0, 'STARTER_OUT_hz': 0.0, 'STARTER_OUT_duty': 0.0, 'STARTER_OUT_level': 0, 'OILPUMP_OUT_us': 0, 'O"
+        }
+      ],
+      "error": null,
+      "duration_s": 54.42
+    }
+  ],
+  "restored": true
+}

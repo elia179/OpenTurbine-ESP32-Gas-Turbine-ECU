@@ -195,7 +195,10 @@ public:
         char name[24] = {};
         char role[18] = {"generic"};
         char purpose[20] = {"generic"};
-        char mirrorOf[20] = {}; // output command source; empty means independent
+        // Outputs use this for a shared command source. Inputs may use it for
+        // a virtual measurement derived from another input without claiming a
+        // second GPIO or peripheral.
+        char mirrorOf[20] = {};
         // Empty in generic dev-board mode. In PCB-profile mode these stable
         // IDs are the persisted topology; raw pin/bus/driver fields below are
         // derived from the immutable flashed profile on every load.
@@ -224,12 +227,18 @@ public:
         float calibrationValue[PiecewiseCalibration::MAX_POINTS] = {};
         uint16_t digitalThresholdRaw = 2048; // ADC-backed switch centre, 0..4095
         uint16_t digitalHysteresisRaw = 64;  // total switch deadband, 0..2047
-        // Torque and thrust cards can use a normal analog transmitter (0) or
-        // an HX711 bridge ADC (1). For HX711, pin is DOUT and hx711Clk is SCK.
+        // Torque: analog (0), HX711 (1), or dual MCPWM phase capture (2).
+        // With phase capture, pin is the reference pickup and phasePin is the
+        // torque pickup. Both capture channels share one hardware timer.
         uint8_t torqueInterface = 0;
         int8_t hx711Clk = -1;
         float hx711Scale = 1.0f;
         int32_t hx711Zero = 0;
+        int8_t phasePin = -1;
+        float phasePulsesPerUnit = 1.0f; // torque pickup pulses/rev; must match reference for one-to-one pairing
+        uint8_t phaseSpeedSource = 0; // 0=torque only, 1=N1, 2=N2, 3=torque-shaft RPM
+        float phaseZeroDeg = 0.0f;
+        float phaseDegPerNm = 1.0f;
         // Temperature cards can be a calibrated analog transmitter (0), a
         // thermocouple amplifier (1=MAX6675, 2=MAX31855, 3=MAX31856), an
         // NTC divider (4), or a DS18B20 OneWire probe (5). SPI bus lines may
@@ -337,8 +346,9 @@ public:
                                   c.temperatureInterface >= 1 && c.temperatureInterface <= 3;
         const bool remote = c.driver == I2cDigital || c.driver == I2cAnalog ||
                             c.driver == I2cLoadCell || c.driver == I2cRelay;
+        const bool virtualInput = c.direction == Input && c.mirrorOf[0];
         if (!validId(c.id) || findMutable(c.id, Input) || findMutable(c.id, Output) ||
-            (!profileBacked && !thermocouple && !remote && c.pin < 0) ||
+            (!profileBacked && !thermocouple && !remote && !virtualInput && c.pin < 0) ||
             (!profileBacked && thermocouple && !temperatureInterfaceValid(c))) return false;
         Channel* list = c.direction == Input ? inputs : outputs;
         uint8_t& count = c.direction == Input ? inputCount : outputCount;
@@ -359,8 +369,10 @@ public:
         if (count >= max || !driverMatches(c.direction, c.driver) || !roleValid(c.direction, c.role) ||
             !purposeValid(c.direction, c.purpose) || !semanticDriverValid(c) || !demandsValid(c)) return false;
         for (uint8_t i=0; i<inputCount; ++i) {
-            if (c.pin >= 0 && (inputs[i].pin == c.pin || inputs[i].hx711Clk == c.pin)) return false;
-            if (c.hx711Clk >= 0 && (inputs[i].pin == c.hx711Clk || inputs[i].hx711Clk == c.hx711Clk)) return false;
+            if (!virtualInput && !inputs[i].mirrorOf[0] && c.pin >= 0 &&
+                (inputs[i].pin == c.pin || inputs[i].hx711Clk == c.pin)) return false;
+            if (!virtualInput && !inputs[i].mirrorOf[0] && c.hx711Clk >= 0 &&
+                (inputs[i].pin == c.hx711Clk || inputs[i].hx711Clk == c.hx711Clk)) return false;
         }
         for (uint8_t i=0; i<outputCount; ++i) {
             if (c.pin >= 0 && (outputs[i].pin == c.pin || outputs[i].hx711Clk == c.pin)) return false;
@@ -427,6 +439,38 @@ public:
                      "Input %s has invalid role, signal type, or range", inputs[i].id);
             return false;
         }
+        for (uint8_t i = 0; i < inputCount; ++i) {
+            const auto& derived = inputs[i];
+            if (!derived.mirrorOf[0]) continue;
+            const Channel* source = find(derived.mirrorOf, Input);
+            if (!source || source == &derived || source->mirrorOf[0] ||
+                !source->installed || source->torqueInterface != 2 ||
+                source->phaseSpeedSource != 3 || strcmp(source->purpose, "torque") ||
+                strcmp(derived.role, "speed") || strcmp(derived.purpose, "shaft_speed") ||
+                derived.driver != Pulse || derived.pin != source->pin ||
+                fabsf(derived.pulsesPerUnit - source->pulsesPerUnit) > 0.0001f) {
+                snprintf(_validationError, sizeof(_validationError),
+                         "Input %s has an invalid derived speed source", derived.id);
+                return false;
+            }
+        }
+        // A phase reference is a complete shaft-speed pickup. Never let an
+        // ordinary N1/N2 card and the torque card both own the same shaft.
+        for (uint8_t i = 0; i < inputCount; ++i) {
+            const auto& torque = inputs[i];
+            if (!torque.installed || torque.torqueInterface != 2) continue;
+            if (!torqueInterfaceValid(torque) || (torque.driver != Pulse)) return false;
+            const char* shaft = torque.phaseSpeedSource == 1 ? "n1_speed" :
+                                torque.phaseSpeedSource == 2 ? "n2_speed" : nullptr;
+            if (!shaft) continue;
+            for (uint8_t j = 0; j < inputCount; ++j)
+                if (i != j && inputs[j].installed && !strcmp(inputs[j].purpose, shaft)) {
+                    snprintf(_validationError, sizeof(_validationError),
+                             "%s already has a speed sensor; set torque reference to torque-only or remove that sensor",
+                             torque.phaseSpeedSource == 1 ? "N1" : "N2");
+                    return false;
+                }
+        }
         uint8_t directHx711Count = 0;
         for (uint8_t i=0; i<inputCount; ++i)
             if (inputs[i].installed && inputs[i].driver == Analog &&
@@ -473,7 +517,8 @@ public:
         uint8_t nauGain = 0;
         uint16_t nauRate = 0;
         for (uint8_t i=0; i<inputCount; ++i) {
-            if (inputs[i].driver == Pulse && !strcmp(inputs[i].purpose, "shaft_speed")) auxiliaryPcnt++;
+            if (!inputs[i].mirrorOf[0] && inputs[i].driver == Pulse &&
+                !strcmp(inputs[i].purpose, "shaft_speed")) auxiliaryPcnt++;
             if (inputs[i].temperatureInterface == 5 && strcmp(inputs[i].purpose, "oil_temperature")) registryOneWire++;
             if (inputs[i].driver == I2cLoadCell) {
                 nauLoadCells++;
@@ -496,7 +541,7 @@ public:
                      "At most 2 NAU7802 load-cell inputs are supported");
             return false;
         }
-        for (uint8_t i=0; i<inputCount; ++i) for (uint8_t j=0; j<outputCount; ++j) if (inputs[i].pin >= 0 && inputs[i].pin == outputs[j].pin) {
+        for (uint8_t i=0; i<inputCount; ++i) for (uint8_t j=0; j<outputCount; ++j) if (!inputs[i].mirrorOf[0] && inputs[i].pin >= 0 && inputs[i].pin == outputs[j].pin) {
             snprintf(_validationError, sizeof(_validationError),
                      "GPIO %d is assigned to both %s and %s",
                      (int)inputs[i].pin, inputs[i].id, outputs[j].id);
@@ -607,7 +652,8 @@ public:
         // any-active while retaining per-channel health and disconnect checks.
         if (!strcmp(purpose, "start_switch") || !strcmp(purpose, "stop_switch") ||
             !strcmp(purpose, "low_oil_switch") || !strcmp(purpose, "oil_zero_switch") ||
-            !strcmp(purpose, "digital_switch") || !strcmp(purpose, "fault") ||
+            !strcmp(purpose, "digital_switch") || !strcmp(purpose, "chip_detector") ||
+            !strcmp(purpose, "diff_press_switch") || !strcmp(purpose, "fault") ||
             !strcmp(purpose, "estop") || !strcmp(purpose, "inhibit_start") ||
             !strcmp(purpose, "sequence_gate") || !strcmp(purpose, "ab_arm") ||
             !strcmp(purpose, "ab_fire") || !strcmp(purpose, "limp_mode")) return false;
@@ -638,6 +684,7 @@ public:
                    !strcmp(purpose, "battery_voltage") || !strcmp(purpose, "throttle") ||
                    !strcmp(purpose, "idle") || !strcmp(purpose, "ab_command") ||
                    !strcmp(purpose, "digital_switch") ||
+                   !strcmp(purpose, "chip_detector") || !strcmp(purpose, "diff_press_switch") ||
                    !strcmp(purpose, "start_switch") || !strcmp(purpose, "stop_switch") ||
                    !strcmp(purpose, "fault") || !strcmp(purpose, "estop") ||
                    !strcmp(purpose, "inhibit_start") || !strcmp(purpose, "sequence_gate") ||
@@ -738,7 +785,9 @@ public:
             if (!strcmp(purpose, "flame") || !strcmp(purpose, "ab_flame"))
                 return !strcmp(role, "flame") &&
                        oneOf(Digital, Analog, I2cDigital, I2cAnalog);
-            if (!strcmp(purpose, "torque") || !strcmp(purpose, "general_torque"))
+            if (!strcmp(purpose, "torque"))
+                return !strcmp(role, "torque") && oneOf(Analog, Pulse, I2cAnalog, I2cLoadCell);
+            if (!strcmp(purpose, "general_torque"))
                 return !strcmp(role, "torque") && oneOf(Analog, I2cAnalog, I2cLoadCell);
             if (!strcmp(purpose, "thrust") || !strcmp(purpose, "general_thrust"))
                 return !strcmp(role, "thrust") && oneOf(Analog, I2cAnalog, I2cLoadCell);
@@ -757,7 +806,8 @@ public:
 
             const bool switchDriver = oneOf(Digital, Analog, I2cDigital, I2cAnalog);
             if (!strcmp(purpose, "start_switch") || !strcmp(purpose, "stop_switch") ||
-                !strcmp(purpose, "digital_switch"))
+                !strcmp(purpose, "digital_switch") || !strcmp(purpose, "chip_detector") ||
+                !strcmp(purpose, "diff_press_switch"))
                 return !strcmp(role, "digital_switch") && switchDriver;
             const char* expectedRole = !strcmp(purpose, "inhibit_start") ? "inhibit_start" :
                 !strcmp(purpose, "estop") ? "estop" : !strcmp(purpose, "fault") ? "fault" :
@@ -838,7 +888,22 @@ private:
                c.temperatureResolution >= 9 && c.temperatureResolution <= 12;
     }
     static bool torqueInterfaceValid(const Channel& c) {
-        if (!c.torqueInterface) return true;
+        if (!c.torqueInterface)
+            return c.driver != Pulse || strcmp(c.role, "torque") != 0;
+        if (c.torqueInterface == 2)
+            return c.direction == Input && !strcmp(c.role, "torque") &&
+                   !strcmp(c.purpose, "torque") &&
+                   c.driver == Pulse && c.pin >= 0 && c.phasePin >= 0 &&
+                   c.pin != c.phasePin && c.phaseSpeedSource <= 3 &&
+                   isfinite(c.pulsesPerUnit) && c.pulsesPerUnit > 0.0f &&
+                   c.pulsesPerUnit <= 1024.0f &&
+                   isfinite(c.phasePulsesPerUnit) && c.phasePulsesPerUnit > 0.0f &&
+                   c.phasePulsesPerUnit <= 1024.0f &&
+                   fabsf(c.phasePulsesPerUnit - c.pulsesPerUnit) <= 0.0001f &&
+                   isfinite(c.phaseZeroDeg) && fabsf(c.phaseZeroDeg) <= 180.0f &&
+                   isfinite(c.phaseDegPerNm) && fabsf(c.phaseDegPerNm) >= 0.000001f &&
+                   fabsf(c.phaseDegPerNm) <= 180.0f &&
+                   c.filterAlpha > 0.0f && c.filterAlpha <= 1.0f;
         return c.torqueInterface == 1 && c.direction == Input &&
                (!strcmp(c.role, "torque") || !strcmp(c.role, "thrust")) &&
                c.driver == Analog && c.pin >= 0 && c.hx711Clk >= 0 && c.pin != c.hx711Clk &&
@@ -882,7 +947,7 @@ private:
                    (!strcmp(c.role, "torque") ? c.leverArmM > 0.0f
                                                 : c.leverArmM >= 0.0f) &&
                    c.filterAlpha > 0.0f && c.filterAlpha <= 1.0f;
-        if (c.torqueInterface == 1) return torqueInterfaceValid(c);
+        if (c.torqueInterface == 1 || c.torqueInterface == 2) return torqueInterfaceValid(c);
         // Dedicated temperature interfaces do not consume the generic analog
         // validity range or mV scale. Their own wiring/calibration validates
         // the channel completely.
@@ -1111,6 +1176,13 @@ private:
                 o["hx711_scale"] = c.hx711Scale;
                 o["hx711_zero"] = c.hx711Zero;
             }
+            if (c.torqueInterface == 2) {
+                o["phase_pin"] = c.phasePin;
+                o["phase_pulses_per_unit"] = c.phasePulsesPerUnit;
+                o["phase_speed_source"] = c.phaseSpeedSource;
+                o["phase_zero_deg"] = c.phaseZeroDeg;
+                o["phase_deg_per_nm"] = c.phaseDegPerNm;
+            }
             if (c.temperatureInterface || c.spiClk >= 0 || c.spiCs >= 0 ||
                 c.spiMiso >= 0 || c.spiMosi >= 0) {
                 o["temp_interface"] = c.temperatureInterface;
@@ -1171,7 +1243,7 @@ private:
             Channel c; c.direction = d; c.installed = true;
             strlcpy(c.id, o["id"] | "", sizeof(c.id)); strlcpy(c.name, o["name"] | c.id, sizeof(c.name)); strlcpy(c.role, o["role"] | "generic", sizeof(c.role));
             strlcpy(c.purpose, o["purpose"] | derivePurpose(d, c.id, c.role), sizeof(c.purpose));
-            if (d == Output) strlcpy(c.mirrorOf, o["mirror_of"] | "", sizeof(c.mirrorOf));
+            strlcpy(c.mirrorOf, o["mirror_of"] | "", sizeof(c.mirrorOf));
             if (d == Output && !strcmp(c.purpose, "main_fuel") &&
                 (!strcmp(c.name, "Main Fuel Pump") || !strcmp(c.name, "Main Fuel Meteri")))
                 strlcpy(c.name, "Main Fuel Metering", sizeof(c.name));
@@ -1203,6 +1275,9 @@ private:
             c.digitalThresholdRaw = constrain(o["digital_threshold_raw"] | 2048, 0, 4095);
             c.digitalHysteresisRaw = constrain(o["digital_hysteresis_raw"] | 64, 0, 2047);
             c.torqueInterface = o["torque_interface"] | 0; c.hx711Clk = o["hx711_clk"] | -1; c.hx711Scale = o["hx711_scale"] | 1.0f; c.hx711Zero = o["hx711_zero"] | 0;
+            c.phasePin = o["phase_pin"] | -1; c.phaseSpeedSource = o["phase_speed_source"] | 0;
+            c.phasePulsesPerUnit = o["phase_pulses_per_unit"] | c.pulsesPerUnit;
+            c.phaseZeroDeg = o["phase_zero_deg"] | 0.0f; c.phaseDegPerNm = o["phase_deg_per_nm"] | 1.0f;
             c.temperatureInterface = o["temp_interface"] | 0; c.spiClk = o["spi_clk"] | -1; c.spiCs = o["spi_cs"] | -1; c.spiMiso = o["spi_miso"] | -1; c.spiMosi = o["spi_mosi"] | -1; strlcpy(c.tcType, o["tc_type"] | "K", sizeof(c.tcType));
             c.temperatureResolution = o["temp_resolution"] | 10; c.thermistorBeta = o["ntc_beta"] | 3950.0f; c.thermistorR0 = o["ntc_r0"] | 10000.0f; c.thermistorRFixed = o["ntc_r_fixed"] | 10000.0f; c.thermistorPullup = o["ntc_pullup"] | true;
             c.safeDemand = o["safe_demand"] | (!strcmp(c.purpose, "prop_pitch") ? 1.0f : 0.0f); c.forceSafeOnFault = o["force_safe_on_fault"] | false; c.minimumRunDemand = o["min_run_demand"] | 0.0f; c.pwmTimingConfigured = !o["pwm_freq_hz"].isNull() || !o["pwm_res_bits"].isNull(); c.pwmFrequency = o["pwm_freq_hz"] | 5000; c.pwmResolution = o["pwm_res_bits"] | 10;

@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+// Keep structural source assertions independent of the contributor's checkout
+// newline mode (Git may materialize CRLF on Windows).
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8').replace(/\r\n/g, '\n');
 const checks = [];
 
 function expect(label, condition) {
@@ -214,7 +216,7 @@ expect('TLA threshold switches and torque use valid firmware contracts',
   channelRegistry.includes('oneOf(Digital, Analog, I2cDigital, I2cAnalog)') &&
   channelRegistry.includes('oneOf(Analog, I2cAnalog, I2cLoadCell)') &&
   hwConfig.includes('torque->driver == ChannelRegistry::I2cAnalog') &&
-  hardwareCatalog.includes("value:'torque'") && hardwareCatalog.includes('drivers:[1,9,10]'));
+  hardwareCatalog.includes("value:'torque'") && hardwareCatalog.includes('drivers:[1,2,9,10]'));
 expect('native ADC and TLA ADC switches share threshold, hysteresis and polarity semantics',
   hardware.includes('g_registryAnalogSwitchState') &&
   hardware.includes('AdcThreshold::update((uint16_t)raw, c.digitalThresholdRaw') &&
@@ -992,7 +994,7 @@ expect('afterburner-only save warnings require fitted afterburner hardware',
   configHtml.includes("hasActualAfterburnerHardware() &&") &&
   configHtml.includes("Number(gv(cfg, 'afterburner', 'flame_mode')) === 2"));
 expect('release changelog covers the source firmware version',
-  changelog.includes(`## [${version.match(/OT_VERSION\s+"([^"]+)"/)[1]}]`));
+  changelog.includes(`## [${version.match(/OT_VERSION\s+"([^"]+)"/)[1].endsWith('-dev') ? 'Unreleased' : version.match(/OT_VERSION\s+"([^"]+)"/)[1]}]`));
 expect('phase-two HIL records the live DUT firmware version',
   phase2Hil.includes('self.firmware_before = self.dut.data().get("fw_version"') &&
   !phase2Hil.includes('"firmware": "1.9.2"'));

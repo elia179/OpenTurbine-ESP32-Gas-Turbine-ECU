@@ -25,6 +25,7 @@
 
 // ── All sensor headers — always included ──────────────────────
 #include "hal/sensors/PCNTRpmSensor.h"
+#include "hal/sensors/PhaseTorqueSensor.h"
 #include "hal/sensors/MAX6675TempSensor.h"
 #include "hal/sensors/MAX31855TempSensor.h"
 #include "hal/sensors/MAX31856TempSensor.h"
@@ -128,6 +129,7 @@
     AnalogLinearSensor   g_sensorBattVolt(-1, "BATT_VOLT");                      \
     AnalogLinearSensor   g_sensorTorque(-1, "TORQUE");                           \
     HX711Sensor           g_sensorTorqueHx711(-1, -1, "TORQUE_HX711");            \
+    PhaseTorqueSensor     g_sensorPhaseTorque;                                    \
     AnalogPolySensor   g_sensorOilPress(OT_OIL_PRESS_PIN, "OIL_PRESS");          \
     AnalogLinearSensor g_sensorIdleInput(OT_IDLE_INPUT_PIN, "IDLE_INPUT");       \
     AnalogLinearSensor g_sensorThrottleInput(OT_THROTTLE_INPUT_PIN, "THROTTLE_INPUT"); \
@@ -262,6 +264,7 @@ extern ISensor*            g_pSensorOilTemp;
 extern AnalogLinearSensor  g_sensorBattVolt;
 extern AnalogLinearSensor  g_sensorTorque;
 extern HX711Sensor          g_sensorTorqueHx711;
+extern PhaseTorqueSensor    g_sensorPhaseTorque;
 extern AnalogPolySensor   g_sensorOilPress;
 extern AnalogLinearSensor g_sensorIdleInput;
 extern AnalogLinearSensor g_sensorThrottleInput;
@@ -365,6 +368,15 @@ extern SafetyMonitor  g_safety;
 // ============================================================
 
 namespace Hardware {
+    inline int8_t g_phaseTorqueInput = -1;
+    inline uint8_t g_phaseSpeedSource = 0;
+    inline uint8_t configuredPhaseSpeedSource() {
+        const auto& reg = HardwareConfig::channelRegistry;
+        for (uint8_t i = 0; i < reg.inputCount; ++i)
+            if (reg.inputs[i].installed && reg.inputs[i].torqueInterface == 2 &&
+                !strcmp(reg.inputs[i].purpose, "torque")) return reg.inputs[i].phaseSpeedSource;
+        return 0;
+    }
 
     inline bool g_buzzerReady = false;
 
@@ -718,6 +730,8 @@ namespace Hardware {
         auto& reg = HardwareConfig::channelRegistry;
         auto& ed = EngineData::instance();
         buildRegistryInputPlan();
+        g_phaseTorqueInput = -1;
+        g_phaseSpeedSource = configuredPhaseSpeedSource();
         uint8_t ds18Count = 0;
         uint8_t pcntCount = 0;
         uint8_t hx711Count = 0;
@@ -731,6 +745,10 @@ namespace Hardware {
             g_registryCoreKind[i] = registryCoreInputKind(c);
             g_registryInputFlags[i] = ChannelRegistry::isSwitchCondition(c)
                 ? REG_INPUT_THRESHOLD_SWITCH : 0;
+            if (c.mirrorOf[0]) {
+                ed.registryInputHealthy[i] = false;
+                continue;
+            }
             const bool temperatureRole = !strcmp(c.role, "temperature");
             const bool singletonOilTemperature = !strcmp(c.id, "oil_temperature") ||
                                                   !strcmp(c.purpose, "oil_temperature");
@@ -765,6 +783,18 @@ namespace Hardware {
             if (c.driver == ChannelRegistry::I2cDigital ||
                 c.driver == ChannelRegistry::I2cAnalog ||
                 c.driver == ChannelRegistry::I2cLoadCell) {
+                ed.registryInputHealthy[i] = false;
+                continue;
+            }
+            if (c.installed && c.driver == ChannelRegistry::Pulse &&
+                c.torqueInterface == 2 && !strcmp(c.purpose, "torque")) {
+                g_phaseTorqueInput = (int8_t)i;
+                if (!g_sensorPhaseTorque.begin(c.pin, c.phasePin, c.pulsesPerUnit,
+                                               c.phasePulsesPerUnit)) {
+                    ed.hardwareReady = false;
+                    strlcpy(ed.hardwareFault, "MCPWM torque capture initialization failed",
+                            sizeof(ed.hardwareFault));
+                }
                 ed.registryInputHealthy[i] = false;
                 continue;
             }
@@ -936,6 +966,15 @@ namespace Hardware {
         unsigned long now = millis();
         unsigned long pulseDt = now - g_registryPulseLastMs;
         bool samplePulse = pulseDt >= 100UL;
+        if (g_phaseTorqueInput >= 0) {
+            const auto& phase = reg.inputs[(uint8_t)g_phaseTorqueInput];
+            const float rpmLimit = g_phaseSpeedSource == 2 && Config::n2RpmLimit > 0
+                ? Config::n2RpmLimit : Config::rpmLimit;
+            g_sensorPhaseTorque.update(phase.phaseZeroDeg, phase.phaseDegPerNm,
+                                       phase.filterAlpha, rpmLimit);
+        }
+        ed.phaseTorqueRpm = g_phaseTorqueInput >= 0 && g_sensorPhaseTorque.speedHealthy()
+            ? g_sensorPhaseTorque.rpm() : 0.0f;
         const uint8_t inputCount = min(reg.inputCount, ChannelRegistry::MAX_INPUT_CHANNELS);
         for (uint8_t i = 0; i < inputCount; ++i) {
             const auto& c = reg.inputs[i];
@@ -960,6 +999,27 @@ namespace Hardware {
             }
             if (!c.installed) {
                 ed.registryInputHealthy[i] = false;
+                continue;
+            }
+            if (c.mirrorOf[0]) {
+                const auto* source = reg.find(c.mirrorOf, ChannelRegistry::Input);
+                const bool phaseSpeed = source && source->installed &&
+                    source->torqueInterface == 2 && source->phaseSpeedSource == 3 &&
+                    !strcmp(source->purpose, "torque");
+                ed.registryInputHealthy[i] = phaseSpeed && g_sensorPhaseTorque.speedHealthy();
+                ed.registryInputValue[i] = phaseSpeed ? g_sensorPhaseTorque.rpm() : 0.0f;
+                ed.registryInputRaw[i] = phaseSpeed ? lroundf(g_sensorPhaseTorque.rpm()) : 0;
+                ed.registryInputSampleSeq[i] = phaseSpeed ? g_sensorPhaseTorque.speedSampleSeq() : 0;
+                ed.registryInputSampleMs[i] = phaseSpeed ? g_sensorPhaseTorque.speedSampleMs() : 0;
+                continue;
+            }
+            if ((int8_t)i == g_phaseTorqueInput) {
+                ed.registryInputHealthy[i] = g_sensorPhaseTorque.torqueHealthy();
+                ed.registryInputValue[i] = g_sensorPhaseTorque.torqueNm();
+                // Raw telemetry is phase in microdegrees for calibration.
+                ed.registryInputRaw[i] = lroundf(g_sensorPhaseTorque.phaseDegrees() * 1000000.0f);
+                ed.registryInputSampleSeq[i] = g_sensorPhaseTorque.torqueSampleSeq();
+                ed.registryInputSampleMs[i] = g_sensorPhaseTorque.torqueSampleMs();
                 continue;
             }
             if (g_registryThermocouple[i]) {
@@ -1949,6 +2009,7 @@ namespace Hardware {
         ed.hardwareFault[0] = '\0';
         const bool n1RegistryAnalog = registryAnalogInputIndex("n1_main", "primary_n1", "n1_speed") >= 0;
         const bool n2RegistryAnalog = registryAnalogInputIndex("n2_main", "primary_n2", "n2_speed") >= 0;
+        const uint8_t phaseSpeedSource = configuredPhaseSpeedSource();
         const bool totRegistryAnalog = registryAnalogInputIndex("tot_main", nullptr, "tot") >= 0;
         const bool titRegistryAnalog = registryAnalogInputIndex("tit_main", nullptr, "tit") >= 0;
         const bool oilTempRegistryAnalog = registryAnalogInputIndex("oil_temperature", nullptr, "oil_temperature") >= 0;
@@ -1960,13 +2021,13 @@ namespace Hardware {
         const bool p2RegistryAnalog = registryAnalogInputIndex("p2_main", nullptr, "p2_pressure") >= 0;
         const bool idleRegistryInput = registryPurposeInputIndex("idle") >= 0;
         const bool throttleRegistryInput = registryPurposeInputIndex("throttle", "operator_throttle") >= 0;
-        uint8_t pcntNeeded = (hw.hasN1Rpm && !n1RegistryAnalog ? 1 : 0) +
-                             (hw.hasN2Rpm && !n2RegistryAnalog ? 1 : 0) +
+        uint8_t pcntNeeded = (hw.hasN1Rpm && !n1RegistryAnalog && phaseSpeedSource != 1 ? 1 : 0) +
+                             (hw.hasN2Rpm && !n2RegistryAnalog && phaseSpeedSource != 2 ? 1 : 0) +
                              (hw.hasFuelFlow && hw.fuelFlowType == 1 ? 1 : 0);
         uint8_t registryPcntNeeded = 0;
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
             const auto& c = HardwareConfig::channelRegistry.inputs[i];
-            if (c.installed && c.driver == ChannelRegistry::Pulse && !strcmp(c.role, "speed") &&
+            if (c.installed && !c.mirrorOf[0] && c.driver == ChannelRegistry::Pulse && !strcmp(c.role, "speed") &&
                 !registryCoreInputKind(c) &&
                 strcmp(c.purpose, "fuel_flow") != 0 && strcmp(c.id, "fuel_flow") != 0) {
                 ++pcntNeeded;
@@ -1987,11 +2048,11 @@ namespace Hardware {
                      pcntNeeded, pcntAvailable, registryPcntNeeded, MAX_REGISTRY_PCNT);
             Serial.printf("[HW] %s\n", ed.hardwareFault);
         }
-        if (hw.hasN1Rpm && !n1RegistryAnalog && g_pcntResourcePlanValid) {
+        if (hw.hasN1Rpm && !n1RegistryAnalog && phaseSpeedSource != 1 && g_pcntResourcePlanValid) {
             g_sensorN1Rpm.begin(hw.n1RpmPin, hw.n1RpmPpr);
             if (!g_sensorN1Rpm.hardwareReady()) { ed.hardwareReady = false; strlcpy(ed.hardwareFault, "N1 PCNT initialization failed", sizeof(ed.hardwareFault)); }
         }
-        if (hw.hasN2Rpm && !n2RegistryAnalog && g_pcntResourcePlanValid) {
+        if (hw.hasN2Rpm && !n2RegistryAnalog && phaseSpeedSource != 2 && g_pcntResourcePlanValid) {
             g_sensorN2Rpm.begin(hw.n2RpmPin, hw.n2RpmPpr);
             if (!g_sensorN2Rpm.hardwareReady()) { ed.hardwareReady = false; strlcpy(ed.hardwareFault, "N2 PCNT initialization failed", sizeof(ed.hardwareFault)); }
         }
@@ -2191,7 +2252,12 @@ namespace Hardware {
         const int8_t titSpecial = inputPlan.titSpecial;
         const int8_t oilTempSpecial = inputPlan.oilTempSpecial;
         if (hw.hasN1Rpm) {
-            if (n1Analog >= 0) {
+            if (g_phaseSpeedSource == 1 && g_phaseTorqueInput >= 0) {
+                ed.n1Rpm = g_sensorPhaseTorque.rpm();
+                ed.n1Healthy = g_sensorPhaseTorque.speedHealthy();
+                ed.n1SampleSeq = g_sensorPhaseTorque.speedSampleSeq();
+                ed.n1SampleMs = g_sensorPhaseTorque.speedSampleMs();
+            } else if (n1Analog >= 0) {
                 ed.n1Rpm = ed.registryInputValue[n1Analog];
                 ed.n1Healthy = ed.registryInputHealthy[n1Analog];
                 if (g_registryAnalogLastMs[n1Analog] != ed.n1SampleMs) {
@@ -2211,7 +2277,12 @@ namespace Hardware {
             }
         }
         if (hw.hasN2Rpm) {
-            if (n2Analog >= 0) {
+            if (g_phaseSpeedSource == 2 && g_phaseTorqueInput >= 0) {
+                ed.n2Rpm = g_sensorPhaseTorque.rpm();
+                ed.n2Healthy = g_sensorPhaseTorque.speedHealthy();
+                ed.n2SampleSeq = g_sensorPhaseTorque.speedSampleSeq();
+                ed.n2SampleMs = g_sensorPhaseTorque.speedSampleMs();
+            } else if (n2Analog >= 0) {
                 ed.n2Rpm = ed.registryInputValue[n2Analog];
                 ed.n2Healthy = ed.registryInputHealthy[n2Analog];
                 if (g_registryAnalogLastMs[n2Analog] != ed.n2SampleMs) {
@@ -2480,9 +2551,15 @@ namespace Hardware {
                     ed.torqueSampleMs = sampleMs ? sampleMs : millis();
                 }
             }
-            // shaft power = torque × angular velocity of N2
-            if (ed.torqueHealthy && ed.n2Healthy && ed.n2Rpm > 0) {
-                float omega = ed.n2Rpm * (2.0f * 3.14159f / 60.0f); // rad/s
+            // Phase torque always has its own measured reference RPM. Shaft
+            // power must use that exact pickup; a separate N2 sensor may be on
+            // a different shaft and therefore cannot be assumed equivalent.
+            const bool phaseCapture = g_phaseTorqueInput >= 0;
+            const bool phasePower = phaseCapture && g_phaseSpeedSource != 0;
+            const bool powerSpeedHealthy = phasePower && g_sensorPhaseTorque.speedHealthy();
+            const float powerRpm = phasePower ? g_sensorPhaseTorque.rpm() : 0.0f;
+            if (ed.torqueHealthy && powerSpeedHealthy && powerRpm > 0) {
+                float omega = powerRpm * (2.0f * 3.14159f / 60.0f); // rad/s
                 ed.turboPower = ed.torque * omega;
             } else {
                 ed.turboPower = 0.0f;

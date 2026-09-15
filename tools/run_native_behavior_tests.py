@@ -93,6 +93,7 @@ def main() -> int:
             ("controllers_s3", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")],
              ["-DOT_PLATFORM_ESP32S3"]),
             ("feedback_control", [str(ROOT / "dev" / "host" / "feedback_control_behavior.cpp")], []),
+            ("phase_registry", [str(ROOT / "dev" / "host" / "phase_registry_behavior.cpp")], []),
         ]
         for name, sources, extra_flags in tests:
             # Windows Application Control classifies the generic

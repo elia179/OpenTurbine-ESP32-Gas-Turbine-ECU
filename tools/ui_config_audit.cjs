@@ -294,8 +294,8 @@ async function goto(page, route, waitSelector) {
         action:!!action,
         modalListsThrust,
         removed:!(registryRoot().inputs || []).some(c => c.purpose === 'thrust'),
-        cannotChooseMissingTla:!newTotDrivers.includes('TLA2528'),
-        savedMissingNauVisible:savedThrustDrivers.includes('NAU7802') && savedThrustDrivers.includes('Disconnected')
+        cannotChooseMissingTla:/value="9"[^>]*disabled/.test(newTotDrivers),
+        savedMissingNauVisible:savedThrustDrivers.includes('NAU7802') && savedThrustDrivers.includes('not detected')
       };
     });
     assert.deepEqual(i2cRemoval, {
@@ -434,7 +434,7 @@ async function goto(page, route, waitSelector) {
     assert.doesNotMatch(n1PullbackWithoutTrip, /hard N1 shutdown/);
     results.push('config warns about unsafe shaft, hot-start and windmilling-oil relationships');
     await goto(page, 'controllers.html', '#cf-tot_limit');
-    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20260912c#card-dev-mode');
+    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20260915c#card-dev-mode');
     assert.equal(await page.locator('#btn-dev-mode').count(), 0,
       'Config must not bypass the guarded Developer Mode control on Tools');
     assert.equal(await shown(page, '[data-built-in="afterburner"]'), true,

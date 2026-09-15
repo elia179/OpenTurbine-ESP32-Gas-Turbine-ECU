@@ -108,13 +108,13 @@ const REGISTRY_INPUT_PURPOSES=[
   {value:'general_flow',label:'General flow',role:'flow',drivers:[2,1,9],group:'General-purpose sensors'},
   {value:'general_current',label:'General current',role:'current',drivers:[1,9],group:'General-purpose sensors'},
   {value:'general_voltage',label:'General voltage',role:'voltage',drivers:[1,9],group:'General-purpose sensors'},
-  {value:'general_torque',label:'General torque',role:'torque',drivers:[1,9,10],group:'General-purpose sensors'},
+  {value:'general_torque',label:'General / additional torque',role:'torque',drivers:[1,9,10],group:'General-purpose sensors'},
   {value:'general_thrust',label:'General thrust',role:'thrust',drivers:[1,9,10],group:'General-purpose sensors'},
   {value:'oil_flow',label:'Main oil-pump flow',role:'flow',drivers:[2,1,9],group:'Engine sensors'},
   {value:'scavenge_flow',label:'Scavenge-pump flow',role:'flow',drivers:[2,1,9],group:'Engine sensors'},
   {value:'flame',label:'Flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
   {value:'ab_flame',label:'Afterburner flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
-  {value:'torque',label:'Torque',role:'torque',drivers:[1,9,10],group:'Engine sensors'},
+  {value:'torque',label:'Torque',role:'torque',drivers:[1,2,9,10],group:'Engine sensors'},
   {value:'thrust',label:'Thrust',role:'thrust',drivers:[10,1,9],group:'Engine sensors'},
   {value:'battery_voltage',label:'Battery / bus voltage',role:'voltage',drivers:[1,9],group:'Engine sensors'},
   {value:'throttle',label:'Throttle input',role:'operator',drivers:[1,3,2,7,9],group:'Operator inputs'},
@@ -123,6 +123,8 @@ const REGISTRY_INPUT_PURPOSES=[
   {value:'start_switch',label:'Start switch',role:'digital_switch',drivers:[0,1,8,9],group:'Switches and interlocks'},
   {value:'stop_switch',label:'Stop switch',role:'digital_switch',drivers:[0,1,8,9],group:'Switches and interlocks'},
   {value:'digital_switch',label:'Digital interlock',role:'digital_switch',drivers:[0,1,8,9],group:'Switches and interlocks'},
+  {value:'chip_detector',label:'Chip detector',role:'digital_switch',drivers:[0,1,8,9],group:'Switches and interlocks'},
+  {value:'diff_press_switch',label:'Differential pressure switch',role:'digital_switch',drivers:[0,1,8,9],group:'Switches and interlocks'},
   {value:'inhibit_start',label:'Inhibit-start switch',role:'inhibit_start',drivers:[0,1,8,9],group:'Switches and interlocks'},
   {value:'estop',label:'Emergency-stop switch',role:'estop',drivers:[0,1,8,9],group:'Switches and interlocks'},
   {value:'fault',label:'Fault switch',role:'fault',drivers:[0,1,8,9],group:'Switches and interlocks'},
@@ -197,12 +199,23 @@ function registryPurposeOptions(direction, selected, channel = null) {
   const groups=[];
   defs.forEach(p=>{let g=groups.find(x=>x.name===p.group);if(!g){g={name:p.group,rows:[]};groups.push(g);}g.rows.push(p);});
   return groups.map(g=>`<optgroup label="${escapeHtmlText(g.name)}">${g.rows.map(p=>{
-    const duplicate = p.value!==selected && registryPurposeIsSingleton(direction,p.value) &&
-      rows.some(row=>row!==channel && registryDerivedPurpose(direction,row)===p.value);
+    const phaseOwnsShaft = direction === 'input' && ['n1_speed','n2_speed'].includes(p.value) &&
+      !!registryPhaseShaftOwner(p.value === 'n1_speed' ? 1 : 2, channel);
+    const duplicate = (p.value!==selected && registryPurposeIsSingleton(direction,p.value) &&
+      rows.some(row=>row!==channel && registryDerivedPurpose(direction,row)===p.value)) || phaseOwnsShaft;
     const incompatible = assignedMode && p.value===selected && !pcbModeCompatible(direction,p.value,p.role,assignedMode);
     const suffix = duplicate ? ' — already assigned' : (incompatible ? ' — incompatible with connector' : '');
     return `<option value="${p.value}"${p.value===selected?' selected':''}${duplicate?' disabled':''}>${escapeHtmlText(p.label+suffix)}</option>`;
   }).join('')}</optgroup>`).join('');
+}
+function registryPhaseShaftOwner(source, exclude = null) {
+  return (registryRoot().inputs || []).find(row => row !== exclude && row.installed !== false &&
+    Number(row.torque_interface || 0) === 2 && Number(row.phase_speed_source || 0) === source);
+}
+function registryOrdinaryShaftOwner(source, exclude = null) {
+  const purpose = source === 1 ? 'n1_speed' : 'n2_speed';
+  return (registryRoot().inputs || []).find(row => row !== exclude && row.installed !== false &&
+    registryDerivedPurpose('input',row) === purpose);
 }
 const REGISTRY_INPUT_PRESETS=[
   {group:'Engine sensors',purpose:'n1_speed',role:'speed',label:'N1 speed',id:'n1_main',name:'N1 Speed',driver:2},
@@ -224,7 +237,7 @@ const REGISTRY_INPUT_PRESETS=[
   {group:'General-purpose sensors',purpose:'general_flow',role:'flow',label:'General flow',id:'general_flow',name:'Flow Sensor',driver:2},
   {group:'General-purpose sensors',purpose:'general_current',role:'current',label:'General current',id:'general_current',name:'Current Sensor',driver:1},
   {group:'General-purpose sensors',purpose:'general_voltage',role:'voltage',label:'General voltage',id:'general_voltage',name:'Voltage Sensor',driver:1},
-  {group:'General-purpose sensors',purpose:'general_torque',role:'torque',label:'General torque',id:'general_torque',name:'Torque Sensor',driver:1},
+  {group:'General-purpose sensors',purpose:'general_torque',role:'torque',label:'General / additional torque',id:'general_torque',name:'Torque Sensor',driver:1},
   {group:'General-purpose sensors',purpose:'general_thrust',role:'thrust',label:'General thrust',id:'general_thrust',name:'Thrust Sensor',driver:1},
   {group:'Engine sensors',purpose:'oil_flow',role:'flow',label:'Main oil-pump flow',id:'oil_flow',name:'Oil Flow',driver:2},
   {group:'Engine sensors',purpose:'scavenge_flow',role:'flow',label:'Scavenge-pump flow',id:'scavenge_flow',name:'Scavenge Flow',driver:2},
@@ -239,6 +252,8 @@ const REGISTRY_INPUT_PRESETS=[
   {group:'Operator and interlock inputs',purpose:'start_switch',role:'digital_switch',label:'Start switch',id:'start_switch',name:'Start Switch',driver:0},
   {group:'Operator and interlock inputs',purpose:'stop_switch',role:'digital_switch',label:'Stop switch',id:'stop_switch',name:'Stop Switch',driver:0},
   {group:'Operator and interlock inputs',purpose:'digital_switch',role:'digital_switch',label:'Digital interlock',id:'digital_interlock',name:'Interlock',driver:0},
+  {group:'Operator and interlock inputs',purpose:'chip_detector',role:'digital_switch',label:'Chip detector',id:'chip_detector',name:'Chip Detector',driver:0},
+  {group:'Operator and interlock inputs',purpose:'diff_press_switch',role:'digital_switch',label:'Differential pressure switch',id:'diff_press_switch',name:'Diff Pressure',driver:0},
   {group:'Operator and interlock inputs',purpose:'inhibit_start',role:'inhibit_start',label:'Inhibit-start switch',id:'inhibit_start',name:'Inhibit Start',driver:0},
   {group:'Operator and interlock inputs',purpose:'estop',role:'estop',label:'E-stop switch',id:'estop',name:'E-Stop',driver:0},
   {group:'Operator and interlock inputs',purpose:'fault',role:'fault',label:'Fault switch',id:'fault_switch',name:'Fault Switch',driver:0},
@@ -302,13 +317,13 @@ const REGISTRY_PRESET_HELP = {
     general_flow:'A repeatable user-named flow measurement for coolant, air, auxiliary fluids, or any other circuit. It does not imply a pump link and is available to dashboard data, logging, controllers, rules and sequencing.',
     general_current:'A repeatable user-named current measurement for a bus or accessory. It is not tied to an output and creates no automatic shutdown; use a controller or protection rule when an action is required.',
     general_voltage:'A repeatable user-named voltage measurement with voltage-divider calibration. Available to dashboard data, logging, controllers, rules and sequencing.',
-    general_torque:'A repeatable user-named torque measurement. Available to dashboard data, logging, controllers, rules and sequencing.',
+    general_torque:'A repeatable user-named additional torque measurement. It does not replace or combine with the primary shaft torque used for power.',
     general_thrust:'A repeatable user-named thrust or load measurement. Available to dashboard data, logging, controllers, rules and sequencing.',
     oil_flow:'Flow meter for the main oil-pump circuit. It can warn about low or missing flow while that pump is commanded on.',
     scavenge_flow:'Flow meter for the scavenge/return circuit. It can warn about low or missing flow while that pump is commanded on.',
     flame:'Main combustor flame detector used to confirm light-off and detect flameout.',
     ab_flame:'Afterburner flame detector used to confirm afterburner light-off.',
-    torque:'Shaft torque sensor, including analog transmitters, HX711 modules, and fitted NAU7802 load-cell channels.',
+    torque:'Primary shaft torque. Choose analog ADC, TLA2528, HX711, NAU7802, or shaft-torsion phase-difference pickups inside this one card.',
     thrust:'Load-cell thrust measurement for test stands, performance logging, and custom protection rules.',
     battery_voltage:'ECU supply or battery voltage for undervoltage protection.',
     throttle:'Operator throttle demand from an analog, RC PWM, pulse-duty or generic input.',
@@ -317,6 +332,8 @@ const REGISTRY_PRESET_HELP = {
     start_switch:'Physical start command. The ECU starts only on a debounced press after the switch has been released once after boot.',
     stop_switch:'Dedicated hard stop command. This input is required and requests shutdown immediately when activated.',
     digital_switch:'General hardwired interlock state for rules and sequence conditions.',
+    chip_detector:'Chip detector contact for display, logging, rules and sequence conditions. It does not request shutdown by itself.',
+    diff_press_switch:'Differential pressure contact for display, logging, rules and sequence conditions. It does not request shutdown by itself.',
     inhibit_start:'Switch that prevents a start while the external inhibit is active.',
     estop:'Emergency-stop input that requests immediate shutdown.',
     fault:'External fault input that puts the ECU into fault shutdown.',
@@ -470,17 +487,61 @@ function registryLoadCellIsHx711(c) {
 function registryTorqueInterfaceEditor(direction, c, index) {
   const purpose = registryDerivedPurpose(direction, c);
   if (direction !== 'input' || !['torque','general_torque','thrust','general_thrust'].includes(purpose)) return '';
-  if (Number(c.driver) === 10) return '';
+  const torque = ['torque','general_torque'].includes(purpose);
+  if (!torque && [9,10].includes(Number(c.driver))) return '';
   const hx = registryLoadCellIsHx711(c);
+  const phase = Number(c.torque_interface || 0) === 2;
+  const driver = Number(c.driver);
   const unit = ['thrust','general_thrust'].includes(purpose) ? 'N' : 'Nm';
   const clk = Number(c.hx711_clk ?? -1);
   const scale = Number(c.hx711_scale ?? 1);
   const zero = Number(c.hx711_zero ?? 0);
   const clkClass = `${registryFieldChangedClass('input', index, 'hx711_clk')}${clk < 0 ? ' field-error' : ''}`;
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected. HX711 uses a bridge/load-cell amplifier with separate DOUT and SCK wires.</span><select onchange="updateRegistryChannel('input',${index},'torque_interface',+this.value)"><option value="0"${hx?'':' selected'}>Analog 0–3.3 V transmitter</option><option value="1"${hx?' selected':''}>HX711 load-cell amplifier</option></select></div>
+  const present = type => (cfg._i2c_discovery?.devices || []).some(d => d.type === type && d.present);
+  const i2cOption = (value, type, label, selected) => {
+    const unavailable = !cfg.i2c?.enabled ? ' — enable I2C bus' : !present(type) ? ' — not detected' : '';
+    return `<option value="${value}"${selected?' selected':''}${!selected&&unavailable?' disabled':''}>${label}${unavailable}</option>`;
+  };
+  const choices = torque
+    ? `<option value="adc"${driver===1&&!hx?' selected':''}>Analog 0–3.3 V transmitter (ESP32 ADC)</option>
+       <option value="hx711"${hx?' selected':''}>HX711 load-cell amplifier</option>
+       ${i2cOption('tla2528','TLA2528','TLA2528 analog input',driver===9)}
+       ${i2cOption('nau7802','NAU7802','NAU7802 I2C load cell',driver===10)}
+       ${purpose==='torque'?`<option value="phase"${phase?' selected':''}>Shaft torsion by phase difference (two pickups)</option>`:''}`
+    : `<option value="0"${!hx&&!phase?' selected':''}>Analog 0–3.3 V transmitter</option><option value="1"${hx?' selected':''}>HX711 load-cell amplifier</option>`;
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected.${torque?' Shared I2C devices require an enabled bus and detected chip.':''}</span><select onchange="${torque?`updateRegistryTorqueSensorType(${index},this.value)`:`updateRegistryChannel('input',${index},'torque_interface',+this.value)`}">${choices}</select></div>
     ${hx ? `<div class="hw-field"><span class="hw-label">HX711 SCK GPIO</span><span class="hw-desc">Clock output from the ECU to HX711 SCK.</span><select class="${clkClass}" onchange="updateRegistryChannel('input',${index},'hx711_clk',+this.value)">${buildPinOptions(clk,'out')}</select></div>
     <div class="hw-field"><span class="hw-label">HX711 scale (${unit}/count)</span><input type="number" min="0.000001" max="1000000" step="0.000001" value="${registryFormatValue(scale,6)}" oninput="updateRegistryChannel('input',${index},'hx711_scale',registryParseValue(this.value))"></div>
     <div class="hw-field"><span class="hw-label">HX711 zero count</span><input type="number" step="1" value="${Math.round(zero)}" oninput="updateRegistryChannel('input',${index},'hx711_zero',+this.value)"></div>` : ''}`;
+}
+function registryPhaseTorqueSubcards(direction, c, index) {
+  if (direction !== 'input' || registryDerivedPurpose(direction,c) !== 'torque' ||
+      Number(c.torque_interface || 0) !== 2) return '';
+  const source = Number(c.phase_speed_source || 0);
+  const phasePin = Number(c.phase_pin ?? -1);
+  const n1Used = !!registryOrdinaryShaftOwner(1,c);
+  const n2Used = !!registryOrdinaryShaftOwner(2,c);
+  return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
+    <div class="registry-card-summary"><div><strong>Reference shaft pickup</strong><div class="hw-desc">Conditioned square-wave reference. Its period is used for torque; shaft-speed output is optional.</div></div></div>
+    <div class="registry-card-editor" style="display:block"><div class="hw-grid">
+      <div class="hw-field"><span class="hw-label">Reference GPIO</span><select onchange="updateRegistryChannel('input',${index},'pin',+this.value)">${buildPinOptions(c.pin,'in')}</select></div>
+      <div class="hw-field"><span class="hw-label">Reference pulses per shaft revolution</span><span class="hw-desc">Reference tooth count, including any gearing multiplier. Also sets the RPM and shaft-angle scale.</span><input type="number" min="0.001" max="1024" step="0.001" value="${registryFormatValue(c.pulses_per_unit ?? 1,3)}" onchange="updateRegistryChannel('input',${index},'pulses_per_unit',+this.value)"></div>
+      <div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Use reference as shaft speed (optional)</span><span class="hw-desc">Choose one use. With all options off, only torque is reported and shaft power is not calculated.</span><div class="hw-toggle-row">
+        <label class="hw-toggle"><input type="checkbox" ${source===1?'checked':''} ${n1Used?'disabled':''} onchange="updateRegistryChannel('input',${index},'phase_speed_source',this.checked?1:0)"><span></span> N1 speed${n1Used?' — already fitted':''}</label>
+        <label class="hw-toggle"><input type="checkbox" ${source===2?'checked':''} ${n2Used?'disabled':''} onchange="updateRegistryChannel('input',${index},'phase_speed_source',this.checked?2:0)"><span></span> N2 speed${n2Used?' — already fitted':''}</label>
+        <label class="hw-toggle"><input type="checkbox" ${source===3?'checked':''} onchange="updateRegistryChannel('input',${index},'phase_speed_source',this.checked?3:0)"><span></span> Torque shaft speed</label>
+      </div></div>
+    </div></div></div>
+    <div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
+      <div class="registry-card-summary"><div><strong>Torque phase pickup</strong><div class="hw-desc">Second conditioned square wave, captured on the same MCPWM timer. If it fails, reference speed remains available.</div></div></div>
+      <div class="registry-card-editor" style="display:block"><div class="hw-grid">
+        <div class="hw-field"><span class="hw-label">Phase GPIO</span><select onchange="updateRegistryChannel('input',${index},'phase_pin',+this.value)">${buildPinOptions(phasePin,'in')}</select></div>
+        <div class="hw-field"><span class="hw-label">Torque pickup pulses per shaft revolution</span><span class="hw-desc">Set the effective tooth count of the torque/phase pickup separately. It must match the reference count for one-to-one phase pairing. Unequal unindexed wheels need an index or per-tooth calibration and are not accepted as torque inputs.</span><input type="number" min="0.001" max="1024" step="0.001" value="${registryFormatValue(c.phase_pulses_per_unit ?? c.pulses_per_unit ?? 1,3)}" onchange="updateRegistryChannel('input',${index},'phase_pulses_per_unit',+this.value)"></div>
+        <div class="hw-field"><span class="hw-label">Input filter response</span><span class="hw-desc">1.0 follows each new torque sample; lower values smooth noise.</span><input type="number" min="0.01" max="1" step="0.01" value="${registryFormatValue(c.filter_alpha ?? 0.25,2)}" onchange="updateRegistryChannel('input',${index},'filter_alpha',+this.value)"></div>
+        <div class="hw-field"><span class="hw-label">Zero-torque phase (shaft degrees)</span><span class="hw-desc">Capture while the shaft is spinning at zero load on Calibration, or enter a previously measured running zero here. Static tooth alignment is not a valid zero.</span><input type="number" min="-180" max="180" step="0.001" value="${registryFormatValue(c.phase_zero_deg ?? 0,3)}" onchange="updateRegistryChannel('input',${index},'phase_zero_deg',+this.value)"></div>
+        <div class="hw-field"><span class="hw-label">Sensitivity (shaft degrees / Nm)</span><span class="hw-desc">Enter the signed shaft sensitivity, or capture it with known torque on Calibration.</span><input type="number" step="0.000001" value="${registryFormatValue(c.phase_deg_per_nm ?? 1,6)}" onchange="updateRegistryChannel('input',${index},'phase_deg_per_nm',+this.value)"></div>
+        <div class="hw-field" style="grid-column:1/-1"><span class="hw-desc">Guided zero and known-torque calibration: <a href="/calibration.html#torque-cal-row">Calibration → Torque</a>.</span></div>
+      </div></div></div>`;
 }
 function registryInvertEditor(direction, c, index) {
   if (direction === 'input') {
@@ -564,6 +625,7 @@ function registryRangeMeta(direction, driver, role, referenceMv = 3300) {
   return {min:'Minimum mapped value', max:'Maximum mapped value', step:'0.01'};
 }
 function registryRangeEditor(direction, c, index) {
+  if (direction === 'input' && Number(c.torque_interface || 0) === 2) return '';
   if (registryFixedProfileFunction(direction,c)) return '';
   if (direction === 'input' && registryLoadCellIsHx711(c)) return '';
   const purpose = registryDerivedPurpose(direction,c);
@@ -617,6 +679,7 @@ function registryRangeEditor(direction, c, index) {
           <div class="hw-field"><span class="hw-label">${escapeHtmlText(meta.max)}</span>${desc}<input class="${maxClass}" type="number" inputmode="decimal"${minAttr}${maxAttr} step="${escapeHtmlText(meta.step || '0.01')}" value="${registryFormatValue((c.max ?? 1) * scale)}" oninput="updateRegistryRangeField('${direction}',${index},'max',registryParseValue(this.value),${scale})"></div>`;
 }
 function registryPulseScaleEditor(direction, c, index) {
+  if (Number(c.torque_interface || 0) === 2) return '';
   if (direction !== 'input' || Number(c.driver) !== 2) return '';
   const role = String(c.role || '');
   const purpose = registryDerivedPurpose(direction,c);
@@ -661,6 +724,9 @@ function registryTemperatureIsDigital(c) {
   return String(c?.role || '') === 'temperature' && [1,2,3,5].includes(iface);
 }
 function registrySignalTypeEditor(direction, c, index, driverClass) {
+  if (direction === 'input' && ['torque','general_torque'].includes(registryDerivedPurpose(direction,c))) return '';
+  if (direction === 'input' && Number(c.torque_interface || 0) === 2)
+    return `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Set by the phase-displacement interface.</span><select class="${driverClass}" disabled><option selected>Dual square-wave capture</option></select></div>`;
   if (direction === 'input' && registryTemperatureIsDigital(c)) {
     const signal = Number(c.temp_interface) === 5 ? 'Digital / OneWire' : 'Digital / SPI';
     return `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Set by the selected digital temperature-sensor interface.</span><select class="${driverClass}" disabled><option selected>${signal}</option></select></div>`;
@@ -668,6 +734,7 @@ function registrySignalTypeEditor(direction, c, index, driverClass) {
   return `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">The electrical signal connected to this device.</span><select class="${driverClass}" onchange="updateRegistryChannel('${direction}',${index},'driver',+this.value)">${registryDriverOptions(direction, c.driver, c.role, registryDerivedPurpose(direction,c))}</select></div>`;
 }
 function registryInputPinLabel(c) {
+  if (Number(c.torque_interface || 0) === 2) return 'Reference pickup GPIO';
   if (registryLoadCellIsHx711(c)) return 'HX711 DOUT GPIO';
   if (String(c?.role||'') === 'temperature') {
     if (Number(c.temp_interface) === 5) return 'OneWire data GPIO';
@@ -703,6 +770,7 @@ function registryTemperatureInterfaceEditor(c, index) {
 }
 function registryInputOptionsEditor(direction, c, index) {
   if (direction !== 'input') return '';
+  if (Number(c.torque_interface || 0) === 2) return '';
   if (registryLoadCellIsHx711(c)) return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">HX711 wiring</span><span class="hw-desc">DOUT is an input and SCK is an output. No internal pull-up or pull-down is applied.</span></div>`;
   const d = Number(c.driver);
   const purpose = registryDerivedPurpose(direction,c);
@@ -1229,7 +1297,14 @@ function registryDriverOptions(direction, selected) {
     return !type || (cfg._i2c_discovery?.devices || []).some(d => d.type === type && d.present);
   };
   return drivers
-    .filter(([v]) => allowed.has(v) && (v < 8 || Number(selected) === v || remotePresent(v)))
-    .map(([v, label]) => `<option value="${v}"${Number(selected)===v?' selected':''}>${label}${v>=8&&Number(selected)===v&&!remotePresent(v)?' — Disconnected':''}</option>`)
+    .filter(([v]) => allowed.has(v))
+    .map(([v, label]) => {
+      const selectedNow = Number(selected) === v;
+      const busOff = v >= 8 && !cfg.i2c?.enabled;
+      const disconnected = v >= 8 && !remotePresent(v);
+      const disabled = !selectedNow && (busOff || disconnected);
+      const suffix = busOff ? ' — enable I2C bus' : disconnected ? ' — not detected' : '';
+      return `<option value="${v}"${selectedNow?' selected':''}${disabled?' disabled':''}>${label}${suffix}</option>`;
+    })
     .join('');
 }
