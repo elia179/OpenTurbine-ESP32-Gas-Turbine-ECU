@@ -10,6 +10,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-09-15
+
 ### Added
 
 - Dual MCPWM capture for shaft phase-displacement torque, with optional N1, N2, or named Torque Shaft Speed RPM, conditional shaft-power calculation,
