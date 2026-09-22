@@ -210,6 +210,39 @@ function installedBrowser() {
     assert.match(await text(page, '#ot-dialog-message'), /AB igniter, fuel valve, and fuel pump.*N1.*RPM.*TOT.*°C/is);
     await page.locator('#ot-dialog-cancel').click();
     results.push('dashboard prioritizes primary data, oil cards, and actuator outputs below start/stop');
+    assert.equal(await page.locator('.dashboard-hide-card:visible').count(), 0,
+      'card controls must stay invisible during normal dashboard use');
+    await page.locator('#dashboard-card-edit-btn').click();
+    assert.ok(await page.locator('.dashboard-hide-card:visible').count() > 0,
+      'layout controls should appear only in Edit cards mode');
+    for (const id of ['last-event-card', 'uptime-card', 'hour-meter-card', 'system-card']) {
+      assert.equal(await page.locator(`#${id} .dashboard-hide-card`).count(), 1,
+        `${id} should be optionally hideable`);
+    }
+    assert.equal(await page.locator('.mode-row .dashboard-hide-card').count(), 0,
+      'engine state and start/stop controls must never be hideable');
+    await page.locator('#uptime-card .dashboard-hide-card').click();
+    assert.equal(await page.locator('#uptime-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), true);
+    await page.locator('#dashboard-hidden-cards button', {hasText:'Show Uptime'}).click();
+    assert.equal(await page.locator('#uptime-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), false);
+    await page.locator('#hour-meter-card .dashboard-hide-card').click();
+    assert.equal(await page.getByRole('button', {name:'Show Hour Meter'}).count(), 1);
+    await page.getByRole('button', {name:'Show Hour Meter'}).click();
+    await page.locator('#torque-card .dashboard-hide-card').click();
+    assert.equal(await page.locator('#torque-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), true);
+    assert.match(await text(page, '#dashboard-hidden-cards'), /Show Torque/i);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ot_dashboard_hidden_cards_v1') || '[]').includes('torque-card')), true);
+    await page.locator('#dashboard-card-edit-btn').click();
+    assert.equal(await page.locator('.dashboard-hide-card:visible').count(), 0);
+    await page.reload();
+    await waitShown(page, '#n1-card', true);
+    assert.equal(await page.locator('#torque-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), true,
+      'hidden cards should remain hidden in this browser after reload');
+    await page.locator('#dashboard-card-edit-btn').click();
+    await page.locator('#dashboard-hidden-cards button', {hasText:'Show Torque'}).click();
+    assert.equal(await page.locator('#torque-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), false);
+    await page.locator('#dashboard-card-edit-btn').click();
+    results.push('dashboard card decluttering stays invisible outside Edit cards mode and persists per browser');
     results.push('manual afterburner fire requires a live-state confirmation while AB stop remains immediate');
     await page.request.post(`${base}/__sim/data`, { data: {
       mode: 'STANDBY', bench_mode: false, stop_switch_active: false,
@@ -628,6 +661,9 @@ function installedBrowser() {
 
     await page.goto(`${base}/hardware.html`);
     await page.waitForFunction(() => /Loaded|Converted/i.test(document.querySelector('#save-msg')?.textContent || ''));
+    assert.deepEqual(await page.locator('main > .hw-section').evaluateAll(sections => sections.slice(-3).map(section => section.id)),
+      ['hardware-buses-panel', 'hardware-profile-section', 'hardware-next-section'],
+      'shared buses and board/PCB profile should be swapped while the Controllers next step stays last');
     assert.equal(await page.evaluate(() => cfg.sensors.throttle_input.rc_pwm), true);
     assert.equal(await page.evaluate(() => Number(cfg.wifi_tx_power_dbm)), 8);
     results.push('hardware page restores servo-input source from saved hardware state');
@@ -1336,6 +1372,27 @@ function installedBrowser() {
 
     await page.goto(`${base}/system.html`);
     await page.waitForSelector('#system-device-setup');
+
+    await page.locator('#system-backup-restore').evaluate(card => {
+      card.open = true;
+      for (let parent = card.parentElement; parent; parent = parent.parentElement) {
+        if (parent.tagName === 'DETAILS') parent.open = true;
+      }
+    });
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#cfg-backup-btn').click();
+    const backupDownload = await downloadPromise;
+    const backupPath = await backupDownload.path();
+    const backupFile = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+    assert.ok(backupFile.hardware && backupFile.settings && backupFile._backup_meta,
+      'System download should contain a complete engine file and backup metadata');
+    await page.locator('#cfg-restore-file').setInputFiles(backupPath);
+    assert.match(await text(page, '#ot-dialog-title'), /Restore complete engine file/i);
+    const restorePost = page.waitForRequest(req => new URL(req.url()).pathname === '/api/ecu_config' && req.method() === 'POST');
+    await page.locator('#ot-dialog-confirm').click();
+    await restorePost;
+    await page.waitForFunction(() => /Config restored/i.test(document.getElementById('cfg-backup-msg')?.textContent || ''));
+    results.push('System downloads and uploads a complete engine file through its browser controls');
 
     const unified = await (await page.request.get(`${base}/api/ecu_config`)).json();
     unified.hardware.profile_id = 'second-bench-engine';

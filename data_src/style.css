@@ -353,6 +353,17 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
   color: var(--dim);
   font-size: .7rem;
 }
+.dashboard-hide-card{display:none;position:absolute;right:.42rem;top:.38rem;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--dim);font-size:1rem;line-height:1;cursor:pointer;z-index:2}
+body.dashboard-card-editing .dashboard-hide-card{display:block}
+body.dashboard-card-editing .dashboard-customizable-card{outline:1px dashed var(--border-light);outline-offset:-1px}
+.dashboard-customizable-card{position:relative}
+.dashboard-user-hidden{display:none!important}
+.dashboard-group-user-empty{display:none!important}
+section:has(> .dashboard-user-hidden:only-child){display:none!important}
+.dashboard-hidden-cards{flex:1 1 100%;justify-content:flex-end;align-items:center;gap:.35rem;flex-wrap:wrap;padding-top:.1rem}
+.dashboard-hidden-cards:not([hidden]){display:flex}
+.dashboard-hidden-cards span{font-size:.67rem;color:var(--dim)}
+.dashboard-hidden-cards button{min-height:30px;padding:.2rem .5rem;font-size:.68rem;background:transparent;color:var(--cyan);border:1px solid var(--border);border-radius:4px}
 .telemetry-card-bin:empty { display: none !important; margin: 0; }
 .gs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
 .gs-title  { font-weight: 700; font-size: 0.9rem; color: var(--text); }

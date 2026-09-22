@@ -158,6 +158,8 @@
       .ot-dialog-card{width:min(620px,96vw);max-height:88vh;display:flex;flex-direction:column;background:var(--surface,#17171a);color:var(--text,#f5f5f7);border:1px solid var(--border-light,#42424a);border-radius:10px;box-shadow:0 20px 70px rgba(0,0,0,.55)}
       .ot-dialog-header{padding:1rem 1.1rem .7rem;font-size:.9rem;font-weight:800;letter-spacing:.04em}
       .ot-dialog-message{padding:.25rem 1.1rem 1rem;color:var(--text-2,#cecdd4);font-size:.82rem;line-height:1.55;white-space:pre-wrap;overflow:auto}
+      .ot-dialog-links{display:none;flex-wrap:wrap;gap:.45rem;padding:0 1.1rem 1rem}
+      .ot-dialog-links button{min-height:36px;padding:.35rem .65rem;font-size:.75rem;background:transparent;color:var(--cyan,#36dfe8);border:1px solid var(--border-light,#42424a)}
       .ot-dialog-input{box-sizing:border-box;margin:0 1.1rem 1rem;width:calc(100% - 2.2rem);max-width:calc(100% - 2.2rem);min-width:0;min-height:44px;padding:.55rem .7rem;background:var(--bg,#101012);color:var(--text,#f5f5f7);border:1px solid var(--border-light,#42424a);border-radius:6px;font:inherit}
       .ot-dialog-check{display:none;align-items:center;gap:.5rem;margin:0 1.1rem 1rem;color:var(--text-2,#cecdd4);font-size:.76rem;line-height:1.4}
       .ot-dialog-check input{flex:0 0 auto}
@@ -177,6 +179,7 @@
       <div class="ot-dialog-card">
         <div class="ot-dialog-header" id="ot-dialog-title"></div>
         <div class="ot-dialog-message" id="ot-dialog-message"></div>
+        <div class="ot-dialog-links" id="ot-dialog-links"></div>
         <input class="ot-dialog-input" id="ot-dialog-input" type="text" style="display:none">
         <label class="ot-dialog-check" id="ot-dialog-check-wrap"><input id="ot-dialog-check" type="checkbox"><span id="ot-dialog-check-label"></span></label>
         <div class="ot-dialog-actions">
@@ -216,6 +219,37 @@
     previousFocus = document.activeElement;
     document.getElementById('ot-dialog-title').textContent = options.title || 'OpenTurbine';
     document.getElementById('ot-dialog-message').textContent = String(message || '');
+    const links = document.getElementById('ot-dialog-links');
+    links.replaceChildren();
+    const linkItems = Array.isArray(options.links) ? options.links : [];
+    linkItems.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = String(item?.label || 'Open setting');
+      button.addEventListener('click', () => {
+        const selector = String(item?.target || '');
+        const route = String(item?.url || '');
+        finish(false);
+        if (route) {
+          const destination = new URL(route, location.href);
+          if (destination.origin === location.origin) location.assign(destination.href);
+          return;
+        }
+        setTimeout(() => {
+          const target = selector ? document.querySelector(selector) : null;
+          if (!target) return;
+          for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+            if (parent.tagName === 'DETAILS') parent.open = true;
+          }
+          target.scrollIntoView({behavior:'smooth', block:'center'});
+          target.focus({preventScroll:true});
+          target.closest('.cfg-field')?.classList.add('deep-link-target');
+          setTimeout(() => target.closest('.cfg-field')?.classList.remove('deep-link-target'), 1800);
+        }, 0);
+      });
+      links.appendChild(button);
+    });
+    links.style.display = linkItems.length ? 'flex' : 'none';
     const input = document.getElementById('ot-dialog-input');
     input.style.display = options.prompt ? '' : 'none';
     input.value = options.value || '';
@@ -246,6 +280,37 @@
     prompt(message, options = {}) {
       return open(message, {title:'Confirmation required', cancel:true, prompt:true, confirmLabel:'Confirm', ...options});
     }
+  };
+
+  const validationRoutes = [
+    [/Windmilling/i,'#cf-so_en','Windmilling oil'],
+    [/custom controller|operating state|fitted input|feedback signal|output is unavailable|owns this output|mapped input|target-source/i,'#controller-overview','Custom controllers'],
+    [/N2 Pullback Full|N2 pullback should/i,'#cf-pb_n2e','N2 pullback'],
+    [/Cluster N2/i,'/system.html#cf-cl_n2','N2 display warning'],
+    [/N2 overspeed|Maximum N2/i,'#cf-n2_rpm_limit','N2 protection'],
+    [/N1 pullback/i,'#cf-pb_n1e','N1 pullback'],
+    [/Automatic Idle|Idle target/i,'#cf-di_src','Automatic idle'],
+    [/Pulsed Starter/i,'/sequence.html#starter-assist','Starter assist in Sequence'],
+    [/relight/i,'#cf-rl_en','Automatic relight'],
+    [/Oil Arm|startup oil-pressure minimum/i,'/sequence.html#oil-arm-min','Startup oil pressure in Sequence'],
+    [/Running Oil|oil pressure fault/i,'#cf-oil_rm','Running oil pressure'],
+    [/Pre-Start EGT|startup hard EGT/i,'#cf-sf_hs','Startup temperature'],
+    [/EGT Soft/i,'#cf-tot_safe_margin','Temperature warning margin'],
+    [/TIT Limit/i,'#cf-sf_tit','TIT limit'],
+    [/TOT Limit|over-temperature/i,'#cf-tot_limit','TOT limit'],
+    [/Afterburner|AB /i,'#cf-ab_pcm','Afterburner'],
+    [/EGT Pullback Full/i,'#cf-pb_egte','Temperature pullback'],
+    [/P1 Pullback Full/i,'#cf-pb_p1e','P1 pullback'],
+    [/P2 Pullback Full/i,'#cf-pb_p2e','P2 pullback'],
+    [/Torque Pullback Full/i,'#cf-pb_tqe','Torque pullback'],
+    [/Governor target/i,'#cf-gv_tr','N2 governor'],
+    [/Min RPM/i,'#cf-min_rpm','Minimum running speed']
+  ];
+  window.OTValidationLinks = messages => {
+    const seen = new Set();
+    return messages.map(message => validationRoutes.find(route => route[0].test(message)))
+      .filter(route => route && !seen.has(route[1]) && seen.add(route[1]))
+      .map(route => ({[route[1].startsWith('/') ? 'url' : 'target']:route[1], label:'Open ' + route[2]}));
   };
 
   const setupKey = 'openturbine_setup_progress_v1';

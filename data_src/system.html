@@ -1888,6 +1888,7 @@ function runValidation() {
 
   // Build warnings list: { sectionTitle, message }
   const warnings = [];
+  const hasOilPressure = hasRegistryInput('oil_pressure');
 
   // Pre-ignition RPM comes from the loaded config (sequence.html param, not a config-form field)
   const preIgnRpmVal   = (cfg?.sequence?.startup?.pre_ign_rpm) ?? undefined;
@@ -1903,7 +1904,7 @@ function runValidation() {
   const computedSpoolRpmTarget= startupCfg.rpm_target      ?? spoolRpmTarget;
 
   // 1. preIgnRpm > spoolRpmTarget
-  if (computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
+  if (hasRegistryInput('n1_speed') && computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
       && computedPreIgnRpm > computedSpoolRpmTarget) {
     warnings.push({
       section: 'Engine Protection Limits',
@@ -1915,7 +1916,10 @@ function runValidation() {
   // 2. Idle target must remain below the shaft limit it actually uses.
   const idleSource = Number(document.getElementById('cf-di_src')?.value || 0);
   const idleComparisonLimit = idleSource === 1 ? n2RpmLimit : (idleSource === 0 ? rpmLimit : 0);
-  if (idleTargetRpm !== undefined && idleComparisonLimit !== undefined &&
+  const inlineIdleSourceAvailable = [hasRegistryInput('n1_speed'), hasRegistryInput('n2_speed'),
+    hasRegistryInput('p1_pressure'), hasRegistryInput('p2_pressure')][idleSource] === true;
+  if (hwCfg.controllers?.dynamic_idle && inlineIdleSourceAvailable &&
+      idleTargetRpm !== undefined && idleComparisonLimit !== undefined &&
       idleComparisonLimit > 0 && idleTargetRpm >= idleComparisonLimit) {
     warnings.push({
       section: 'Idle',
@@ -1926,7 +1930,7 @@ function runValidation() {
 
   const n1PullbackEnabled = Number(document.getElementById('cf-pb_n1e')?.value || 0) > 0;
   const n1PullbackSoft = fv('pb_n1s'), n1PullbackFull = fv('pb_n1h');
-  if (n1PullbackEnabled && rpmLimit > 0 &&
+  if (hasRegistryInput('n1_speed') && n1PullbackEnabled && rpmLimit > 0 &&
       ((n1PullbackSoft > 0 && n1PullbackSoft >= rpmLimit) ||
        (n1PullbackFull > 0 && n1PullbackFull >= rpmLimit))) {
     const n1LimitLabel = hwCfg.safety?.overspeed
@@ -1950,11 +1954,14 @@ function runValidation() {
                            standbySourceNow === 1 ? [n2RpmLimit || 0] :
                            [rpmLimit || 0, n2RpmLimit || 0];
   const usableStandbyLimitsNow = standbyLimitsNow.filter(v => v > 0);
-  if (standbyOilEnabledNow && usableStandbyLimitsNow.length && usableStandbyLimitsNow.every(limit => standbyRpmNow >= limit)) {
+  const inlineStandbySourceAvailable = standbySourceNow === 0 ? hasRegistryInput('n1_speed') :
+    standbySourceNow === 1 ? hasRegistryInput('n2_speed') :
+    (hasRegistryInput('n1_speed') || hasRegistryInput('n2_speed'));
+  if (standbyOilEnabledNow && inlineStandbySourceAvailable && usableStandbyLimitsNow.length && usableStandbyLimitsNow.every(limit => standbyRpmNow >= limit)) {
     warnings.push({section:'Windmilling Oil Protection', key:'warn-standby-oil-rpm',
       msg:'⚠ Start threshold is at/above every selected shaft limit, so windmilling oil protection can never activate.'});
   }
-  if (standbyOilEnabledNow && (fv('so_fp') || 0) <= 0 && (fv('so_fb') || 0) <= 0) {
+  if (standbyOilEnabledNow && inlineStandbySourceAvailable && (fv('so_fp') || 0) <= 0 && (fv('so_fb') || 0) <= 0) {
     warnings.push({section:'Windmilling Oil Protection', key:'warn-standby-oil-output',
       msg:'⚠ Pump output and pressure target are both zero; this protection would command no oil.'});
   }
@@ -1979,7 +1986,7 @@ function runValidation() {
 
   const abMainOffsetNow = fv('ab_mo') || 0;
   const mainFuelMinimumNow = Number(cfg?.throttle?.fuel_pump_min_pct || 0);
-  if (abMainOffsetNow < 0 && mainFuelMinimumNow > 0) {
+  if (hasActualAfterburnerHardware() && abMainOffsetNow < 0 && mainFuelMinimumNow > 0) {
     const floorStartsBelow = Math.min(100, mainFuelMinimumNow - abMainOffsetNow);
     warnings.push({section:'Afterburner — Running', key:'warn-ab-main-fuel-floor',
       msg:`⚠ Negative AB coordination reaches the reliable-fuel floor below ${floorStartsBelow.toFixed(1)}% main-fuel command. The running output will hold ${mainFuelMinimumNow.toFixed(1)}% rather than turn off.`});
@@ -2044,7 +2051,7 @@ function runValidation() {
 
   // 6. Safety-zero: oil running min = 0 disables oil pressure fault
   const oilRunningVal = fv('oil_rm');
-  if (oilRunningVal !== undefined && oilRunningVal === 0) {
+  if (hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
@@ -2200,7 +2207,8 @@ async function validateBeforeSave(cfg) {
       warns.push('N1 recovery confirmation is below the effective speed allowed to fire relight ignition. Normally set recovery at or above that firing floor.');
   }
 
-  if (idleSource < 2 && hasAnyIdleRpm && idleTarget !== undefined && minRpm !== undefined && idleTarget < minRpm)
+  if (hwCfg.controllers?.dynamic_idle && idleSource < 2 && idleSourceAvailable &&
+      hasAnyIdleRpm && idleTarget !== undefined && minRpm !== undefined && idleTarget < minRpm)
     warns.push('Idle target RPM (' + idleTarget + ') is below Min RPM (' + minRpm + '). Engine may fault at idle.');
 
   if (hwCfg.controllers?.dynamic_idle) {
@@ -2225,13 +2233,13 @@ async function validateBeforeSave(cfg) {
     if (hwCfg.controllers?.dynamic_idle && idleSource === 1 && Number(idleTarget) >= n2RpmLimit)
       warns.push('N2-based idle target (' + idleTarget + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM).');
     const clusterN2Warn = Number(gv(cfg, 'cluster', 'n2_warn_rpm') || 0);
-    if (clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
+    if (hwCfg.cluster_serial?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
       warns.push('Cluster N2 warning (' + clusterN2Warn + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM), so the display may not warn before shutdown.');
   }
   const pbN1Enabled = !!gv(cfg, 'throttle', 'pullback_n1');
   const pbN1Soft = Number(gv(cfg, 'throttle', 'pullback_n1_soft_rpm') || 0);
   const pbN1Full = Number(gv(cfg, 'throttle', 'pullback_n1_hard_rpm') || 0);
-  if (pbN1Enabled && Number(rpmLimit) > 0 &&
+  if (hasN1 && pbN1Enabled && Number(rpmLimit) > 0 &&
       ((pbN1Soft > 0 && pbN1Soft >= rpmLimit) ||
        (pbN1Full > 0 && pbN1Full >= rpmLimit))) {
     const consequence = hwCfg.safety?.overspeed
@@ -2253,9 +2261,11 @@ async function validateBeforeSave(cfg) {
                        standbySource === 1 ? [Number(n2RpmLimit) || 0] :
                        [Number(rpmLimit) || 0, Number(n2RpmLimit) || 0];
   const usableLimits = sourceLimits.filter(v => v > 0);
-  if (standbyEnabled && usableLimits.length && usableLimits.every(limit => standbyRpm >= limit))
+  const standbySourceAvailable = standbySource === 0 ? hasN1 :
+                                 standbySource === 1 ? hasN2 : (hasN1 || hasN2);
+  if (standbyEnabled && standbySourceAvailable && usableLimits.length && usableLimits.every(limit => standbyRpm >= limit))
     warns.push('Windmilling-oil start threshold (' + standbyRpm + ' RPM) is at or above every selected shaft limit. The protective oil pump can never start; use a threshold well below normal shaft speed.');
-  if (standbyEnabled && standbyPct <= 0 && standbyBar <= 0)
+  if (standbyEnabled && standbySourceAvailable && standbyPct <= 0 && standbyBar <= 0)
     warns.push('Windmilling-oil protection commands neither pump output nor pressure. Set a protective pump percentage or pressure target, or it will run without delivering oil.');
 
   // Oil system cross-checks
@@ -2263,12 +2273,15 @@ async function validateBeforeSave(cfg) {
   const oilStartup   = gv(cfg, 'oil', 'startup_min_bar');
   const oilMapMin    = gv(cfg, 'oil', 'map_min');
   const oilMapMax    = gv(cfg, 'oil', 'map_max');
-  if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-    warns.push('Oil Arm Minimum (' + oilStartup + ' bar) is below Running Min (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
-  if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
-    errors.push('Running Oil (' + oilMapMin + ' bar) is greater than Map Max (' + oilMapMax + ' bar). Swap them.');
-  if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-    warns.push('Running Oil (' + oilMapMin + ' bar) is below Running Min (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
+  const hasOilPressure = hasRegistryInput('oil_pressure');
+  if (hasOilPressure) {
+    if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Min (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
+    if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
+      errors.push('Running Oil (' + oilMapMin + ' bar) is greater than Map Max (' + oilMapMax + ' bar). Swap them.');
+    if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
+      warns.push('Running Oil (' + oilMapMin + ' bar) is below Running Min (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
+  }
 
   // EGT / temperature cross-checks
   const totLimit    = gv(cfg, 'engine', 'tot_limit');
@@ -2296,30 +2309,34 @@ async function validateBeforeSave(cfg) {
   // AB pump range — backend rejects max < min; name the fields before submit
   const abPmn = gv(cfg, 'afterburner', 'pump_min_pct');
   const abPmx = gv(cfg, 'afterburner', 'pump_max_pct');
-  if (abPmn !== undefined && abPmx !== undefined && abPmx < abPmn)
+  if (hasActualAfterburnerHardware() && abPmn !== undefined && abPmx !== undefined && abPmx < abPmn)
     errors.push('Afterburner Fuel Pump Max % (' + abPmx + ') is below Min % (' + abPmn + '). Swap them.');
   const abMainOffset = Number(gv(cfg, 'afterburner', 'main_fuel_offset_pct') || 0);
   const mainFuelMinimum = Number(gv(cfg, 'throttle', 'fuel_pump_min_pct') || 0);
-  if (abMainOffset < 0 && mainFuelMinimum > 0)
+  if (hasActualAfterburnerHardware() && abMainOffset < 0 && mainFuelMinimum > 0)
     warns.push('Negative AB main-fuel coordination will hold a running pump at its ' + mainFuelMinimum.toFixed(1) + '% reliable minimum rather than turn it off.');
 
   // Throttle pullback ordering — backend rejects hard limits at/below the
   // soft/start limit; catch each pair here with a named message.
   const pbPairs = [
-    ['throttle', 'pullback_n1_soft_rpm',  'throttle', 'pullback_n1_hard_rpm',  'N1 Pullback Start', 'N1 Pullback Full'],
-    ['throttle', 'pullback_n2_soft_rpm',  'throttle', 'pullback_n2_hard_rpm',  'N2 Pullback Start', 'N2 Pullback Full'],
-    ['throttle', 'pullback_egt_soft_c',   'throttle', 'pullback_egt_hard_c',   'EGT Pullback Start', 'EGT Pullback Full'],
+    ['pullback_n1', hasN1, 'pullback_n1_soft_rpm', 'pullback_n1_hard_rpm', 'N1 Pullback Start', 'N1 Pullback Full'],
+    ['pullback_n2', hasN2, 'pullback_n2_soft_rpm', 'pullback_n2_hard_rpm', 'N2 Pullback Start', 'N2 Pullback Full'],
+    ['pullback_egt', hasTotHw || hasTitHw, 'pullback_egt_soft_c', 'pullback_egt_hard_c', 'EGT Pullback Start', 'EGT Pullback Full'],
+    ['pullback_p1', hasP1, 'pullback_p1_soft_bar', 'pullback_p1_hard_bar', 'P1 Pullback Start', 'P1 Pullback Full'],
+    ['pullback_p2', hasP2, 'pullback_p2_soft_bar', 'pullback_p2_hard_bar', 'P2 Pullback Start', 'P2 Pullback Full'],
+    ['pullback_torque', hasRegistryInput('torque'), 'pullback_torque_soft_nm', 'pullback_torque_hard_nm', 'Torque Pullback Start', 'Torque Pullback Full'],
   ];
-  pbPairs.forEach(([s1, k1, s2, k2, l1, l2]) => {
-    const soft = gv(cfg, s1, k1), full = gv(cfg, s2, k2);
-    if (soft !== undefined && full !== undefined && soft > 0 && full > 0 && full <= soft)
+  pbPairs.forEach(([enabledKey, hardwareAvailable, softKey, fullKey, l1, l2]) => {
+    const enabled = !!gv(cfg, 'throttle', enabledKey);
+    const soft = gv(cfg, 'throttle', softKey), full = gv(cfg, 'throttle', fullKey);
+    if (hardwareAvailable && enabled && soft !== undefined && full !== undefined && soft > 0 && full > 0 && full <= soft)
       errors.push(l2 + ' (' + full + ') must be above ' + l1 + ' (' + soft + ').');
   });
 
   // Safety-zero checks: 0 = disabled in SafetyMonitor - warn loudly
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
-  if (oilRunning !== undefined && oilRunning === 0)
+  if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
     warns.push('Running Oil Min is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
 
   if (hasActualAfterburnerHardware() &&
@@ -2330,12 +2347,15 @@ async function validateBeforeSave(cfg) {
   }
 
   if (errors.length) {
-    alert('Cannot save — fix these errors:\n\n' + errors.map(e => '• ' + e).join('\n'));
+    await OTDialog.alert('Cannot save — fix these errors:\n\n' + errors.map(e => '• ' + e).join('\n'), {
+      title:'Settings need attention', links:OTValidationLinks(errors)
+    });
     return false;
   }
   if (warns.length) {
     return await OTDialog.confirm('Warnings:\n\n' + warns.map(w => '• ' + w).join('\n'), {
-      title:'Review safety warnings', confirmLabel:'Save anyway', danger:true
+      title:'Review safety warnings', confirmLabel:'Save anyway', danger:true,
+      links:OTValidationLinks(warns)
     });
   }
   return true;

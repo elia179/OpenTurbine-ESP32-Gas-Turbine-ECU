@@ -100,7 +100,7 @@ const BLOCKS = {
       {key:'starter_timeout_ms', label:'Timeout',       unit:'ms',  type:'int',   min:1000,max:60000, step:500, def:8000,
         configKey:'starter_timeout_ms',
         desc:'Maximum spin time before fault shutdown. Bench Mode is the only mode where this timeout completes without verified N1 feedback.'},
-      {key:'oil_startup_min_bar',label:'Oil arm min',   unit:'bar', type:'float', min:0,   max:20,    step:0.1, def:1.5,
+      {key:'oil_startup_min_bar',label:'Minimum oil pressure before ignition', unit:'bar', type:'float', min:0, max:20, step:0.1, def:1.5,
         visibleIf: hw => sensorEnabled('oil_press'), configKey:'oil_startup_min_bar',
         desc:'Shared with OilPrime arm threshold - both use the same config value.'},
     ]

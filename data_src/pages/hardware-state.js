@@ -324,8 +324,8 @@ function populate() {
   };
   const busesPanel = document.getElementById('hardware-buses-panel');
   const profilePanel = document.getElementById('hardware-profile-section');
-  if (busesPanel && profilePanel && profilePanel.nextElementSibling !== busesPanel)
-    profilePanel.insertAdjacentElement('afterend', busesPanel);
+  if (busesPanel && profilePanel && busesPanel.nextElementSibling !== profilePanel)
+    busesPanel.insertAdjacentElement('afterend', profilePanel);
   chk('en-i2c', !!cfg.i2c.enabled);
   const i2cSda = document.getElementById('f-i2c-sda'), i2cScl = document.getElementById('f-i2c-scl');
   if (i2cSda) i2cSda.innerHTML = buildPinOptions(cfg.i2c.sda_pin ?? -1, 'i2c-sda');

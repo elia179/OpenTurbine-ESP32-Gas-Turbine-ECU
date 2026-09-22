@@ -1,6 +1,6 @@
 ---
 layout: document
-title: OpenTurbine 2.4.0 complete beginner user guide
+title: OpenTurbine 2.4.1 complete beginner user guide
 description: A source-matched, step-by-step guide to building, wiring, configuring, calibrating, dry-testing and operating an OpenTurbine ESP32 turbine ECU.
 lede: Start with no electronics experience; finish with a wired, configured and thoroughly dry-tested ECU.
 ---

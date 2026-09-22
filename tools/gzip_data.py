@@ -17,6 +17,28 @@ WEB_ASSETS = [
     "system.html.gz", "tools.html.gz", "theme.js.gz", "ui_dialog.js.gz",
 ]
 
+
+def minify_js(data):
+    return subprocess.run(
+        ["node", os.path.join(os.path.dirname(__file__), "minify_web_js.cjs")],
+        input=data,
+        stdout=subprocess.PIPE,
+        check=True,
+    ).stdout
+
+
+def minify_inline_scripts(data):
+    pattern = re.compile(rb"(<script(?![^>]*\bsrc=)[^>]*>)(.*?)(</script>)",
+                         re.DOTALL | re.IGNORECASE)
+
+    def replace(match):
+        head, source, tail = match.groups()
+        if not source.strip() or b"json" in head.lower():
+            return match.group(0)
+        return head + minify_js(source) + tail
+
+    return pattern.sub(replace, data)
+
 build_web_sources()
 
 for fname in os.listdir(SRC):
@@ -40,6 +62,10 @@ for fname in os.listdir(SRC):
     # Classic LittleFS space. They are not part of the browser contract.
     if os.path.splitext(fname)[1] == ".html":
         data = re.sub(rb"<!--(?!\[if\b).*?-->", b"", data, flags=re.DOTALL | re.IGNORECASE)
+        # Page modules are assembled into inline scripts to keep ECU page loads
+        # deterministic. Minify the installed copy just like shared scripts;
+        # editable sources remain readable under data_src/pages/.
+        data = minify_inline_scripts(data)
     elif os.path.splitext(fname)[1] == ".js":
         # Standalone source comments remain in data_src for maintainers, but
         # are not part of the browser contract and consume scarce Classic
@@ -50,12 +76,7 @@ for fname in os.listdir(SRC):
         # scripts enough to preserve the Classic ESP32 working/log reserve.
         # Terser's default non-top-level mangling retains globals referenced by
         # page markup and other scripts.
-        data = subprocess.run(
-            ["node", os.path.join(os.path.dirname(__file__), "minify_web_js.cjs")],
-            input=data,
-            stdout=subprocess.PIPE,
-            check=True,
-        ).stdout
+        data = minify_js(data)
     elif os.path.splitext(fname)[1] == ".css":
         # CSS comments document the editable source but are never observed by
         # the browser. Removing them keeps the approved UI within the Classic

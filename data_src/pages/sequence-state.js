@@ -175,6 +175,20 @@ function switchTab(tab) {
 function revealSequenceDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
+  const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
+                    'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm']}[id];
+  if (fieldKey) {
+    switchTab('startup');
+    const field = fieldKey.map(key => document.querySelector(`#tab-startup .param-field[data-pkey="${key}"]`)).find(Boolean);
+    if (field) {
+      field.closest('.block-params')?.classList.add('open');
+      field.classList.add('deep-link-target');
+      requestAnimationFrame(() => field.scrollIntoView({behavior:'smooth', block:'center'}));
+      return;
+    }
+    document.getElementById('tab-startup')?.scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
   const tab = id.startsWith('tab-') ? id.slice(4) : '';
   if (['startup','shutdown','afterburner'].includes(tab)) switchTab(tab);
   const target = document.getElementById(id);

@@ -791,20 +791,20 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     const char* limiterStrengths[] = {"pullback_n1_strength","pullback_n2_strength","pullback_egt_strength",
                                       "pullback_p1_strength","pullback_p2_strength","pullback_torque_strength"};
     for (const char* key : limiterStrengths) if (!validNumber(th[key], 0.0f, 5.0f)) return false;
-    if (present(th["pullback_n1_soft_rpm"]) && present(th["pullback_n1_hard_rpm"]) &&
+    if ((th["pullback_n1"] | false) && present(th["pullback_n1_soft_rpm"]) && present(th["pullback_n1_hard_rpm"]) &&
         th["pullback_n1_hard_rpm"].as<float>() > 0.0f &&
         th["pullback_n1_hard_rpm"].as<float>() <= th["pullback_n1_soft_rpm"].as<float>()) return false;
-    if (present(th["pullback_n2_soft_rpm"]) && present(th["pullback_n2_hard_rpm"]) &&
+    if ((th["pullback_n2"] | false) && present(th["pullback_n2_soft_rpm"]) && present(th["pullback_n2_hard_rpm"]) &&
         th["pullback_n2_hard_rpm"].as<float>() > 0.0f &&
         th["pullback_n2_hard_rpm"].as<float>() <= th["pullback_n2_soft_rpm"].as<float>()) return false;
-    if (present(th["pullback_egt_soft_c"]) && present(th["pullback_egt_hard_c"]) &&
+    if ((th["pullback_egt"] | false) && present(th["pullback_egt_soft_c"]) && present(th["pullback_egt_hard_c"]) &&
         th["pullback_egt_hard_c"].as<float>() > 0.0f &&
         th["pullback_egt_hard_c"].as<float>() <= th["pullback_egt_soft_c"].as<float>()) return false;
-    if (present(th["pullback_p1_hard_bar"]) && th["pullback_p1_hard_bar"].as<float>() > 0.0f &&
+    if ((th["pullback_p1"] | false) && present(th["pullback_p1_hard_bar"]) && th["pullback_p1_hard_bar"].as<float>() > 0.0f &&
         th["pullback_p1_hard_bar"].as<float>() <= th["pullback_p1_soft_bar"].as<float>()) return false;
-    if (present(th["pullback_p2_hard_bar"]) && th["pullback_p2_hard_bar"].as<float>() > 0.0f &&
+    if ((th["pullback_p2"] | false) && present(th["pullback_p2_hard_bar"]) && th["pullback_p2_hard_bar"].as<float>() > 0.0f &&
         th["pullback_p2_hard_bar"].as<float>() <= th["pullback_p2_soft_bar"].as<float>()) return false;
-    if (present(th["pullback_torque_hard_nm"]) && th["pullback_torque_hard_nm"].as<float>() > 0.0f &&
+    if ((th["pullback_torque"] | false) && present(th["pullback_torque_hard_nm"]) && th["pullback_torque_hard_nm"].as<float>() > 0.0f &&
         th["pullback_torque_hard_nm"].as<float>() <= th["pullback_torque_soft_nm"].as<float>()) return false;
 
 
@@ -1344,6 +1344,21 @@ void Config::autoFillNewlyEnabledSafety(bool prevOilTemp,
 
 bool Config::sanitizeForHardware() {
     bool changed = false;
+    auto disarmUnavailable = [&](bool available, bool& enabled) {
+        if (!available && enabled) {
+            enabled = false;
+            changed = true;
+        }
+    };
+    // Limiter tuning is intentionally preserved for later hardware changes,
+    // but an unavailable feedback source must not leave a hidden limiter
+    // enabled or make its dormant ordering values block unrelated edits.
+    disarmUnavailable(HardwareConfig::hasN1Rpm, pullbackN1Enabled);
+    disarmUnavailable(HardwareConfig::hasN2Rpm, pullbackN2Enabled);
+    disarmUnavailable(HardwareConfig::hasTot || HardwareConfig::hasTit, pullbackEgtEnabled);
+    disarmUnavailable(HardwareConfig::hasP1, pullbackP1Enabled);
+    disarmUnavailable(HardwareConfig::hasP2, pullbackP2Enabled);
+    disarmUnavailable(HardwareConfig::hasTorque, pullbackTorqueEnabled);
     // An enabled starter-assist mode is an operating command, not merely a
     // tuning value. If a Hardware edit removes its required starter/N1 path
     // (or changes to a non-PWM starter), disarm it while preserving all of its
