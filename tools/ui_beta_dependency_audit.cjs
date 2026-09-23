@@ -906,6 +906,41 @@ async function optionDisabled(page, selector, value) {
     for (const key of ['OilPrime', 'StarterSpin', 'PreHeat', 'TimedDelay', 'FuelPumpIdle']) {
       assert.ok(sequenceFull.startup.includes(key), `full startup should include ${key}`);
     }
+    assert.equal(sequenceFull.startup.filter(key => key === 'PreHeat').length, 1,
+      'startup must offer one device-selectable preheat step');
+    assert.ok(!sequenceFull.startup.includes('GlowPreheat') && !sequenceFull.startup.includes('PreIgnSpark'),
+      'obsolete separate glow and timed-spark steps must not appear');
+    const preheatContract = await page.evaluate(() => ({
+      params: BLOCKS.PreHeat.params.length,
+      glowTime: preHeatProfile.toString().includes('output?.ignition_preheat_ms')
+    }));
+    assert.deepEqual(preheatContract, {params:0, glowTime:true},
+      'Pre-Heat must use the selected hardware profile, not a second sequence-side ramp timer');
+    const glowPreheatCard = await page.evaluate(() => {
+      const tab = 'startup';
+      const idx = Math.max(0, hwCfg[seqKey(tab)].indexOf('PreHeat'));
+      const plug = hwCfg.channel_registry.outputs.find(row => row.purpose === 'glow_plug');
+      if (!plug) return null;
+      const target = hwCfg[deviceTargetSeqKey(tab)];
+      const priorTarget = target[idx];
+      const priorMs = plug.ignition_preheat_ms;
+      const priorHot = plug.ignition_wait_hot;
+      target[idx] = plug.id;
+      plug.ignition_preheat_ms = 4200;
+      plug.ignition_wait_hot = true;
+      const card = buildCard('PreHeat', idx, tab);
+      const result = {
+        badge: card.querySelector('.block-badge')?.textContent,
+        condition: card.querySelector('.block-cond')?.textContent,
+        timeout: card.querySelector('.timeout-pill')?.textContent,
+      };
+      target[idx] = priorTarget;
+      plug.ignition_preheat_ms = priorMs;
+      plug.ignition_wait_hot = priorHot;
+      return result;
+    });
+    assert.deepEqual(glowPreheatCard, {badge:'UNTIL', condition:'Ramp 4.2 s, then until hot', timeout:'Hot check: abort'},
+      'glow preheat card must show its hardware-sourced ramp and optional aborting hot check');
     results.push('sequence cards use consistent completion conditions, match oil/final checks to hardware, and synchronize shared input-wait settings');
     for (const key of ['ABCheckReady', 'ABIgnite', 'ABFlameConfirm', 'ABStabilize', 'TimedDelay']) {
       assert.ok(sequenceFull.afterburner.includes(key), `full AB should include ${key}`);

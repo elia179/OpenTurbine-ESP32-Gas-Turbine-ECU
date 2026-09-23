@@ -1212,8 +1212,6 @@ bool sequenceBlockAvailable(const char* name) {
         return HardwareConfig::hasThrottle;
     if (strcmp(name, "FuelOpen") == 0 || strcmp(name, "FuelSolClose") == 0 || strcmp(name, "FuelPulse") == 0)
         return HardwareConfig::hasFuelSol;
-    if (strcmp(name, "PreIgnSpark") == 0)
-        return HardwareConfig::hasIgniter;
     if (strcmp(name, "PreHeat") == 0 ||
         strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0)
         return HardwareConfig::hasIgniter || HardwareConfig::hasIgniter2 || HardwareConfig::hasGlowPlug;
@@ -1225,7 +1223,6 @@ bool sequenceBlockAvailable(const char* name) {
     if (strcmp(name, "AirstarterOn") == 0 || strcmp(name, "AirstarterOff") == 0) return HardwareConfig::hasAirstarterSol;
     if (strcmp(name, "CoolFanOn") == 0 || strcmp(name, "CoolFanOff") == 0) return HardwareConfig::hasCoolFan;
     if (strcmp(name, "BleedOpen") == 0 || strcmp(name, "BleedClose") == 0) return HardwareConfig::hasBleedValve;
-    if (strcmp(name, "GlowPreheat") == 0) return HardwareConfig::hasGlowPlug;
     if (strcmp(name, "FuelPumpRamp") == 0 || strcmp(name, "FuelPump2Set") == 0 ||
         strcmp(name, "FuelPump2On") == 0 || strcmp(name, "FuelPump2Off") == 0) return HardwareConfig::hasFuelPump2;
     if (strcmp(name, "GovernorHold") == 0)

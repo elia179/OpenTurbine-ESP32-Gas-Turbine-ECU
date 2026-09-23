@@ -426,15 +426,6 @@ const BLOCKS = {
         desc:'Shared with OilPrime arm threshold - both use the same config value.'},
     ]
   },
-  PreIgnSpark: {
-    label:'Igniter 1 Timed On', type:'wait', badgeClass:'badge-wait',
-    visibleIf: hw => actuatorEnabled('igniter'),
-    condition: null, timeout_action:null,
-    desc:'Turns igniter 1 on, waits for the configured dwell, then completes while leaving it on. Prefer Igniter On or Pre-Heat when the block must select igniter 1, secondary igniter, glow, or wet glow.',
-    params:[
-      {key:'pre_ign_spark_ms', label:'Ignition on time', unit:'ms', type:'int', min:100, max:10000, step:100, def:1500, configKey:'pre_ign_spark_ms'},
-    ]
-  },
   FuelOpen: {
     label:'Open Main Fuel Shutoff', type:'action', badgeClass:'badge-action',
     visibleIf: hw => actuatorEnabled('fuel_sol'),
@@ -842,9 +833,9 @@ const BLOCKS = {
   PreHeat: {
     label:'Pre-Heat', type:'wait', badgeClass:'badge-wait',
     visibleIf: hw => hasIgnitionOutput(hw),
-    condition: () => 'selected ignition device pre-heat',
+    condition:null,
     timeout_action:null,
-    desc:'Turns the exact selected ignition output on for that device card\'s pre-heat duration without opening main fuel. The output remains ON when this block exits - place FuelOpen or a later Ignition Output Off block intentionally.',
+    desc:'Pre-heats the selected ignition device without opening main fuel. An igniter stays on for its configured duration. A glow plug uses its own ramp, hold level, and optional current-based hot check; wet-glow pilot fuel follows that plug automatically. The output remains on when this block completes until another step turns it off.',
     params:[]
   },
   // ------ Afterburner blocks ---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -941,13 +932,6 @@ const BLOCKS = {
     params:[],
     visibleIf: hw => actuatorEnabled('bleed_valve'),
   },
-  GlowPreheat: {
-    label:'Glow Preheat', type:'action', badgeClass:'badge-action',
-    condition: null, timeout_action: null,
-    desc:'Runs the exact selected glow plug using that device card\'s own preheat ramp, hold command, hot-current confirmation, and paired pilot-fuel settings. The plug remains at its configured hold command when this block exits.',
-    params:[],
-    visibleIf: hw => actuatorEnabled('glow_plug'),
-  },
   FuelPumpRamp: {
     label:'Secondary / Auxiliary Fuel Pump Ramp', type:'action', badgeClass:'badge-action',
     condition: null, timeout_action: null,
@@ -1011,7 +995,6 @@ const CONFIG_SECTIONS = {
   temp_confirm_target:     {sec:'sequence.startup', key:'temp_confirm_target'},
   temp_confirm_timeout:    {sec:'sequence.startup', key:'temp_confirm_timeout'},
   pre_ign_rpm:             {sec:'sequence.startup', key:'pre_ign_rpm'},
-  pre_ign_spark_ms:        {sec:'sequence.startup', key:'pre_ign_spark_ms'},
   flame_required_count:    {sec:'sequence.startup', key:'flame_required_count'},
   flame_check_interval_ms: {sec:'sequence.startup', key:'flame_check_interval_ms'},
   flame_timeout_ms:        {sec:'sequence.startup', key:'flame_timeout_ms'},
@@ -1143,10 +1126,6 @@ const BLOCK_INFO = {
     desc: 'Enables and ramps the starter until N1 reaches the pre-ignition target. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
     links: []
   },
-  PreIgnSpark: {
-    desc: 'Turns igniter 1 on, waits for its dwell time, and leaves it on. Prefer target-selectable Igniter On or Pre-Heat for other ignition devices.',
-    links: []
-  },
   FuelOpen: {
     desc: 'Opens the main fuel shutoff and marks that combustion was attempted so Cooldown can run when needed.',
     links: []
@@ -1214,7 +1193,7 @@ const BLOCK_INFO = {
     links: []
   },
   PreHeat: {
-    desc: 'Turns the selected ignition device on for that device card\'s pre-heat duration without opening main fuel, then leaves it on.',
+    desc: 'Pre-heats the selected ignition device without opening main fuel. A glow plug uses its device-local ramp and optional hot-current check; an igniter uses its timed pre-heat. The output stays on afterward until another step turns it off.',
     links: [{ label: 'Configure ignition device', url: '/hardware.html#registry-outputs' }]
   },
   ABCheckReady: {
@@ -1238,10 +1217,6 @@ const BLOCK_INFO = {
     links: [
       { label: 'Afterburner Running Control', url: '/controllers.html#ab-run-section' },
     ]
-  },
-  GlowPreheat: {
-    desc: 'Runs the selected glow plug\'s device-local preheat profile. A wet glow plug also commands its own paired pilot-fuel output.',
-    links: [{ label: 'Configure glow-plug device', url: '/hardware.html#registry-outputs' }]
   },
   GovernorHold: {
     desc: 'Waits until N2 remains within the configured band around the governor target before completing.',
@@ -1283,12 +1258,9 @@ function showBlockInfo(bname, trigger) {
   hideBlockInfo();
   const def = BLOCKS[bname] || {};
   const info = BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
-  const missingGlowHardware = bname === 'GlowPreheat' && !actuatorEnabled('glow_plug');
-  const infoLinks = missingGlowHardware
-    ? [{label:'Install or configure Glow Plug hardware', url:'/hardware.html#registry-outputs'}]
-    : (info.links || []);
+  const infoLinks = info.links || [];
   const linksHtml = infoLinks.length
-    ? `<div class="bip-links-label">${missingGlowHardware ? 'Hardware required:' : 'Related settings:'}</div><div class="bip-links">` +
+    ? `<div class="bip-links-label">Related settings:</div><div class="bip-links">` +
       infoLinks.map(l => `<a class="bip-link" href="${l.url}">${l.label}</a>`).join('') +
       '</div>'
     : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';
@@ -1832,7 +1804,7 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'StarterSpin')  { state.starter = 'on'; state.starterEn = 'on'; }
       if (bname === 'FuelOpen')     state.fuelSol   = 'open';
       if (bname === 'FuelPulse')    state.fuelSol   = 'closed';
-      if (bname === 'IgniterOn' || bname === 'PreHeat' || bname === 'PreIgnSpark') {
+      if (bname === 'IgniterOn' || bname === 'PreHeat') {
         const target = Number(hwCfg[ignitionTargetSeqKey(tab)]?.[i] ?? 0);
         setIgnitionPreviewState(state, target, true);
         sequenceIgnitionTargets.add(target);
@@ -1858,12 +1830,14 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'CoolFanOff')    state.coolFan = 'off';
       if (bname === 'BleedOpen')     state.bleed = 'open';
       if (bname === 'BleedClose')    state.bleed = 'closed';
-      if (bname === 'GlowPreheat') {
+      if (bname === 'PreHeat') {
         const targetId = String(hwCfg[deviceTargetSeqKey(tab)]?.[i] || '');
-        const plug = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId);
-        const relay = plug ? [4,11].includes(Number(plug.driver)) : actuatorIsRelay('glow_plug');
-        const hold = Math.round(Number(plug?.ignition_hold_demand ?? .3) * 100);
-        state.glow = relay ? 'on during preheat' : `${hold}% hold`;
+        const plug = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId && row.purpose === 'glow_plug');
+        if (plug) {
+          const relay = [4,11].includes(Number(plug.driver));
+          const hold = Math.round(Number(plug.ignition_hold_demand ?? .3) * 100);
+          state.glow = relay ? 'on during preheat' : `${hold}% hold`;
+        }
       }
       if (bname === 'FuelPumpRamp')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPumpRamp.fp2_end_pct'] ?? 80);
       if (bname === 'FuelPump2Set')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPump2Set.fp2_demand_pct'] ?? 0);
@@ -2194,6 +2168,19 @@ function sequenceBlockLabel(bname, tab, idx) {
   return meta ? `Set ${meta.label}` : 'Set Output';
 }
 
+function preHeatProfile(tab, idx) {
+  const targetId = String(hwCfg[deviceTargetSeqKey(tab)]?.[idx] || '');
+  const output = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId)
+    || (!targetId && compatibleBlockOutputs('PreHeat').length === 1 ? compatibleBlockOutputs('PreHeat')[0] : null);
+  const glow = output?.purpose === 'glow_plug';
+  return {
+    output,
+    glow,
+    durationMs: Math.max(0, Number(output?.ignition_preheat_ms ?? (glow ? 10000 : 3000))),
+    waitHot: glow && !!(output.ignition_wait_hot ?? cfg?.glow_plug?.wait_until_hot),
+  };
+}
+
 function buildCard(bname, idx, tab) {
   const def = BLOCKS[bname] || customBlocks[bname];
   const card = document.createElement('div');
@@ -2206,8 +2193,12 @@ function buildCard(bname, idx, tab) {
 
   // Build condition text for WHILE blocks
   const hw = flattenHw();
+  const preheat = bname === 'PreHeat' ? preHeatProfile(tab, idx) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    : preheat ? (preheat.waitHot
+      ? `Ramp ${seqRound(preheat.durationMs / 1000)} s, then until hot`
+      : `Wait ${seqRound(preheat.durationMs / 1000)} s preheat`)
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -2217,12 +2208,14 @@ function buildCard(bname, idx, tab) {
   else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
   // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
   if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';
+  if (preheat?.waitHot) toPill = `<span class="timeout-pill abort" title="If this glow plug does not reach its ready-current condition in time, startup aborts.">Hot check: abort</span>`;
   if (bname === 'WaitTOTCool') toPill = tab === 'startup'
     ? `<span class="timeout-pill abort" title="A hot or unhealthy temperature reading aborts startup after the maximum wait.">Timeout: abort</span>`
     : `<span class="timeout-pill cont" title="Shutdown continues after the maximum wait, even without a cool reading.">Timeout: continue</span>`;
 
-  const kindLabel = {while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type;
-  const badge = def ? `<span class="block-badge ${esc(def.badgeClass)}">${esc(String(kindLabel).toUpperCase())}</span>` : '';
+  const kindLabel = preheat?.waitHot ? 'UNTIL' : ({while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type);
+  const badgeClass = preheat?.waitHot ? 'badge-while' : def?.badgeClass;
+  const badge = def ? `<span class="block-badge ${esc(badgeClass)}">${esc(String(kindLabel).toUpperCase())}</span>` : '';
   const condHtml = condText ? `<span class="block-cond">${esc(condText)}</span>` : '';
   card.innerHTML = `
   <div class="block-header" title="${esc(def?.desc || 'Sequence block')}" onclick="toggleParams(this)">
@@ -2400,7 +2393,6 @@ function flattenHw() {
     fuel_pulse_ms:        paramVals['FuelPulse.fuel_pulse_ms']   ?? 200,
     wait_tot_target:      paramVals['WaitTOTCool.wait_tot_target'] ?? 150,
     throttle_set_pct:     paramVals['ThrottleSet.throttle_set_pct'] ?? 10,
-    preheat_ms:           paramVals['PreHeat.preheat_ms']         ?? 3000,
     ab_stab_ms:           paramVals['ABStabilize.ab_stab_ms']     ?? 1000,
     gov_hold_band_rpm:    paramVals['GovernorHold.gov_hold_band_rpm'] ?? 500,
   };
@@ -2421,14 +2413,13 @@ function _buildHwWarningHtml(def) {
 }
 
 function isIgnitionBlock(bname) {
-  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff','PreHeat','PreIgnSpark','GlowPreheat'].includes(bname);
+  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff','PreHeat'].includes(bname);
 }
 
 const BLOCK_OUTPUT_PURPOSES = {
   IgniterOn:['igniter','ab_igniter','glow_plug'], IgniterOff:['igniter','ab_igniter','glow_plug'],
   ABIgnOn:['igniter','ab_igniter','glow_plug'], ABIgnOff:['igniter','ab_igniter','glow_plug'],
-  PreHeat:['igniter','ab_igniter','glow_plug'], PreIgnSpark:['igniter','ab_igniter','glow_plug'],
-  GlowPreheat:['glow_plug'],
+  PreHeat:['igniter','ab_igniter','glow_plug'],
   FuelOpen:['fuel_shutoff'], FuelSolClose:['fuel_shutoff'], FuelPulse:['fuel_shutoff'],
   StarterEnOn:['starter_enable'], StarterEnOff:['starter_enable'], StarterOff:['starter'],
   OilPumpOn:['oil_pump'], OilPumpOff:['oil_pump'],
@@ -2501,18 +2492,20 @@ function wetGlowTimingWarning(bname, idx, tab, targetId) {
   if (String(output?.purpose || '') !== 'glow_plug' || Number(glow.type || 0) !== 2) return '';
   const seq = hwCfg[seqKey(tab)] || [];
   const delayMs = Number(glow.fuel_delay_ms ?? 8000);
-  let waitMs = bname === 'PreHeat' ? Number(paramVals['PreHeat.preheat_ms'] ?? 3000) : 0;
+  const preheatMs = preHeatProfile(tab, idx).durationMs;
+  let waitMs = bname === 'PreHeat' ? preheatMs : 0;
   const fuelOrConfirm = new Set(['FuelOpen', 'FuelPumpIdle', 'FuelPulse', 'TempConfirm', 'FlameConfirm', 'Spool']);
   for (let i = idx + 1; i < seq.length; i++) {
     const nm = seq[i];
     if (nm === 'TimedDelay') waitMs += Number(timedDelayValue(tab, i) || 0);
-    else if (nm === 'PreHeat') waitMs += Number(paramVals['PreHeat.preheat_ms'] ?? 3000);
+    else if (nm === 'PreHeat' && String(hwCfg[deviceTargetSeqKey(tab)]?.[i] || '') === String(targetId))
+      waitMs += preheatMs;
     if (fuelOrConfirm.has(nm)) break;
   }
   if (waitMs >= delayMs) return '';
   const delayS = (delayMs / 1000).toFixed(delayMs % 1000 ? 1 : 0);
   const waitS = (waitMs / 1000).toFixed(waitMs % 1000 ? 1 : 0);
-  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay is ${delayS} s, but the next fuel or confirmation step is about ${waitS} s away. Add delay or increase Pre-Heat time if pilot fuel must be burning first.</span>`;
+  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay is ${delayS} s, but the next fuel or confirmation step is about ${waitS} s away. Add a sequence delay or increase this plug's preheat duration under <a href="/hardware.html#registry-outputs">Hardware</a> if pilot fuel must be burning first.</span>`;
 }
 
 function buildDeviceTargetHtml(bname, idx, tab) {
@@ -2576,7 +2569,10 @@ function buildParamsHtml(bname, idx, tab) {
     ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
     : '';
   if (!def || def.params.length === 0) {
-    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>'}${sideHtml}</div>`;
+    const noParams = bname === 'SetOutput' ? '' : bname === 'PreHeat'
+      ? '<div class="param-desc">Ramp, hold, and hot-check settings belong to the selected device under <a href="/hardware.html#registry-outputs">Hardware → Outputs</a>.</div>'
+      : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
   }
   const inputs = def.params.map(p => {
     // visibleIf - skip this param if hw condition is false
@@ -2886,7 +2882,7 @@ function openBlockPicker(tab) {
   list.querySelector('button')?.focus();
 }
 
-const _typeLabel = {while:'WHILE', action:'ACTION', wait:'WAIT', check:'CHECK'};
+const _typeLabel = {while:'UNTIL', action:'ACTION', wait:'TIMED', check:'CHECK'};
 
 function populateAddSelects() {
   const lists = {startup: STARTUP_BLOCKS, shutdown: SHUTDOWN_BLOCKS, afterburner: AFTERBURNER_BLOCKS, 'ab-shut': AB_SHUT_BLOCKS};
@@ -2932,7 +2928,7 @@ function updateBlockPreview(tab) {
   const bname = sel?.value?.split('::')[0];
   const def   = bname ? (BLOCKS[bname] || customBlocks[bname]) : null;
   if (!bname || !def) { prev.innerHTML = ''; return; }
-  const typeMap = {while:'WHILE - waits for condition', action:'ACTION - instant, completes in one tick', wait:'WAIT - fixed timer', check:'CHECK - verify then fault or complete'};
+  const typeMap = {while:'UNTIL - waits for a condition', action:'ACTION - completes after commanding an output', wait:'TIMED - waits for a set duration', check:'CHECK - verifies a condition before proceeding'};
   const typeStr = typeMap[def.type] ?? def.type.toUpperCase();
   const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

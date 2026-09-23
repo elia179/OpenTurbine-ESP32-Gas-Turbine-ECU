@@ -127,7 +127,6 @@ float Config::oilFailsafePct        = 60.0f;
 
 int   Config::startupOilArmTimeoutMs  = 3000;
 float Config::preIgnRpm               = 5000;
-int   Config::preIgnSparkMs           = 1500;
 int   Config::flameTimeoutMs          = 5000;
 int   Config::flameCheckIntervalMs    = 300;
 float Config::spoolRpmTarget          = 32000;
@@ -680,7 +679,7 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     JsonVariantConst sd = doc["sequence"]["shutdown"];
     if (!su.is<JsonObjectConst>() || !sd.is<JsonObjectConst>()) return false;
     const char* startupMs[] = {
-        "oil_arm_timeout_ms", "pre_ign_spark_ms", "flame_timeout_ms", "rpm_timeout_ms",
+        "oil_arm_timeout_ms", "flame_timeout_ms", "rpm_timeout_ms",
         "safety_hold_ms", "safety_hold_timeout_ms", "starter_timeout_ms", "temp_confirm_timeout", "wait_for_input_timeout",
         "timed_delay_ms", "fuel_pulse_ms", "fuel_off_ms", "wait_tot_timeout", "preheat_ms",
         "fp2_ramp_ms", "gov_hold_timeout_ms"

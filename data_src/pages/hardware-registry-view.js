@@ -365,14 +365,14 @@ function registryCurrentUsers(direction, id) {
 }
 function registryBlockLabel(block) {
   const labels = {
-    OilPrime:'Build Oil Pressure', StarterSpin:'Set Starter', PreIgnSpark:'Igniter 1 Timed On',
+    OilPrime:'Build Oil Pressure', StarterSpin:'Set Starter',
     FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor', TempConfirm:'Confirm Combustion by Temperature',
     FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
     SafetyHold:'Final Startup Checks', OilPumpOn:'Oil Pump On', OilPumpOff:'Oil Pump Off',
     OilScavengeOn:'Scavenge On', OilScavengeOff:'Scavenge Off', StarterOff:'Starter Off',
     ImmediateCut:'Immediate Fuel and Ignition Cut', RPMDrop:'Wait for Rotor to Slow',
     CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop', ThrottleSet:'Set Main Fuel Demand',
-    GlowPreheat:'Glow Preheat', FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
+    FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
     FuelPump2On:'Secondary / Auxiliary Fuel Pump On', FuelPump2Off:'Secondary / Auxiliary Fuel Pump Off',
     CoolFanOn:'Cooling Fan On', CoolFanOff:'Cooling Fan Off',
     BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close',

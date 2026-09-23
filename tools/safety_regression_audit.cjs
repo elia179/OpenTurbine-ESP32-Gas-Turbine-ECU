@@ -296,7 +296,7 @@ expect('reduced-power startup bypasses only its unavailable feedback while retai
   read('src/engine/sequencer/blocks/Spool.h').includes('timed spool completed without N1 feedback') &&
   read('src/engine/sequencer/blocks/SafetyHold.h').includes('bypassUnhealthyStartupCheck') &&
   read('src/engine/sequencer/blocks/OilPrime.h').includes('[REDUCED POWER]') &&
-  main.includes('unavailable current-ready check skipped'));
+  main.includes('unavailable glow current-ready check skipped'));
 expect('automatic limp cannot be cleared by manual controls during a run',
   engineData.includes('manualLimpRequested') &&
   engineData.includes('automaticLimpLatched') &&
@@ -488,9 +488,11 @@ expect('low-temperature interfaces cannot masquerade as turbine-gas feedback',
   channelRegistry.includes('const bool lowTemperaturePurpose') &&
   channelRegistry.includes('if (!lowTemperaturePurpose || turbineGasPurpose) return false') &&
   hardwareHtml.includes('NTC and DS18B20 interfaces require a low-range or general temperature purpose'));
-expect('GlowPreheat help redirects missing hardware to the installed-output editor',
-  sequenceHtml.includes("bname === 'GlowPreheat' && !actuatorEnabled('glow_plug')") &&
-  sequenceHtml.includes("/hardware.html#registry-outputs"));
+expect('one Pre-Heat block uses the selected ignition device profile',
+  sequenceHtml.includes('A glow plug uses its own ramp, hold level, and optional current-based hot check') &&
+  sequenceHtml.includes("PreHeat:['igniter','ab_igniter','glow_plug']") &&
+  !sequenceHtml.includes('GlowPreheat: {') && !sequenceHtml.includes('PreIgnSpark: {') &&
+  main.includes('_glowRamp = _glow && blockName && !strcmp(blockName, "PreHeat")'));
 expect('every forced STANDBY transition stops an active main sequence before all-off',
   main.includes('if (g_sequencer.isRunning()) g_sequencer.stopSequence();') &&
   main.indexOf('if (g_sequencer.isRunning()) g_sequencer.stopSequence();') < main.indexOf('ResetRecovery::markSafe();'));

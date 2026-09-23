@@ -71,7 +71,7 @@ static bool perSlotBlockName(const char* name) {
     if (!name) return false;
     static const char* const names[] = {
         "TimedDelay", "IgniterOn", "IgniterOff", "ABIgnOn", "ABIgnOff",
-        "PreHeat", "PreIgnSpark", "GlowPreheat", "FuelOpen", "FuelSolClose",
+        "PreHeat", "FuelOpen", "FuelSolClose",
         "FuelPulse", "StarterEnOn", "StarterEnOff", "StarterOff", "OilPumpOn",
         "OilPumpOff", "CoolFanOn", "CoolFanOff", "AirstarterOn", "AirstarterOff",
         "ABPumpOn", "ABPumpOff", "OilScavengeOn", "OilScavengeOff",
@@ -215,7 +215,7 @@ public:
         _onDemand = _glow && output && output->ignitionProfileConfigured
             ? output->ignitionHoldDemand
             : _glow ? constrain(Config::glowHoldPct / 100.0f, 0.0f, 1.0f) : 1.0f;
-        _glowRamp = blockName && !strcmp(blockName, "GlowPreheat");
+        _glowRamp = _glow && blockName && !strcmp(blockName, "PreHeat");
         if (output && output->ignitionProfileConfigured &&
             blockName && !strcmp(blockName, "PreHeat"))
             _dwellMs = output->ignitionPreheatMs;
@@ -243,8 +243,6 @@ public:
         }
         if (strcmp(name(), "IgniterOff") == 0 || strcmp(name(), "ABIgnOff") == 0) _setTarget(false);
         else _setTarget(true);
-        if (strcmp(name(), "PreIgnSpark") == 0)
-            EngineData::instance().clusterCode = 5;
     }
 
     BlockResult tick() override {
@@ -281,7 +279,7 @@ public:
             if (FeedbackRequirements::bypassUnhealthyStartupCheck(
                     ed, FeedbackRequirements::GLOW_CURRENT, feedbackHealthy)) {
                 clearWaitReason();
-                Serial.println("[GlowPreheat] REDUCED POWER: unavailable current-ready check skipped");
+                Serial.println("[PreHeat] REDUCED POWER: unavailable glow current-ready check skipped");
                 return BlockResult::Complete;
             }
             setWaitReason(!feedbackFitted ? "Glow current feedback not fitted" :
@@ -291,7 +289,7 @@ public:
             _setDemand(0.0f);
             return BlockResult::Abort;
         }
-        if (strcmp(name(), "PreHeat") != 0 && strcmp(name(), "PreIgnSpark") != 0)
+        if (strcmp(name(), "PreHeat") != 0)
             return BlockResult::Complete;
         return (millis() - _entryMs) >= _dwellMs ? BlockResult::Complete : BlockResult::Running;
     }
@@ -541,8 +539,7 @@ static void buildSequences() {
             if (!strncmp(blocks[i], "custom_", 7)) ++customRequired;
             if (!strcmp(blocks[i], "IgniterOn") || !strcmp(blocks[i], "IgniterOff") ||
                 !strcmp(blocks[i], "ABIgnOn") || !strcmp(blocks[i], "ABIgnOff") ||
-                !strcmp(blocks[i], "PreHeat") || !strcmp(blocks[i], "PreIgnSpark") ||
-                !strcmp(blocks[i], "GlowPreheat")) ++ignitionRequired;
+                !strcmp(blocks[i], "PreHeat")) ++ignitionRequired;
         }
     };
     countPlacedBlocks(hw.startupSeq, hw.startupSeqLen);
@@ -616,16 +613,12 @@ static void buildSequences() {
         }
         if (strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0 ||
             strcmp(name, "ABIgnOn") == 0 || strcmp(name, "ABIgnOff") == 0 ||
-            strcmp(name, "PreHeat") == 0 || strcmp(name, "PreIgnSpark") == 0 ||
-            strcmp(name, "GlowPreheat") == 0) {
+            strcmp(name, "PreHeat") == 0) {
             const char* purpose = ignitionTarget == 1 ? "ab_igniter" :
                                   ignitionTarget == 2 ? "glow_plug" : "igniter";
             if (strcmp(name, "ABIgnOn") == 0 || strcmp(name, "ABIgnOff") == 0)
                 purpose = "ab_igniter";
-            if (strcmp(name, "GlowPreheat") == 0)
-                purpose = "glow_plug";
-            const unsigned long dwell = !strcmp(name, "PreIgnSpark")
-                ? (unsigned long)Config::preIgnSparkMs : (unsigned long)Config::preHeatMs;
+            const unsigned long dwell = (unsigned long)Config::preHeatMs;
             IgnitionCommandBlock& ignition = _sequenceIgnitionBlockStorage[ignitionUsed++];
             ignition.bind(name, deviceTarget, purpose, dwell);
             blocks[count++] = &ignition;
@@ -784,8 +777,7 @@ static void validateSequences(bool report) {
     auto isIgnitionTargetBlock = [](const char* block) {
         return block && (!strcmp(block, "IgniterOn") || !strcmp(block, "IgniterOff") ||
             !strcmp(block, "ABIgnOn") || !strcmp(block, "ABIgnOff") ||
-            !strcmp(block, "PreHeat") || !strcmp(block, "PreIgnSpark") ||
-            !strcmp(block, "GlowPreheat"));
+            !strcmp(block, "PreHeat"));
     };
     auto blockAcceptsPurpose = [isIgnitionTargetBlock](const char* block, const char* purpose) {
         if (!block || !purpose) return false;
@@ -1038,10 +1030,13 @@ static void validateSequences(bool report) {
         // device above. Only retain the glow-specific feedback warning when a
         // real glow-plug profile requests wait-until-hot behavior.
         if (isDeviceTargetBlock(nm)) {
-            if (strcmp(nm, "GlowPreheat") == 0) {
+            if (strcmp(nm, "PreHeat") == 0) {
                 const char* targetId = hw.startupDeviceTarget[i];
-                const auto* target = targetId[0]
-                    ? hw.channelRegistry.find(targetId, ChannelRegistry::Output) : nullptr;
+                if (!targetId[0])
+                    targetId = HardwareConfig::defaultOutputIdForPurpose(
+                        hw.startupIgnitionTarget[i] == 2 ? "glow_plug" :
+                        hw.startupIgnitionTarget[i] == 1 ? "ab_igniter" : "igniter");
+                const auto* target = hw.channelRegistry.find(targetId, ChannelRegistry::Output);
                 if (target && !strcmp(target->purpose, "glow_plug") &&
                     (target->ignitionProfileConfigured
                         ? target->ignitionWaitUntilHot : Config::glowWaitUntilHot) &&
@@ -1104,25 +1099,6 @@ static void validateSequences(bool report) {
         else if (strcmp(nm, "OilPumpOn") == 0) {
             if (!hw.hasOilPump)
                 addIssue(nm, "No oil pump actuator configured - stock pre-lube step has no physical output", false);
-        }
-        else if (strcmp(nm, "GlowPreheat") == 0) {
-            const char* targetId = hw.startupDeviceTarget[i];
-            const auto* target = targetId[0]
-                ? hw.channelRegistry.find(targetId, ChannelRegistry::Output) : nullptr;
-            if (!target || !target->installed || strcmp(target->purpose, "glow_plug"))
-                addIssue(nm, "Selected glow-plug output is missing or incompatible", true);
-            else if ((target->ignitionProfileConfigured
-                        ? target->ignitionWaitUntilHot : Config::glowWaitUntilHot) &&
-                     !target->hasCurrent)
-                addIssue(nm, "Wait-until-hot requires current feedback on the selected glow plug", true);
-        }
-        else if (strcmp(nm, "PreIgnSpark") == 0) {
-            if (!hw.hasIgniter)
-                addIssue(nm, "No Igniter 1 output configured - block will spend its configured time with no ignition output", false);
-        }
-        else if (strcmp(nm, "PreHeat") == 0) {
-            if (!ignitionTargetAvailableFor(hw.startupDeviceTarget[i], hw.startupIgnitionTarget[i]))
-                addIssue(nm, "Selected ignition output (igniter/glow) not fitted - pre-heat has no effect", false);
         }
         else if (strcmp(nm, "IgniterOn") == 0) {
             if (!ignitionTargetAvailableFor(hw.startupDeviceTarget[i], hw.startupIgnitionTarget[i]))
@@ -1309,7 +1285,7 @@ static void validateSequences(bool report) {
         const char* nm = _startupBlocks[i]->name();
         if (strcmp(nm, "FlameConfirm") == 0 || strcmp(nm, "TempConfirm") == 0)
             hasCombustionConfirmation = true;
-        if (strcmp(nm, "IgniterOn") == 0 || strcmp(nm, "PreIgnSpark") == 0)
+        if (strcmp(nm, "IgniterOn") == 0 || strcmp(nm, "PreHeat") == 0)
             ignitionOn = true;
         if (strcmp(nm, "IgniterOff") == 0)
             ignitionOn = false;

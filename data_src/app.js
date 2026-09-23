@@ -69,7 +69,7 @@ function selectedEgtKey(d) {
     : (d?.egt_source === 1 ? 'tot' : (d?.has_tot ? 'tot' : (d?.has_tit ? 'tit' : null)));
 }
 const SEQUENCE_BLOCK_LABELS = {
-  OilPrime:'Build Oil Pressure', StarterSpin:'Starter Spin to Light-Off Speed', PreIgnSpark:'Igniter 1 Timed On',
+  OilPrime:'Build Oil Pressure', StarterSpin:'Starter Spin to Light-Off Speed',
   FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor',
   TempConfirm:'Confirm Combustion by Temperature', TimedDelay:'Timed Delay',
   FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
@@ -85,7 +85,7 @@ const SEQUENCE_BLOCK_LABELS = {
   ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
   ABCheckReady:'Check Afterburner Entry Conditions', ABIgnite:'Ignite Afterburner',
   ABFlameConfirm:'Confirm Afterburner Flame', ABStabilize:'Stabilize Afterburner',
-  BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close', GlowPreheat:'Glow Preheat',
+  BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close',
   FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
   FuelPump2On:'Secondary / Auxiliary Fuel Pump On', FuelPump2Off:'Secondary / Auxiliary Fuel Pump Off',
   GovernorHold:'Verify Power-Turbine Governor'

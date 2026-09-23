@@ -44,7 +44,6 @@ public:
     static int   startupOilArmTimeoutMs;
     static int   starterTimeoutMs;
     static float preIgnRpm;
-    static int   preIgnSparkMs;
     static int   flameTimeoutMs;
     static int   flameCheckIntervalMs;
     static float tempConfirmTarget;      // TempConfirm threshold (°C)

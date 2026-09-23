@@ -2647,7 +2647,7 @@ namespace Hardware {
             ed.glowCurrentHealthy = g_sensorGlowCurrent.railHealthy();
             // Plug is hot when current has dropped below threshold and plug is
             // powered.  Health gate: a disconnected/railed ADC reads ~0 A and
-            // would instantly flag a cold plug 'hot' (GlowPreheat has its own
+            // would instantly flag a cold plug 'hot' (PreHeat has its own
             // waitHotTimeout, so an unhealthy sensor cannot hang the sequence).
             ed.glowPlugHot = ed.glowCurrentHealthy &&
                              (ed.glowPlugDemand > 0.05f) &&

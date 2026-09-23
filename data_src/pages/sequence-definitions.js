@@ -105,15 +105,6 @@ const BLOCKS = {
         desc:'Shared with OilPrime arm threshold - both use the same config value.'},
     ]
   },
-  PreIgnSpark: {
-    label:'Igniter 1 Timed On', type:'wait', badgeClass:'badge-wait',
-    visibleIf: hw => actuatorEnabled('igniter'),
-    condition: null, timeout_action:null,
-    desc:'Turns igniter 1 on, waits for the configured dwell, then completes while leaving it on. Prefer Igniter On or Pre-Heat when the block must select igniter 1, secondary igniter, glow, or wet glow.',
-    params:[
-      {key:'pre_ign_spark_ms', label:'Ignition on time', unit:'ms', type:'int', min:100, max:10000, step:100, def:1500, configKey:'pre_ign_spark_ms'},
-    ]
-  },
   FuelOpen: {
     label:'Open Main Fuel Shutoff', type:'action', badgeClass:'badge-action',
     visibleIf: hw => actuatorEnabled('fuel_sol'),
@@ -521,9 +512,9 @@ const BLOCKS = {
   PreHeat: {
     label:'Pre-Heat', type:'wait', badgeClass:'badge-wait',
     visibleIf: hw => hasIgnitionOutput(hw),
-    condition: () => 'selected ignition device pre-heat',
+    condition:null,
     timeout_action:null,
-    desc:'Turns the exact selected ignition output on for that device card\'s pre-heat duration without opening main fuel. The output remains ON when this block exits - place FuelOpen or a later Ignition Output Off block intentionally.',
+    desc:'Pre-heats the selected ignition device without opening main fuel. An igniter stays on for its configured duration. A glow plug uses its own ramp, hold level, and optional current-based hot check; wet-glow pilot fuel follows that plug automatically. The output remains on when this block completes until another step turns it off.',
     params:[]
   },
   // ------ Afterburner blocks ---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -620,13 +611,6 @@ const BLOCKS = {
     params:[],
     visibleIf: hw => actuatorEnabled('bleed_valve'),
   },
-  GlowPreheat: {
-    label:'Glow Preheat', type:'action', badgeClass:'badge-action',
-    condition: null, timeout_action: null,
-    desc:'Runs the exact selected glow plug using that device card\'s own preheat ramp, hold command, hot-current confirmation, and paired pilot-fuel settings. The plug remains at its configured hold command when this block exits.',
-    params:[],
-    visibleIf: hw => actuatorEnabled('glow_plug'),
-  },
   FuelPumpRamp: {
     label:'Secondary / Auxiliary Fuel Pump Ramp', type:'action', badgeClass:'badge-action',
     condition: null, timeout_action: null,
@@ -690,7 +674,6 @@ const CONFIG_SECTIONS = {
   temp_confirm_target:     {sec:'sequence.startup', key:'temp_confirm_target'},
   temp_confirm_timeout:    {sec:'sequence.startup', key:'temp_confirm_timeout'},
   pre_ign_rpm:             {sec:'sequence.startup', key:'pre_ign_rpm'},
-  pre_ign_spark_ms:        {sec:'sequence.startup', key:'pre_ign_spark_ms'},
   flame_required_count:    {sec:'sequence.startup', key:'flame_required_count'},
   flame_check_interval_ms: {sec:'sequence.startup', key:'flame_check_interval_ms'},
   flame_timeout_ms:        {sec:'sequence.startup', key:'flame_timeout_ms'},
@@ -822,10 +805,6 @@ const BLOCK_INFO = {
     desc: 'Enables and ramps the starter until N1 reaches the pre-ignition target. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
     links: []
   },
-  PreIgnSpark: {
-    desc: 'Turns igniter 1 on, waits for its dwell time, and leaves it on. Prefer target-selectable Igniter On or Pre-Heat for other ignition devices.',
-    links: []
-  },
   FuelOpen: {
     desc: 'Opens the main fuel shutoff and marks that combustion was attempted so Cooldown can run when needed.',
     links: []
@@ -893,7 +872,7 @@ const BLOCK_INFO = {
     links: []
   },
   PreHeat: {
-    desc: 'Turns the selected ignition device on for that device card\'s pre-heat duration without opening main fuel, then leaves it on.',
+    desc: 'Pre-heats the selected ignition device without opening main fuel. A glow plug uses its device-local ramp and optional hot-current check; an igniter uses its timed pre-heat. The output stays on afterward until another step turns it off.',
     links: [{ label: 'Configure ignition device', url: '/hardware.html#registry-outputs' }]
   },
   ABCheckReady: {
@@ -917,10 +896,6 @@ const BLOCK_INFO = {
     links: [
       { label: 'Afterburner Running Control', url: '/controllers.html#ab-run-section' },
     ]
-  },
-  GlowPreheat: {
-    desc: 'Runs the selected glow plug\'s device-local preheat profile. A wet glow plug also commands its own paired pilot-fuel output.',
-    links: [{ label: 'Configure glow-plug device', url: '/hardware.html#registry-outputs' }]
   },
   GovernorHold: {
     desc: 'Waits until N2 remains within the configured band around the governor target before completing.',
@@ -962,12 +937,9 @@ function showBlockInfo(bname, trigger) {
   hideBlockInfo();
   const def = BLOCKS[bname] || {};
   const info = BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
-  const missingGlowHardware = bname === 'GlowPreheat' && !actuatorEnabled('glow_plug');
-  const infoLinks = missingGlowHardware
-    ? [{label:'Install or configure Glow Plug hardware', url:'/hardware.html#registry-outputs'}]
-    : (info.links || []);
+  const infoLinks = info.links || [];
   const linksHtml = infoLinks.length
-    ? `<div class="bip-links-label">${missingGlowHardware ? 'Hardware required:' : 'Related settings:'}</div><div class="bip-links">` +
+    ? `<div class="bip-links-label">Related settings:</div><div class="bip-links">` +
       infoLinks.map(l => `<a class="bip-link" href="${l.url}">${l.label}</a>`).join('') +
       '</div>'
     : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';

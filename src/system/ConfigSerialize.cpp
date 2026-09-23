@@ -267,7 +267,7 @@ const ConfigField<float> STARTUP_FLOAT_FIELDS[] = {
 };
 const ConfigField<int> STARTUP_INT_FIELDS[] = {
     CONFIG_FIELD(startupOilArmTimeoutMs, "oil_arm_timeout_ms"),
-    CONFIG_FIELD(preIgnSparkMs, "pre_ign_spark_ms"), CONFIG_FIELD(flameTimeoutMs, "flame_timeout_ms"),
+    CONFIG_FIELD(flameTimeoutMs, "flame_timeout_ms"),
     CONFIG_FIELD(flameCheckIntervalMs, "flame_check_interval_ms"),
     CONFIG_FIELD(flameRequiredCount, "flame_required_count"), CONFIG_FIELD(spoolTimeoutMs, "rpm_timeout_ms"),
     CONFIG_FIELD(safetyHoldMs, "safety_hold_ms"), CONFIG_FIELD(safetyHoldTimeoutMs, "safety_hold_timeout_ms"),
@@ -503,7 +503,7 @@ void Config::_applyDefaults() {
     oilRunningMin = 2.8f; oilMapMin = 3.6f; oilMapMax = 4.4f;
     oilUseThrottleMap = false; oilAdjustScale = 1.80f; oilMinPct = 18.0f;
     oilFailsafeDelayMs = 1500; oilFailsafePct = 60.0f;
-    startupOilArmTimeoutMs = 3000; preIgnRpm = 5000; preIgnSparkMs = 1500;
+    startupOilArmTimeoutMs = 3000; preIgnRpm = 5000;
     flameTimeoutMs = 5000; flameCheckIntervalMs = 300; flameRequiredCount = 3;
     spoolRpmTarget = 32000; spoolTimeoutMs = 12000;
     safetyHoldMs = 1000; safetyHoldTimeoutMs = 15000; safetyHoldFinalRpm = 31000;
@@ -974,7 +974,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (startupEgtLimitC < 0.0f) startupEgtLimitC = 0.0f;
     if (startupOilArmTimeoutMs < 0) startupOilArmTimeoutMs = 0;
     if (starterTimeoutMs < 0) starterTimeoutMs = 0;
-    if (preIgnSparkMs < 0) preIgnSparkMs = 0;
     if (flameTimeoutMs < 0) flameTimeoutMs = 0;
     if (flameCheckIntervalMs < 1) flameCheckIntervalMs = 1;
     if (flameRequiredCount < 1) flameRequiredCount = 1;
