@@ -198,23 +198,6 @@ namespace FeedbackRequirements {
         if (HardwareConfig::hasThrottleInput && !ed.throttleInputValid) failed |= THROTTLE;
         if (HardwareConfig::hasIdleInput &&
             (startupHas("FuelPumpIdle") || startupHas("ModifiedIdle")) && !ed.idleInputValid) failed |= IDLE;
-        for (int i = 0; i < HardwareConfig::startupSeqLen; ++i) {
-            if (strcmp(HardwareConfig::startupSeq[i], "PreHeat")) continue;
-            const char* targetId = HardwareConfig::startupDeviceTarget[i];
-            if (!targetId[0]) {
-                const uint8_t target = HardwareConfig::startupIgnitionTarget[i];
-                targetId = HardwareConfig::defaultOutputIdForPurpose(
-                    target == 2 ? "glow_plug" : target == 1 ? "ab_igniter" : "igniter");
-            }
-            const auto* output = HardwareConfig::channelRegistry.find(targetId, ChannelRegistry::Output);
-            if (!output || strcmp(output->purpose, "glow_plug")) continue;
-            const bool waitHot = output->ignitionProfileConfigured
-                ? output->ignitionWaitUntilHot : Config::glowWaitUntilHot;
-            if (!waitHot) continue;
-            const bool healthy = output->hasCurrent &&
-                ed.registryOutputCurrentHealthy[output - HardwareConfig::channelRegistry.outputs];
-            if (!healthy) failed |= GLOW_CURRENT;
-        }
         return failed;
     }
 

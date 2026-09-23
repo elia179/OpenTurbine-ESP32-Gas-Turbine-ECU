@@ -534,7 +534,7 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'StarterSpin')  { state.starter = 'on'; state.starterEn = 'on'; }
       if (bname === 'FuelOpen')     state.fuelSol   = 'open';
       if (bname === 'FuelPulse')    state.fuelSol   = 'closed';
-      if (bname === 'IgniterOn' || bname === 'PreHeat') {
+      if (bname === 'IgniterOn') {
         const target = Number(hwCfg[ignitionTargetSeqKey(tab)]?.[i] ?? 0);
         setIgnitionPreviewState(state, target, true);
         sequenceIgnitionTargets.add(target);
@@ -560,15 +560,6 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'CoolFanOff')    state.coolFan = 'off';
       if (bname === 'BleedOpen')     state.bleed = 'open';
       if (bname === 'BleedClose')    state.bleed = 'closed';
-      if (bname === 'PreHeat') {
-        const targetId = String(hwCfg[deviceTargetSeqKey(tab)]?.[i] || '');
-        const plug = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId && row.purpose === 'glow_plug');
-        if (plug) {
-          const relay = [4,11].includes(Number(plug.driver));
-          const hold = Math.round(Number(plug.ignition_hold_demand ?? .3) * 100);
-          state.glow = relay ? 'on during preheat' : `${hold}% hold`;
-        }
-      }
       if (bname === 'FuelPumpRamp')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPumpRamp.fp2_end_pct'] ?? 80);
       if (bname === 'FuelPump2Set')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPump2Set.fp2_demand_pct'] ?? 0);
       if (bname === 'FuelPump2On')   state.fuelPump2 = 'on';

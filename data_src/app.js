@@ -80,7 +80,7 @@ const SEQUENCE_BLOCK_LABELS = {
   StarterOff:'Starter Off', ImmediateCut:'Immediate Fuel and Ignition Cut', RPMDrop:'Wait for Rotor to Slow',
   CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop', FuelPulse:'Pulse Main Fuel Shutoff',
   WaitTOTCool:'Wait for Safe Restart Temperature', ThrottleSet:'Set Main Fuel Demand',
-  WaitForInput:'Wait for External Input', WaitForInputOff:'Wait for External Input to Release', PreHeat:'Pre-Heat',
+  WaitForInput:'Wait for External Input', WaitForInputOff:'Wait for External Input to Release',
   ABPumpOn:'Afterburner Fuel Pump On', ABPumpOff:'Afterburner Fuel Pump Off', ABIgnOn:'Afterburner Igniter On',
   ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
   ABCheckReady:'Check Afterburner Entry Conditions', ABIgnite:'Ignite Afterburner',

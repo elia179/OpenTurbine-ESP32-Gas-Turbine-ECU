@@ -379,7 +379,7 @@ function registryBlockLabel(block) {
     AirstarterOn:'Air Starter Valve Open', AirstarterOff:'Air Starter Valve Close',
     StarterEnOn:'Starter Enable On', StarterEnOff:'Starter Enable Off',
     FuelSolClose:'Close Main Fuel Shutoff', FuelPulse:'Pulse Main Fuel Shutoff',
-    IgniterOn:'Igniter On', IgniterOff:'Igniter Off', PreHeat:'Pre-Heat',
+    IgniterOn:'Igniter On', IgniterOff:'Igniter Off',
     ABPumpOn:'Afterburner Fuel Pump On', ABPumpOff:'Afterburner Fuel Pump Off', ABIgnOn:'Afterburner Igniter On',
     ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
     ABCheckReady:'Check Afterburner Entry Conditions', ABFlameConfirm:'Confirm Afterburner Flame', ABStabilize:'Stabilize Afterburner'

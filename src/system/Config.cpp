@@ -254,7 +254,6 @@ uint32_t Config::toolOilPrimeMs     = 5000;
 uint32_t Config::toolIgnTestMs      = 2000;
 uint32_t Config::toolIgn2TestMs     = 2000;
 uint32_t Config::toolGlowTestMs     = 10000;
-float    Config::toolGlowTestPct    = 100.0f;
 uint32_t Config::toolStartTestMs    = 2000;
 float    Config::toolStartTestPct   = 30.0f;
 uint32_t Config::toolFuelSolTestMs  = 1000;
@@ -330,7 +329,6 @@ int      Config::fuelPulseOffMs          = 300;
 float    Config::waitTotCoolTarget       = 150.0f;
 int      Config::waitTotCoolTimeoutMs    = 120000;
 float    Config::throttleSetPct          = 10.0f;
-int      Config::preHeatMs               = 3000;
 float    Config::oilPumpOnPct            = 100.0f;
 
 bool     Config::flameConfirmTurnOffIgniter  = true;
@@ -395,10 +393,6 @@ float Config::fp2EndPct             = 80.0f;
 int   Config::fp2RampMs             = 3000;
 float Config::fp2DemandPct          = 0.0f;
 
-int   Config::glowPreheatMs         = 10000;
-float Config::glowPreheatMaxPct     = 80.0f;
-float Config::glowHoldPct           = 30.0f;
-bool  Config::glowWaitUntilHot      = false;
 
 volatile uint32_t Config::totalRunSeconds    = 0;
 volatile uint32_t Config::startAttemptCount  = 0;
@@ -681,7 +675,7 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     const char* startupMs[] = {
         "oil_arm_timeout_ms", "flame_timeout_ms", "rpm_timeout_ms",
         "safety_hold_ms", "safety_hold_timeout_ms", "starter_timeout_ms", "temp_confirm_timeout", "wait_for_input_timeout",
-        "timed_delay_ms", "fuel_pulse_ms", "fuel_off_ms", "wait_tot_timeout", "preheat_ms",
+        "timed_delay_ms", "fuel_pulse_ms", "fuel_off_ms", "wait_tot_timeout",
         "fp2_ramp_ms", "gov_hold_timeout_ms"
     };
     if (!validMsFields(su, startupMs, sizeof(startupMs) / sizeof(startupMs[0])) ||
@@ -818,7 +812,6 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validInt(tools["ign_test_ms"], 100, 60000) ||
         !validInt(tools["ign2_test_ms"], 100, 60000) ||
         !validInt(tools["glow_test_ms"], 100, 60000) ||
-        !validNumber(tools["glow_test_pct"], 0.0f, 100.0f) ||
         !validInt(tools["start_test_ms"], 100, 60000) ||
         !validNumber(tools["start_test_pct"], 0.0f, 100.0f) ||
         !validInt(tools["fuel_sol_test_ms"], 50, 60000) ||
@@ -996,13 +989,6 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(gov["kp"], 0.0f, 0.01f) ||
         !validNumber(gov["pitch_kp"], 0.0f, 0.01f) ||
         !validNumber(gov["pitch_ramp_sec"], 0.0f, 3600000.0f))) return false;
-
-    JsonVariantConst glow = doc["glow_plug"];
-    if (present(glow) && (!glow.is<JsonObjectConst>() ||
-        !validInt(glow["preheat_ms"], 0, 3600000) ||
-        !validNumber(glow["preheat_max_pct"], 0.0f, 100.0f) ||
-        !validNumber(glow["hold_pct"], 0.0f, 100.0f) ||
-        !validBool(glow["wait_until_hot"]))) return false;
 
     JsonVariantConst rc = doc["rc_input"];
     if (present(rc) && (!rc.is<JsonObjectConst>() ||

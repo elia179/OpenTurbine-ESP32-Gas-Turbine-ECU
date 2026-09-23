@@ -938,16 +938,20 @@ function setCoreIgniterMode(actKey, mode) {
 function ensureRegistryIgnitionProfileDefaults(c, actKey) {
   const act = actKey ? ensureActuatorObject(actKey) : {};
   const purpose = registryDerivedPurpose('output', c);
-  const legacyGlow = settingsCfg?.glow_plug || {};
   c.ignition_mode ??= act.coil ? 2 : act.pwm ? 1 : 0;
   c.ignition_dwell_ms ??= Number(act.dwell_ms ?? 6);
   c.ignition_rest_ms ??= Number(act.rest_ms ?? 3);
   c.ignition_coil_sat_a ??= Number(act.coil_sat_a ?? 8);
-  c.ignition_preheat_ms ??= purpose === 'glow_plug' ? Number(legacyGlow.preheat_ms ?? 10000) : 3000;
-  c.ignition_peak_demand ??= purpose === 'glow_plug' ? Number(legacyGlow.preheat_max_pct ?? 80) / 100 : .8;
-  c.ignition_hold_demand ??= purpose === 'glow_plug' ? Number(legacyGlow.hold_pct ?? 30) / 100 : .3;
-  c.ignition_wait_hot ??= purpose === 'glow_plug' ? !!legacyGlow.wait_until_hot : false;
-  c.ignition_hot_timeout_ms ??= 30000;
+  if (['igniter','ab_igniter','glow_plug'].includes(purpose)) {
+    c.ignition_on_demand ??= 1;
+    c.ignition_ramp_ms ??= 0;
+  }
+}
+function registryIgnitionOnRampFields(c, index) {
+  if (outputDriverIsOnOff(c.driver))
+    return '<div class="hw-field"><span class="hw-desc">Relay output: turns fully on with the On command. No level or ramp setting is needed.</span></div>';
+  return `<div class="hw-field"><span class="hw-label">On level (%)</span><span class="hw-desc">Physical output level whenever this device is commanded On, including from a sequence, rule, or test.</span><input type="number" min="1" max="100" value="${Math.round(Number(c.ignition_on_demand)*100)}" oninput="updateRegistryChannel('output',${index},'ignition_on_demand',this.value/100)"></div>
+    <div class="hw-field"><span class="hw-label">Ramp-up time (ms)</span><span class="hw-desc">Rise from off to the On level after an On command. Set 0 for immediate output. Off is always immediate; this does not delay the sequence.</span><input type="number" min="0" max="3600000" step="100" value="${Number(c.ignition_ramp_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_ramp_ms',+this.value)"></div>`;
 }
 function registryCurrentEditor(direction, c, index) {
   if (direction !== 'output') return '';
@@ -979,7 +983,7 @@ function registryCurrentEditor(direction, c, index) {
       <div class="hw-field"><span class="hw-label">Current sensor ADC GPIO</span><span class="hw-desc">ADC-capable GPIO connected to the current sensor output.</span><select onchange="${fieldSet('pin','+this.value')}">${buildPinOptions(pin, 'adc')}</select></div>
       <div class="hw-field"><span class="hw-label">Sensor sensitivity (mV/A)</span><span class="hw-desc">Datasheet sensitivity at the ECU ADC pin. Example: ACS712-20A = 100 mV/A.</span><input type="number" min="1" max="10000" step="1" value="${registryFormatValue(mvA)}" oninput="${fieldSet('mv_a','+this.value')}"></div>
       <div class="hw-field"><span class="hw-label">Zero-current voltage (V)</span><span class="hw-desc">Sensor output voltage when no current flows.</span><input type="number" min="0" max="3.3" step="0.01" value="${registryFormatValue(zeroV)}" oninput="${fieldSet('zero_v','+this.value')}"></div>
-       ${registryDerivedPurpose('output',c) === 'glow_plug' ? `<div class="hw-field"><span class="hw-label">Ready current (A)</span><span class="hw-desc">This plug is considered hot when its measured current falls to or below this value after preheat.</span><input type="number" min="0" max="1000" step="0.1" value="${registryFormatValue(readyA)}" oninput="${fieldSet('ready_a','+this.value')}"></div>` : ''}
+       ${registryDerivedPurpose('output',c) === 'glow_plug' ? `<div class="hw-field"><span class="hw-label">Hot-status current (A)</span><span class="hw-desc">For monitoring: this powered plug is reported hot when measured current falls to or below this value. It does not delay the sequence.</span><input type="number" min="0" max="1000" step="0.1" value="${registryFormatValue(readyA)}" oninput="${fieldSet('ready_a','+this.value')}"></div>` : ''}
        <div class="hw-field"><span class="hw-label">Overcurrent shutdown (A)</span><span class="hw-desc">Warn immediately and shut down if this output remains above the limit. 0 disables this output's overcurrent trip.</span><input type="number" min="0" max="1000" step="0.1" value="${registryFormatValue(maxA)}" oninput="${fieldSet('current_max_a','+this.value')}"></div>
        <div class="hw-field"><span class="hw-label">Overcurrent confirmation (ms)</span><span class="hw-desc">Current must remain continuously above the limit for this long before the ECU shuts down. Shorter spikes are ignored.</span><input type="number" min="100" max="60000" step="100" value="${Math.round(Number(tripDelay))}" oninput="${fieldSet('current_trip_delay_ms','+this.value')}"></div>
     </div></div>` : ''}
@@ -1000,7 +1004,7 @@ function registryIgniterSubcards(c, index, actKey) {
       ${mode !== 0 ? `<div class="hw-field"><span class="hw-label">Dwell time (ms)</span><span class="hw-desc">Maximum energized time in each ignition cycle.</span><input type="number" min="1" max="200" value="${Number(c.ignition_dwell_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_dwell_ms',+this.value)"></div>
       <div class="hw-field"><span class="hw-label">Rest time (ms)</span><span class="hw-desc">Output-off cooling time between dwell pulses.</span><input type="number" min="1" max="200" value="${Number(c.ignition_rest_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_rest_ms',+this.value)"></div>` : ''}
       ${mode === 2 ? `<div class="hw-field"><span class="hw-label">Coil saturation current (A)</span><span class="hw-desc">Current feedback may end a charge early; dwell time remains the hard safety cap.</span><input type="number" min="0.1" max="1000" step="0.1" value="${registryFormatValue(c.ignition_coil_sat_a)}" oninput="updateRegistryChannel('output',${index},'ignition_coil_sat_a',+this.value)"></div>` : ''}
-      <div class="hw-field"><span class="hw-label">Pre-heat step duration (ms)</span><span class="hw-desc">Used when a Pre-Heat sequence block selects this igniter. Ordinary Igniter On/Off steps are unaffected.</span><input type="number" min="0" max="3600000" step="100" value="${Number(c.ignition_preheat_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_preheat_ms',+this.value)"></div>
+      ${mode === 0 ? registryIgnitionOnRampFields(c, index) : ''}
     </div></div>
   </div>`;
 }
@@ -1011,16 +1015,11 @@ function registryGlowSubcards(c, index) {
   const wet = Number(act.type || 0) === 2;
   const fuelType = Number(act.fuel_type || 0);
   const fuelDelayS = Math.max(0, Number(act.fuel_delay_ms ?? 8000) / 1000);
-  const relay = outputDriverIsOnOff(c.driver);
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
     <div class="registry-card-summary"><div><strong>Glow-plug type and ignition behavior</strong><div class="hw-desc">Wet glow includes its own pilot-fuel hardware in this device. A separately added Pilot Fuel output remains independent.</div></div></div>
     <div class="registry-card-editor" style="display:block"><div class="hw-grid">
       <div class="hw-field"><span class="hw-label">Glow-plug type</span><span class="hw-desc">Wet glow turns on its own pilot fuel after the configured delay whenever the glow plug is commanded on.</span><select onchange="setRegistryGlowType(+this.value)"><option value="0"${!wet?' selected':''}>Normal glow plug</option><option value="2"${wet?' selected':''}>Wet glow plug</option></select></div>
-      <div class="hw-field"><span class="hw-label">${relay ? 'Preheat time (ms)' : 'Ramp time (ms)'}</span><span class="hw-desc">${relay ? 'Relay outputs switch fully on; this is the on-time before Pre-Heat completes or begins the optional hot check. There is no electrical ramp.' : 'Time for the Pre-Heat step to increase this plug from off to its peak command before changing to its hold command or checking for hot current.'}</span><input type="number" min="0" max="3600000" step="100" value="${Number(c.ignition_preheat_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_preheat_ms',+this.value)"></div>
-      ${relay ? '' : `<div class="hw-field"><span class="hw-label">Peak command (%)</span><span class="hw-desc">Highest command reached at the end of the preheat ramp.</span><input type="number" min="0" max="100" value="${Math.round(Number(c.ignition_peak_demand)*100)}" oninput="updateRegistryChannel('output',${index},'ignition_peak_demand',+this.value/100)"></div>
-      <div class="hw-field"><span class="hw-label">Hold command (%)</span><span class="hw-desc">Command retained after preheat until another owner turns this plug off.</span><input type="number" min="0" max="100" value="${Math.round(Number(c.ignition_hold_demand)*100)}" oninput="updateRegistryChannel('output',${index},'ignition_hold_demand',+this.value/100)"></div>`}
-      <div class="hw-field"><span class="hw-label">Hot confirmation</span><span class="hw-desc">Optionally wait for this device's own current feedback after preheat.</span><label class="hw-toggle"><input type="checkbox" ${c.ignition_wait_hot?'checked':''} ${c.has_current?'':'disabled'} onchange="updateRegistryChannel('output',${index},'ignition_wait_hot',this.checked)"><span></span> Wait until hot</label></div>
-      ${c.ignition_wait_hot ? `<div class="hw-field"><span class="hw-label">Hot-confirm timeout (ms)</span><span class="hw-desc">Abort startup if this plug does not reach its ready-current condition in time.</span><input type="number" min="100" max="3600000" step="100" value="${Number(c.ignition_hot_timeout_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_hot_timeout_ms',+this.value)"></div>` : ''}
+      ${registryIgnitionOnRampFields(c, index)}
     </div></div>
     ${wet ? `<div class="registry-card-editor" style="display:block;margin-top:.65rem"><div class="registry-card-summary"><div><strong>Wet-glow pilot fuel</strong><div class="hw-desc">This output belongs only to this wet glow plug and follows its command automatically.</div></div></div><div class="hw-grid">
       <div class="hw-field"><span class="hw-label">Pilot-fuel GPIO</span><span class="hw-desc">GPIO driving the wet glow plug's own pilot-fuel pump or valve.</span><select onchange="setAct('glow_plug','fuel_pin',+this.value)">${buildPinOptions(Number(act.fuel_pin ?? -1),'out')}</select></div>

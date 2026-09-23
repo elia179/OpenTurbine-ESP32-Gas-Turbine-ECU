@@ -1212,8 +1212,7 @@ bool sequenceBlockAvailable(const char* name) {
         return HardwareConfig::hasThrottle;
     if (strcmp(name, "FuelOpen") == 0 || strcmp(name, "FuelSolClose") == 0 || strcmp(name, "FuelPulse") == 0)
         return HardwareConfig::hasFuelSol;
-    if (strcmp(name, "PreHeat") == 0 ||
-        strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0)
+    if (strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0)
         return HardwareConfig::hasIgniter || HardwareConfig::hasIgniter2 || HardwareConfig::hasGlowPlug;
     if (strcmp(name, "FlameConfirm") == 0) return HardwareConfig::hasFlame;
     if (strcmp(name, "TempConfirm") == 0 || strcmp(name, "WaitTOTCool") == 0)

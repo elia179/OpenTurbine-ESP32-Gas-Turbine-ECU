@@ -179,7 +179,7 @@ const ConfigField<uint32_t> TOOL_U32_FIELDS[] = {
     CONFIG_FIELD(toolPropPitchTestMs, "prop_pitch_test_ms"),
 };
 const ConfigField<float> TOOL_FLOAT_FIELDS[] = {
-    CONFIG_FIELD(toolGlowTestPct, "glow_test_pct"), CONFIG_FIELD(toolStartTestPct, "start_test_pct"),
+    CONFIG_FIELD(toolStartTestPct, "start_test_pct"),
     CONFIG_FIELD(toolFuelPump2TestPct, "fuel_pump2_test_pct"),
     CONFIG_FIELD(toolAbPumpTestPct, "ab_pump_test_pct"),
     CONFIG_FIELD(toolPropPitchTestPct, "prop_pitch_test_pct"),
@@ -194,12 +194,6 @@ const ConfigField<float> LIVE_THROTTLE_FLOAT_FIELDS[] = {
     CONFIG_FIELD(throttleRampUpMs, "ramp_up_ms"),
     CONFIG_FIELD(throttleRampDownMs, "ramp_down_ms"),
 };
-const ConfigField<float> GLOW_FLOAT_FIELDS[] = {
-    CONFIG_FIELD(glowPreheatMaxPct, "preheat_max_pct"), CONFIG_FIELD(glowHoldPct, "hold_pct"),
-};
-const ConfigField<int> GLOW_INT_FIELDS[] = {CONFIG_FIELD(glowPreheatMs, "preheat_ms")};
-const ConfigField<bool> GLOW_BOOL_FIELDS[] = {CONFIG_FIELD(glowWaitUntilHot, "wait_until_hot")};
-
 const ConfigField<float> CAL_FLOAT_FIELDS[] = {
     CONFIG_FIELD(p1ValMax, "p1_val_max"), CONFIG_FIELD(p2ValMax, "p2_val_max"),
     CONFIG_FIELD(fuelPressValMax, "fuel_press_val_max"), CONFIG_FIELD(fuelFlowValMax, "fuel_flow_val_max"),
@@ -276,7 +270,7 @@ const ConfigField<int> STARTUP_INT_FIELDS[] = {
     CONFIG_FIELD(waitForInputTimeoutMs, "wait_for_input_timeout"),
     CONFIG_FIELD(timedDelayMs, "timed_delay_ms"), CONFIG_FIELD(fuelPulsePulseMs, "fuel_pulse_ms"),
     CONFIG_FIELD(fuelPulseOffMs, "fuel_off_ms"), CONFIG_FIELD(waitTotCoolTimeoutMs, "wait_tot_timeout"),
-    CONFIG_FIELD(preHeatMs, "preheat_ms"), CONFIG_FIELD(fp2RampMs, "fp2_ramp_ms"),
+    CONFIG_FIELD(fp2RampMs, "fp2_ramp_ms"),
     CONFIG_FIELD(govHoldTimeoutMs, "gov_hold_timeout_ms"),
 };
 const ConfigField<bool> STARTUP_BOOL_FIELDS[] = {
@@ -517,7 +511,7 @@ void Config::_applyDefaults() {
     timedDelayMs = 1000; modifiedIdleMultiplier = 1.0f;
     fuelPulsePulseMs = 200; fuelPulseOffMs = 300;
     waitTotCoolTarget = 150.0f; waitTotCoolTimeoutMs = 120000;
-    throttleSetPct = 10.0f; preHeatMs = 3000; oilPumpOnPct = 100.0f;
+    throttleSetPct = 10.0f; oilPumpOnPct = 100.0f;
     flameConfirmTurnOffIgniter = true;
     safetyHoldTurnOffStarter = false; safetyHoldTurnOffStarterEn = false; safetyHoldTurnOffIgniter = false;
     spoolCutStarterOnExit = true; spoolCutStarterEnOnExit = true;
@@ -571,7 +565,7 @@ void Config::_applyDefaults() {
     relightOutputId[0] = '\0';
     relightConfirmRpm = 35000.0f; relightTotRiseC = 30.0f; relightTimeoutMs = 2000;
     toolFuelPrimeMs = 3000; toolOilPrimeMs = 5000; toolIgnTestMs = 2000; toolIgn2TestMs = 2000;
-    toolGlowTestMs = 10000; toolGlowTestPct = 100.0f;
+    toolGlowTestMs = 10000;
     toolStartTestMs = 2000; toolStartTestPct = 30.0f; toolFuelSolTestMs = 1000;
     toolIdleTestMs = 3000; toolOilScavTestMs = 2000; toolCoolFanTestMs = 3000;
     toolAirstarterTestMs = 1000; toolBleedValveTestMs = 1000;
@@ -606,7 +600,6 @@ void Config::_applyDefaults() {
     rcFailsafeMs = 500;
     governorTargetRpm = 0.0f; governorBandRpm = 500.0f;
     governorKp = 0.00025f; governorPitchKp = 0.00020f; governorPitchRampSec = 10.0f;
-    glowPreheatMs = 10000; glowPreheatMaxPct = 80.0f; glowHoldPct = 30.0f; glowWaitUntilHot = false;
     throttleMinRaw = 0; throttleMaxRaw = 4095;
     idleMinRaw = 0; idleMaxRaw = 4095;
     oilPolyA = 0; oilPolyB = 0; oilPolyC = 0; oilPolyD = 0;
@@ -736,10 +729,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     auto gov = doc["governor"];
     readConfigFields(gov, GOVERNOR_FLOAT_FIELDS);
 
-    auto glw = doc["glow_plug"];
-    readConfigFields(glw, GLOW_FLOAT_FIELDS);
-    readConfigFields(glw, GLOW_INT_FIELDS);
-    readConfigFields(glw, GLOW_BOOL_FIELDS);
 
     auto cal = doc["calibration"];
     readConfigFields(cal, CAL_FLOAT_FIELDS);
@@ -986,7 +975,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (fuelPulsePulseMs < 0) fuelPulsePulseMs = 0;
     if (fuelPulseOffMs < 0) fuelPulseOffMs = 0;
     if (waitTotCoolTimeoutMs < 0) waitTotCoolTimeoutMs = 0;
-    if (preHeatMs < 0) preHeatMs = 0;
     if (finalStopOilScavengeMs < 0) finalStopOilScavengeMs = 0;
     if (shutdownRpmDropTimeoutMs < 0) shutdownRpmDropTimeoutMs = 0;
     if (shutdownCooldownTimeoutMs < 0) shutdownCooldownTimeoutMs = 0;
@@ -995,7 +983,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (throttleRampDownMs < 0.0f) throttleRampDownMs = 0.0f;
     if (idleRampUpMs < 0.0f) idleRampUpMs = 0.0f;
     if (idleRampDownMs < 0.0f) idleRampDownMs = 0.0f;
-    if (glowPreheatMs < 0) glowPreheatMs = 0;
     if (relightTimeoutMs > 30000)
         Serial.printf("[Config] relight_timeout_ms %d exceeds hard maximum; using 30000 ms\n", relightTimeoutMs);
     relightTimeoutMs = constrain(relightTimeoutMs, 0, 30000);
@@ -1051,7 +1038,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     clampToolMs(toolIgnTestMs, 2000u, 100u);
     clampToolMs(toolIgn2TestMs, 2000u, 100u);
     clampToolMs(toolGlowTestMs, 10000u, 100u);
-    toolGlowTestPct = constrain(toolGlowTestPct, 0.0f, 100.0f);
     clampToolMs(toolStartTestMs, 2000u, 100u);
     toolStartTestPct = constrain(toolStartTestPct, 0.0f, 100.0f);
     clampToolMs(toolFuelSolTestMs, 1000u, 50u);
@@ -1151,8 +1137,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     idlePressureSettleBand = constrain(idlePressureSettleBand, 0.0f, 1000.0f);
     idlePressureFullResponse = constrain(idlePressureFullResponse, 0.0001f, 1000.0f);
     idlePressureLearnRateMax = constrain(idlePressureLearnRateMax, 0.0f, 1000.0f);
-    glowPreheatMaxPct = constrain(glowPreheatMaxPct, 0.0f, 100.0f);
-    glowHoldPct = constrain(glowHoldPct, 0.0f, 100.0f);
     starterAssistPwmPct = constrain(starterAssistPwmPct, 0.0f, 100.0f);
     standbyOilFeedPct = constrain(standbyOilFeedPct, 0.0f, 100.0f);
     standbyOilFeedBar = constrain(standbyOilFeedBar, 0.0f, 20.0f);
@@ -1308,10 +1292,6 @@ void Config::_writeDoc(JsonObject doc) {
     auto gov = doc["governor"].to<JsonObject>();
     writeConfigFields(gov, GOVERNOR_FLOAT_FIELDS);
 
-    auto glw = doc["glow_plug"].to<JsonObject>();
-    writeConfigFields(glw, GLOW_FLOAT_FIELDS);
-    writeConfigFields(glw, GLOW_INT_FIELDS);
-    writeConfigFields(glw, GLOW_BOOL_FIELDS);
 
     auto cal = doc["calibration"].to<JsonObject>();
     writeConfigFields(cal, CAL_FLOAT_FIELDS);

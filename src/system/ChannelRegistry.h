@@ -273,11 +273,8 @@ public:
         uint16_t ignitionDwellMs = 6;
         uint16_t ignitionRestMs = 3;
         float ignitionCoilSatAmps = 8.0f;
-        uint32_t ignitionPreheatMs = 10000;
-        float ignitionPeakDemand = 0.8f;
-        float ignitionHoldDemand = 0.3f;
-        bool ignitionWaitUntilHot = false;
-        uint32_t ignitionHotTimeoutMs = 30000;
+        float ignitionOnDemand = 1.0f;
+        uint32_t ignitionRampMs = 0;
         bool hasFlowMonitor = false;
         float minimumFlow = 0.0f;  // L/min; applies to oil/scavenge pump outputs
         char flowInputId[20] = {}; // optional when exactly one compatible input exists
@@ -994,10 +991,8 @@ private:
                  c.ignitionMode <= 2 && c.ignitionDwellMs >= 1 && c.ignitionDwellMs <= 200 &&
                  c.ignitionRestMs >= 1 && c.ignitionRestMs <= 200 &&
                  isfinite(c.ignitionCoilSatAmps) && c.ignitionCoilSatAmps > 0.0f &&
-                 c.ignitionPreheatMs <= 3600000UL &&
-                 isfinite(c.ignitionPeakDemand) && c.ignitionPeakDemand >= 0.0f && c.ignitionPeakDemand <= 1.0f &&
-                 isfinite(c.ignitionHoldDemand) && c.ignitionHoldDemand >= 0.0f && c.ignitionHoldDemand <= 1.0f &&
-                 c.ignitionHotTimeoutMs >= 100UL && c.ignitionHotTimeoutMs <= 3600000UL)) &&
+                 isfinite(c.ignitionOnDemand) && c.ignitionOnDemand > 0.0f &&
+                 c.ignitionOnDemand <= 1.0f && c.ignitionRampMs <= 3600000UL)) &&
                (!c.hasFlowMonitor ||
                 (c.direction == Output &&
                  (!strcmp(c.purpose, "oil_pump") || !strcmp(c.purpose, "scavenge_pump") ||
@@ -1225,11 +1220,8 @@ private:
                 o["ignition_dwell_ms"] = c.ignitionDwellMs;
                 o["ignition_rest_ms"] = c.ignitionRestMs;
                 o["ignition_coil_sat_a"] = c.ignitionCoilSatAmps;
-                o["ignition_preheat_ms"] = c.ignitionPreheatMs;
-                o["ignition_peak_demand"] = c.ignitionPeakDemand;
-                o["ignition_hold_demand"] = c.ignitionHoldDemand;
-                o["ignition_wait_hot"] = c.ignitionWaitUntilHot;
-                o["ignition_hot_timeout_ms"] = c.ignitionHotTimeoutMs;
+                o["ignition_on_demand"] = c.ignitionOnDemand;
+                o["ignition_ramp_ms"] = c.ignitionRampMs;
             }
             if (c.hasFlowMonitor) {
                 o["has_flow_monitor"] = true;
@@ -1284,19 +1276,15 @@ private:
             c.inverted = o["invert"] | false; c.activeHigh = o["active_high"] | true; c.pullup = o["pullup"] | false; c.pulldown = o["pulldown"] | false; c.hasCurrent = o["has_current"] | false; c.currentPin = o["current_pin"] | -1; c.currentMvPerA = o["current_mv_a"] | 100.0f; c.currentZeroV = o["current_zero_v"] | 1.65f; c.currentMaxAmps = o["current_max_a"] | 0.0f; c.currentReadyAmps = o["current_ready_a"] | 3.0f; c.currentTripDelayMs = o["current_trip_delay_ms"] | 5000UL;
             c.ignitionProfileConfigured = !o["ignition_mode"].isNull() ||
                 !o["ignition_dwell_ms"].isNull() || !o["ignition_rest_ms"].isNull() ||
-                !o["ignition_coil_sat_a"].isNull() || !o["ignition_preheat_ms"].isNull() ||
-                !o["ignition_peak_demand"].isNull() || !o["ignition_hold_demand"].isNull() ||
-                !o["ignition_wait_hot"].isNull() || !o["ignition_hot_timeout_ms"].isNull();
+                !o["ignition_coil_sat_a"].isNull() || !o["ignition_on_demand"].isNull() ||
+                !o["ignition_ramp_ms"].isNull();
             c.ignitionMode = o["ignition_mode"] | 0;
             if (c.driver == Relay || c.driver == I2cRelay) c.ignitionMode = 0;
             c.ignitionDwellMs = constrain(o["ignition_dwell_ms"] | 6, 1, 200);
             c.ignitionRestMs = constrain(o["ignition_rest_ms"] | 3, 1, 200);
             c.ignitionCoilSatAmps = o["ignition_coil_sat_a"] | 8.0f;
-            c.ignitionPreheatMs = constrain((uint32_t)(o["ignition_preheat_ms"] | 10000UL), (uint32_t)0, (uint32_t)3600000);
-            c.ignitionPeakDemand = constrain(o["ignition_peak_demand"] | 0.8f, 0.0f, 1.0f);
-            c.ignitionHoldDemand = constrain(o["ignition_hold_demand"] | 0.3f, 0.0f, 1.0f);
-            c.ignitionWaitUntilHot = o["ignition_wait_hot"] | false;
-            c.ignitionHotTimeoutMs = constrain((uint32_t)(o["ignition_hot_timeout_ms"] | 30000UL), (uint32_t)100, (uint32_t)3600000);
+            c.ignitionOnDemand = constrain(o["ignition_on_demand"] | 1.0f, 0.01f, 1.0f);
+            c.ignitionRampMs = constrain((uint32_t)(o["ignition_ramp_ms"] | 0UL), (uint32_t)0, (uint32_t)3600000);
             c.hasFlowMonitor = o["has_flow_monitor"] | false; c.minimumFlow = o["minimum_flow_l_min"] | 0.0f;
             strlcpy(c.flowInputId, o["flow_input"] | "", sizeof(c.flowInputId));
             if (c.pullup) c.pulldown = false;

@@ -211,7 +211,7 @@ const setups = [
         outputs: [regOut('air_starter', 'Air Starter', 'air_starter', 'starter', 4, 26), regOut('pilot_fuel', 'Start Fuel', 'pilot_fuel', 'valve', 4, 27), regOut('purge_valve', 'Purge Valve', 'purge_valve', 'valve', 4, 14)]
       })
     },
-    config: { glow_plug: { preheat_ms: 2200, preheat_max_pct: 65, hold_pct: 25 }, sequence: { startup: { preheat_ms: 2200 } } },
+    config: {},
     commands: [{ cmd: 'AIRSTARTER_TEST' }, { cmd: 'GLOW_TEST', fParam: 0.5 }]
   },
   {
@@ -223,7 +223,7 @@ const setups = [
         outputs: [regOut('igniter', 'Dwell Igniter', 'igniter', 'igniter', 5, 0, { has_current: true, current_pin: 12 }), regOut('glow_plug', 'Wet Glow Plug', 'glow_plug', 'glow_plug', 5, 17, { has_current: true, current_pin: 36 })]
       })
     },
-    config: { glow_plug: { wait_until_hot: true, preheat_ms: 2500 }, misc: { igniter_on_start: true } },
+    config: { misc: { igniter_on_start: true } },
     commands: [{ cmd: 'IGN_TEST' }, { cmd: 'GLOW_TEST', fParam: 0.65 }]
   },
   {

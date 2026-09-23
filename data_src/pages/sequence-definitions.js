@@ -272,7 +272,7 @@ const BLOCKS = {
     label:'Ignition Output On', type:'action', badgeClass:'badge-action',
     visibleIf: hw => hasIgnitionOutput(hw),
     condition: null, timeout_action:null,
-    desc:'Switch the selected ignition output on. Choose igniter 1, secondary igniter, glow plug, or wet glow from this card.',
+    desc:'Command the selected igniter or glow plug on. A relay turns on immediately; a proportional device uses its Hardware On level and optional ramp. Wet-glow pilot fuel starts after its device delay. Add Timed Delay after this card if ignition needs a lead-in before fuel.',
     params:[]
   },
   IgniterOff: {
@@ -490,14 +490,6 @@ const BLOCKS = {
         msg: 'No digital inputs configured in Hardware. This block will never receive a switch signal.',
         level: 'error' },
     ],
-    params:[]
-  },
-  PreHeat: {
-    label:'Pre-Heat', type:'wait', badgeClass:'badge-wait',
-    visibleIf: hw => hasIgnitionOutput(hw),
-    condition:null,
-    timeout_action:null,
-    desc:'Pre-heats the selected ignition device without opening main fuel. An igniter stays on for its configured duration. A glow plug uses its own ramp, hold level, and optional current-based hot check; wet-glow pilot fuel follows that plug automatically. The output remains on when this block completes until another step turns it off.',
     params:[]
   },
   // ------ Afterburner blocks ---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -754,7 +746,7 @@ const CONFIG_SECTIONS = {
 
 // Available block names per tab
 const STARTUP_BLOCKS = [
-  'OilPrime','StarterSpin','SetOutput','PreHeat','FlameConfirm','TempConfirm',
+  'OilPrime','StarterSpin','SetOutput','FlameConfirm','TempConfirm',
   'TimedDelay','FuelPumpIdle','Spool','SafetyHold','WaitForInput'
 ];
 const SHUTDOWN_BLOCKS    = [
@@ -853,10 +845,6 @@ const BLOCK_INFO = {
   TimedDelay: {
     desc: 'Pauses the sequence for the configured duration. No actuator changes.',
     links: []
-  },
-  PreHeat: {
-    desc: 'Pre-heats the selected ignition device without opening main fuel. A relay glow plug stays on for its preheat time; a proportional glow plug ramps during that time. Either can use the optional hot-current check. An igniter uses timed pre-heat. The output stays on afterward until another step turns it off.',
-    links: [{ label: 'Configure ignition device', url: '/hardware.html#registry-outputs' }]
   },
   ABCheckReady: {
     desc: 'Gate block: checks N1, selected EGT, and throttle conditions before proceeding with AB ignition.',

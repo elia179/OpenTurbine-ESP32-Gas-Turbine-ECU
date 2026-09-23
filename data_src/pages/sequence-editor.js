@@ -17,20 +17,6 @@ function sequenceBlockLabel(bname, tab, idx) {
   return meta ? `Set ${meta.label}` : 'Set Output';
 }
 
-function preHeatProfile(tab, idx) {
-  const targetId = String(hwCfg[deviceTargetSeqKey(tab)]?.[idx] || '');
-  const output = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId)
-    || (!targetId && compatibleBlockOutputs('PreHeat').length === 1 ? compatibleBlockOutputs('PreHeat')[0] : null);
-  const glow = output?.purpose === 'glow_plug';
-  return {
-    output,
-    glow,
-    relay: glow && [4, 11].includes(Number(output.driver)),
-    durationMs: Math.max(0, Number(output?.ignition_preheat_ms ?? (glow ? 10000 : 3000))),
-    waitHot: glow && !!(output.ignition_wait_hot ?? cfg?.glow_plug?.wait_until_hot),
-  };
-}
-
 function buildCard(bname, idx, tab) {
   const def = BLOCKS[bname] || customBlocks[bname];
   const card = document.createElement('div');
@@ -43,15 +29,11 @@ function buildCard(bname, idx, tab) {
 
   // Build condition text for WHILE blocks
   const hw = flattenHw();
-  const preheat = bname === 'PreHeat' ? preHeatProfile(tab, idx) : null;
   const inputWait = bname === 'WaitForInput' || bname === 'WaitForInputOff'
     ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
     : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
-    : preheat ? (preheat.waitHot
-      ? `${preheat.relay ? 'On' : 'Ramp'} ${seqRound(preheat.durationMs / 1000)} s, then until hot`
-      : `${preheat.glow && !preheat.relay ? 'Ramp' : 'On'} ${seqRound(preheat.durationMs / 1000)} s preheat`)
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -61,13 +43,12 @@ function buildCard(bname, idx, tab) {
   else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
   // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
   if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';
-  if (preheat?.waitHot) toPill = `<span class="timeout-pill abort" title="If this glow plug does not reach its ready-current condition in time, startup aborts.">Hot check: abort</span>`;
   if (bname === 'WaitTOTCool') toPill = tab === 'startup'
     ? `<span class="timeout-pill abort" title="A hot or unhealthy temperature reading aborts startup after the maximum wait.">Timeout: abort</span>`
     : `<span class="timeout-pill cont" title="Shutdown continues after the maximum wait, even without a cool reading.">Timeout: continue</span>`;
 
-  const kindLabel = preheat?.waitHot ? 'UNTIL' : ({while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type);
-  const badgeClass = preheat?.waitHot ? 'badge-while' : def?.badgeClass;
+  const kindLabel = {while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type;
+  const badgeClass = def?.badgeClass;
   const badge = def ? `<span class="block-badge ${esc(badgeClass)}">${esc(String(kindLabel).toUpperCase())}</span>` : '';
   const condHtml = condText ? `<span class="block-cond">${esc(condText)}</span>` : '';
   card.innerHTML = `
@@ -266,13 +247,12 @@ function _buildHwWarningHtml(def) {
 }
 
 function isIgnitionBlock(bname) {
-  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff','PreHeat'].includes(bname);
+  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff'].includes(bname);
 }
 
 const BLOCK_OUTPUT_PURPOSES = {
   IgniterOn:['igniter','ab_igniter','glow_plug'], IgniterOff:['igniter','ab_igniter','glow_plug'],
   ABIgnOn:['igniter','ab_igniter','glow_plug'], ABIgnOff:['igniter','ab_igniter','glow_plug'],
-  PreHeat:['igniter','ab_igniter','glow_plug'],
   FuelOpen:['fuel_shutoff'], FuelSolClose:['fuel_shutoff'], FuelPulse:['fuel_shutoff'],
   StarterEnOn:['starter_enable'], StarterEnOff:['starter_enable'], StarterOff:['starter'],
   OilPumpOn:['oil_pump'], OilPumpOff:['oil_pump'],
@@ -340,25 +320,23 @@ function deviceTargetInfo(targetId) {
 }
 
 function wetGlowTimingWarning(bname, idx, tab, targetId) {
+  if (bname !== 'IgniterOn') return '';
   const glow = hwCfg.actuators?.glow_plug || {};
   const output = (hwCfg.channel_registry?.outputs || []).find(row => String(row?.id || '') === String(targetId || ''));
   if (String(output?.purpose || '') !== 'glow_plug' || Number(glow.type || 0) !== 2) return '';
   const seq = hwCfg[seqKey(tab)] || [];
   const delayMs = Number(glow.fuel_delay_ms ?? 8000);
-  const preheatMs = preHeatProfile(tab, idx).durationMs;
-  let waitMs = bname === 'PreHeat' ? preheatMs : 0;
+  let waitMs = 0;
   const fuelOrConfirm = new Set(['FuelOpen', 'FuelPumpIdle', 'FuelPulse', 'TempConfirm', 'FlameConfirm', 'Spool']);
   for (let i = idx + 1; i < seq.length; i++) {
     const nm = seq[i];
     if (nm === 'TimedDelay') waitMs += Number(timedDelayValue(tab, i) || 0);
-    else if (nm === 'PreHeat' && String(hwCfg[deviceTargetSeqKey(tab)]?.[i] || '') === String(targetId))
-      waitMs += preheatMs;
     if (fuelOrConfirm.has(nm)) break;
   }
   if (waitMs >= delayMs) return '';
   const delayS = (delayMs / 1000).toFixed(delayMs % 1000 ? 1 : 0);
   const waitS = (waitMs / 1000).toFixed(waitMs % 1000 ? 1 : 0);
-  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay is ${delayS} s, but the next fuel or confirmation step is about ${waitS} s away. Add a sequence delay or increase this plug's preheat duration under <a href="/hardware.html#registry-outputs">Hardware</a> if pilot fuel must be burning first.</span>`;
+  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay starts when this plug is turned on (${delayS} s), but the next fuel or confirmation step is about ${waitS} s away. Add a Timed Delay after this On command if pilot fuel must be flowing first.</span>`;
 }
 
 function buildDeviceTargetHtml(bname, idx, tab) {
@@ -434,9 +412,7 @@ function buildParamsHtml(bname, idx, tab) {
     ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
     : '';
   if (!def || def.params.length === 0) {
-    const noParams = bname === 'SetOutput' ? '' : bname === 'PreHeat'
-      ? '<div class="param-desc">Ramp, hold, and hot-check settings belong to the selected device under <a href="/hardware.html#registry-outputs">Hardware → Outputs</a>.</div>'
-      : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    const noParams = bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
     return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
   }
   const inputs = def.params.map(p => {
@@ -530,7 +506,7 @@ function buildSetOutputHtml(tab, idx) {
     : '';
   return `<div class="param-grid">
     <div class="param-field"><span class="param-label">Output device</span><select class="param-input" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select><span class="param-desc">Any fitted output may be selected. Hardware driver limits are always respected.</span></div>
-    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : 'Binary relay or switch output.'}</span></div>
+    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : meta.ignition ? 'On/Off command. Hardware sets the output level and ramp-up time.' : 'Binary relay or switch output.'}</span></div>
     ${starterTransition}
   </div>`;
 }
@@ -988,13 +964,13 @@ function getEnabledActuators() {
   if (registryOutputPurpose('starter_enable')) list.push({key:'starter_en', target:targetFor('starter_enable'), label:outputName('starter_enable', 'Starter Enable'), mode:'relay'});
   if (oilPumpAct) list.push({key:'oil_pump', target:targetFor('oil_pump'), label:outputName('oil_pump', 'Oil Pump'), mode:isOnOff(oilPumpAct) ? 'relay':'pct'});
   if (registryOutputPurpose('fuel_shutoff')) list.push({key:'fuel_sol', target:targetFor('fuel_shutoff'), label:outputName('fuel_shutoff', 'Main Fuel Shutoff'), mode:'relay'});
-  if (registryOutputPurpose('igniter')) list.push({key:'igniter', target:targetFor('igniter'), label:outputName('igniter', 'Igniter'), mode:'relay'});
-  if (registryOutputPurpose('ab_igniter')) list.push({key:'igniter2', target:targetFor('ab_igniter'), label:outputName('ab_igniter', hasAB ? 'Afterburner Igniter' : 'Secondary Igniter'), mode:'relay'});
+  if (registryOutputPurpose('igniter')) list.push({key:'igniter', target:targetFor('igniter'), label:outputName('igniter', 'Igniter'), mode:'relay', ignition:true});
+  if (registryOutputPurpose('ab_igniter')) list.push({key:'igniter2', target:targetFor('ab_igniter'), label:outputName('ab_igniter', hasAB ? 'Afterburner Igniter' : 'Secondary Igniter'), mode:'relay', ignition:true});
   if (registryOutputPurpose('air_starter')) list.push({key:'airstarter_sol', target:targetFor('air_starter'), label:outputName('air_starter', 'Air Starter Valve'), mode:'relay'});
   if (registryOutputPurpose('cooling_fan')) list.push({key:'cool_fan', target:targetFor('cooling_fan'), label:outputName('cooling_fan', 'Cooling Fan'), mode:'relay'});
   if (registryOutputPurpose('scavenge_pump')) list.push({key:'oil_scavenge_pump', target:targetFor('scavenge_pump'), label:outputName('scavenge_pump', 'Oil Scavenge Pump'), mode:'relay'});
   if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:outputName('bleed_valve', 'Bleed Valve'), mode:'relay'});
-  if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:actuatorIsRelay('glow_plug') ? 'relay':'pct'});
+  if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:'relay', ignition:true});
   const fuelPump2Act = effectiveAct(a.fuel_pump2, 'fuel_pump');
   if (fuelPump2Act) list.push({key:'fuel_pump2', target:targetFor('fuel_pump'), label:outputName('fuel_pump', 'Secondary / Auxiliary Fuel Pump'), mode:isOnOff(fuelPump2Act) ? 'relay':'pct'});
   if (propPitchAct) list.push({key:'prop_pitch', target:targetFor('prop_pitch'), label:outputName('prop_pitch', 'Propeller Pitch'), mode:isOnOff(propPitchAct) ? 'relay':'pct'});
@@ -1005,7 +981,8 @@ function getEnabledActuators() {
   (hwCfg.channel_registry?.outputs || []).forEach((c, i) => {
     if (!registryChannelInstalled(c) || String(c.mirror_of || '') || registryOutputCoreBound(c)) return;
     const relay = [4,11].includes(Number(c.driver));
-    list.push({key:c.id, target:c.id, label:registryLabel(c, `Output ${i+1}`), mode:relay ? 'relay':'pct'});
+    const ignition = ['igniter','ab_igniter','glow_plug'].includes(String(c.purpose || ''));
+    list.push({key:c.id, target:c.id, label:registryLabel(c, `Output ${i+1}`), mode:relay || ignition ? 'relay':'pct', ignition});
   });
   const outputs = hwCfg.channel_registry?.outputs || [];
   return list.map(meta => ({

@@ -353,10 +353,8 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'ignition_mode') value = Math.max(0, Math.min(2, Math.round(Number(value) || 0)));
   if (key === 'ignition_dwell_ms' || key === 'ignition_rest_ms') value = Math.max(1, Math.min(200, Math.round(Number(value) || 1)));
   if (key === 'ignition_coil_sat_a') value = Math.max(0.001, Math.min(1000, Number(value) || 8));
-  if (key === 'ignition_preheat_ms') value = Math.max(0, Math.min(3600000, Math.round(Number(value) || 0)));
-  if (key === 'ignition_hot_timeout_ms') value = Math.max(100, Math.min(3600000, Math.round(Number(value) || 30000)));
-  if (key === 'ignition_peak_demand' || key === 'ignition_hold_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
-  if (key === 'ignition_wait_hot') value = !!value;
+  if (key === 'ignition_on_demand') value = Math.max(.01, Math.min(1, Number(value) || 1));
+  if (key === 'ignition_ramp_ms') value = Math.max(0, Math.min(3600000, Math.round(Number(value) || 0)));
   if (key === 'minimum_flow_l_min') value = Math.max(0.001, Number(value) || 0.1);
   if (key === 'safe_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
   if (key === 'min_run_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
@@ -369,11 +367,8 @@ function updateRegistryChannel(direction, index, key, value) {
     c.ignition_dwell_ms ??= 6;
     c.ignition_rest_ms ??= 3;
     c.ignition_coil_sat_a ??= 8;
-    c.ignition_preheat_ms ??= 10000;
-    c.ignition_peak_demand ??= .8;
-    c.ignition_hold_demand ??= .3;
-    c.ignition_wait_hot ??= false;
-    c.ignition_hot_timeout_ms ??= 30000;
+    c.ignition_on_demand ??= 1;
+    c.ignition_ramp_ms ??= 0;
     const actKey = registryCoreActuatorKey(c);
     if (actKey === 'igniter' || actKey === 'igniter2') {
       const act = ensureActuatorObject(actKey);
@@ -390,7 +385,7 @@ function updateRegistryChannel(direction, index, key, value) {
   dirty(); updateSaveButton();
   if (['pin','phase_pin','phase_speed_source','current_pin','spi_clk','spi_cs','spi_miso','spi_mosi','hx711_clk',
        'pullup','pulldown','active_high','invert','ntc_pullup','has_current','has_flow_monitor',
-       'min_run_demand','force_safe_on_fault','ignition_mode','ignition_wait_hot'].includes(key)) renderRegistryInventory();
+       'min_run_demand','force_safe_on_fault','ignition_mode'].includes(key)) renderRegistryInventory();
 }
 function syncRegistryTorqueAdapter(c) {
   if (!cfg.sensors) cfg.sensors = {};

@@ -42,7 +42,7 @@ enum class OTCommand : uint8_t {
     COOL_FAN_TEST,        // run cooling fan briefly
     AIRSTARTER_TEST,      // pulse airstarter solenoid
     BLEED_VALVE_TEST,     // pulse bleed valve open
-    GLOW_TEST,            // run glow plug using configured tools.glow_test_* values
+    GLOW_TEST,            // run glow plug at its Hardware On level for tools.glow_test_ms
     FUEL_PUMP2_TEST,      // run secondary fuel pump using configured test demand
     AB_SOL_TEST,          // pulse AB fuel solenoid
     AB_PUMP_TEST,         // run AB pump using configured test demand
