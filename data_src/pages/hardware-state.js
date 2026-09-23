@@ -764,7 +764,7 @@ const ACT_DEPENDENCIES = {
 
 const SPECIAL_DEPENDENCIES = {
   oil_pump_current: { name:'Oil pump current sensor', functions:['oil-pump current live data','oil-pump current calibration','oil-pump current session logging'] },
-  glow_current: { name:'Glow plug current sensor', functions:['wait-until-hot glow preheat','glow current live data','glow current calibration','glow current session logging'] },
+  glow_current: { name:'Glow plug current sensor', functions:['glow current live data','glow current calibration','glow current session logging'] },
   ab_flame: { name:'Afterburner flame sensor', functions:['AB flame-confirm mode','AB flame live data','rules and diagnostics using AB flame state'] },
   buzzer: { name:'Buzzer', functions:['audible mode transitions','audible fault indication','bench-test tone output'] },
   cluster: { name:'OT Cluster serial', functions:['external display telemetry','cluster warning thresholds','optional cluster command RX'] },

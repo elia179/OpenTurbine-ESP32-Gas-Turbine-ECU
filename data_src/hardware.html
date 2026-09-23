@@ -1517,7 +1517,7 @@ const ACT_DEPENDENCIES = {
 
 const SPECIAL_DEPENDENCIES = {
   oil_pump_current: { name:'Oil pump current sensor', functions:['oil-pump current live data','oil-pump current calibration','oil-pump current session logging'] },
-  glow_current: { name:'Glow plug current sensor', functions:['wait-until-hot glow preheat','glow current live data','glow current calibration','glow current session logging'] },
+  glow_current: { name:'Glow plug current sensor', functions:['glow current live data','glow current calibration','glow current session logging'] },
   ab_flame: { name:'Afterburner flame sensor', functions:['AB flame-confirm mode','AB flame live data','rules and diagnostics using AB flame state'] },
   buzzer: { name:'Buzzer', functions:['audible mode transitions','audible fault indication','bench-test tone output'] },
   cluster: { name:'OT Cluster serial', functions:['external display telemetry','cluster warning thresholds','optional cluster command RX'] },
@@ -4240,7 +4240,7 @@ function registryContextLinks(direction, c) {
       add('/controllers.html#cf-rl_oid', 'Set relight behavior');
       add('/sequence.html#tab-startup', 'Open ignition sequence');
     } else if (purpose === 'glow_plug') {
-      add('/sequence.html#tab-startup', 'Place the preheat block');
+      add('/sequence.html#tab-startup', 'Set glow plug On/Off in Sequence');
     } else if (purpose === 'ab_igniter') {
       add('/controllers.html#cf-ab_ui', 'Set AB ignition method');
       add('/sequence.html#tab-afterburner', 'Open AB sequence');

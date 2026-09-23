@@ -1179,7 +1179,7 @@ function registryContextLinks(direction, c) {
       add('/controllers.html#cf-rl_oid', 'Set relight behavior');
       add('/sequence.html#tab-startup', 'Open ignition sequence');
     } else if (purpose === 'glow_plug') {
-      add('/sequence.html#tab-startup', 'Place the preheat block');
+      add('/sequence.html#tab-startup', 'Set glow plug On/Off in Sequence');
     } else if (purpose === 'ab_igniter') {
       add('/controllers.html#cf-ab_ui', 'Set AB ignition method');
       add('/sequence.html#tab-afterburner', 'Open AB sequence');

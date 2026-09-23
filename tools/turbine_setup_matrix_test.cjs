@@ -473,6 +473,9 @@ const setups = [
       await page.waitForFunction(() => /Loaded|Converted/i.test(document.querySelector('#save-msg')?.textContent || ''));
       await assertVisibleTextClean(page, `${setup.id} hardware`);
       if (setup.id === 'dwell_igniter_wet_glow') {
+        const glowCardText = await page.locator('#registry-outputs .registry-card[data-registry-id="glow_plug"]').textContent();
+        assert.match(glowCardText, /Set glow plug On\/Off in Sequence/);
+        assert.doesNotMatch(glowCardText, /preheat block/i);
         const ignitionSetup = await page.evaluate(() => {
           const outputs = cfg.channel_registry.outputs;
           const glow = outputs.find(row => row.purpose === 'glow_plug');
@@ -506,6 +509,15 @@ const setups = [
         assert.doesNotMatch(ignitionSetup.coilFields, /Ramp-up time \(ms\)/);
       }
       if (setup.id === 'minimal_timer_turbojet') {
+        const fuelCard = page.locator('#registry-outputs .registry-card[data-registry-id="main_fuel"]');
+        await fuelCard.getByRole('button', {name:'EDIT'}).click();
+        const firstRowBottoms = await fuelCard.evaluate(card =>
+          [...card.querySelector('.registry-card-editor .hw-grid').children].slice(0, 3)
+            .map(field => field.querySelector('input, select')?.getBoundingClientRect().bottom));
+        assert.equal(firstRowBottoms.length, 3);
+        assert.ok(firstRowBottoms.every(Number.isFinite) &&
+          Math.max(...firstRowBottoms) - Math.min(...firstRowBottoms) <= 1,
+          'registry card controls should share a baseline despite different help-text lengths');
         const mainFuelUsage = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
           const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));
