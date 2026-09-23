@@ -308,7 +308,8 @@ async function optionDisabled(page, selector, value) {
     assert.match(n1UnlockTip || '', /windmilling oil/i);
     assert.match(n1UnlockTip || '', /overspeed/i);
     assert.match(dependencyTips.cluster, /external display/i);
-    assert.match(dependencyTips.glowCurrent, /wait-until-hot/i);
+    assert.match(dependencyTips.glowCurrent, /glow current live data/i);
+    assert.doesNotMatch(dependencyTips.glowCurrent, /wait-until-hot|preheat/i);
     results.push('hardware enable checkboxes explain what currently disabled hardware unlocks');
 
     await reset(page);

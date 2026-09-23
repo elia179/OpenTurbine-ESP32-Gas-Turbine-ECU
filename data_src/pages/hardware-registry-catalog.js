@@ -949,7 +949,7 @@ function ensureRegistryIgnitionProfileDefaults(c, actKey) {
 }
 function registryIgnitionOnRampFields(c, index) {
   if (outputDriverIsOnOff(c.driver))
-    return '<div class="hw-field"><span class="hw-desc">Relay output: turns fully on with the On command. No level or ramp setting is needed.</span></div>';
+    return '<div class="hw-field registry-ignition-relay-note"><span class="hw-desc">Relay output: turns fully on with the On command. No level or ramp setting is needed.</span></div>';
   const levelMeaning = Number(c.driver) === 6 ? 'Servo/ESC position within its configured pulse range.' : 'PWM duty within its configured range.';
   return `<div class="hw-field"><span class="hw-label">On level (%)</span><span class="hw-desc">${levelMeaning} Used whenever this device is commanded On, including from a sequence, rule, or test.</span><input type="number" min="1" max="100" value="${Math.round(Number(c.ignition_on_demand)*100)}" oninput="updateRegistryChannel('output',${index},'ignition_on_demand',this.value/100)"></div>
     <div class="hw-field"><span class="hw-label">Ramp-up time (ms)</span><span class="hw-desc">Rise from off to the On level after an On command. Set 0 for immediate output. Off is always immediate; this does not delay the sequence.</span><input type="number" min="0" max="3600000" step="100" value="${Number(c.ignition_ramp_ms)}" oninput="updateRegistryChannel('output',${index},'ignition_ramp_ms',+this.value)"></div>`;
