@@ -218,9 +218,9 @@ const setups = [
     id: 'dwell_igniter_wet_glow',
     title: 'Dwell igniter plus wet glow plug',
     hardware: {
-      actuators: { igniter: { enabled: true, pwm: true, dwell_ms: 6, rest_ms: 4, coil: true, has_current: true, current_pin: 12 }, glow_plug: { enabled: true, has_current: true, wet: true } },
+      actuators: { igniter: { enabled: true, pwm: true, dwell_ms: 6, rest_ms: 4, coil: true, has_current: true, current_pin: 12 }, igniter2: { enabled: true }, glow_plug: { enabled: true, has_current: true, type: 2, fuel_pin: 26, fuel_delay_ms: 4000 } },
       channel_registry: merge(clone(baseRegistry), {
-        outputs: [regOut('igniter', 'Dwell Igniter', 'igniter', 'igniter', 5, 0, { has_current: true, current_pin: 12 }), regOut('glow_plug', 'Wet Glow Plug', 'glow_plug', 'glow_plug', 5, 17, { has_current: true, current_pin: 36 })]
+        outputs: [regOut('igniter', 'Dwell Igniter', 'igniter', 'igniter', 5, 0, { ignition_mode: 2, ignition_dwell_ms: 6, ignition_rest_ms: 4, has_current: true, current_pin: 12 }), regOut('ab_igniter', 'Simple PWM Igniter', 'ab_igniter', 'ab_igniter', 5, 25, { ignition_mode: 0, ignition_on_demand: 0.8, ignition_ramp_ms: 1200 }), regOut('glow_plug', 'Wet Glow Plug', 'glow_plug', 'glow_plug', 5, 17, { ignition_mode: 0, ignition_on_demand: 0.65, ignition_ramp_ms: 2500, has_current: true, current_pin: 36 })]
       })
     },
     config: { misc: { igniter_on_start: true } },
@@ -472,6 +472,39 @@ const setups = [
       await page.goto(`${base}/hardware.html#${setup.id}`);
       await page.waitForFunction(() => /Loaded|Converted/i.test(document.querySelector('#save-msg')?.textContent || ''));
       await assertVisibleTextClean(page, `${setup.id} hardware`);
+      if (setup.id === 'dwell_igniter_wet_glow') {
+        const ignitionSetup = await page.evaluate(() => {
+          const outputs = cfg.channel_registry.outputs;
+          const glow = outputs.find(row => row.purpose === 'glow_plug');
+          const simple = outputs.find(row => row.purpose === 'ab_igniter');
+          const coil = outputs.find(row => row.purpose === 'igniter');
+          const originalPilotDelay = cfg.actuators.glow_plug.fuel_delay_ms;
+          cfg.actuators.glow_plug.fuel_delay_ms = 1000;
+          const earlyPilotFields = registryGlowSubcards(glow, outputs.indexOf(glow));
+          cfg.actuators.glow_plug.fuel_delay_ms = originalPilotDelay;
+          return {
+            glowLevel: glow?.ignition_on_demand,
+            glowRamp: glow?.ignition_ramp_ms,
+            simpleLevel: simple?.ignition_on_demand,
+            simpleRamp: simple?.ignition_ramp_ms,
+            glowFields: registryGlowSubcards(glow, outputs.indexOf(glow)),
+            earlyPilotFields,
+            simpleFields: registryIgniterSubcards(simple, outputs.indexOf(simple), 'igniter2'),
+            coilFields: registryIgniterSubcards(coil, outputs.indexOf(coil), 'igniter')
+          };
+        });
+        assert.equal(ignitionSetup.glowLevel, 0.65);
+        assert.equal(ignitionSetup.glowRamp, 2500);
+        assert.equal(ignitionSetup.simpleLevel, 0.8);
+        assert.equal(ignitionSetup.simpleRamp, 1200);
+        assert.match(ignitionSetup.glowFields, /timer runs while the glow output ramps/);
+        assert.doesNotMatch(ignitionSetup.glowFields, /before the glow output reaches its On level/);
+        assert.match(ignitionSetup.earlyPilotFields, /before the glow output reaches its On level/);
+        assert.match(ignitionSetup.glowFields, /On level \(%\)/);
+        assert.match(ignitionSetup.simpleFields, /Ramp-up time \(ms\)/);
+        assert.match(ignitionSetup.coilFields, /Coil saturation current/);
+        assert.doesNotMatch(ignitionSetup.coilFields, /Ramp-up time \(ms\)/);
+      }
       if (setup.id === 'minimal_timer_turbojet') {
         const mainFuelUsage = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
