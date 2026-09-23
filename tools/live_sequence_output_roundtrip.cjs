@@ -91,7 +91,7 @@ async function restoreEngineFile(base, original) {
     await page.waitForFunction(() => document.documentElement.classList.contains('ot-theme-ready'), null, { timeout:20000 });
     await page.waitForFunction(() => /CONNECTED/i.test(document.getElementById('conn-label')?.textContent || ''), null, { timeout:20000 });
     const add = page.locator('#add-startup-sel');
-    await add.waitFor({ state:'visible', timeout:20000 });
+    await add.waitFor({ state:'attached', timeout:20000 });
     await page.waitForFunction(() => document.querySelectorAll('#add-startup-sel option').length > 5, null, {timeout:20000});
     const options = await add.locator('option').evaluateAll(rows => rows.map(row => ({value:row.value, text:row.textContent.trim()})));
     for (const expected of ['Set Main Fuel Metering', 'Set Oil Pump', 'Set Igniter'])
@@ -101,8 +101,8 @@ async function restoreEngineFile(base, original) {
     const chosen = options.find(option => option.value === 'SetOutput::igniter');
     assert.ok(chosen, 'the fitted Igniter was not available as an exact Set Output target');
     const beforeCount = await page.locator('#list-startup .block-card').count();
-    await add.selectOption(chosen.value);
     await page.locator('#tab-startup .add-row .add-btn').first().click();
+    await page.locator('#block-picker-list .block-picker-option').filter({hasText:'Set Igniter'}).click();
     await page.waitForFunction(count => document.querySelectorAll('#list-startup .block-card').length === count + 1, beforeCount);
     const card = page.locator('#list-startup .block-card').last();
     assert.match(await card.innerText(), /Set Igniter/i);
