@@ -30,17 +30,22 @@ function buildCard(bname, idx, tab) {
   // Build condition text for WHILE blocks
   const hw = flattenHw();
   const condText = bname === 'TimedDelay'
-    ? `${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
   let toPill = '';
-  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault">Timeout: fault</span>`;
-  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort">Timeout: abort</span>`;
-  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont">Timeout: continue</span>`;
-  else if (def?.timeout_action === 'complete')toPill = `<span class="timeout-pill cont">Timeout: finish</span>`;
+  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If this wait fails, the sequencer enters a fault state.">Timeout: fault</span>`;
+  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If this wait fails, the current start or sequence is aborted.">Timeout: abort</span>`;
+  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
+  // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
+  if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';
+  if (bname === 'WaitTOTCool') toPill = tab === 'startup'
+    ? `<span class="timeout-pill abort" title="A hot or unhealthy temperature reading aborts startup after the maximum wait.">Timeout: abort</span>`
+    : `<span class="timeout-pill cont" title="Shutdown continues after the maximum wait, even without a cool reading.">Timeout: continue</span>`;
 
-  const badge = def ? `<span class="block-badge ${esc(def.badgeClass)}">${esc(def.type.toUpperCase())}</span>` : '';
+  const kindLabel = {while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type;
+  const badge = def ? `<span class="block-badge ${esc(def.badgeClass)}">${esc(String(kindLabel).toUpperCase())}</span>` : '';
   const condHtml = condText ? `<span class="block-cond">${esc(condText)}</span>` : '';
   card.innerHTML = `
   <div class="block-header" title="${esc(def?.desc || 'Sequence block')}" onclick="toggleParams(this)">
@@ -525,7 +530,7 @@ function onParamChange(bname, pkey, configKey, rawVal, tab, idx) {
     hwCfg[delaySeqKey(tab)][idx] = val;
     const card = document.querySelector(`#list-${tab} .block-card[data-idx="${idx}"]`);
     const summary = card?.querySelector('.block-cond');
-    if (summary) summary.textContent = `${seqRound(val / 1000)} s`;
+    if (summary) summary.textContent = `Wait ${seqRound(val / 1000)} s`;
     markSequenceDirty('Sequence edited — save to apply');
     return;
   }

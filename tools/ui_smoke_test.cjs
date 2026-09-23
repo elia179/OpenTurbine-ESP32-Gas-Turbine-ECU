@@ -1096,7 +1096,7 @@ function installedBrowser() {
     const delayInputs = page.locator('#list-startup .block-card[data-block="TimedDelay"] input[type="number"]');
     assert.equal(await delayInputs.count(), 3);
     assert.deepEqual(await delayInputs.evaluateAll(els => els.map(el => el.value)), ['15', '10', '5']);
-    assert.deepEqual(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').allTextContents(), ['15 s', '10 s', '5 s']);
+    assert.deepEqual(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').allTextContents(), ['Wait 15 s', 'Wait 10 s', 'Wait 5 s']);
     await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-header').nth(2).click();
     await delayInputs.nth(2).click();
     await delayInputs.nth(2).press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');

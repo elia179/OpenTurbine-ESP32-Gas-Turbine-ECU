@@ -850,9 +850,63 @@ async function optionDisabled(page, selector, value) {
       sensors: getEnabledSensors().map(s => s.key),
       actuators: getEnabledActuators().map(a => ({key:a.key, target:a.target}))
     }));
+    const sequenceCardContract = await page.evaluate(() => {
+      const oilTarget = BLOCKS.OilPrime.params.find(p => p.key === 'startup_oil_demand');
+      const fixedPump = BLOCKS.OilPrime.params.find(p => p.key === 'startup_oil_pct');
+      const oldLoop = hwCfg.controllers.oil_loop;
+      hwCfg.controllers.oil_loop = false;
+      const loopOff = {target:oilTarget.visibleIf(hwCfg), fixed:fixedPump.visibleIf(hwCfg)};
+      hwCfg.controllers.oil_loop = true;
+      const loopOn = {target:oilTarget.visibleIf(hwCfg), fixed:fixedPump.visibleIf(hwCfg)};
+      const oilPump = registryOutputPurpose('oil_pump');
+      const oldDriver = oilPump.driver;
+      oilPump.driver = 4;
+      const relayTargets = {prime:oilTarget.visibleIf(hwCfg),
+        cooldown:BLOCKS.CooldownSpin.params.find(p => p.key === 'cooldown_oil_pressure_bar').visibleIf(hwCfg)};
+      oilPump.driver = oldDriver;
+      hwCfg.controllers.oil_loop = oldLoop;
+      const oldInputs = hwCfg.channel_registry.inputs;
+      hwCfg.channel_registry.inputs = [{id:'test_p1',purpose:'p1_pressure',driver:0,pin:33,installed:true}];
+      const p1OnlyAllowed = BLOCKS.SafetyHold.visibleIf(hwCfg) &&
+        BLOCKS.SafetyHold.hwWarnings.every(w => w.check(hwCfg));
+      hwCfg.channel_registry.inputs = oldInputs;
+      return {loopOff, loopOn, relayTargets, p1OnlyAllowed,
+        coolCondition:BLOCKS.WaitTOTCool.condition(flattenHw()),
+        starterCondition:BLOCKS.StarterSpin.condition(flattenHw())};
+    });
+    assert.deepEqual(sequenceCardContract.loopOff, {target:false, fixed:true},
+      'Oil Prime must expose fixed pump demand when the pressure loop is Off');
+    assert.deepEqual(sequenceCardContract.loopOn, {target:true, fixed:false},
+      'Oil Prime must expose its pressure target when the pressure loop is On');
+    assert.deepEqual(sequenceCardContract.relayTargets, {prime:true, cooldown:true},
+      'oil-pressure targets must stay editable for relay pumps with pressure feedback');
+    assert.equal(sequenceCardContract.p1OnlyAllowed, true,
+      'Final Startup Checks must accept a fitted P1-only profile without a false N1/oil warning');
+    assert.match(sequenceCardContract.coolCondition, /^Until EGT ≤ /);
+    assert.match(sequenceCardContract.starterCondition, /^Until N1 ≥ /);
+    assert.match(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').first().textContent(), /^Wait \d/,
+      'Timed Delay cards should state that their duration is a wait');
+    const sharedInputCards = await page.evaluate(() => {
+      addBlock('shutdown', 'WaitForInput');
+      addBlock('shutdown', 'WaitForInputOff');
+      setConfigVal('wait_for_input_ch', 2);
+      setConfigVal('wait_for_input_timeout', 4500);
+      return ['WaitForInput','WaitForInputOff'].map(name => {
+        const card = document.querySelector(`#list-shutdown .block-card[data-block="${name}"]`);
+        return {
+          channel:card.querySelector('[data-pkey="wait_for_input_ch"] select')?.value,
+          timeout:card.querySelector('[data-pkey="wait_for_input_timeout"] input')?.value,
+          condition:card.querySelector('.block-cond')?.textContent
+        };
+      });
+    });
+    assert.deepEqual(sharedInputCards.map(row => [row.channel, row.timeout]), [['2','4500'],['2','4500']],
+      'both input-wait cards must show their shared channel and timeout');
+    assert.match(sharedInputCards[1].condition, /DI-3 inactive/);
     for (const key of ['OilPrime', 'StarterSpin', 'PreHeat', 'TimedDelay', 'FuelPumpIdle']) {
       assert.ok(sequenceFull.startup.includes(key), `full startup should include ${key}`);
     }
+    results.push('sequence cards use consistent completion conditions, match oil/final checks to hardware, and synchronize shared input-wait settings');
     for (const key of ['ABCheckReady', 'ABIgnite', 'ABFlameConfirm', 'ABStabilize', 'TimedDelay']) {
       assert.ok(sequenceFull.afterburner.includes(key), `full AB should include ${key}`);
     }

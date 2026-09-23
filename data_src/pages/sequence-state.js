@@ -300,6 +300,31 @@ function setConfigVal(key, val) {
     if (i < parts.length-1) obj = obj[parts[i]];
     else obj[parts[i]][map.key] = val;
   }
+  // Several cards intentionally expose the same engine setting. Keep their
+  // visible controls in agreement without rebuilding cards or losing focus.
+  for (const [bname, block] of Object.entries({...BLOCKS, ...customBlocks})) {
+    for (const param of block.params || []) {
+      if (param.configKey !== key) continue;
+      paramVals[bname + '.' + param.key] = val;
+      document.querySelectorAll(`.param-field[data-bname="${bname}"][data-pkey="${param.key}"]`).forEach(field => {
+        const control = field.querySelector('input, select');
+        if (!control || control === document.activeElement) return;
+        if (param.type === 'bool') {
+          control.checked = !!val;
+          const label = field.querySelector('label');
+          if (label) label.textContent = val ? 'Yes' : 'No';
+        } else {
+          control.value = String(param.type === 'select' ? val : seqDisplayValue(param, val));
+        }
+      });
+    }
+  }
+  for (const card of document.querySelectorAll('.block-card')) {
+    if (card.dataset.block === 'TimedDelay') continue; // duration is per card
+    const def = BLOCKS[card.dataset.block] || customBlocks[card.dataset.block];
+    const condition = card.querySelector('.block-cond');
+    if (condition && def?.condition) condition.textContent = def.condition(flattenHw());
+  }
 }
 
 // ------ Render a sequence tab ------------------------------------------------------------------------------------------------------------------------------------------------------
