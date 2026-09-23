@@ -739,8 +739,12 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     if (validateHardwareDependencies) {
         if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "OilPrime") &&
             (!present(su["oil_arm_timeout_ms"]) || su["oil_arm_timeout_ms"].as<int>() < 500)) return false;
-        if ((sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInput") ||
-             sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInputOff")) &&
+        bool legacyInputWait = false;
+        for (int i = 0; i < HardwareConfig::startupSeqLen; ++i)
+            if ((!strcmp(HardwareConfig::startupSeq[i], "WaitForInput") ||
+                 !strcmp(HardwareConfig::startupSeq[i], "WaitForInputOff")) &&
+                !HardwareConfig::startupWaitInputs[i].configured) legacyInputWait = true;
+        if (legacyInputWait &&
             (!present(su["wait_for_input_timeout"]) || su["wait_for_input_timeout"].as<int>() < 500)) return false;
         if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "SafetyHold") &&
             ((!present(su["safety_hold_ms"]) || su["safety_hold_ms"].as<int>() < 100) ||
@@ -2025,9 +2029,10 @@ bool Config::validateRuntimeHardwareDependencies() {
     };
     if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "OilPrime") &&
         startupOilArmTimeoutMs < 500) return false;
-    if ((sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInput") ||
-         sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInputOff")) &&
-        waitForInputTimeoutMs < 500) return false;
+    for (int i = 0; i < HardwareConfig::startupSeqLen; ++i)
+        if ((!strcmp(HardwareConfig::startupSeq[i], "WaitForInput") ||
+             !strcmp(HardwareConfig::startupSeq[i], "WaitForInputOff")) &&
+            !HardwareConfig::startupWaitInputs[i].configured && waitForInputTimeoutMs < 500) return false;
     if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "SafetyHold") &&
         (safetyHoldMs < 100 || safetyHoldTimeoutMs < 100)) return false;
     if (sequenceContains(HardwareConfig::shutdownSeq, HardwareConfig::shutdownSeqLen, "RPMDrop") &&

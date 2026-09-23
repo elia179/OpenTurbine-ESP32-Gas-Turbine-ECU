@@ -470,6 +470,8 @@ static void commandConfiguredIgnitionOutput(const char* outputId, uint8_t legacy
 static CustomSequenceBlock* _sequenceCustomBlockStorage = nullptr;
 static uint8_t _sequenceCustomBlockCapacity = 0;
 static IgnitionCommandBlock* _sequenceIgnitionBlockStorage = nullptr;
+static WaitForInput* _sequenceWaitInputStorage = nullptr;
+static uint8_t _sequenceWaitInputBlockCapacity = 0;
 static uint8_t _sequenceIgnitionBlockCapacity = 0;
 // Targeted actuator blocks are comparatively large and most engine sequences
 // use only a few of them.  Allocating the theoretical maximum of 64 objects at
@@ -533,6 +535,7 @@ static void buildSequences() {
     uint8_t targetedRequired = 0;
     uint8_t customRequired = 0;
     uint8_t ignitionRequired = 0;
+    uint8_t waitInputRequired = 0;
     auto countPlacedBlocks = [&](const char blocks[][24], int length) {
         for (uint8_t i = 0; i < length; ++i) {
             if (isTargetedActuatorBlock(blocks[i])) ++targetedRequired;
@@ -540,6 +543,8 @@ static void buildSequences() {
             if (!strcmp(blocks[i], "IgniterOn") || !strcmp(blocks[i], "IgniterOff") ||
                 !strcmp(blocks[i], "ABIgnOn") || !strcmp(blocks[i], "ABIgnOff") ||
                 !strcmp(blocks[i], "PreHeat")) ++ignitionRequired;
+            if (!strcmp(blocks[i], "WaitForInput") || !strcmp(blocks[i], "WaitForInputOff"))
+                ++waitInputRequired;
         }
     };
     countPlacedBlocks(hw.startupSeq, hw.startupSeqLen);
@@ -567,6 +572,14 @@ static void buildSequences() {
     };
     const bool customPoolReady = growCustomPool(customRequired);
     const bool ignitionPoolReady = growIgnitionPool(ignitionRequired);
+    if (waitInputRequired > _sequenceWaitInputBlockCapacity) {
+        auto* expanded = new (std::nothrow) WaitForInput[waitInputRequired]();
+        if (expanded) {
+            delete[] _sequenceWaitInputStorage;
+            _sequenceWaitInputStorage = expanded;
+            _sequenceWaitInputBlockCapacity = waitInputRequired;
+        }
+    }
     if (targetedRequired > _sequenceTargetedBlockCapacity) {
         auto* expanded = new (std::nothrow) TargetedActuatorBlock[targetedRequired]();
         if (expanded) {
@@ -577,6 +590,8 @@ static void buildSequences() {
     }
     if (!_sequenceBlockStorage || !_sequenceDelayStorage ||
         !customPoolReady || !ignitionPoolReady ||
+        (waitInputRequired > 0 && (!_sequenceWaitInputStorage ||
+                                   _sequenceWaitInputBlockCapacity < waitInputRequired)) ||
         (targetedRequired > 0 && (!_sequenceTargetedBlockStorage ||
                                  _sequenceTargetedBlockCapacity < targetedRequired))) {
         _startupCount = _shutdownCount = _abIgnCount = _abShutCount = 0;
@@ -602,13 +617,26 @@ static void buildSequences() {
     uint8_t targetedUsed = 0;
     uint8_t customUsed = 0;
     uint8_t ignitionUsed = 0;
+    uint8_t waitInputUsed = 0;
     auto addBlock = [&](const char* name, int delayMs, uint8_t ignitionTarget,
                        const char* deviceTarget,
+                       const HardwareConfig::SeqWaitInput& waitSpec,
                        TimedDelay& delay,
                        IBlock** blocks, int& count) {
         if (strcmp(name, "TimedDelay") == 0) {
             delay.dwellMs = (unsigned long)(delayMs > 0 ? delayMs : Config::timedDelayMs);
             blocks[count++] = &delay;
+            return;
+        }
+        if (!strcmp(name, "WaitForInput") || !strcmp(name, "WaitForInputOff")) {
+            WaitForInput& wait = _sequenceWaitInputStorage[waitInputUsed++];
+            wait.blockName = !strcmp(name, "WaitForInputOff") ? "WaitForInputOff" : "WaitForInput";
+            wait.channelIdx = waitSpec.configured ? waitSpec.channel : Config::waitForInputChannel;
+            wait.expectedState = !strcmp(name, "WaitForInputOff") ? false :
+                (waitSpec.configured ? waitSpec.active : Config::waitForInputExpected);
+            wait.timeoutMs = waitSpec.configured ? waitSpec.timeoutMs :
+                (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+            blocks[count++] = &wait;
             return;
         }
         if (strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0 ||
@@ -675,12 +703,14 @@ static void buildSequences() {
     _startupCount = 0;
     for (int i = 0; i < hw.startupSeqLen; i++) {
         addBlock(hw.startupSeq[i], hw.startupDelayMs[i], hw.startupIgnitionTarget[i], hw.startupDeviceTarget[i],
+                 hw.startupWaitInputs[i],
                  _startupDelays[i],
                  _startupBlocks, _startupCount);
     }
     _shutdownCount = 0;
     for (int i = 0; i < hw.shutdownSeqLen; i++) {
         addBlock(hw.shutdownSeq[i], hw.shutdownDelayMs[i], hw.shutdownIgnitionTarget[i], hw.shutdownDeviceTarget[i],
+                 hw.shutdownWaitInputs[i],
                  _shutdownDelays[i],
                  _shutdownBlocks, _shutdownCount);
     }
@@ -688,6 +718,7 @@ static void buildSequences() {
     _abIgnCount = 0;
     for (int i = 0; i < hw.abSeqLen; i++) {
         addBlock(hw.abSeq[i], hw.abDelayMs[i], hw.abIgnitionTarget[i], hw.abDeviceTarget[i],
+                 hw.abWaitInputs[i],
                  _abIgnDelays[i],
                  _abIgnBlocks, _abIgnCount);
     }
@@ -695,6 +726,7 @@ static void buildSequences() {
     _abShutCount = 0;
     for (int i = 0; i < hw.abShutSeqLen; i++) {
         addBlock(hw.abShutSeq[i], hw.abShutDelayMs[i], hw.abShutIgnitionTarget[i], hw.abShutDeviceTarget[i],
+                 hw.abShutWaitInputs[i],
                  _abShutDelays[i],
                  _abShutBlocks, _abShutCount);
     }
@@ -1124,12 +1156,12 @@ static void validateSequences(bool report) {
             if (!hw.hasThrottle)
                 addIssue(nm, "No main fuel metering output configured - fuel demand has no physical output", false);
         }
-        else if (strcmp(nm, "WaitForInput") == 0) {
-            if (Config::waitForInputTimeoutMs <= 0)
+        else if (strcmp(nm, "WaitForInput") == 0 || strcmp(nm, "WaitForInputOff") == 0) {
+            const auto* wait = static_cast<WaitForInput*>(_startupBlocks[i]);
+            if (wait->timeoutMs < 500)
                 addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
-            if (Config::waitForInputChannel < 0 ||
-                Config::waitForInputChannel >= HardwareConfig::MAX_DI ||
-                hw.diCh[Config::waitForInputChannel].pin < 0)
+            if (wait->channelIdx < 0 || wait->channelIdx >= HardwareConfig::MAX_DI ||
+                hw.diCh[wait->channelIdx].pin < 0)
                 addIssue(nm, "No switch assigned to the selected DI channel - startup cannot continue", true);
         }
         else if (strcmp(nm, "BleedOpen") == 0 || strcmp(nm, "BleedClose") == 0) {
@@ -1336,13 +1368,14 @@ static void validateSequences(bool report) {
             if (Config::effectiveEgtSource() == 0)
                 addIssue(nm, "No selected EGT source - cooldown will run until timeout instead of stopping by temperature", false);
         }
-        else if (strcmp(nm, "WaitForInputOff") == 0 &&
-                 (Config::waitForInputChannel < 0 ||
-                  Config::waitForInputChannel >= HardwareConfig::MAX_DI ||
-                  hw.diCh[Config::waitForInputChannel].pin < 0))
-            addIssue(nm, "No switch assigned to the selected DI channel - shutdown cannot finish", true);
-        if (strcmp(nm, "WaitForInputOff") == 0 && Config::waitForInputTimeoutMs <= 0)
-            addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
+        else if (strcmp(nm, "WaitForInput") == 0 || strcmp(nm, "WaitForInputOff") == 0) {
+            const auto* wait = static_cast<WaitForInput*>(_shutdownBlocks[i]);
+            if (wait->channelIdx < 0 || wait->channelIdx >= HardwareConfig::MAX_DI ||
+                hw.diCh[wait->channelIdx].pin < 0)
+                addIssue(nm, "No switch assigned to the selected DI channel - shutdown cannot finish", true);
+            if (wait->timeoutMs < 500)
+                addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
+        }
         if (strcmp(nm, "FinalStop") == 0 && Config::shutdownFinalStopTimeoutMs <= 0)
             addIssue(nm, "FinalStop requires a finite nonzero timeout; remove the block if unused", true);
     }

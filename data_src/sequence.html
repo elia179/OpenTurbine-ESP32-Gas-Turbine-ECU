@@ -386,7 +386,7 @@ const BLOCKS = {
     visibleIf: hw => actuatorEnabled('starter') && sensorEnabled('n1_rpm'),
     condition: hw => `Until N1 ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
     timeout_action:'fault',
-    desc:'Asserts the starter-enable output when fitted, then ramps the starter to the requested demand and waits for N1 to reach the pre-ignition target. The enable delay configured on the starter device is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
+    desc:'Asserts the starter-enable output when fitted, then drives the starter until N1 reaches the pre-ignition target. A relay switches fully on; a proportional starter can ramp to its requested demand. The device enable delay is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
     hwWarnings:[
       { check: hw => actuatorEnabled('starter'),
         msg: 'Warning: No starter output is configured, so this block has no physical effect. Add one under Hardware -> Outputs.',
@@ -538,20 +538,20 @@ const BLOCKS = {
       {key:'safety_hold_timeout_ms', label:'Overall timeout',unit:'ms', type:'int', min:100, max:120000, step:500, def:15000, configKey:'safety_hold_timeout_ms'},
       {key:'final_check_n1_enabled',label:'Require N1',type:'bool',def:true,configKey:'final_check_n1_enabled',visibleIf:hw=>sensorEnabled('n1_rpm')},
       {key:'final_check_rpm',label:'Minimum accepted N1', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:31000, configKey:'final_check_rpm',
-        visibleIf: hw => sensorEnabled('n1_rpm'),
+        visibleIf: hw => sensorEnabled('n1_rpm'), showWhen: vals => !!vals['SafetyHold.final_check_n1_enabled'],
         desc:'N1 must remain at or above this value for the full stable time.'},
       {key:'final_check_n2_enabled',label:'Require N2',type:'bool',def:false,configKey:'final_check_n2_enabled',visibleIf:hw=>sensorEnabled('n2_rpm')},
-      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm')},
+      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm'),showWhen:vals=>!!vals['SafetyHold.final_check_n2_enabled']},
       {key:'final_check_p1_enabled',label:'Require P1 pressure',type:'bool',def:false,configKey:'final_check_p1_enabled',visibleIf:hw=>sensorEnabled('p1')},
-      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1')},
+      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1'),showWhen:vals=>!!vals['SafetyHold.final_check_p1_enabled']},
       {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
-      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2')},
+      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
       {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
       {key:'oil_running_min',label:'Running Low-Pressure Shutdown',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
         desc:'Independent running oil-pressure shutdown threshold. The final-startup oil check uses this same value only when Require oil pressure is on. Also shown in Accelerate to Idle and Controllers -> Oil Pressure Safety.'},
       {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
-      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
+      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
       {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
       {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:false, configKey:'safety_turn_off_starter'},
       {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:false, configKey:'safety_turn_off_starter_en',
@@ -726,16 +726,13 @@ const BLOCKS = {
       {key:'cooldown_use_starter',      label:'Use starter motor',                  type:'bool',                                  def:true,   configKey:'cooldown_use_starter',
         visibleIf: hw => actuatorEnabled('starter')},
       {key:'cooldown_starter_pct',      label:'Starter speed',           unit:'%',  type:'float',min:0,    max:100,    step:5,     def:40,     configKey:'cooldown_starter_pct',
-        visibleIf: hw => actuatorHasProportionalOutput('starter')},
-      {key:'cooldown_starter_en_relay', label:'Starter enable output asserted automatically', type:'bool', def:true,
-        visibleIf: hw => actuatorEnabled('starter_en') && actuatorEnabled('starter'),
-        desc:'When a dedicated starter enable output is fitted, it is always asserted before the starter motor runs. This is handled automatically - no action needed.'},
+        visibleIf: hw => actuatorHasProportionalOutput('starter'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_starter']},
       {key:'cooldown_use_oil_pump',     label:'Run oil pump',                       type:'bool',                                  def:true,   configKey:'cooldown_use_oil',
         visibleIf: hw => actuatorEnabled('oil_pump')},
       {key:'cooldown_oil_pct',          label:'Oil pump %',              unit:'%',  type:'float',min:0,    max:100,    step:5,     def:30,     configKey:'cooldown_oil_pct',
-        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && !sensorEnabled('oil_press')},
+        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && !sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
       {key:'cooldown_oil_pressure_bar', label:'Oil pressure target',     unit:'bar',type:'float',min:0.5,  max:10,     step:0.1,   def:2.0,    configKey:'cooldown_oil_pressure_bar',
-        visibleIf: hw => actuatorEnabled('oil_pump') && sensorEnabled('oil_press')},
+        visibleIf: hw => actuatorEnabled('oil_pump') && sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
       {key:'cooldown_use_scavenge',     label:'Run scavenge pump',                  type:'bool',                                  def:false,  configKey:'cooldown_use_scavenge',
         visibleIf: hw => actuatorEnabled('oil_scavenge_pump')},
     ]
@@ -793,42 +790,28 @@ const BLOCKS = {
   WaitForInput: {
     label:'Wait for External Input', type:'while', badgeClass:'badge-while',
     visibleIf: hw => hw.di_channels?.some(ch => ch.pin >= 0),
-    condition: hw => `Until DI-${(hw.wait_for_input_ch ?? 0) + 1} ${hw.wait_for_input_state !== false ? 'active' : 'inactive'}`,
+    condition:null,
     timeout_action:'abort',
-    desc:'Holds the sequence until a digital input channel reaches the expected state. Useful for interlocks, limit switches, or external gate signals. The wait is always finite and aborts on timeout. Note: all WaitForInput blocks in a session share the same channel/state config.',
+    desc:'Holds the sequence until this card\'s selected digital input becomes active or inactive. Each card has its own channel, condition, and finite timeout; failure aborts the sequence.',
     hwWarnings:[
       { check: hw => hw.di_channels?.some(ch => ch.pin >= 0),
         msg: 'Warning: No digital inputs configured in Hardware. This block will never receive a signal and will always timeout/abort.',
         level: 'error' },
     ],
-    params:[
-      {key:'wait_for_input_ch',      label:'Channel',       type:'select', def:0,    configKey:'wait_for_input_ch',
-        options:[{v:0,l:'DI-1'},{v:1,l:'DI-2'},{v:2,l:'DI-3'},{v:3,l:'DI-4'}],
-        desc:'Digital input channel (DI-1..DI-4). Must match a channel configured in Hardware -> Digital Inputs.'},
-      {key:'wait_for_input_state',   label:'Wait until active',        type:'bool', def:true, configKey:'wait_for_input_state',
-        desc:'ON = hold until input goes active (high). OFF = hold until input goes inactive (low).'},
-      {key:'wait_for_input_timeout', label:'Timeout',       unit:'ms', type:'int',  min:500, max:60000, step:500, def:30000, configKey:'wait_for_input_timeout',
-        desc:'Maximum finite wait time. Remove the block if this gate is not required.'},
-    ]
+    params:[]
   },
   WaitForInputOff: {
     label:'Wait for External Input to Release', type:'while', badgeClass:'badge-while',
     visibleIf: hw => hw.di_channels?.some(ch => ch.pin >= 0),
-    condition: hw => `Until DI-${(hw.wait_for_input_ch ?? 0) + 1} inactive`,
+    condition:null,
     timeout_action:'abort',
-    desc:'Holds shutdown until the selected digital input is released. Channel and timeout are shared with Wait for External Input; changing either card changes the same setting. The stock shutdown uses this to wait for the fuel switch to turn off before stopping the oil pump.',
+    desc:'Older shutdown-only input-release step. Its selected channel and timeout now belong to this card; use Wait for External Input for new steps.',
     hwWarnings:[
       { check: hw => hw.di_channels?.some(ch => ch.pin >= 0),
         msg: 'No digital inputs configured in Hardware. This block will never receive a switch signal.',
         level: 'error' },
     ],
-    params:[
-      {key:'wait_for_input_ch', label:'Digital input channel', type:'select', def:0, configKey:'wait_for_input_ch',
-        options:[{v:0,l:'DI-1'},{v:1,l:'DI-2'},{v:2,l:'DI-3'},{v:3,l:'DI-4'}],
-        desc:'Shared with Wait for External Input. Choose the fitted switch that must become inactive.'},
-      {key:'wait_for_input_timeout', label:'Maximum wait', unit:'ms', type:'int', min:500, max:60000, step:500, def:30000,
-        configKey:'wait_for_input_timeout', desc:'Shared finite timeout. Shutdown cannot wait indefinitely for this input.'},
-    ]
+    params:[]
   },
   PreHeat: {
     label:'Pre-Heat', type:'wait', badgeClass:'badge-wait',
@@ -889,8 +872,8 @@ const BLOCKS = {
     params:[]
   },
   ABIgnite: {
-    label:'Ignite Afterburner', type:'action', badgeClass:'badge-action',
-    condition: null, timeout_action:null,
+    label:'Ignite Afterburner', type:'wait', badgeClass:'badge-wait',
+    condition: () => `Wait ${seqRound(Number(cfg?.afterburner?.torch_duration_ms ?? 400) / 1000)} s ignition`, timeout_action:null,
     desc:'Fires the method selected under Controllers -> Afterburner Ignition: torch, afterburner igniter, or both. The block completes after the configured ignition duration.',
     params:[]
   },
@@ -1097,7 +1080,7 @@ const STARTUP_BLOCKS = [
 ];
 const SHUTDOWN_BLOCKS    = [
   'ImmediateCut','RPMDrop','CooldownSpin','FinalStop','TimedDelay','SetOutput',
-  'WaitTOTCool','WaitForInput','WaitForInputOff'
+  'WaitTOTCool','WaitForInput'
 ];
 // AB ignition sequence blocks (ab_seq)
 const AFTERBURNER_BLOCKS = [
@@ -1123,7 +1106,7 @@ const BLOCK_INFO = {
     links: []
   },
   StarterSpin: {
-    desc: 'Enables and ramps the starter until N1 reaches the pre-ignition target. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
+    desc: 'Enables the starter until N1 reaches the pre-ignition target. Relay starters switch fully on; proportional starters can ramp. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
     links: []
   },
   FuelOpen: {
@@ -1193,7 +1176,7 @@ const BLOCK_INFO = {
     links: []
   },
   PreHeat: {
-    desc: 'Pre-heats the selected ignition device without opening main fuel. A glow plug uses its device-local ramp and optional hot-current check; an igniter uses its timed pre-heat. The output stays on afterward until another step turns it off.',
+    desc: 'Pre-heats the selected ignition device without opening main fuel. A relay glow plug stays on for its preheat time; a proportional glow plug ramps during that time. Either can use the optional hot-current check. An igniter uses timed pre-heat. The output stays on afterward until another step turns it off.',
     links: [{ label: 'Configure ignition device', url: '/hardware.html#registry-outputs' }]
   },
   ABCheckReady: {
@@ -1643,6 +1626,26 @@ function deviceTargetSeqKey(tab) {
   if (tab === 'ab-shut') return 'ab_shut_device_target';
   return 'ab_device_target';
 }
+function waitInputSeqKey(tab) {
+  if (tab === 'startup') return 'startup_wait_inputs';
+  if (tab === 'shutdown') return 'shutdown_wait_inputs';
+  if (tab === 'ab-shut') return 'ab_shut_wait_inputs';
+  return 'ab_wait_inputs';
+}
+function ensureWaitInputSlots(tab) {
+  const seq = hwCfg[seqKey(tab)] || [];
+  const key = waitInputSeqKey(tab);
+  if (!Array.isArray(hwCfg[key])) hwCfg[key] = [];
+  for (let i = 0; i < seq.length; i++) {
+    if (hwCfg[key][i] && typeof hwCfg[key][i] === 'object') continue;
+    hwCfg[key][i] = {
+      channel: Number(cfg?.sequence?.startup?.wait_for_input_ch ?? 0),
+      active: seq[i] === 'WaitForInputOff' ? false : cfg?.sequence?.startup?.wait_for_input_state !== false,
+      timeout_ms: Math.max(500, Number(cfg?.sequence?.startup?.wait_for_input_timeout ?? 30000)),
+    };
+  }
+  hwCfg[key].length = seq.length;
+}
 function ensureDelaySlots(tab) {
   const seq = hwCfg[seqKey(tab)] || [];
   const key = delaySeqKey(tab);
@@ -1683,6 +1686,7 @@ function render(tab, idleRaw, openKeys = new Set()) {
   ensureDelaySlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   ensureActionSlots(tab);
   const list = document.getElementById('list-' + tab);
   list.innerHTML = '';
@@ -2176,6 +2180,7 @@ function preHeatProfile(tab, idx) {
   return {
     output,
     glow,
+    relay: glow && [4, 11].includes(Number(output.driver)),
     durationMs: Math.max(0, Number(output?.ignition_preheat_ms ?? (glow ? 10000 : 3000))),
     waitHot: glow && !!(output.ignition_wait_hot ?? cfg?.glow_plug?.wait_until_hot),
   };
@@ -2194,11 +2199,14 @@ function buildCard(bname, idx, tab) {
   // Build condition text for WHILE blocks
   const hw = flattenHw();
   const preheat = bname === 'PreHeat' ? preHeatProfile(tab, idx) : null;
+  const inputWait = bname === 'WaitForInput' || bname === 'WaitForInputOff'
+    ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
     : preheat ? (preheat.waitHot
-      ? `Ramp ${seqRound(preheat.durationMs / 1000)} s, then until hot`
-      : `Wait ${seqRound(preheat.durationMs / 1000)} s preheat`)
+      ? `${preheat.relay ? 'On' : 'Ramp'} ${seqRound(preheat.durationMs / 1000)} s, then until hot`
+      : `${preheat.glow && !preheat.relay ? 'Ramp' : 'On'} ${seqRound(preheat.durationMs / 1000)} s preheat`)
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -2564,6 +2572,18 @@ function buildParamsHtml(bname, idx, tab) {
   const sideHtml = buildSideActionsHtml(tab, idx);
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
+  if (bname === 'WaitForInput' || bname === 'WaitForInputOff') {
+    ensureWaitInputSlots(tab);
+    const wait = hwCfg[waitInputSeqKey(tab)][idx];
+    const channels = Array.from({length:4}, (_, channel) => {
+      const fitted = Number(hwCfg.di_channels?.[channel]?.pin ?? -1) >= 0;
+      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>DI-${channel + 1}${fitted ? '' : ' — not fitted'}</option>`;
+    }).join('');
+    const state = bname === 'WaitForInputOff' ? '' : `<div class="param-field"><span class="param-label">Wait until</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'active',this.value==='1')"><option value="1"${wait.active ? ' selected' : ''}>Active</option><option value="0"${wait.active ? '' : ' selected'}>Inactive</option></select></div>`;
+    return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}
+      <div class="param-grid"><div class="param-field"><span class="param-label">Digital input</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'channel',+this.value)">${channels}</select></div>
+      ${state}<div class="param-field"><span class="param-label">Maximum wait <span class="param-unit">(ms)</span></span><input class="param-input" type="number" min="500" max="60000" step="500" value="${Number(wait.timeout_ms)}" onchange="setWaitInputField('${tab}',${idx},'timeout_ms',+this.value)"></div></div>${sideHtml}</div>`;
+  }
   const hasSharedParams = !!def?.params?.some(p => p.configKey && !(bname === 'TimedDelay' && p.key === 'timed_delay_ms'));
   const sharedNoteHtml = hasSharedParams
     ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
@@ -2625,6 +2645,15 @@ function buildParamsHtml(bname, idx, tab) {
     <div class="block-desc">${esc(def.desc ?? '')}</div>
     ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${sideHtml}
   </div>`;
+}
+
+function setWaitInputField(tab, idx, field, value) {
+  ensureWaitInputSlots(tab);
+  const wait = hwCfg[waitInputSeqKey(tab)][idx];
+  if (field === 'channel') wait.channel = Math.max(0, Math.min(3, Number(value) || 0));
+  else if (field === 'active') wait.active = !!value;
+  else if (field === 'timeout_ms') wait.timeout_ms = Math.max(500, Math.min(60000, Number(value) || 30000));
+  renderFast(tab);
 }
 
 function buildSetOutputHtml(tab, idx) {
@@ -2785,6 +2814,7 @@ function moveBlockTo(tab, idx, ni) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   const reorder = rows => {
     if (!Array.isArray(rows)) return;
     const [item] = rows.splice(idx, 1);
@@ -2794,6 +2824,7 @@ function moveBlockTo(tab, idx, ni) {
   reorder(hwCfg[delaySeqKey(tab)]);
   reorder(hwCfg[ignitionTargetSeqKey(tab)]);
   reorder(hwCfg[deviceTargetSeqKey(tab)]);
+  reorder(hwCfg[waitInputSeqKey(tab)]);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (!ak || !hwCfg[ak]) continue;
@@ -2811,10 +2842,12 @@ async function removeBlock(tab, idx) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[seqKey(tab)].splice(idx, 1);
   hwCfg[delaySeqKey(tab)].splice(idx, 1);
   hwCfg[ignitionTargetSeqKey(tab)].splice(idx, 1);
   hwCfg[deviceTargetSeqKey(tab)].splice(idx, 1);
+  hwCfg[waitInputSeqKey(tab)].splice(idx, 1);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (ak && hwCfg[ak]) hwCfg[ak].splice(idx, 1);
@@ -2834,6 +2867,7 @@ function addBlock(tab, selectedValue = '') {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[delaySeqKey(tab)][hwCfg[key].length - 1] =
     bname === 'TimedDelay' ? (cfg?.sequence?.startup?.timed_delay_ms || 1000) : 0;
   hwCfg[ignitionTargetSeqKey(tab)][hwCfg[key].length - 1] = 0;
@@ -3607,6 +3641,15 @@ function validateSequenceHardwareForSave() {
       else if (!sideActionMeta(action))
         errors.push(`${label} block ${index + 1} (Set Output) references missing output "${target || 'unknown'}".`);
     }
+    if (name === 'WaitForInput' || name === 'WaitForInputOff') {
+      ensureWaitInputSlots(tab);
+      const wait = hwCfg[waitInputSeqKey(tab)][index];
+      if (Number(wait.channel) < 0 || Number(wait.channel) > 3 ||
+          Number(hwCfg.di_channels?.[Number(wait.channel)]?.pin ?? -1) < 0)
+        errors.push(`${label} block ${index + 1} needs a fitted digital input channel.`);
+      if (!Number.isFinite(Number(wait.timeout_ms)) || Number(wait.timeout_ms) < 500 || Number(wait.timeout_ms) > 60000)
+        errors.push(`${label} block ${index + 1} needs a 500–60000 ms maximum wait.`);
+    }
   }));
   return errors;
 }
@@ -3681,6 +3724,7 @@ async function saveAll() {
       'startup_delay_ms','shutdown_delay_ms','ab_delay_ms','ab_shut_delay_ms',
       'startup_ignition_target','shutdown_ignition_target','ab_ignition_target','ab_shut_ignition_target',
       'startup_device_target','shutdown_device_target','ab_device_target','ab_shut_device_target',
+      'startup_wait_inputs','shutdown_wait_inputs','ab_wait_inputs','ab_shut_wait_inputs',
       'startup_enter_actions','startup_exit_actions','shutdown_enter_actions','shutdown_exit_actions',
       'ab_enter_actions','ab_exit_actions','ab_shut_enter_actions','ab_shut_exit_actions',
       'custom_blocks','ab_trigger'

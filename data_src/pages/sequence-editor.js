@@ -25,6 +25,7 @@ function preHeatProfile(tab, idx) {
   return {
     output,
     glow,
+    relay: glow && [4, 11].includes(Number(output.driver)),
     durationMs: Math.max(0, Number(output?.ignition_preheat_ms ?? (glow ? 10000 : 3000))),
     waitHot: glow && !!(output.ignition_wait_hot ?? cfg?.glow_plug?.wait_until_hot),
   };
@@ -43,11 +44,14 @@ function buildCard(bname, idx, tab) {
   // Build condition text for WHILE blocks
   const hw = flattenHw();
   const preheat = bname === 'PreHeat' ? preHeatProfile(tab, idx) : null;
+  const inputWait = bname === 'WaitForInput' || bname === 'WaitForInputOff'
+    ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
     : preheat ? (preheat.waitHot
-      ? `Ramp ${seqRound(preheat.durationMs / 1000)} s, then until hot`
-      : `Wait ${seqRound(preheat.durationMs / 1000)} s preheat`)
+      ? `${preheat.relay ? 'On' : 'Ramp'} ${seqRound(preheat.durationMs / 1000)} s, then until hot`
+      : `${preheat.glow && !preheat.relay ? 'Ramp' : 'On'} ${seqRound(preheat.durationMs / 1000)} s preheat`)
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -413,6 +417,18 @@ function buildParamsHtml(bname, idx, tab) {
   const sideHtml = buildSideActionsHtml(tab, idx);
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
+  if (bname === 'WaitForInput' || bname === 'WaitForInputOff') {
+    ensureWaitInputSlots(tab);
+    const wait = hwCfg[waitInputSeqKey(tab)][idx];
+    const channels = Array.from({length:4}, (_, channel) => {
+      const fitted = Number(hwCfg.di_channels?.[channel]?.pin ?? -1) >= 0;
+      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>DI-${channel + 1}${fitted ? '' : ' — not fitted'}</option>`;
+    }).join('');
+    const state = bname === 'WaitForInputOff' ? '' : `<div class="param-field"><span class="param-label">Wait until</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'active',this.value==='1')"><option value="1"${wait.active ? ' selected' : ''}>Active</option><option value="0"${wait.active ? '' : ' selected'}>Inactive</option></select></div>`;
+    return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}
+      <div class="param-grid"><div class="param-field"><span class="param-label">Digital input</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'channel',+this.value)">${channels}</select></div>
+      ${state}<div class="param-field"><span class="param-label">Maximum wait <span class="param-unit">(ms)</span></span><input class="param-input" type="number" min="500" max="60000" step="500" value="${Number(wait.timeout_ms)}" onchange="setWaitInputField('${tab}',${idx},'timeout_ms',+this.value)"></div></div>${sideHtml}</div>`;
+  }
   const hasSharedParams = !!def?.params?.some(p => p.configKey && !(bname === 'TimedDelay' && p.key === 'timed_delay_ms'));
   const sharedNoteHtml = hasSharedParams
     ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
@@ -474,6 +490,15 @@ function buildParamsHtml(bname, idx, tab) {
     <div class="block-desc">${esc(def.desc ?? '')}</div>
     ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${sideHtml}
   </div>`;
+}
+
+function setWaitInputField(tab, idx, field, value) {
+  ensureWaitInputSlots(tab);
+  const wait = hwCfg[waitInputSeqKey(tab)][idx];
+  if (field === 'channel') wait.channel = Math.max(0, Math.min(3, Number(value) || 0));
+  else if (field === 'active') wait.active = !!value;
+  else if (field === 'timeout_ms') wait.timeout_ms = Math.max(500, Math.min(60000, Number(value) || 30000));
+  renderFast(tab);
 }
 
 function buildSetOutputHtml(tab, idx) {
@@ -634,6 +659,7 @@ function moveBlockTo(tab, idx, ni) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   const reorder = rows => {
     if (!Array.isArray(rows)) return;
     const [item] = rows.splice(idx, 1);
@@ -643,6 +669,7 @@ function moveBlockTo(tab, idx, ni) {
   reorder(hwCfg[delaySeqKey(tab)]);
   reorder(hwCfg[ignitionTargetSeqKey(tab)]);
   reorder(hwCfg[deviceTargetSeqKey(tab)]);
+  reorder(hwCfg[waitInputSeqKey(tab)]);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (!ak || !hwCfg[ak]) continue;
@@ -660,10 +687,12 @@ async function removeBlock(tab, idx) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[seqKey(tab)].splice(idx, 1);
   hwCfg[delaySeqKey(tab)].splice(idx, 1);
   hwCfg[ignitionTargetSeqKey(tab)].splice(idx, 1);
   hwCfg[deviceTargetSeqKey(tab)].splice(idx, 1);
+  hwCfg[waitInputSeqKey(tab)].splice(idx, 1);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (ak && hwCfg[ak]) hwCfg[ak].splice(idx, 1);
@@ -683,6 +712,7 @@ function addBlock(tab, selectedValue = '') {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[delaySeqKey(tab)][hwCfg[key].length - 1] =
     bname === 'TimedDelay' ? (cfg?.sequence?.startup?.timed_delay_ms || 1000) : 0;
   hwCfg[ignitionTargetSeqKey(tab)][hwCfg[key].length - 1] = 0;

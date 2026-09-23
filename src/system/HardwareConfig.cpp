@@ -1237,6 +1237,7 @@ void sanitizeSequenceBlocks(
     char seq[HardwareConfig::MAX_SEQ_BLOCKS][24], int& len, int delays[HardwareConfig::MAX_SEQ_BLOCKS],
     uint8_t ignitionTargets[HardwareConfig::MAX_SEQ_BLOCKS],
     char deviceTargets[HardwareConfig::MAX_SEQ_BLOCKS][20],
+    HardwareConfig::SeqWaitInput waits[HardwareConfig::MAX_SEQ_BLOCKS],
     HardwareConfig::SeqSideAction enterActions[HardwareConfig::MAX_SEQ_BLOCKS][HardwareConfig::MAX_SEQ_SIDE_ACTIONS],
     HardwareConfig::SeqSideAction exitActions[HardwareConfig::MAX_SEQ_BLOCKS][HardwareConfig::MAX_SEQ_SIDE_ACTIONS]) {
     int out = 0;
@@ -1252,6 +1253,7 @@ void sanitizeSequenceBlocks(
             delays[out] = delays[i];
             ignitionTargets[out] = constrain(ignitionTargets[i], 0, 2);
             strlcpy(deviceTargets[out], deviceTargets[i], sizeof(deviceTargets[out]));
+            waits[out] = waits[i];
             memcpy(enterActions[out], enterActions[i], sizeof(enterActions[out]));
             memcpy(exitActions[out], exitActions[i], sizeof(exitActions[out]));
         }
@@ -1262,10 +1264,28 @@ void sanitizeSequenceBlocks(
         delays[i] = 0;
         ignitionTargets[i] = 0;
         deviceTargets[i][0] = '\0';
+        waits[i] = HardwareConfig::SeqWaitInput{};
         memset(enterActions[i], 0, sizeof(enterActions[i]));
         memset(exitActions[i], 0, sizeof(exitActions[i]));
     }
     len = out;
+}
+
+void readSeqWaitInputs(JsonVariantConst doc, const char* key, int seqLen,
+                       HardwareConfig::SeqWaitInput waits[HardwareConfig::MAX_SEQ_BLOCKS]) {
+    for (int i = 0; i < HardwareConfig::MAX_SEQ_BLOCKS; ++i)
+        waits[i] = HardwareConfig::SeqWaitInput{};
+    JsonVariantConst source = doc[key];
+    if (!source.is<JsonArrayConst>()) return;
+    JsonArrayConst slots = source.as<JsonArrayConst>();
+    for (int i = 0; i < seqLen && i < (int)slots.size(); ++i) {
+        JsonVariantConst slot = slots[i];
+        if (!slot.is<JsonObjectConst>()) continue;
+        waits[i].channel = slot["channel"].as<uint8_t>();
+        waits[i].active = slot["active"].as<bool>();
+        waits[i].timeoutMs = slot["timeout_ms"].as<uint32_t>();
+        waits[i].configured = true;
+    }
 }
 
 bool intRange(JsonVariantConst object, const char* field, long minValue, long maxValue) {
@@ -1431,6 +1451,21 @@ bool validateSequenceReferenceIds(JsonVariantConst doc, const ChannelRegistry* r
         "startup_device_target", "shutdown_device_target",
         "ab_device_target", "ab_shut_device_target"
     };
+    static constexpr const char* waitKeys[] = {
+        "startup_wait_inputs", "shutdown_wait_inputs", "ab_wait_inputs", "ab_shut_wait_inputs"
+    };
+    for (const char* key : waitKeys) {
+        JsonVariantConst slots = doc[key];
+        if (slots.isNull()) continue;
+        if (!slots.is<JsonArrayConst>() || slots.as<JsonArrayConst>().size() > HardwareConfig::MAX_SEQ_BLOCKS)
+            return false;
+        for (JsonVariantConst slot : slots.as<JsonArrayConst>()) {
+            if (!slot.is<JsonObjectConst>() || slot["channel"].isNull() ||
+                slot["timeout_ms"].isNull() || !slot["active"].is<bool>() ||
+                !intRange(slot, "channel", 0, HardwareConfig::MAX_DI - 1) ||
+                !intRange(slot, "timeout_ms", 500, 60000)) return false;
+        }
+    }
     for (const char* key : deviceTargetKeys) {
         JsonVariantConst targets = doc[key];
         if (targets.isNull()) continue;
@@ -2656,6 +2691,7 @@ int   HardwareConfig::startupSeqLen    = kProfileStartupSeqLen;
 int   HardwareConfig::startupDelayMs[MAX_SEQ_BLOCKS] = OT_STARTUP_DELAY_MS;
 uint8_t HardwareConfig::startupIgnitionTarget[MAX_SEQ_BLOCKS] = {};
 char HardwareConfig::startupDeviceTarget[MAX_SEQ_BLOCKS][20] = {};
+HardwareConfig::SeqWaitInput HardwareConfig::startupWaitInputs[MAX_SEQ_BLOCKS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::startupEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::startupExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 
@@ -2668,6 +2704,7 @@ int   HardwareConfig::shutdownSeqLen   = kProfileShutdownSeqLen;
 int   HardwareConfig::shutdownDelayMs[MAX_SEQ_BLOCKS] = OT_SHUTDOWN_DELAY_MS;
 uint8_t HardwareConfig::shutdownIgnitionTarget[MAX_SEQ_BLOCKS] = {};
 char HardwareConfig::shutdownDeviceTarget[MAX_SEQ_BLOCKS][20] = {};
+HardwareConfig::SeqWaitInput HardwareConfig::shutdownWaitInputs[MAX_SEQ_BLOCKS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::shutdownEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::shutdownExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 
@@ -2676,6 +2713,7 @@ int   HardwareConfig::abSeqLen                     = 0;
 int   HardwareConfig::abDelayMs[MAX_SEQ_BLOCKS]    = {};
 uint8_t HardwareConfig::abIgnitionTarget[MAX_SEQ_BLOCKS] = {};
 char HardwareConfig::abDeviceTarget[MAX_SEQ_BLOCKS][20] = {};
+HardwareConfig::SeqWaitInput HardwareConfig::abWaitInputs[MAX_SEQ_BLOCKS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::abEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::abExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 char  HardwareConfig::abShutSeq[MAX_SEQ_BLOCKS][24]= {};
@@ -2683,6 +2721,7 @@ int   HardwareConfig::abShutSeqLen                 = 0;
 int   HardwareConfig::abShutDelayMs[MAX_SEQ_BLOCKS]= {};
 uint8_t HardwareConfig::abShutIgnitionTarget[MAX_SEQ_BLOCKS] = {};
 char HardwareConfig::abShutDeviceTarget[MAX_SEQ_BLOCKS][20] = {};
+HardwareConfig::SeqWaitInput HardwareConfig::abShutWaitInputs[MAX_SEQ_BLOCKS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::abShutEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 HardwareConfig::SeqSideAction HardwareConfig::abShutExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS] = {};
 HardwareConfig::CustomBlockDef HardwareConfig::customBlocks[MAX_CUSTOM_BLOCKS] = {};
@@ -3197,6 +3236,7 @@ void HardwareConfig::applyDefaults() {
     memset(startupDelayMs, 0, sizeof(startupDelayMs));
     memset(startupIgnitionTarget, 0, sizeof(startupIgnitionTarget));
     memset(startupDeviceTarget, 0, sizeof(startupDeviceTarget));
+    for (auto& wait : startupWaitInputs) wait = SeqWaitInput{};
     clearSeqSideActions(startupEnterActions);
     clearSeqSideActions(startupExitActions);
     for (int i = 0; i < startupSeqLen; i++) {
@@ -3209,6 +3249,7 @@ void HardwareConfig::applyDefaults() {
     memset(shutdownDelayMs, 0, sizeof(shutdownDelayMs));
     memset(shutdownIgnitionTarget, 0, sizeof(shutdownIgnitionTarget));
     memset(shutdownDeviceTarget, 0, sizeof(shutdownDeviceTarget));
+    for (auto& wait : shutdownWaitInputs) wait = SeqWaitInput{};
     clearSeqSideActions(shutdownEnterActions);
     clearSeqSideActions(shutdownExitActions);
     for (int i = 0; i < shutdownSeqLen; i++) {
@@ -3228,6 +3269,7 @@ void HardwareConfig::applyDefaults() {
     memset(abDelayMs, 0, sizeof(abDelayMs));
     memset(abIgnitionTarget, 0, sizeof(abIgnitionTarget));
     memset(abDeviceTarget, 0, sizeof(abDeviceTarget));
+    for (auto& wait : abWaitInputs) wait = SeqWaitInput{};
     clearSeqSideActions(abEnterActions);
     clearSeqSideActions(abExitActions);
     for (int i = 0; i < abSeqLen; i++)
@@ -3240,6 +3282,7 @@ void HardwareConfig::applyDefaults() {
     memset(abShutDelayMs, 0, sizeof(abShutDelayMs));
     memset(abShutIgnitionTarget, 0, sizeof(abShutIgnitionTarget));
     memset(abShutDeviceTarget, 0, sizeof(abShutDeviceTarget));
+    for (auto& wait : abShutWaitInputs) wait = SeqWaitInput{};
     clearSeqSideActions(abShutEnterActions);
     clearSeqSideActions(abShutExitActions);
     clearCustomBlocks();
@@ -4729,6 +4772,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         for (int i = 0; i < startupSeqLen && i < (int)t.size(); ++i)
             strlcpy(startupDeviceTarget[i], t[i] | "", sizeof(startupDeviceTarget[i]));
     }
+    readSeqWaitInputs(doc.as<JsonVariantConst>(), "startup_wait_inputs", startupSeqLen, startupWaitInputs);
     readSeqSideActions(doc, "startup_enter_actions", startupSeqLen, startupEnterActions);
     readSeqSideActions(doc, "startup_exit_actions", startupSeqLen, startupExitActions);
 
@@ -4760,6 +4804,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         for (int i = 0; i < shutdownSeqLen && i < (int)t.size(); ++i)
             strlcpy(shutdownDeviceTarget[i], t[i] | "", sizeof(shutdownDeviceTarget[i]));
     }
+    readSeqWaitInputs(doc.as<JsonVariantConst>(), "shutdown_wait_inputs", shutdownSeqLen, shutdownWaitInputs);
     readSeqSideActions(doc, "shutdown_enter_actions", shutdownSeqLen, shutdownEnterActions);
     readSeqSideActions(doc, "shutdown_exit_actions", shutdownSeqLen, shutdownExitActions);
 
@@ -4823,6 +4868,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         for (int i = 0; i < abSeqLen && i < (int)t.size(); ++i)
             strlcpy(abDeviceTarget[i], t[i] | "", sizeof(abDeviceTarget[i]));
     }
+    readSeqWaitInputs(doc.as<JsonVariantConst>(), "ab_wait_inputs", abSeqLen, abWaitInputs);
     readSeqSideActions(doc, "ab_enter_actions", abSeqLen, abEnterActions);
     readSeqSideActions(doc, "ab_exit_actions", abSeqLen, abExitActions);
 
@@ -4854,6 +4900,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         for (int i = 0; i < abShutSeqLen && i < (int)t.size(); ++i)
             strlcpy(abShutDeviceTarget[i], t[i] | "", sizeof(abShutDeviceTarget[i]));
     }
+    readSeqWaitInputs(doc.as<JsonVariantConst>(), "ab_shut_wait_inputs", abShutSeqLen, abShutWaitInputs);
     readSeqSideActions(doc, "ab_shut_enter_actions", abShutSeqLen, abShutEnterActions);
     readSeqSideActions(doc, "ab_shut_exit_actions", abShutSeqLen, abShutExitActions);
     readCustomBlocks(doc);
@@ -4866,10 +4913,10 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     sanitizeSeqSideActions(abShutEnterActions);
     sanitizeSeqSideActions(abShutExitActions);
 
-    sanitizeSequenceBlocks(startupSeq, startupSeqLen, startupDelayMs, startupIgnitionTarget, startupDeviceTarget, startupEnterActions, startupExitActions);
-    sanitizeSequenceBlocks(shutdownSeq, shutdownSeqLen, shutdownDelayMs, shutdownIgnitionTarget, shutdownDeviceTarget, shutdownEnterActions, shutdownExitActions);
-    sanitizeSequenceBlocks(abSeq, abSeqLen, abDelayMs, abIgnitionTarget, abDeviceTarget, abEnterActions, abExitActions);
-    sanitizeSequenceBlocks(abShutSeq, abShutSeqLen, abShutDelayMs, abShutIgnitionTarget, abShutDeviceTarget, abShutEnterActions, abShutExitActions);
+    sanitizeSequenceBlocks(startupSeq, startupSeqLen, startupDelayMs, startupIgnitionTarget, startupDeviceTarget, startupWaitInputs, startupEnterActions, startupExitActions);
+    sanitizeSequenceBlocks(shutdownSeq, shutdownSeqLen, shutdownDelayMs, shutdownIgnitionTarget, shutdownDeviceTarget, shutdownWaitInputs, shutdownEnterActions, shutdownExitActions);
+    sanitizeSequenceBlocks(abSeq, abSeqLen, abDelayMs, abIgnitionTarget, abDeviceTarget, abWaitInputs, abEnterActions, abExitActions);
+    sanitizeSequenceBlocks(abShutSeq, abShutSeqLen, abShutDelayMs, abShutIgnitionTarget, abShutDeviceTarget, abShutWaitInputs, abShutEnterActions, abShutExitActions);
 
     if (doc["labels"].is<JsonObjectConst>()) {
         auto lbld = doc["labels"].as<JsonObjectConst>();

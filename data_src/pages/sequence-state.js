@@ -352,6 +352,26 @@ function deviceTargetSeqKey(tab) {
   if (tab === 'ab-shut') return 'ab_shut_device_target';
   return 'ab_device_target';
 }
+function waitInputSeqKey(tab) {
+  if (tab === 'startup') return 'startup_wait_inputs';
+  if (tab === 'shutdown') return 'shutdown_wait_inputs';
+  if (tab === 'ab-shut') return 'ab_shut_wait_inputs';
+  return 'ab_wait_inputs';
+}
+function ensureWaitInputSlots(tab) {
+  const seq = hwCfg[seqKey(tab)] || [];
+  const key = waitInputSeqKey(tab);
+  if (!Array.isArray(hwCfg[key])) hwCfg[key] = [];
+  for (let i = 0; i < seq.length; i++) {
+    if (hwCfg[key][i] && typeof hwCfg[key][i] === 'object') continue;
+    hwCfg[key][i] = {
+      channel: Number(cfg?.sequence?.startup?.wait_for_input_ch ?? 0),
+      active: seq[i] === 'WaitForInputOff' ? false : cfg?.sequence?.startup?.wait_for_input_state !== false,
+      timeout_ms: Math.max(500, Number(cfg?.sequence?.startup?.wait_for_input_timeout ?? 30000)),
+    };
+  }
+  hwCfg[key].length = seq.length;
+}
 function ensureDelaySlots(tab) {
   const seq = hwCfg[seqKey(tab)] || [];
   const key = delaySeqKey(tab);
@@ -392,6 +412,7 @@ function render(tab, idleRaw, openKeys = new Set()) {
   ensureDelaySlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   ensureActionSlots(tab);
   const list = document.getElementById('list-' + tab);
   list.innerHTML = '';

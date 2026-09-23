@@ -864,13 +864,22 @@ async function optionDisabled(page, selector, value) {
       const relayTargets = {prime:oilTarget.visibleIf(hwCfg),
         cooldown:BLOCKS.CooldownSpin.params.find(p => p.key === 'cooldown_oil_pressure_bar').visibleIf(hwCfg)};
       oilPump.driver = oldDriver;
+      const starter = registryOutputPurpose('starter');
+      const oldStarterDriver = starter?.driver;
+      if (starter) starter.driver = 4;
+      const relayStarterControls = ['starter_demand','ramp_pct_per_s','pulsed_assist_enabled','cooldown_starter_pct']
+        .map(key => {
+          const owner = key === 'cooldown_starter_pct' ? BLOCKS.CooldownSpin : BLOCKS.StarterSpin;
+          return owner.params.find(p => p.key === key)?.visibleIf(hwCfg);
+        });
+      if (starter) starter.driver = oldStarterDriver;
       hwCfg.controllers.oil_loop = oldLoop;
       const oldInputs = hwCfg.channel_registry.inputs;
       hwCfg.channel_registry.inputs = [{id:'test_p1',purpose:'p1_pressure',driver:0,pin:33,installed:true}];
       const p1OnlyAllowed = BLOCKS.SafetyHold.visibleIf(hwCfg) &&
         BLOCKS.SafetyHold.hwWarnings.every(w => w.check(hwCfg));
       hwCfg.channel_registry.inputs = oldInputs;
-      return {loopOff, loopOn, relayTargets, p1OnlyAllowed,
+      return {loopOff, loopOn, relayTargets, relayStarterControls, p1OnlyAllowed,
         coolCondition:BLOCKS.WaitTOTCool.condition(flattenHw()),
         starterCondition:BLOCKS.StarterSpin.condition(flattenHw())};
     });
@@ -880,29 +889,39 @@ async function optionDisabled(page, selector, value) {
       'Oil Prime must expose its pressure target when the pressure loop is On');
     assert.deepEqual(sequenceCardContract.relayTargets, {prime:true, cooldown:true},
       'oil-pressure targets must stay editable for relay pumps with pressure feedback');
+    assert.deepEqual(sequenceCardContract.relayStarterControls, [false,false,false,false],
+      'relay starters must not expose proportional demand, ramp, pulse-assist or cooldown-speed controls');
     assert.equal(sequenceCardContract.p1OnlyAllowed, true,
       'Final Startup Checks must accept a fitted P1-only profile without a false N1/oil warning');
     assert.match(sequenceCardContract.coolCondition, /^Until EGT ≤ /);
     assert.match(sequenceCardContract.starterCondition, /^Until N1 ≥ /);
     assert.match(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').first().textContent(), /^Wait \d/,
       'Timed Delay cards should state that their duration is a wait');
-    const sharedInputCards = await page.evaluate(() => {
+    const independentInputCards = await page.evaluate(() => {
       addBlock('shutdown', 'WaitForInput');
       addBlock('shutdown', 'WaitForInputOff');
-      setConfigVal('wait_for_input_ch', 2);
-      setConfigVal('wait_for_input_timeout', 4500);
+      const first = hwCfg.shutdown_seq.lastIndexOf('WaitForInput');
+      const second = hwCfg.shutdown_seq.lastIndexOf('WaitForInputOff');
+      setWaitInputField('shutdown', first, 'channel', 2);
+      setWaitInputField('shutdown', first, 'active', true);
+      setWaitInputField('shutdown', first, 'timeout_ms', 4500);
+      setWaitInputField('shutdown', second, 'channel', 1);
+      setWaitInputField('shutdown', second, 'timeout_ms', 9000);
+      moveBlockTo('shutdown', second, first);
       return ['WaitForInput','WaitForInputOff'].map(name => {
         const card = document.querySelector(`#list-shutdown .block-card[data-block="${name}"]`);
+        const idx = Number(card?.dataset.idx);
+        const spec = hwCfg.shutdown_wait_inputs[idx];
         return {
-          channel:card.querySelector('[data-pkey="wait_for_input_ch"] select')?.value,
-          timeout:card.querySelector('[data-pkey="wait_for_input_timeout"] input')?.value,
+          channel:spec.channel,
+          timeout:spec.timeout_ms,
           condition:card.querySelector('.block-cond')?.textContent
         };
       });
     });
-    assert.deepEqual(sharedInputCards.map(row => [row.channel, row.timeout]), [['2','4500'],['2','4500']],
-      'both input-wait cards must show their shared channel and timeout');
-    assert.match(sharedInputCards[1].condition, /DI-3 inactive/);
+    assert.deepEqual(independentInputCards.map(row => [row.channel, row.timeout]), [[2,4500],[1,9000]],
+      'each input-wait card must keep its own channel and timeout when reordered');
+    assert.match(independentInputCards[1].condition, /DI-2 inactive/);
     for (const key of ['OilPrime', 'StarterSpin', 'PreHeat', 'TimedDelay', 'FuelPumpIdle']) {
       assert.ok(sequenceFull.startup.includes(key), `full startup should include ${key}`);
     }
@@ -941,7 +960,7 @@ async function optionDisabled(page, selector, value) {
     });
     assert.deepEqual(glowPreheatCard, {badge:'UNTIL', condition:'Ramp 4.2 s, then until hot', timeout:'Hot check: abort'},
       'glow preheat card must show its hardware-sourced ramp and optional aborting hot check');
-    results.push('sequence cards use consistent completion conditions, match oil/final checks to hardware, and synchronize shared input-wait settings');
+    results.push('sequence cards use consistent completion conditions, match oil/final checks to hardware, and keep input-wait settings per card');
     for (const key of ['ABCheckReady', 'ABIgnite', 'ABFlameConfirm', 'ABStabilize', 'TimedDelay']) {
       assert.ok(sequenceFull.afterburner.includes(key), `full AB should include ${key}`);
     }
