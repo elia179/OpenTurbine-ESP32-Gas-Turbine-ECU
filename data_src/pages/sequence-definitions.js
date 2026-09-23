@@ -839,14 +839,14 @@ const BLOCK_INFO = {
     links: [
       { label: 'Minimum Reliable Fuel-Metering Output', url: '/calibration.html#fuelpump-min-cal-row' },
       { label: 'Throttle Open Speed', url: '/controllers.html#throttle' },
-      { label: 'Running Oil Min',     url: '/controllers.html#oil-config-section' },
+      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
     ]
   },
   SafetyHold: {
     desc: 'Requires all enabled final sensor checks to remain continuously stable before RUNNING. Optional exit actions can turn off starter and ignition outputs.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
-      { label: 'Running Oil Min', url: '/controllers.html#oil-config-section' },
+      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
     ]
   },
   CooldownSpin: {

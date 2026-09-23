@@ -176,7 +176,8 @@ function revealSequenceDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
   const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
-                    'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm']}[id];
+                    'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm'],
+                    'starter-target':['pre_ign_rpm']}[id];
   if (fieldKey) {
     switchTab('startup');
     const field = fieldKey.map(key => document.querySelector(`#tab-startup .param-field[data-pkey="${key}"]`)).find(Boolean);

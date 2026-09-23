@@ -131,7 +131,7 @@ function runValidation() {
         msg:'⚠ Governor target plus its no-correction band reaches the hard N2 shutdown limit. Leave operating margin below the trip.'});
     }
     const n2Warn = fv('cl_n2');
-    if (n2Warn > 0 && n2Warn >= n2RpmLimit) {
+    if (hwCfg.cluster_serial?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
       warnings.push({section:'External Instrument Cluster Display', key:'warn-n2-cluster-trip',
         msg:'⚠ Cluster N2 warning is at/above the hard shutdown limit, so the display may not warn before the ECU trips.'});
     }
@@ -179,7 +179,7 @@ function runValidation() {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
-      msg:     '⚠ Running Oil Min is 0 — oil pressure fault protection is DISABLED. Set a value to protect the engine.'
+      msg:     '⚠ Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. Set a value to protect the engine.'
     });
   }
 
@@ -400,11 +400,11 @@ async function validateBeforeSave(cfg) {
   const hasOilPressure = hasRegistryInput('oil_pressure');
   if (hasOilPressure) {
     if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Min (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
     if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
-      errors.push('Running Oil (' + oilMapMin + ' bar) is greater than Map Max (' + oilMapMax + ' bar). Swap them.');
+      errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
     if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Running Oil (' + oilMapMin + ' bar) is below Running Min (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
+      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
   }
 
   // EGT / temperature cross-checks
@@ -461,7 +461,7 @@ async function validateBeforeSave(cfg) {
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
   if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Running Oil Min is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
+    warns.push('Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {

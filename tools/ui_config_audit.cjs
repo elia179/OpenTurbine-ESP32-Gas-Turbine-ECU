@@ -361,13 +361,17 @@ async function goto(page, route, waitSelector) {
     await goto(page, 'controllers.html', '#cf-tot_limit');
     const validationRoutes = await page.evaluate(() => OTValidationLinks([
       'Custom controller: choose a fitted input or feedback signal.',
-      'Startup oil-pressure minimum is below Running Min.',
+      'Startup oil-pressure minimum is below Running Low-Pressure Shutdown.',
       'Pulsed Starter Assist requires N1.',
-      'Cluster N2 warning reaches Maximum N2 Speed.'
+      'Cluster N2 warning reaches Maximum N2 Speed.',
+      'Governor target plus no-correction band reaches Maximum N2 Speed.',
+      'N2-based idle target is at or above Maximum N2 Speed.',
+      'Normal Running Oil Pressure is greater than Full-Throttle Oil Pressure.'
     ]));
     assert.deepEqual(validationRoutes.map(link => link.target || link.url), [
-      '#controller-overview', '/sequence.html#oil-arm-min',
-      '/sequence.html#starter-assist', '/system.html#cf-cl_n2'
+      '#controller-overview', '/sequence.html#oil-arm-min', '#cf-oil_rm',
+      '/sequence.html#starter-assist', '/system.html#cf-cl_n2',
+      '#cf-gv_tr', '#cf-gv_bd', '#cf-di_tr', '#cf-oil_mm', '#cf-oil_mx'
     ]);
     assert.equal(await page.locator('#controller-overview').count(), 1);
     assert.ok(await page.locator('[data-controller-card]').count() >= 1,
@@ -542,7 +546,7 @@ async function goto(page, route, waitSelector) {
     });
     assert.equal(inactiveValidation.mismatchResult.accepted, inactiveValidation.baselineResult.accepted);
     const inactiveMessages = [...inactiveValidation.mismatchResult.messages, ...inactiveValidation.inline].join('\n');
-    assert.doesNotMatch(inactiveMessages, /Startup oil-pressure minimum|Running Oil|N1 Pullback/i,
+    assert.doesNotMatch(inactiveMessages, /Startup oil-pressure minimum|Running Low-Pressure Shutdown|Normal Running Oil Pressure|N1 Pullback/i,
       'missing oil/N1 hardware and an Off limiter must suppress their dormant cross-checks');
     results.push('inactive oil-pressure and N1 pullback values do not warn or block saves without their sensors');
     results.push('config unit conversions preserve meaning and optional sections hide when hardware is absent');

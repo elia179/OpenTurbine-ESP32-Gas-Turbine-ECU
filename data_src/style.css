@@ -1800,6 +1800,7 @@ select option.pin-inonly { color: #5ba3e0; }
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .seq-tab.active { background: var(--accent); color: color-mix(in srgb, var(--accent) 22%, #000); border-color: var(--accent); }
+.seq-card-hint { margin: -.15rem 0 .7rem; color: var(--dim); font-size: .74rem; line-height: 1.45; }
 
 .block-list { display: flex; flex-direction: column; gap: 0.7rem; }
 .block-card {
@@ -1825,6 +1826,7 @@ select option.pin-inonly { color: #5ba3e0; }
 .block-badge {
   font-size: 0.57rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
   padding: 0.18rem 0.45rem; border-radius: 4px; flex-shrink: 0;
+  min-width: 3.45rem; text-align: center;
   font-family: var(--font-ui);
 }
 .badge-while  { background: var(--yellow); color: color-mix(in srgb, var(--yellow) 22%, #000); }
@@ -1832,7 +1834,7 @@ select option.pin-inonly { color: #5ba3e0; }
 .badge-wait   { background: var(--blue);   color: color-mix(in srgb, var(--blue) 22%, #000); }
 .badge-check  { background: var(--green);  color: color-mix(in srgb, var(--green) 22%, #000); }
 
-.block-name { font-weight: 600; font-size: 0.88rem; flex: 1; }
+.block-name { font-weight: 600; font-size: 0.88rem; flex: 1; min-width: 0; }
 .block-cond {
   font-size: 0.7rem; color: var(--dim); background: var(--bg);
   padding: 0.18rem 0.55rem; border-radius: 12px; flex-shrink: 0;

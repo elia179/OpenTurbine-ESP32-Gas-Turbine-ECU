@@ -287,13 +287,16 @@
     [/custom controller|operating state|fitted input|feedback signal|output is unavailable|owns this output|mapped input|target-source/i,'#controller-overview','Custom controllers'],
     [/N2 Pullback Full|N2 pullback should/i,'#cf-pb_n2e','N2 pullback'],
     [/Cluster N2/i,'/system.html#cf-cl_n2','N2 display warning'],
+    [/Governor target plus/i,'#cf-gv_tr','N2 governor target'],
+    [/N2-based idle target/i,'#cf-di_tr','N2 idle target'],
     [/N2 overspeed|Maximum N2/i,'#cf-n2_rpm_limit','N2 protection'],
     [/N1 pullback/i,'#cf-pb_n1e','N1 pullback'],
     [/Automatic Idle|Idle target/i,'#cf-di_src','Automatic idle'],
     [/Pulsed Starter/i,'/sequence.html#starter-assist','Starter assist in Sequence'],
     [/relight/i,'#cf-rl_en','Automatic relight'],
     [/Oil Arm|startup oil-pressure minimum/i,'/sequence.html#oil-arm-min','Startup oil pressure in Sequence'],
-    [/Running Oil|oil pressure fault/i,'#cf-oil_rm','Running oil pressure'],
+    [/Normal Running Oil Pressure|Running Oil \(/i,'#cf-oil_mm','Normal running oil pressure'],
+    [/Running Low-Pressure Shutdown|Running Oil Min|oil pressure fault/i,'#cf-oil_rm','Running low-pressure shutdown'],
     [/Pre-Start EGT|startup hard EGT/i,'#cf-sf_hs','Startup temperature'],
     [/EGT Soft/i,'#cf-tot_safe_margin','Temperature warning margin'],
     [/TIT Limit/i,'#cf-sf_tit','TIT limit'],
@@ -306,9 +309,17 @@
     [/Governor target/i,'#cf-gv_tr','N2 governor'],
     [/Min RPM/i,'#cf-min_rpm','Minimum running speed']
   ];
+  const relatedRoutes = [
+    [/Pulsed Starter Assist threshold/i,'/sequence.html#starter-target','StarterSpin N1 target in Sequence'],
+    [/Startup oil-pressure minimum.*Running Low-Pressure Shutdown/i,'#cf-oil_rm','Running low-pressure shutdown'],
+    [/Normal Running Oil Pressure.*Full-Throttle Oil Pressure/i,'#cf-oil_mx','Full-throttle oil pressure'],
+    [/Normal Running Oil Pressure.*Running Low-Pressure Shutdown/i,'#cf-oil_rm','Running low-pressure shutdown'],
+    [/Governor target plus/i,'#cf-gv_bd','N2 governor no-correction band']
+  ];
   window.OTValidationLinks = messages => {
     const seen = new Set();
-    return messages.map(message => validationRoutes.find(route => route[0].test(message)))
+    return messages.flatMap(message => [validationRoutes.find(route => route[0].test(message)),
+      ...relatedRoutes.filter(route => route[0].test(message))])
       .filter(route => route && !seen.has(route[1]) && seen.add(route[1]))
       .map(route => ({[route[1].startsWith('/') ? 'url' : 'target']:route[1], label:'Open ' + route[2]}));
   };

@@ -1918,7 +1918,7 @@ function runValidation() {
         msg:'⚠ Governor target plus its no-correction band reaches the hard N2 shutdown limit. Leave operating margin below the trip.'});
     }
     const n2Warn = fv('cl_n2');
-    if (n2Warn > 0 && n2Warn >= n2RpmLimit) {
+    if (hwCfg.cluster_serial?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
       warnings.push({section:'External Instrument Cluster Display', key:'warn-n2-cluster-trip',
         msg:'⚠ Cluster N2 warning is at/above the hard shutdown limit, so the display may not warn before the ECU trips.'});
     }
@@ -1966,7 +1966,7 @@ function runValidation() {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
-      msg:     '⚠ Running Oil Min is 0 — oil pressure fault protection is DISABLED. Set a value to protect the engine.'
+      msg:     '⚠ Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. Set a value to protect the engine.'
     });
   }
 
@@ -2187,11 +2187,11 @@ async function validateBeforeSave(cfg) {
   const hasOilPressure = hasRegistryInput('oil_pressure');
   if (hasOilPressure) {
     if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Min (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
     if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
-      errors.push('Running Oil (' + oilMapMin + ' bar) is greater than Map Max (' + oilMapMax + ' bar). Swap them.');
+      errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
     if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Running Oil (' + oilMapMin + ' bar) is below Running Min (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
+      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
   }
 
   // EGT / temperature cross-checks
@@ -2248,7 +2248,7 @@ async function validateBeforeSave(cfg) {
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
   if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Running Oil Min is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
+    warns.push('Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {
@@ -3044,10 +3044,10 @@ function applyOilMapVisibility() {
     mxWrap.style.display = '';
     mxWrap.dataset.logicalDisabled = tmCb.checked ? '0' : '1';
     mxWrap.title = !hwAvailable
-      ? 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock Map Max.'
+      ? 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock Full-Throttle Oil Pressure.'
       : tmCb.checked
       ? 'Oil map maximum pressure at full throttle.'
-      : 'Disabled because Throttle-Map Pressure is off. Turn Throttle-Map Pressure on to unlock Map Max.';
+      : 'Disabled because Increase Oil Pressure with Throttle is off. Turn it on to unlock Full-Throttle Oil Pressure.';
     if (mxEl) mxEl.disabled = !enabled;
     _refreshDependencyEditability();
   }
@@ -3292,7 +3292,7 @@ function applyHwConditions() {
       wrap.title = reason;
     } else if (el.type === 'checkbox' && !el.checked) {
       const unlockHints = {
-        oil_tm: 'Turn this on to unlock Map Max and make oil pressure target rise with throttle.',
+        oil_tm: 'Turn this on to unlock Full-Throttle Oil Pressure and make the oil-pressure target rise with throttle.',
         rl_en: 'Turn this on to run the independent automatic-relight detector and ignition attempt.',
         ab_ut: 'Turn this on to unlock torch fuel-spike duration and EGT cut settings.',
         ab_ui: 'Turn this on to fire the dedicated afterburner igniter during AB ignition.'
@@ -3540,7 +3540,7 @@ function applyHwConditions() {
   showField('cl_n2', true);
   ghostField('cl_n2', hasN2, 'N2 RPM sensor is not configured in Hardware.');
   const clusterSec = Array.from(document.querySelectorAll('.cfg-section'))
-    .find(sec => sec.dataset.section === 'Cluster');
+    .find(sec => sec.dataset.section === 'External Instrument Cluster Display');
   if (clusterSec) {
     clusterSec.dataset.forceHidden = hasClusterSerial ? '0' : '1';
     clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';

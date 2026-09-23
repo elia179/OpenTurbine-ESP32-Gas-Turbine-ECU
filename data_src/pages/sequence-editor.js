@@ -35,10 +35,10 @@ function buildCard(bname, idx, tab) {
 
   // Timeout badge
   let toPill = '';
-  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault">timer FAULT</span>`;
-  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort">timer ABORT</span>`;
-  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont">timer continue</span>`;
-  else if (def?.timeout_action === 'complete')toPill = `<span class="timeout-pill cont">timer completes</span>`;
+  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault">Timeout: fault</span>`;
+  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort">Timeout: abort</span>`;
+  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont">Timeout: continue</span>`;
+  else if (def?.timeout_action === 'complete')toPill = `<span class="timeout-pill cont">Timeout: finish</span>`;
 
   const badge = def ? `<span class="block-badge ${esc(def.badgeClass)}">${esc(def.type.toUpperCase())}</span>` : '';
   const condHtml = condText ? `<span class="block-cond">${esc(condText)}</span>` : '';
@@ -391,7 +391,7 @@ function buildParamsHtml(bname, idx, tab) {
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
   const hasSharedParams = !!def?.params?.some(p => p.configKey && !(bname === 'TimedDelay' && p.key === 'timed_delay_ms'));
   const sharedNoteHtml = hasSharedParams
-    ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared setting: parameter changes here apply to every ${def.label || bname} block that uses this setting. Timed Delay values and output-device selections are per card.</div>`
+    ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
     : '';
   if (!def || def.params.length === 0) {
     return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>'}${sideHtml}</div>`;
