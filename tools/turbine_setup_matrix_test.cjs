@@ -518,6 +518,24 @@ const setups = [
         assert.ok(firstRowBottoms.every(Number.isFinite) &&
           Math.max(...firstRowBottoms) - Math.min(...firstRowBottoms) <= 1,
           'registry card controls should share a baseline despite different help-text lengths');
+        const outputEndpoints = await fuelCard.evaluate(card => {
+          const pair = card.querySelector('.registry-range-pair');
+          if (!pair) return null;
+          const fields = [...pair.querySelectorAll(':scope > .hw-field')];
+          return {
+            title: pair.querySelector('.registry-range-intro .hw-label')?.textContent,
+            labels: fields.map(field => field.querySelector('.hw-label')?.textContent),
+            columns: getComputedStyle(pair).gridTemplateColumns.split(' ').length,
+            controlBottoms: fields.map(field => field.querySelector('input')?.getBoundingClientRect().bottom)
+          };
+        });
+        assert.equal(outputEndpoints?.title, 'Electrical output endpoints');
+        assert.equal(outputEndpoints?.labels.length, 2);
+        assert.match(outputEndpoints.labels[0], /0% command/i);
+        assert.match(outputEndpoints.labels[1], /100% command/i);
+        assert.equal(outputEndpoints.columns, 2, 'servo pulse endpoints should sit together');
+        assert.ok(Math.abs(outputEndpoints.controlBottoms[0] - outputEndpoints.controlBottoms[1]) <= 1,
+          'servo pulse endpoints should share a baseline');
         const mainFuelUsage = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
           const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));

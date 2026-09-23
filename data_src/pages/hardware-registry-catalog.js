@@ -674,9 +674,13 @@ function registryRangeEditor(direction, c, index) {
   const problem = registryRangeProblem(c);
   const minClass = `${registryFieldChangedClass(direction, index, 'min')}${problem ? ' field-error' : ''}`;
   const maxClass = `${registryFieldChangedClass(direction, index, 'max')}${problem ? ' field-error' : ''}`;
-  const desc = meta.note ? `<span class="hw-desc">${escapeHtmlText(meta.note)}</span>` : '';
-  return `<div class="hw-field"><span class="hw-label">${escapeHtmlText(meta.min)}</span>${desc}<input class="${minClass}" type="number" inputmode="decimal"${minAttr}${maxAttr} step="${escapeHtmlText(meta.step || '0.01')}" value="${registryFormatValue((c.min ?? 0) * scale)}" oninput="updateRegistryRangeField('${direction}',${index},'min',registryParseValue(this.value),${scale})"></div>
+  const outputPair = direction === 'output' && [5,6].includes(Number(c.driver));
+  const desc = !outputPair && meta.note ? `<span class="hw-desc">${escapeHtmlText(meta.note)}</span>` : '';
+  const fields = `<div class="hw-field"><span class="hw-label">${escapeHtmlText(meta.min)}</span>${desc}<input class="${minClass}" type="number" inputmode="decimal"${minAttr}${maxAttr} step="${escapeHtmlText(meta.step || '0.01')}" value="${registryFormatValue((c.min ?? 0) * scale)}" oninput="updateRegistryRangeField('${direction}',${index},'min',registryParseValue(this.value),${scale})"></div>
           <div class="hw-field"><span class="hw-label">${escapeHtmlText(meta.max)}</span>${desc}<input class="${maxClass}" type="number" inputmode="decimal"${minAttr}${maxAttr} step="${escapeHtmlText(meta.step || '0.01')}" value="${registryFormatValue((c.max ?? 1) * scale)}" oninput="updateRegistryRangeField('${direction}',${index},'max',registryParseValue(this.value),${scale})"></div>`;
+  return outputPair
+    ? `<div class="registry-range-pair"><div class="registry-range-intro"><span class="hw-label">Electrical output endpoints</span><span class="hw-desc">${escapeHtmlText(meta.note || '')}</span></div>${fields}</div>`
+    : fields;
 }
 function registryPulseScaleEditor(direction, c, index) {
   if (Number(c.torque_interface || 0) === 2) return '';

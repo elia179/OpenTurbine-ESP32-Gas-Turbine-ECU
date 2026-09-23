@@ -1568,6 +1568,10 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
 .registry-card-editor .hw-grid { align-items: stretch; }
 .registry-card-editor .hw-grid > .hw-field > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { margin-top: auto; }
 .registry-card-editor .registry-ignition-relay-note { grid-column: 1 / -1; }
+.registry-range-pair { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem .65rem; }
+.registry-range-intro { grid-column: 1 / -1; display: flex; flex-direction: column; gap: .2rem; }
+.registry-range-pair > .hw-field > :is(input, select) { margin-top: auto; }
+@media (max-width: 600px) { .registry-range-pair { grid-template-columns: minmax(0, 1fr); } }
 .hw-label { font-size: 0.67rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--font-ui); }
 .hw-desc  { font-size: 0.72rem; color: var(--dim); line-height: 1.4; min-height: 1.5rem; font-family: var(--font-ui); }
 .hw-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
