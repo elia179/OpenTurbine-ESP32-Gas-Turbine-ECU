@@ -225,7 +225,9 @@ const LIVE_CONFIG_KEYS = new Set([
 ]);
 let _cfgDirty = false;
 let _controllerRulesDirty = false;
+let _controllerRulesSnap = [];
 let _controllerHardwareDirty = false;
+let _controllerHardwareSnap = {controllers:{}, safety:{}, oil_loops:[]};
 let _systemHardwareDirty = false;
 const _systemHardwareChangedPaths = new Set();
 const _systemHardwareOriginalValues = new Map();
@@ -285,6 +287,129 @@ function _formatValue(el, rawVal) {
   return rawVal !== '' && rawVal !== undefined ? String(rawVal) : '(empty)';
 }
 
+function _controllerHardwareChanges() {
+  const changes = [];
+  const current = hwCfg || {};
+  const labels = {
+    controllers:{dynamic_idle:'Automatic Idle', governor:'N2 governor', oil_loop:'Oil-pressure controller'},
+    safety:{overspeed:'N1 overspeed shutdown', n2_overspeed:'N2 overspeed shutdown',
+      overtemp:'Engine overtemperature shutdown', low_oil:'Low oil pressure shutdown',
+      oil_zero:'No oil pressure shutdown', flameout:'Combustion loss shutdown',
+      hot_start:'Hot-start protection', oil_temp_high:'High oil temperature shutdown',
+      fuel_press_low:'Low fuel pressure shutdown', batt_low:'Low supply voltage shutdown',
+      surge:'Surge detection shutdown'}
+  };
+  for (const section of ['controllers', 'safety']) {
+    const before = _controllerHardwareSnap[section] || {};
+    const after = current[section] || {};
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (!!before[key] === !!after[key]) continue;
+      changes.push({key:`__${section}_${key}`, label:labels[section][key] ||
+        `${section === 'safety' ? 'Safety' : 'Controller'} / ${key.replace(/_/g, ' ')}`,
+      was:before[key] ? 'On' : 'Off', now:after[key] ? 'On' : 'Off', inactive:false});
+    }
+  }
+  const oldLoops = _controllerHardwareSnap.oil_loops || [];
+  const newLoops = current.oil_loops || [];
+  const loopLabels = {enabled:'Enabled', pressure_input:'Pressure input', pump_output:'Pump output',
+    target_source:'Target source', target_bar:'Target pressure', target_high_bar:'High target pressure',
+    speed_min_rpm:'Minimum speed', speed_max_rpm:'Maximum speed'};
+  const nameForLoop = loop => {
+    const outputs = hwCfg?.channel_registry?.outputs || [];
+    const output = outputs.find(row => String(row.id) === String(loop.pump_output));
+    return output?.name || loop.pump_output || loop.id || 'Oil pump';
+  };
+  const display = value => value === undefined || value === null || value === '' ? '(none)'
+    : typeof value === 'boolean' ? (value ? 'On' : 'Off') : String(value);
+  const loopIdentity = (loop, index) => String(loop?.id || `#${index}`);
+  const oldById = new Map(oldLoops.map((loop, index) => [loopIdentity(loop, index), loop]));
+  const newById = new Map(newLoops.map((loop, index) => [loopIdentity(loop, index), loop]));
+  for (const id of new Set([...oldById.keys(), ...newById.keys()])) {
+    const before = oldById.get(id), after = newById.get(id);
+    const index = Math.max(0, newLoops.findIndex((loop, i) => loopIdentity(loop, i) === id),
+      oldLoops.findIndex((loop, i) => loopIdentity(loop, i) === id));
+    if (!before || !after) {
+      changes.push({key:`__oil_loop_${index}`, label:`Oil-pressure controller ${index + 1}`,
+        was:before ? `Removed: ${nameForLoop(before)}` : '(none)',
+        now:after ? `Added: ${nameForLoop(after)}` : '(none)', inactive:false});
+      continue;
+    }
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      changes.push({key:`__oil_loop_${index}_${key}`,
+        label:`Oil-pressure controller ${index + 1} / ${loopLabels[key] || key.replace(/_/g, ' ')}`,
+        was:display(before[key]), now:display(after[key]), inactive:false});
+    }
+  }
+  return changes;
+}
+
+function _controllerRuleChanges() {
+  const changes = [];
+  const beforeRules = _controllerRulesSnap;
+  const afterRules = cfg.rules || [];
+  const fieldLabels = {name:'Name', enabled:'Enabled', kind:'Control method', source:'Input',
+    target:'Output', op:'Direction', threshold:'Switch point', hysteresis:'Hysteresis',
+    on_value:'On output', off_value:'Off output', input_min:'Input low', input_max:'Input high',
+    output_min:'Output low', output_max:'Output high', mode_mask:'Operating states',
+    target_source_type:'Target selection', target_source:'Target input', target_fixed:'Fixed target',
+    target_low:'Low target', target_high:'High target', target_input_min:'Target input low',
+    target_input_max:'Target input high', response_gain:'Immediate response',
+    integral_gain:'Correction rate', deadband:'Target deadband'};
+  const nameFor = (id, direction) => {
+    const rows = hwCfg?.channel_registry?.[direction] || [];
+    return rows.find(row => String(row.id) === String(id))?.name || id || '(none)';
+  };
+  const format = (key, value) => {
+    if (key === 'enabled') return value !== false ? 'On' : 'Off';
+    if (key === 'kind') return ['On / Off with hysteresis', 'Map input to output',
+      'Hold a feedback target', 'Fixed output in selected states'][Number(value)] || String(value);
+    if (key === 'op') return Number(value) === 1 ? 'Turn on below' : 'Turn on above';
+    if (key === 'target_source_type') return ['Fixed value', 'Input switch', 'Variable input'][Number(value)] || String(value);
+    if (key === 'mode_mask') return [[1,'Standby'],[2,'Startup'],[4,'Running'],[8,'Shutdown']]
+      .filter(([bit]) => Number(value) & bit).map(([,label]) => label).join(', ') || '(none)';
+    if (key === 'source' || key === 'target_source') return nameFor(value, 'inputs');
+    if (key === 'target') return value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
+    if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
+      return `${Number((Number(value) * 100).toFixed(4))}%`;
+    return value === undefined || value === null || value === '' ? '(none)' : String(value);
+  };
+  const matchedOld = new Set();
+  const matched = afterRules.map(after => {
+    const oldIndex = beforeRules.findIndex((before, i) => !matchedOld.has(i) &&
+      String(before.target || '') === String(after.target || ''));
+    if (oldIndex >= 0) matchedOld.add(oldIndex);
+    return oldIndex;
+  });
+  matched.forEach((oldIndex, index) => {
+    if (oldIndex >= 0 || !beforeRules[index] || matchedOld.has(index) ||
+        String(beforeRules[index].name || '') !== String(afterRules[index].name || '')) return;
+    matched[index] = index;
+    matchedOld.add(index);
+  });
+  afterRules.forEach((after, index) => {
+    const before = beforeRules[matched[index]];
+    const ruleName = after?.name || before?.name || `Controller ${index + 1}`;
+    if (!before) {
+      changes.push({key:`__simple_control_${index}`, label:`New controller / ${ruleName}`,
+        was:'Not present', now:'Created', inactive:false});
+      return;
+    }
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      changes.push({key:`__simple_control_${index}_${key}`,
+        label:`Controller / ${ruleName} / ${fieldLabels[key] || key.replace(/_/g, ' ')}`,
+        was:format(key, before[key]), now:format(key, after[key]), inactive:false});
+    }
+  });
+  beforeRules.forEach((before, index) => {
+    if (matchedOld.has(index)) return;
+    changes.push({key:`__simple_control_removed_${index}`, label:`Deleted controller / ${before.name || `Controller ${index + 1}`}`,
+      was:'Present', now:'Deleted', inactive:false});
+  });
+  return changes;
+}
+
 function _buildChanges() {
   const changes = [];
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
@@ -304,8 +429,8 @@ function _buildChanges() {
         inactiveReason: inactive ? _fieldInactiveReason(wrap) : '',
       });
     });
-  if (_controllerRulesDirty) changes.push({key:'__simple_controls', label:'Custom controllers', was:'Saved setup', now:'Updated setup', inactive:false});
-  if (_controllerHardwareDirty) changes.push({key:'__controller_hardware', label:'Controller assignments and safety enables', was:'Saved setup', now:'Updated setup', inactive:false});
+  if (_controllerRulesDirty) changes.push(..._controllerRuleChanges());
+  if (_controllerHardwareDirty) changes.push(..._controllerHardwareChanges());
   if (_systemHardwareDirty) {
     for (const path of _systemHardwareChangedPaths) {
       const original = _systemHardwareOriginalValues.get(path);
@@ -372,6 +497,9 @@ function _clearDirty() {
   _systemHardwareDirty = false;
   _systemHardwareChangedPaths.clear();
   _systemHardwareOriginalValues.clear();
+  _controllerRulesSnap = JSON.parse(JSON.stringify(cfg?.rules || []));
+  _controllerHardwareSnap = JSON.parse(JSON.stringify({controllers:hwCfg?.controllers || {},
+    safety:hwCfg?.safety || {}, oil_loops:hwCfg?.oil_loops || []}));
   const btn = document.getElementById('btn-save');
   const discard = document.getElementById('btn-discard');
   const bar = document.querySelector('.save-bar');

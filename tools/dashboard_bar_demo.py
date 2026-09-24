@@ -4,6 +4,7 @@ The ECU must be a no-load bench unit with N1/N2 safety disabled. This program
 never commands START or any ECU actuator; stop it to return both RPM lines to 0.
 """
 import argparse
+import http.client
 import math
 import pathlib
 import sys
@@ -15,21 +16,27 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'dev' / 'be
 from otbench.tester import Tester
 
 
-def check_ecu(base):
+def check_ecu(base, verify_hardware=True):
     def read(path):
-        with urllib.request.urlopen(base + path, timeout=4) as response:
-            return json.load(response)
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(base + path, timeout=4) as response:
+                    return json.load(response)
+            except (OSError, ValueError, http.client.HTTPException):
+                if attempt == 2:
+                    raise
+                time.sleep(0.5)
 
     info = read('/api/device_info')
     data = read('/api/data')
-    hardware = read('/api/hardware')
-    if info.get('target') != 'esp32dev' or info.get('firmware_version') != '2.4.2':
-        raise RuntimeError('the connected ECU is not the expected Classic 2.4.2 bench target')
+    hardware = read('/api/hardware') if verify_hardware else None
+    if info.get('target') != 'esp32dev' or info.get('firmware_version') not in ('2.4.3-dev', '2.4.3'):
+        raise RuntimeError('the connected ECU is not the expected Classic 2.4.3 bench target')
     if info.get('state') != 'STANDBY' or info.get('outputs_active'):
         raise RuntimeError('ECU is not in STANDBY with all outputs inactive')
     if data.get('rpm_limit_active') or data.get('n2_limit_active'):
         raise RuntimeError('N1/N2 shutdown protection is active; refusing advisory overshoot demo')
-    if hardware.get('actuators', {}).get('status_led', {}).get('enabled'):
+    if hardware and hardware.get('actuators', {}).get('status_led', {}).get('enabled'):
         raise RuntimeError('status LED is enabled')
     if not data.get('has_n1') or not data.get('has_n2'):
         raise RuntimeError('both physical RPM inputs must be configured')
@@ -59,7 +66,7 @@ def main():
             while True:
                 now = time.monotonic()
                 if now - last_check >= 5:
-                    current = check_ecu(args.ecu)
+                    current = check_ecu(args.ecu, verify_hardware=False)
                     if current.get('rpm_limit') != args.n1_limit or current.get('n2_limit') != args.n2_limit:
                         raise RuntimeError('the ECU dashboard references changed during the demo')
                     last_check = now

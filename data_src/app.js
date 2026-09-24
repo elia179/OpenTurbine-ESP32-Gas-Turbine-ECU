@@ -1225,7 +1225,7 @@ function applyData(d) {
 
   // Stop switch warning below start button
   const stopWarn = document.getElementById('stop-switch-warn');
-  if (stopWarn) stopWarn.style.display = d.stop_switch_active ? '' : 'none';
+  if (stopWarn) stopWarn.style.display = d.stop_switch_active ? 'block' : 'none';
 
   // Start/Stop buttons — disable + hardware glow when physical button is pressed
   const running = d.mode === 'RUNNING' || d.mode === 'STARTUP' || d.mode === 'SHUTDOWN';
@@ -1248,8 +1248,8 @@ function applyData(d) {
     // (boot config-load failure enters FAULT mode, caught above; telemetry
     // config_locked means "running, edits locked" and never applies here)
     else if (d.extra_cooldown_active)      startBlock = 'Extra cooldown is running — stop it on Tools';
-    else if (d.seq_has_structural_errors)  startBlock = 'Startup sequence has structural errors — see Sequence page';
-    else if (d.seq_has_errors && !d.bench_mode) startBlock = 'Sequence hardware errors — see Sequence page (Bench Mode bypasses)';
+    else if (d.seq_has_structural_errors)  startBlock = 'Startup sequence has unknown or unavailable blocks.';
+    else if (d.seq_has_errors && !d.bench_mode) startBlock = 'Startup sequence needs hardware that is not configured.';
     else if (Array.isArray(d.di_channels) &&
              d.di_channels.some(ch => ch && ch.pin >= 0 && ch.state && ch.role === 'inhibit_start'))
                                            startBlock = 'Start-inhibit input is active';
@@ -1260,8 +1260,18 @@ function applyData(d) {
   if (sbr) {
     // stop-switch has its own warning line — avoid doubling it
     const show = startBlock && !d.stop_switch_active;
-    sbr.style.display = show ? '' : 'none';
-    if (show) sbr.textContent = '⚠ ' + startBlock;
+    // .stop-warn defaults to display:none in CSS, so an empty inline value
+    // would leave the reason invisible even while START is disabled.
+    sbr.style.display = show ? 'block' : 'none';
+    if (show) {
+      sbr.textContent = '⚠ START unavailable: ' + startBlock;
+      if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
+        const link = document.createElement('a');
+        link.href = '/sequence.html?v=20260924c';
+        link.textContent = ' Review Sequence →';
+        sbr.appendChild(link);
+      }
+    }
   }
   const limitedAllowed = d.mode === 'STANDBY' && d.limited_start_allowed === true;
   setDisabled('btn-stop',  !running);
@@ -2259,6 +2269,7 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
   const bar = document.getElementById(id);
   if (!bar) return;
   const wrap = bar.parentElement;
+  const readingEl = document.getElementById(id.replace(/-gauge-bar$/, ''));
   const threshold = Number(limit);
   const reading = Number(value);
   const hasScale = Number.isFinite(threshold) && threshold > 0 && Number.isFinite(reading);
@@ -2267,10 +2278,14 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
   if (!hasScale) {
     bar.style.width = '0%';
     bar.style.background = '';
+    if (readingEl) readingEl.style.color = '';
     wrap.title = '';
     return;
   }
   const ratio = Math.max(0, reading / threshold);
+  // The bar gives early yellow/red approach guidance; reserve a red number for
+  // the actual critical threshold, including when the limit is advisory only.
+  if (readingEl) readingEl.style.color = ratio >= 1 ? 'var(--red)' : '';
   bar.style.width = Math.min(100, ratio * 90) + '%';
   bar.className = 'gauge-bar';
   bar.style.background = ratio < .7 ? 'var(--green)'
@@ -2403,6 +2418,7 @@ window.addEventListener('pageshow', (e) => {
   // telemetry path only on a real restored page.
   if (!e.persisted) return;
   if (usesGlobalTelemetry()) {
+    if (isDashboardPage() && _lastData?.rpm_limit === undefined) loadDashboardSnapshot();
     startStaleMonitor();
     startRestFallbackTimer();
     requestTelemetryNow();
@@ -2411,7 +2427,10 @@ window.addEventListener('pageshow', (e) => {
   }
 });
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) requestTelemetryNow();
+  if (!document.hidden) {
+    if (isDashboardPage() && _lastData?.rpm_limit === undefined) loadDashboardSnapshot();
+    requestTelemetryNow();
+  }
 });
 window.addEventListener('pagehide', stopGlobalTelemetry);
 window.addEventListener('beforeunload', stopGlobalTelemetry);
@@ -2420,22 +2439,25 @@ window.addEventListener('ot:navigation-start', stopGlobalTelemetry);
 
 async function loadDashboardSnapshot(attempt = 0) {
   if (!isDashboardPage() || document.hidden) return false;
+  const retry = () => {
+    if (!isDashboardPage() || document.hidden || _dashboardBootstrapRetryTimer) return;
+    // The first full snapshot carries fitted hardware and limit scales, which
+    // compact live frames cannot reconstruct. Retry even on HTTP/network
+    // failures, then continue gently until a fresh browser gets those fields.
+    _dashboardBootstrapRetryTimer = setTimeout(() => {
+      _dashboardBootstrapRetryTimer = null;
+      loadDashboardSnapshot(attempt + 1);
+    }, attempt < 5 ? 350 + attempt * 200 : 10000);
+  };
   try {
     const response = await fetch('/api/data', { cache: 'no-store' });
-    if (!response.ok) return false;
+    if (!response.ok) { retry(); return false; }
     const data = await response.json();
-    if (data?._snapshot_deferred) {
-      if (attempt < 5 && isDashboardPage()) {
-        _dashboardBootstrapRetryTimer = setTimeout(() => {
-          _dashboardBootstrapRetryTimer = null;
-          loadDashboardSnapshot(attempt + 1);
-        }, 350 + attempt * 200);
-      }
-      return false;
-    }
+    if (data?._snapshot_deferred) { retry(); return false; }
     applyData(data);
     return true;
   } catch (_) {
+    retry();
     return false;
   }
 }

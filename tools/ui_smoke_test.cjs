@@ -169,10 +169,13 @@ function installedBrowser() {
       const read = id => {
         const bar = document.getElementById(id);
         const wrap = bar.parentElement;
+        const markerStyle = getComputedStyle(wrap, '::after');
         return {width:parseFloat(bar.style.width), color:getComputedStyle(bar).backgroundColor,
           visible:getComputedStyle(wrap).display !== 'none',
-          marker:getComputedStyle(wrap, '::after').content,
-          high:wrap.classList.contains('shutdown-limit-high')};
+          marker:markerStyle.content, markerTop:markerStyle.top, markerBottom:markerStyle.bottom,
+          high:wrap.classList.contains('shutdown-limit-high'),
+          numberColor:document.getElementById(id.replace(/-gauge-bar$/, '')).style.color,
+          numberTransition:getComputedStyle(document.getElementById(id.replace(/-gauge-bar$/, ''))).transitionDuration};
       };
       document.getElementById('n1-gauge-bar').style.transition = 'none';
       setShutdownGaugeBar('n1-gauge-bar', 800, 1000, true);
@@ -187,6 +190,7 @@ function installedBrowser() {
       const displayOnly = read('n1-gauge-bar');
       setShutdownGaugeBar('n1-gauge-bar', 1100, 0, false);
       const noScale = read('n1-gauge-bar');
+      const noScaleNumberColor = document.getElementById('n1').style.color;
       setLowLimitStatus('batt-voltage', 10, 10, true, true);
       const lowTrip = document.getElementById('batt-voltage').style.color;
       setLowLimitStatus('batt-voltage', 12, 10, true, true);
@@ -207,7 +211,7 @@ function installedBrowser() {
         n2Label:document.getElementById('n2-abs-label').textContent};
       applyData({mode:'STARTUP', tot:850, tot_limit:0, startup_egt_limit:900});
       const startupOnly = read('tot-gauge-bar');
-      return {yellow, nearTrip, trip, overshoot, displayOnly, noScale,
+      return {yellow, nearTrip, trip, overshoot, displayOnly, noScale, noScaleNumberColor,
         lowTrip, lowHealthy, lowAdvisory, lowSafetyOff, startup, startupOnly};
     });
     assert.ok(Math.abs(shutdownGauge.yellow.width - 72) < .1);
@@ -216,6 +220,14 @@ function installedBrowser() {
     assert.ok(Math.abs(shutdownGauge.overshoot.width - 99) < .1);
     assert.equal(shutdownGauge.yellow.high, true);
     assert.equal(shutdownGauge.yellow.marker, '""');
+    assert.equal(shutdownGauge.yellow.markerTop, '-3px');
+    assert.equal(shutdownGauge.yellow.markerBottom, '-3px');
+    assert.equal(shutdownGauge.yellow.numberColor, '');
+    assert.equal(shutdownGauge.nearTrip.numberColor, '');
+    assert.equal(shutdownGauge.trip.numberColor, 'var(--red)');
+    assert.equal(shutdownGauge.trip.numberTransition, '0s');
+    assert.equal(shutdownGauge.overshoot.numberColor, 'var(--red)');
+    assert.equal(shutdownGauge.displayOnly.numberColor, '');
     assert.notEqual(shutdownGauge.yellow.color, shutdownGauge.nearTrip.color);
     assert.ok(Math.abs(shutdownGauge.displayOnly.width - 72) < .1);
     assert.equal(shutdownGauge.displayOnly.visible, true);
@@ -223,6 +235,7 @@ function installedBrowser() {
     assert.equal(shutdownGauge.displayOnly.marker, 'none');
     assert.equal(shutdownGauge.displayOnly.color, shutdownGauge.yellow.color);
     assert.equal(shutdownGauge.noScale.visible, false);
+    assert.equal(shutdownGauge.noScaleNumberColor, '');
     assert.notEqual(shutdownGauge.lowTrip, shutdownGauge.lowHealthy);
     assert.equal(shutdownGauge.lowAdvisory.color, shutdownGauge.lowTrip);
     assert.match(shutdownGauge.lowAdvisory.title, /advisory only/i);
@@ -394,6 +407,27 @@ function installedBrowser() {
     assert.match(startChecks, /Safety state\s*Normal checks/i);
     assert.match(startChecks, /Startup sequence\s*\d+ blocks?/i);
     await page.evaluate(() => cancelStart());
+    const startBlockVisibility = await page.evaluate(() => {
+      const state = {..._lastData, mode:'STANDBY', seq_has_errors:true,
+        seq_has_structural_errors:false, bench_mode:false, stop_switch_active:false};
+      applyData(state);
+      const reason = document.getElementById('start-block-reason');
+      const blocked = {disabled:document.getElementById('btn-start').disabled,
+        visible:getComputedStyle(reason).display !== 'none', text:reason.textContent,
+        link:reason.querySelector('a')?.getAttribute('href')};
+      applyData({...state, seq_has_errors:false, stop_switch_active:true});
+      const stop = document.getElementById('stop-switch-warn');
+      blocked.stopVisible = getComputedStyle(stop).display !== 'none';
+      blocked.reasonHiddenForStop = getComputedStyle(reason).display === 'none';
+      applyData({...state, seq_has_errors:false, stop_switch_active:false});
+      return blocked;
+    });
+    assert.equal(startBlockVisibility.disabled, true);
+    assert.equal(startBlockVisibility.visible, true);
+    assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
+    assert.equal(startBlockVisibility.link, '/sequence.html?v=20260924c');
+    assert.equal(startBlockVisibility.stopVisible, true);
+    assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
       _telemetryStale = true;
       let sent = false;
@@ -410,7 +444,7 @@ function installedBrowser() {
     assert.equal(staleStartRequestSent, false);
     assert.match(await text(page, '.ot-dialog-message'), /START is no longer available.*telemetry is stale/is);
     await page.locator('#ot-dialog-confirm').click();
-    results.push('start confirmation exposes compact live ECU start checks before command');
+    results.push('start confirmation exposes live checks and disabled START explains its interlock');
 
     await page.request.post(`${base}/__sim/data`, { data: {
       mode: 'STANDBY', tot: 731, tot_healthy: false, limited_start_allowed: true,
@@ -573,6 +607,52 @@ function installedBrowser() {
     await page.goto(`${base}/controllers.html`);
     await page.waitForSelector('#cf-tot_limit', {state:'attached'});
     await openConfigWorkspace(page);
+    const safetyReview = await page.evaluate(() => {
+      const original = !!hwCfg.safety?.overspeed;
+      setSafetyEnabled('overspeed', !original);
+      const changed = _buildChanges();
+      setSafetyEnabled('overspeed', original);
+      const reverted = _buildChanges();
+      _clearDirty();
+      return {original, changed, reverted};
+    });
+    assert.deepEqual(safetyReview.changed.filter(change => change.key === '__safety_overspeed').map(change =>
+      [change.label, change.was, change.now]),
+      [['N1 overspeed shutdown', safetyReview.original ? 'On' : 'Off', safetyReview.original ? 'Off' : 'On']]);
+    assert.equal(safetyReview.changed.some(change => change.key === '__controller_hardware'), false);
+    assert.equal(safetyReview.reverted.length, 0);
+    results.push('Controllers save review names the exact shutdown switch and omits reverted edits');
+    const ruleReview = await page.evaluate(() => {
+      const originalRules = JSON.parse(JSON.stringify(cfg.rules || []));
+      cfg.rules = [{name:'Review test controller', enabled:true, kind:3, target:'request_shutdown',
+        on_value:0, mode_mask:4}];
+      _controllerRulesSnap = JSON.parse(JSON.stringify(cfg.rules));
+      cfg.rules[0].enabled = false;
+      cfg.rules[0].mode_mask = 6;
+      _controllerRulesDirty = true;
+      const edited = _buildChanges();
+      cfg.rules.push({name:'Second test controller', enabled:true, kind:3, target:'test-output'});
+      const added = _buildChanges();
+      _controllerRulesSnap = JSON.parse(JSON.stringify(cfg.rules));
+      cfg.rules.shift();
+      const removed = _buildChanges();
+      cfg.rules = originalRules;
+      _clearDirty();
+      return {edited, added, removed};
+    });
+    assert.deepEqual(ruleReview.edited.filter(change => change.key.startsWith('__simple_control_'))
+      .map(change => [change.label, change.was, change.now]), [
+        ['Controller / Review test controller / Enabled', 'On', 'Off'],
+        ['Controller / Review test controller / Operating states', 'Running', 'Startup, Running']
+      ]);
+    assert.deepEqual(ruleReview.added.filter(change => change.key === '__simple_control_1')
+      .map(change => [change.label, change.was, change.now]),
+      [['New controller / Second test controller', 'Not present', 'Created']]);
+    assert.deepEqual(ruleReview.removed.filter(change => change.key.startsWith('__simple_control_'))
+      .map(change => [change.label, change.was, change.now]),
+      [['Deleted controller / Review test controller', 'Present', 'Deleted']]);
+    assert.equal(ruleReview.edited.some(change => change.label === 'Custom controllers'), false);
+    results.push('custom-controller save review lists edited fields and named additions');
     assert.equal(await page.locator('#cf-sf_st').locator('xpath=ancestor::*[@data-protection][1]').getAttribute('data-protection'), 'egt',
       'STARTUP EGT limit must live beside the overtemperature safety switch');
     await page.goto(base);
@@ -657,7 +737,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20260915c"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20260924c"]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');

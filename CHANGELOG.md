@@ -10,6 +10,14 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.4.3] — 2026-09-24
+
+- Extend active dashboard shutdown markers above and below sensor bars for clearer visibility.
+- List individual safety, controller-enable, oil-loop, and existing custom-controller edits in the Controllers save review instead of generic setup-update rows; new and deleted controllers get one named entry each. Show the sensor number in red only at its critical upper threshold.
+- Refresh the web-asset cache token so existing browsers fetch the updated interface after an on-device web update.
+- Retry a fresh dashboard's full hardware/limit snapshot after temporary network or HTTP failures, so compact live RPM telemetry cannot leave the bars unscaled.
+- Show the reason beside a disabled START button, including a direct Sequence link when configured startup hardware is missing; also restore the hidden STOP-switch warning.
+
 ## [2.4.2] — 2026-09-24
 
 - Dashboard upper-limit bars use configured thresholds as visual references even when shutdown protection is off; only active protection draws a shutdown marker. Minimum-only sensors show coloured readings instead of misleading fill bars.
