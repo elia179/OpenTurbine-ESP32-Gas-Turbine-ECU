@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- N2 + Oil + Flame row -->
   <section class="grid-3 telemetry-card-bin">
-    <div class="card big" id="n2-card" style="display:none" title="Power-turbine/output-shaft speed. The gauge limit is the independent hard N2 shutdown setting, not the gradual governor or pullback target.">
+    <div class="card big" id="n2-card" style="display:none" title="Power-turbine/output-shaft speed. The gauge uses the configured N2 limit as its scale; the red marker appears only when independent N2 overspeed shutdown is enabled. Gradual governor and pullback targets are separate.">
       <div class="label"><span id="lbl-n2">N2 RPM</span> <span id="n2-health" class="dot"></span></div>
       <div class="value" id="n2">—</div>
       <div class="peak-val">max <span id="max-n2">—</span> · rate <span id="n2-rate-val">—</span></div>
@@ -214,7 +214,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="value small" id="oil">—</div>
       <div class="oil-sub">demand: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
       <div class="oil-sub" id="oil-min-bar-row" style="display:none">min: <span id="oil-min-bar-val">—</span> <span data-unit="press">bar</span></div>
-      <div class="gauge-bar-wrap"><div class="gauge-bar" id="oil-gauge-bar" style="width:0%"></div></div>
       <span id="oil-abs-label" class="gauge-abs-label">— / — bar</span>
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>
     </div>
@@ -256,13 +255,13 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="value small" id="oil-temp">—</div>
       <div class="peak-val">max <span id="max-oil-temp">—</span></div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="oil-temp-gauge-bar" style="width:0%"></div></div>
+      <span id="oil-temp-abs-label" class="gauge-abs-label">—</span>
       <canvas class="sparkline" id="oil-temp-sparkline"></canvas>
     </div>
     <div class="card" id="batt-card" style="display:none">
       <div class="label">Battery V <span id="batt-health" class="dot"></span></div>
       <div class="value small" id="batt-voltage">—</div>
       <div class="peak-val">max <span id="max-batt-voltage">—</span> · min limit: <span id="batt-volt-min">—</span> V</div>
-      <div class="gauge-bar-wrap"><div class="gauge-bar" id="batt-gauge-bar" style="width:0%"></div></div>
       <canvas class="sparkline" id="batt-sparkline"></canvas>
     </div>
     <div class="card" id="torque-card" style="display:none">
@@ -315,7 +314,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label"><span id="lbl-fuel-press">Fuel Press</span> <span data-unit="press">bar</span> <span id="fuel-press-health" class="dot"></span></div>
       <div class="value small" id="fuel-press">—</div>
       <div class="peak-val">max <span id="max-fuel-press">—</span></div>
-      <div class="gauge-bar-wrap"><div class="gauge-bar" id="fuel-press-gauge-bar" style="width:0%"></div></div>
       <span class="gauge-abs-label" id="fuel-press-abs-label">— / ≥— bar</span>
     </div>
   </section>

@@ -172,57 +172,73 @@ function installedBrowser() {
         return {width:parseFloat(bar.style.width), color:getComputedStyle(bar).backgroundColor,
           visible:getComputedStyle(wrap).display !== 'none',
           marker:getComputedStyle(wrap, '::after').content,
-          high:wrap.classList.contains('shutdown-limit-high'),
-          low:wrap.classList.contains('shutdown-limit-low')};
+          high:wrap.classList.contains('shutdown-limit-high')};
       };
-      for (const id of ['n1-gauge-bar','batt-gauge-bar'])
-        document.getElementById(id).style.transition = 'none';
-      setShutdownGaugeBar('n1-gauge-bar', 800, 1000);
+      document.getElementById('n1-gauge-bar').style.transition = 'none';
+      setShutdownGaugeBar('n1-gauge-bar', 800, 1000, true);
       const yellow = read('n1-gauge-bar');
-      setShutdownGaugeBar('n1-gauge-bar', 870, 1000);
-      const red = read('n1-gauge-bar');
-      setShutdownGaugeBar('n1-gauge-bar', 1000, 1000);
+      setShutdownGaugeBar('n1-gauge-bar', 970, 1000, true);
+      const nearTrip = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 1000, 1000, true);
       const trip = read('n1-gauge-bar');
-      setShutdownGaugeBar('n1-gauge-bar', 1100, 1000);
+      setShutdownGaugeBar('n1-gauge-bar', 1100, 1000, true);
       const overshoot = read('n1-gauge-bar');
-      setShutdownGaugeBar('n1-gauge-bar', 1100, 0);
-      const disabled = read('n1-gauge-bar');
-      setShutdownGaugeBar('batt-gauge-bar', 10, 10, 'low');
-      const lowTrip = read('batt-gauge-bar');
-      setShutdownGaugeBar('batt-gauge-bar', 12, 10, 'low');
-      const lowHealthy = read('batt-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 800, 1000, false);
+      const displayOnly = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 1100, 0, false);
+      const noScale = read('n1-gauge-bar');
+      setLowLimitStatus('batt-voltage', 10, 10, true, true);
+      const lowTrip = document.getElementById('batt-voltage').style.color;
+      setLowLimitStatus('batt-voltage', 12, 10, true, true);
+      const lowHealthy = document.getElementById('batt-voltage').style.color;
+      setLowLimitStatus('batt-voltage', 10, 10, true, false);
+      const lowAdvisory = {color:document.getElementById('batt-voltage').style.color,
+        title:document.getElementById('batt-voltage').title};
+      setLowLimitStatus('batt-voltage', 10, 10, false, false);
+      const lowSafetyOff = document.getElementById('batt-voltage').style.color;
       applyData({mode:'STARTUP', has_tot:true, has_tit:true, egt_source:1,
-        tot:850, tot_limit:1000, startup_egt_limit:900, tit:850, tit_limit:0,
-        n1:800, rpm_limit:0, n2:900, n2_limit:0, oil:0, oil_running_min:0,
+        tot:850, tot_limit:1000, startup_egt_limit:900, egt_limit_active:true,
+        tit:850, tit_limit:0, n1:800, rpm_limit:0, rpm_limit_active:false,
+        n2:900, n2_limit:1000, n2_limit_active:false, oil:0, oil_running_min:0,
         batt_voltage:12, batt_volt_min:0, fuel_press:0, fuel_press_min:0});
       const startup = {tot:read('tot-gauge-bar'), tit:read('tit-gauge-bar'),
         n1:read('n1-gauge-bar'), n2:read('n2-gauge-bar'),
-        oil:read('oil-gauge-bar'), batt:read('batt-gauge-bar'),
-        fuel:read('fuel-press-gauge-bar'), totLabel:document.getElementById('tot-abs-label').textContent};
+        totLabel:document.getElementById('tot-abs-label').textContent,
+        n2Label:document.getElementById('n2-abs-label').textContent};
       applyData({mode:'STARTUP', tot:850, tot_limit:0, startup_egt_limit:900});
       const startupOnly = read('tot-gauge-bar');
-      return {yellow, red, trip, overshoot, disabled, lowTrip, lowHealthy, startup, startupOnly};
+      return {yellow, nearTrip, trip, overshoot, displayOnly, noScale,
+        lowTrip, lowHealthy, lowAdvisory, lowSafetyOff, startup, startupOnly};
     });
     assert.ok(Math.abs(shutdownGauge.yellow.width - 72) < .1);
-    assert.ok(Math.abs(shutdownGauge.red.width - 78.3) < .1);
+    assert.ok(Math.abs(shutdownGauge.nearTrip.width - 87.3) < .1);
     assert.ok(Math.abs(shutdownGauge.trip.width - 90) < .1);
     assert.ok(Math.abs(shutdownGauge.overshoot.width - 99) < .1);
     assert.equal(shutdownGauge.yellow.high, true);
     assert.equal(shutdownGauge.yellow.marker, '""');
-    assert.notEqual(shutdownGauge.yellow.color, shutdownGauge.red.color);
-    assert.equal(shutdownGauge.disabled.visible, false);
-    assert.equal(shutdownGauge.disabled.high, false);
-    assert.ok(Math.abs(shutdownGauge.lowTrip.width - 10) < .1);
-    assert.equal(shutdownGauge.lowTrip.low, true);
-    assert.equal(shutdownGauge.lowTrip.marker, '""');
-    assert.ok(shutdownGauge.lowHealthy.width > shutdownGauge.lowTrip.width);
-    assert.notEqual(shutdownGauge.lowTrip.color, shutdownGauge.lowHealthy.color);
+    assert.notEqual(shutdownGauge.yellow.color, shutdownGauge.nearTrip.color);
+    assert.ok(Math.abs(shutdownGauge.displayOnly.width - 72) < .1);
+    assert.equal(shutdownGauge.displayOnly.visible, true);
+    assert.equal(shutdownGauge.displayOnly.high, false);
+    assert.equal(shutdownGauge.displayOnly.marker, 'none');
+    assert.equal(shutdownGauge.displayOnly.color, shutdownGauge.yellow.color);
+    assert.equal(shutdownGauge.noScale.visible, false);
+    assert.notEqual(shutdownGauge.lowTrip, shutdownGauge.lowHealthy);
+    assert.equal(shutdownGauge.lowAdvisory.color, shutdownGauge.lowTrip);
+    assert.match(shutdownGauge.lowAdvisory.title, /advisory only/i);
+    assert.equal(shutdownGauge.lowSafetyOff, '');
+    assert.equal(await page.locator('#batt-gauge-bar').count(), 0);
+    assert.equal(await page.locator('#oil-gauge-bar').count(), 0);
+    assert.equal(await page.locator('#fuel-press-gauge-bar').count(), 0);
     assert.ok(Math.abs(shutdownGauge.startup.tot.width - 85) < .1);
     assert.ok(Math.abs(shutdownGauge.startupOnly.width - 85) < .1);
     assert.match(shutdownGauge.startup.totLabel, /900/);
-    for (const id of ['tit','n1','n2','oil','batt','fuel'])
-      assert.equal(shutdownGauge.startup[id].visible, false, `${id} has no active shutdown limit`);
-    results.push('shutdown bars mark enabled high/low limits, reserve overshoot, blend colors, and hide inactive limits');
+    assert.equal(shutdownGauge.startup.n2.visible, true);
+    assert.equal(shutdownGauge.startup.n2.high, false);
+    assert.match(shutdownGauge.startup.n2Label, /advisory only/);
+    for (const id of ['tit','n1'])
+      assert.equal(shutdownGauge.startup[id].visible, false, `${id} has no configured scale`);
+    results.push('configured limits scale and color advisory bars with safety off; only enabled trips get a shutdown marker');
     await scenario(page, 'full');
     await page.evaluate(() => _showRunSummary({
       mode: 'STANDBY', has_n1: true, max_n1: 67100,
@@ -271,7 +287,19 @@ function installedBrowser() {
     results.push('dashboard prioritizes primary data, oil cards, and actuator outputs below start/stop');
     assert.equal(await page.locator('.dashboard-hide-card:visible').count(), 0,
       'card controls must stay invisible during normal dashboard use');
+    assert.equal(await page.locator('.dashboard-limit-edit-links:visible').count(), 0,
+      'limit links must stay hidden during normal dashboard use');
     await page.locator('#dashboard-card-edit-btn').click();
+    for (const [card, field] of Object.entries({
+      'n1-card':'rpm_limit', 'n2-card':'n2_rpm_limit', 'tot-card':'tot_limit',
+      'tit-card':'sf_tit', 'oil-card':'oil_rm', 'oil-temp-card':'sf_ot',
+      'fuel-press-card':'sf_fp', 'batt-card':'sf_bv'
+    })) {
+      assert.match(await page.locator(`#${card} .dashboard-limit-edit-links a`).getAttribute('href'),
+        new RegExp(`^/controllers\\.html(?:\\?[^#]+)?#cf-${field}$`),
+        `${card} must link to its exact limit field`);
+    }
+    assert.ok(await page.locator('.dashboard-limit-edit-links:visible').count() > 0);
     assert.ok(await page.locator('.dashboard-hide-card:visible').count() > 0,
       'layout controls should appear only in Edit cards mode');
     for (const id of ['last-event-card', 'uptime-card', 'hour-meter-card', 'system-card']) {

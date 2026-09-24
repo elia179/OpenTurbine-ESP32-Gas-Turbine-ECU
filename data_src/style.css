@@ -355,6 +355,10 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
 }
 .dashboard-hide-card{display:none;position:absolute;right:.42rem;top:.38rem;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--dim);font-size:1rem;line-height:1;cursor:pointer;z-index:2}
 body.dashboard-card-editing .dashboard-hide-card{display:block}
+.dashboard-limit-edit-links{display:none;margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);font-size:.68rem}
+body.dashboard-card-editing .dashboard-limit-edit-links{display:block}
+.dashboard-limit-edit-links a{color:var(--accent);text-decoration:none}
+.dashboard-limit-edit-links a:hover{text-decoration:underline}
 body.dashboard-card-editing .dashboard-customizable-card{outline:1px dashed var(--border-light);outline-offset:-1px}
 .dashboard-customizable-card{position:relative}
 .dashboard-user-hidden{display:none!important}
@@ -469,13 +473,11 @@ section:has(> .dashboard-user-hidden:only-child){display:none!important}
 .gauge-bar {
   height: 100%;
   border-radius: 2px;
-  background: var(--green);
+  background: var(--blue);
   transition: width 0.3s ease, background 0.3s ease;
 }
-.gauge-bar.warn   { background: var(--yellow); }
-.gauge-bar.danger { background: var(--red); }
-.gauge-bar-wrap.shutdown-limit-high::after,
-.gauge-bar-wrap.shutdown-limit-low::after {
+.value.low-limit-status { transition: color 0.3s ease; }
+.gauge-bar-wrap.shutdown-limit-high::after {
   content: '';
   position: absolute;
   z-index: 1;
@@ -485,7 +487,6 @@ section:has(> .dashboard-user-hidden:only-child){display:none!important}
   background: var(--red);
 }
 .gauge-bar-wrap.shutdown-limit-high::after { left: calc(90% - 1px); }
-.gauge-bar-wrap.shutdown-limit-low::after { left: calc(10% - 1px); }
 
 /* ── Sparkline ──────────────────────────────────────────────── */
 .sparkline {
