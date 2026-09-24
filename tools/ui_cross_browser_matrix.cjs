@@ -74,6 +74,16 @@ const viewports = [
             `${name}/${viewport.name} horizontal overflow ${metrics.overflow}px on ${route}; ` +
             `scroll=${metrics.scrollWidth} client=${metrics.clientWidth} inner=${metrics.innerWidth}; ${metrics.offenders.join(', ')}`);
         }
+        await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
+        await page.locator('#dashboard-card-edit-btn').click();
+        await page.locator('#dashboard-arrange-btn').click();
+        assert.ok(await page.locator('#dashboard-custom-section').isVisible(),
+          `${name}/${viewport.name} custom dashboard did not open`);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth <= 2),
+          `${name}/${viewport.name} custom dashboard overflows horizontally`);
+        await page.locator('#dashboard-reset-btn').click();
+        assert.ok(!(await page.locator('#dashboard-custom-section').isVisible()),
+          `${name}/${viewport.name} dashboard reset did not restore groups`);
         assert.deepEqual(errors, [], `${name}/${viewport.name} console errors`);
         await page.close();
         results.push(`${name} ${viewport.name}`);

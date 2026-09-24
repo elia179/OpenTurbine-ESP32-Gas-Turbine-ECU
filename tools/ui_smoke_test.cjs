@@ -328,8 +328,48 @@ function installedBrowser() {
     await page.locator('#dashboard-card-edit-btn').click();
     await page.locator('#dashboard-hidden-cards button', {hasText:'Show Torque'}).click();
     assert.equal(await page.locator('#torque-card').evaluate(el => el.classList.contains('dashboard-user-hidden')), false);
+    assert.equal(await page.locator('#dashboard-custom-section').isVisible(), false,
+      'default dashboard should keep its named groups');
+    await page.locator('#dashboard-arrange-btn').click();
+    assert.equal(await page.locator('#dashboard-custom-section').isVisible(), true);
+    assert.equal(await page.locator('#dashboard-custom-cards > .dashboard-customizable-card').count(), 30);
+    assert.equal(await page.locator('.mode-row').evaluate(el =>
+      !!(el.compareDocumentPosition(document.getElementById('dashboard-custom-section'))
+        & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'engine controls stay ahead of user layout');
+    const uptimeBefore = await page.locator('#uptime-card').evaluate(el =>
+      [...el.parentElement.children].indexOf(el));
+    await page.locator('#uptime-card .dashboard-drag-handle').focus();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.locator('#uptime-card').evaluate(el =>
+      [...el.parentElement.children].indexOf(el)), uptimeBefore + 1,
+    'arrow keys should reorder cards');
+    const n1IndexBefore = await page.locator('#n1-card').evaluate(el =>
+      [...el.parentElement.children].indexOf(el));
+    await page.locator('#n1-card .dashboard-drag-handle').scrollIntoViewIfNeeded();
+    const dragStart = await page.locator('#n1-card .dashboard-drag-handle').boundingBox();
+    const dragTarget = await page.locator('#n2-card').boundingBox();
+    await page.mouse.move(dragStart.x + dragStart.width / 2, dragStart.y + dragStart.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dragTarget.x + dragTarget.width * .8,
+      dragTarget.y + dragTarget.height * .7, {steps:8});
+    await page.mouse.up();
+    assert.notEqual(await page.locator('#n1-card').evaluate(el =>
+      [...el.parentElement.children].indexOf(el)), n1IndexBefore,
+    'pointer drag should reorder cards');
+    await page.locator('#dashboard-card-edit-btn').click();
+    await page.reload();
+    await waitShown(page, '#n1-card', true);
+    assert.equal(await page.locator('#dashboard-custom-section').isVisible(), true,
+      'custom order should persist in this browser');
+    await page.locator('#dashboard-card-edit-btn').click();
+    await page.locator('#dashboard-reset-btn').click();
+    assert.equal(await page.locator('#dashboard-custom-section').isVisible(), false);
+    assert.equal(await page.locator('#temperature-group').isVisible(), true,
+      'reset should restore named groups');
+    assert.equal(await page.evaluate(() => localStorage.getItem('ot_dashboard_card_order_v1')), null);
     await page.locator('#dashboard-card-edit-btn').click();
     results.push('dashboard card decluttering stays invisible outside Edit cards mode and persists per browser');
+    results.push('dashboard drag, keyboard reorder, persistence, and reset preserve fixed controls');
     results.push('manual afterburner fire requires a live-state confirmation while AB stop remains immediate');
     await page.request.post(`${base}/__sim/data`, { data: {
       mode: 'STANDBY', bench_mode: false, stop_switch_active: false,

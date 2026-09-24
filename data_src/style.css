@@ -355,6 +355,23 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
 }
 .dashboard-hide-card{display:none;position:absolute;right:.42rem;top:.38rem;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--dim);font-size:1rem;line-height:1;cursor:pointer;z-index:2}
 body.dashboard-card-editing .dashboard-hide-card{display:block}
+.dashboard-drag-handle{display:none;position:absolute;left:.42rem;top:.38rem;width:30px;height:30px;min-height:0;padding:0;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:grab;touch-action:none;z-index:2}
+body.dashboard-card-editing.dashboard-custom-layout .dashboard-drag-handle{display:inline-flex}
+.dashboard-drag-handle:active{cursor:grabbing}
+.dashboard-card-dragging{opacity:.65;outline:2px solid var(--accent)!important}
+.dashboard-custom-layout.dashboard-card-editing .dashboard-customizable-card > .label{padding-left:2rem;padding-right:2rem;min-height:2rem}
+.dashboard-arrange-hint{display:none;color:var(--dim);font-size:.7rem;margin:-.15rem 0 .65rem}
+body.dashboard-card-editing .dashboard-arrange-hint{display:block}
+.dashboard-layout-action{font-size:.7rem;min-height:30px;padding:.15rem .55rem;background:var(--surface);color:var(--dim);border:1px solid var(--border);border-radius:4px;letter-spacing:0;text-transform:none}
+.dashboard-layout-action[hidden],#dashboard-custom-section[hidden]{display:none!important}
+body.dashboard-custom-layout .telemetry-group:not(#dashboard-custom-section),
+body.dashboard-custom-layout #di-states-wrap,
+body.dashboard-custom-layout #governor-section,
+body.dashboard-custom-layout #adv-act-section,
+body.dashboard-custom-layout #actuator-output-cards,
+body.dashboard-custom-layout #ab-section,
+body.dashboard-custom-layout #dashboard-secondary-cards{display:none!important}
+#dashboard-custom-cards .dashboard-customizable-card{min-width:0}
 .dashboard-limit-edit-links{display:none;margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);font-size:.68rem}
 body.dashboard-card-editing .dashboard-limit-edit-links{display:block}
 .dashboard-limit-edit-links a{color:var(--accent);text-decoration:none}

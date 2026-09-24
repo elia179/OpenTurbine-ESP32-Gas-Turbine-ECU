@@ -152,6 +152,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Reset peaks</button>
     <button id="dashboard-card-edit-btn" onclick="toggleDashboardCardEdit()" aria-pressed="false"
       style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Edit cards</button>
+    <button id="dashboard-arrange-btn" class="dashboard-layout-action" type="button" onclick="activateDashboardCustomLayout()" title="Put movable cards in one personal section so you can drag them into any order" hidden>Arrange cards</button>
+    <button id="dashboard-reset-btn" class="dashboard-layout-action" type="button" onclick="resetDashboardLayout()" hidden>Restore default layout</button>
     <div id="dashboard-hidden-cards" class="dashboard-hidden-cards" hidden></div>
   </div>
 
@@ -421,6 +423,13 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     </div>
   </section>
 
+  <!-- Custom arrangement appears only after the user chooses Arrange cards. -->
+  <section id="dashboard-custom-section" class="telemetry-group" hidden>
+    <div class="telemetry-group-title">Your dashboard</div>
+    <div class="dashboard-arrange-hint">Drag a card by its grip to change order; arrow keys also work. Saved in this browser.</div>
+    <div id="dashboard-custom-cards" class="grid-2 telemetry"></div>
+  </section>
+
   <!-- Afterburner card — shown only when hasAfterburner -->
   <section id="ab-section" style="display:none;margin-bottom:1rem">
     <div class="card small" id="afterburner-card" style="display:flex;flex-direction:column">
@@ -444,7 +453,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </section>
 
   <!-- Telemetry cards -->
-  <section class="grid-2 telemetry">
+  <section class="grid-2 telemetry" id="dashboard-secondary-cards">
     <div class="card small" id="throttle-output-card" title="Actual commanded fuel-metering output after applying its calibrated minimum reliable output. During startup the idle-input command range starts at this minimum.">
       <div class="label">Main Fuel Metering Output</div>
       <div class="value small" id="throttle-demand">—</div>

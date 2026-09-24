@@ -175,10 +175,27 @@ function organizeDashboardCards() {
     const anchor = advActSection || modeRow;
     anchor.insertAdjacentElement('afterend', outputCards);
   }
+  const fixedSections = {
+    'switch-inputs-card':'di-states-wrap', 'governor-card':'governor-section',
+    'actuator-outputs-card':'adv-act-section', 'afterburner-card':'ab-section'
+  };
+  Object.entries(fixedSections).forEach(([cardId, sectionId]) => {
+    const card = document.getElementById(cardId);
+    const section = document.getElementById(sectionId);
+    if (card && section) section.appendChild(card);
+  });
+  const secondary = document.getElementById('dashboard-secondary-cards');
+  if (secondary) ['last-event-card','uptime-card','hour-meter-card','relight-card',
+    'extra-cooldown-card','system-card'].forEach(id => {
+    const card = document.getElementById(id);
+    if (card) secondary.appendChild(card);
+  });
   initializeDashboardCardEditing();
+  if (_dashboardCustomOrder) activateDashboardCustomLayout(false);
 }
 
 const DASHBOARD_CARD_PREF_KEY = 'ot_dashboard_hidden_cards_v1';
+const DASHBOARD_ORDER_PREF_KEY = 'ot_dashboard_card_order_v1';
 const DASHBOARD_CUSTOM_CARD_IDS = [
   'n1-card','n2-card','tot-card','tit-card','oil-card','oil-temp-card','oilpump-current-card',
   'flame-card','fuel-press-card','fuel-flow-card','p1-card','p2-card','batt-card','torque-card',
@@ -198,6 +215,13 @@ let _dashboardHiddenCards = (() => {
     const value = JSON.parse(localStorage.getItem(DASHBOARD_CARD_PREF_KEY) || '[]');
     return new Set(Array.isArray(value) ? value.filter(id => DASHBOARD_CUSTOM_CARD_IDS.includes(id)) : []);
   } catch (_) { return new Set(); }
+})();
+let _dashboardCustomOrder = (() => {
+  try {
+    const value = JSON.parse(localStorage.getItem(DASHBOARD_ORDER_PREF_KEY) || 'null');
+    return Array.isArray(value) && value.length
+      ? [...new Set(value.filter(id => DASHBOARD_CUSTOM_CARD_IDS.includes(id)))] : null;
+  } catch (_) { return null; }
 })();
 
 function dashboardCardLabel(card) {
@@ -219,9 +243,20 @@ function refreshDashboardCardVisibility() {
     group.classList.toggle('dashboard-group-user-empty', cards.length > 0 && !hasShownFittedCard);
   });
   const restore = document.getElementById('dashboard-hidden-cards');
+  const editing = document.body.classList.contains('dashboard-card-editing');
+  const visibleHiddenCount = [..._dashboardHiddenCards].filter(id => {
+    const card = document.getElementById(id);
+    return card && card.style.display !== 'none';
+  }).length;
+  const editButton = document.getElementById('dashboard-card-edit-btn');
+  if (editButton) editButton.textContent = editing ? 'Done'
+    : visibleHiddenCount ? `Edit cards (${visibleHiddenCount} hidden)` : 'Edit cards';
+  const arrange = document.getElementById('dashboard-arrange-btn');
+  if (arrange) arrange.hidden = !editing || !!_dashboardCustomOrder;
+  const reset = document.getElementById('dashboard-reset-btn');
+  if (reset) reset.hidden = !editing || (!_dashboardCustomOrder && !_dashboardHiddenCards.size);
   if (!restore) return;
   restore.replaceChildren();
-  const editing = document.body.classList.contains('dashboard-card-editing');
   restore.hidden = !editing || _dashboardHiddenCards.size === 0;
   if (restore.hidden) return;
   const label = document.createElement('span');
@@ -260,6 +295,14 @@ function initializeDashboardCardEditing() {
       refreshDashboardCardVisibility();
     });
     card.appendChild(button);
+    const drag = document.createElement('button');
+    drag.type = 'button';
+    drag.className = 'dashboard-drag-handle';
+    drag.title = 'Drag to reorder; arrow keys also work';
+    drag.setAttribute('aria-label', 'Drag to reorder ' + dashboardCardLabel(card) + '; use arrow keys');
+    drag.innerHTML = '<span class="drag-grip" aria-hidden="true"></span>';
+    wireDashboardDragHandle(card, drag);
+    card.appendChild(drag);
     const limitField = DASHBOARD_LIMIT_FIELDS[id];
     if (limitField) {
       const links = document.createElement('div');
@@ -275,14 +318,120 @@ function initializeDashboardCardEditing() {
   refreshDashboardCardVisibility();
 }
 
+function saveDashboardCardOrder() {
+  const grid = document.getElementById('dashboard-custom-cards');
+  if (!grid) return;
+  _dashboardCustomOrder = [...grid.children].map(card => card.id);
+  try { localStorage.setItem(DASHBOARD_ORDER_PREF_KEY, JSON.stringify(_dashboardCustomOrder)); } catch (_) {}
+}
+
+function activateDashboardCustomLayout(save = true) {
+  const section = document.getElementById('dashboard-custom-section');
+  const grid = document.getElementById('dashboard-custom-cards');
+  if (!section || !grid) return;
+  const cards = DASHBOARD_CUSTOM_CARD_IDS.map(id => document.getElementById(id)).filter(Boolean);
+  const saved = _dashboardCustomOrder;
+  if (saved) {
+    const rank = new Map(saved.map((id, index) => [id, index]));
+    cards.sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+  } else {
+    cards.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+  }
+  cards.forEach(card => grid.appendChild(card));
+  section.hidden = false;
+  document.body.classList.add('dashboard-custom-layout');
+  if (save) saveDashboardCardOrder();
+  refreshDashboardCardVisibility();
+}
+window.activateDashboardCustomLayout = activateDashboardCustomLayout;
+
+function resetDashboardLayout() {
+  _dashboardCustomOrder = null;
+  _dashboardHiddenCards.clear();
+  try {
+    localStorage.removeItem(DASHBOARD_ORDER_PREF_KEY);
+    localStorage.removeItem(DASHBOARD_CARD_PREF_KEY);
+  } catch (_) {}
+  document.body.classList.remove('dashboard-custom-layout');
+  const section = document.getElementById('dashboard-custom-section');
+  if (section) section.hidden = true;
+  organizeDashboardCards();
+  refreshDashboardCardVisibility();
+}
+window.resetDashboardLayout = resetDashboardLayout;
+
+function wireDashboardDragHandle(card, handle) {
+  const grid = () => document.getElementById('dashboard-custom-cards');
+  const visibleCards = () => [...(grid()?.children || [])].filter(item =>
+    item.style.display !== 'none' && !item.classList.contains('dashboard-user-hidden'));
+  handle.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const cards = visibleCards();
+    const index = cards.indexOf(card);
+    const target = cards[index + (event.key === 'ArrowUp' ? -1 : 1)];
+    if (!target) return;
+    grid().insertBefore(card, event.key === 'ArrowUp' ? target : target.nextSibling);
+    saveDashboardCardOrder();
+    handle.focus();
+  });
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const list = grid();
+    if (!list || card.parentElement !== list) return;
+    event.preventDefault();
+    event.stopPropagation();
+    card.classList.add('dashboard-card-dragging');
+    let changed = false;
+    let pointerX = event.clientX;
+    let pointerY = event.clientY;
+    let scrollFrame = 0;
+    const place = () => {
+      const target = document.elementFromPoint(pointerX, pointerY)
+        ?.closest('.dashboard-customizable-card');
+      if (!target || target === card || target.parentElement !== list) return;
+      const bounds = target.getBoundingClientRect();
+      const before = pointerY < bounds.top + bounds.height / 3
+        || (pointerY < bounds.bottom - bounds.height / 3
+          && pointerX < bounds.left + bounds.width / 2);
+      list.insertBefore(card, before ? target : target.nextSibling);
+      changed = true;
+    };
+    const autoScroll = () => {
+      const edge = 56;
+      const speed = pointerY < edge ? -12 : pointerY > window.innerHeight - edge ? 12 : 0;
+      if (speed) {
+        window.scrollBy(0, speed);
+        place();
+      }
+      scrollFrame = requestAnimationFrame(autoScroll);
+    };
+    const move = pointerEvent => {
+      pointerEvent.preventDefault();
+      pointerX = pointerEvent.clientX;
+      pointerY = pointerEvent.clientY;
+      place();
+    };
+    const finish = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', finish);
+      cancelAnimationFrame(scrollFrame);
+      card.classList.remove('dashboard-card-dragging');
+      if (changed) saveDashboardCardOrder();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
+    scrollFrame = requestAnimationFrame(autoScroll);
+  });
+}
+
 function toggleDashboardCardEdit() {
   const editing = !document.body.classList.contains('dashboard-card-editing');
   document.body.classList.toggle('dashboard-card-editing', editing);
   const button = document.getElementById('dashboard-card-edit-btn');
-  if (button) {
-    button.textContent = editing ? 'Done' : 'Edit cards';
-    button.setAttribute('aria-pressed', editing ? 'true' : 'false');
-  }
+  if (button) button.setAttribute('aria-pressed', editing ? 'true' : 'false');
   refreshDashboardCardVisibility();
 }
 window.toggleDashboardCardEdit = toggleDashboardCardEdit;
