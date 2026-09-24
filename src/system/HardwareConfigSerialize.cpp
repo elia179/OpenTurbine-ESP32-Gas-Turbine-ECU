@@ -1,4 +1,5 @@
 #include "HardwareConfig.h"
+#include "Config.h"
 #include "HardwareConfigInternal.h"
 #include "pcb/PcbProfileManager.h"
 
@@ -314,6 +315,16 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     for (int i = 0; i < startupSeqLen; i++) ssit.add(startupIgnitionTarget[i]);
     auto ssdt = doc["startup_device_target"].to<JsonArray>();
     for (int i = 0; i < startupSeqLen; i++) ssdt.add(startupDeviceTarget[i]);
+    auto ssw = doc["startup_wait_inputs"].to<JsonArray>();
+    for (int i = 0; i < startupSeqLen; ++i) {
+        const auto& wait = startupWaitInputs[i];
+        auto item = ssw.add<JsonObject>();
+        item["channel"] = wait.configured ? wait.channel : Config::waitForInputChannel;
+        item["active"] = !strcmp(startupSeq[i], "WaitForInputOff") ? false :
+            (wait.configured ? wait.active : Config::waitForInputExpected);
+        item["timeout_ms"] = wait.configured ? wait.timeoutMs :
+            (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+    }
     HardwareConfigInternal::writeSequenceSideActions(doc, "startup_enter_actions", startupSeqLen, startupEnterActions);
     HardwareConfigInternal::writeSequenceSideActions(doc, "startup_exit_actions", startupSeqLen, startupExitActions);
 
@@ -325,6 +336,16 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     for (int i = 0; i < shutdownSeqLen; i++) dsit.add(shutdownIgnitionTarget[i]);
     auto dsdt = doc["shutdown_device_target"].to<JsonArray>();
     for (int i = 0; i < shutdownSeqLen; i++) dsdt.add(shutdownDeviceTarget[i]);
+    auto dsw = doc["shutdown_wait_inputs"].to<JsonArray>();
+    for (int i = 0; i < shutdownSeqLen; ++i) {
+        const auto& wait = shutdownWaitInputs[i];
+        auto item = dsw.add<JsonObject>();
+        item["channel"] = wait.configured ? wait.channel : Config::waitForInputChannel;
+        item["active"] = !strcmp(shutdownSeq[i], "WaitForInputOff") ? false :
+            (wait.configured ? wait.active : Config::waitForInputExpected);
+        item["timeout_ms"] = wait.configured ? wait.timeoutMs :
+            (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+    }
     HardwareConfigInternal::writeSequenceSideActions(doc, "shutdown_enter_actions", shutdownSeqLen, shutdownEnterActions);
     HardwareConfigInternal::writeSequenceSideActions(doc, "shutdown_exit_actions", shutdownSeqLen, shutdownExitActions);
 
@@ -349,6 +370,16 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     for (int i = 0; i < abSeqLen; i++) asit.add(abIgnitionTarget[i]);
     auto asdt = doc["ab_device_target"].to<JsonArray>();
     for (int i = 0; i < abSeqLen; i++) asdt.add(abDeviceTarget[i]);
+    auto asw = doc["ab_wait_inputs"].to<JsonArray>();
+    for (int i = 0; i < abSeqLen; ++i) {
+        const auto& wait = abWaitInputs[i];
+        auto item = asw.add<JsonObject>();
+        item["channel"] = wait.configured ? wait.channel : Config::waitForInputChannel;
+        item["active"] = !strcmp(abSeq[i], "WaitForInputOff") ? false :
+            (wait.configured ? wait.active : Config::waitForInputExpected);
+        item["timeout_ms"] = wait.configured ? wait.timeoutMs :
+            (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+    }
     HardwareConfigInternal::writeSequenceSideActions(doc, "ab_enter_actions", abSeqLen, abEnterActions);
     HardwareConfigInternal::writeSequenceSideActions(doc, "ab_exit_actions", abSeqLen, abExitActions);
 
@@ -360,6 +391,16 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     for (int i = 0; i < abShutSeqLen; i++) assit.add(abShutIgnitionTarget[i]);
     auto assdt = doc["ab_shut_device_target"].to<JsonArray>();
     for (int i = 0; i < abShutSeqLen; i++) assdt.add(abShutDeviceTarget[i]);
+    auto assw = doc["ab_shut_wait_inputs"].to<JsonArray>();
+    for (int i = 0; i < abShutSeqLen; ++i) {
+        const auto& wait = abShutWaitInputs[i];
+        auto item = assw.add<JsonObject>();
+        item["channel"] = wait.configured ? wait.channel : Config::waitForInputChannel;
+        item["active"] = !strcmp(abShutSeq[i], "WaitForInputOff") ? false :
+            (wait.configured ? wait.active : Config::waitForInputExpected);
+        item["timeout_ms"] = wait.configured ? wait.timeoutMs :
+            (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+    }
     HardwareConfigInternal::writeSequenceSideActions(doc, "ab_shut_enter_actions", abShutSeqLen, abShutEnterActions);
     HardwareConfigInternal::writeSequenceSideActions(doc, "ab_shut_exit_actions", abShutSeqLen, abShutExitActions);
     HardwareConfigInternal::writeCustomBlocks(doc);

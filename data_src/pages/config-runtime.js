@@ -486,10 +486,10 @@ function applyOilMapVisibility() {
     mxWrap.style.display = '';
     mxWrap.dataset.logicalDisabled = tmCb.checked ? '0' : '1';
     mxWrap.title = !hwAvailable
-      ? 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock Map Max.'
+      ? 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock Full-Throttle Oil Pressure.'
       : tmCb.checked
       ? 'Oil map maximum pressure at full throttle.'
-      : 'Disabled because Throttle-Map Pressure is off. Turn Throttle-Map Pressure on to unlock Map Max.';
+      : 'Disabled because Increase Oil Pressure with Throttle is off. Turn it on to unlock Full-Throttle Oil Pressure.';
     if (mxEl) mxEl.disabled = !enabled;
     _refreshDependencyEditability();
   }
@@ -734,7 +734,7 @@ function applyHwConditions() {
       wrap.title = reason;
     } else if (el.type === 'checkbox' && !el.checked) {
       const unlockHints = {
-        oil_tm: 'Turn this on to unlock Map Max and make oil pressure target rise with throttle.',
+        oil_tm: 'Turn this on to unlock Full-Throttle Oil Pressure and make the oil-pressure target rise with throttle.',
         rl_en: 'Turn this on to run the independent automatic-relight detector and ignition attempt.',
         ab_ut: 'Turn this on to unlock torch fuel-spike duration and EGT cut settings.',
         ab_ui: 'Turn this on to fire the dedicated afterburner igniter during AB ignition.'
@@ -982,7 +982,7 @@ function applyHwConditions() {
   showField('cl_n2', true);
   ghostField('cl_n2', hasN2, 'N2 RPM sensor is not configured in Hardware.');
   const clusterSec = Array.from(document.querySelectorAll('.cfg-section'))
-    .find(sec => sec.dataset.section === 'Cluster');
+    .find(sec => sec.dataset.section === 'External Instrument Cluster Display');
   if (clusterSec) {
     clusterSec.dataset.forceHidden = hasClusterSerial ? '0' : '1';
     clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';

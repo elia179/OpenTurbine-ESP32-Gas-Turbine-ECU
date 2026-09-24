@@ -29,18 +29,27 @@ function buildCard(bname, idx, tab) {
 
   // Build condition text for WHILE blocks
   const hw = flattenHw();
+  const inputWait = bname === 'WaitForInput' || bname === 'WaitForInputOff'
+    ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
-    ? `${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
+    : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
   let toPill = '';
-  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault">timer FAULT</span>`;
-  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort">timer ABORT</span>`;
-  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont">timer continue</span>`;
-  else if (def?.timeout_action === 'complete')toPill = `<span class="timeout-pill cont">timer completes</span>`;
+  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If this wait fails, the sequencer enters a fault state.">Timeout: fault</span>`;
+  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If this wait fails, the current start or sequence is aborted.">Timeout: abort</span>`;
+  else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
+  // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
+  if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';
+  if (bname === 'WaitTOTCool') toPill = tab === 'startup'
+    ? `<span class="timeout-pill abort" title="A hot or unhealthy temperature reading aborts startup after the maximum wait.">Timeout: abort</span>`
+    : `<span class="timeout-pill cont" title="Shutdown continues after the maximum wait, even without a cool reading.">Timeout: continue</span>`;
 
-  const badge = def ? `<span class="block-badge ${esc(def.badgeClass)}">${esc(def.type.toUpperCase())}</span>` : '';
+  const kindLabel = {while:'UNTIL', wait:'TIMED', action:'ACTION', check:'CHECK'}[def?.type] || def?.type;
+  const badgeClass = def?.badgeClass;
+  const badge = def ? `<span class="block-badge ${esc(badgeClass)}">${esc(String(kindLabel).toUpperCase())}</span>` : '';
   const condHtml = condText ? `<span class="block-cond">${esc(condText)}</span>` : '';
   card.innerHTML = `
   <div class="block-header" title="${esc(def?.desc || 'Sequence block')}" onclick="toggleParams(this)">
@@ -218,7 +227,6 @@ function flattenHw() {
     fuel_pulse_ms:        paramVals['FuelPulse.fuel_pulse_ms']   ?? 200,
     wait_tot_target:      paramVals['WaitTOTCool.wait_tot_target'] ?? 150,
     throttle_set_pct:     paramVals['ThrottleSet.throttle_set_pct'] ?? 10,
-    preheat_ms:           paramVals['PreHeat.preheat_ms']         ?? 3000,
     ab_stab_ms:           paramVals['ABStabilize.ab_stab_ms']     ?? 1000,
     gov_hold_band_rpm:    paramVals['GovernorHold.gov_hold_band_rpm'] ?? 500,
   };
@@ -239,14 +247,12 @@ function _buildHwWarningHtml(def) {
 }
 
 function isIgnitionBlock(bname) {
-  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff','PreHeat','PreIgnSpark','GlowPreheat'].includes(bname);
+  return ['IgniterOn','IgniterOff','ABIgnOn','ABIgnOff'].includes(bname);
 }
 
 const BLOCK_OUTPUT_PURPOSES = {
   IgniterOn:['igniter','ab_igniter','glow_plug'], IgniterOff:['igniter','ab_igniter','glow_plug'],
   ABIgnOn:['igniter','ab_igniter','glow_plug'], ABIgnOff:['igniter','ab_igniter','glow_plug'],
-  PreHeat:['igniter','ab_igniter','glow_plug'], PreIgnSpark:['igniter','ab_igniter','glow_plug'],
-  GlowPreheat:['glow_plug'],
   FuelOpen:['fuel_shutoff'], FuelSolClose:['fuel_shutoff'], FuelPulse:['fuel_shutoff'],
   StarterEnOn:['starter_enable'], StarterEnOff:['starter_enable'], StarterOff:['starter'],
   OilPumpOn:['oil_pump'], OilPumpOff:['oil_pump'],
@@ -314,23 +320,23 @@ function deviceTargetInfo(targetId) {
 }
 
 function wetGlowTimingWarning(bname, idx, tab, targetId) {
+  if (bname !== 'IgniterOn') return '';
   const glow = hwCfg.actuators?.glow_plug || {};
   const output = (hwCfg.channel_registry?.outputs || []).find(row => String(row?.id || '') === String(targetId || ''));
   if (String(output?.purpose || '') !== 'glow_plug' || Number(glow.type || 0) !== 2) return '';
   const seq = hwCfg[seqKey(tab)] || [];
   const delayMs = Number(glow.fuel_delay_ms ?? 8000);
-  let waitMs = bname === 'PreHeat' ? Number(paramVals['PreHeat.preheat_ms'] ?? 3000) : 0;
+  let waitMs = 0;
   const fuelOrConfirm = new Set(['FuelOpen', 'FuelPumpIdle', 'FuelPulse', 'TempConfirm', 'FlameConfirm', 'Spool']);
   for (let i = idx + 1; i < seq.length; i++) {
     const nm = seq[i];
     if (nm === 'TimedDelay') waitMs += Number(timedDelayValue(tab, i) || 0);
-    else if (nm === 'PreHeat') waitMs += Number(paramVals['PreHeat.preheat_ms'] ?? 3000);
     if (fuelOrConfirm.has(nm)) break;
   }
   if (waitMs >= delayMs) return '';
   const delayS = (delayMs / 1000).toFixed(delayMs % 1000 ? 1 : 0);
   const waitS = (waitMs / 1000).toFixed(waitMs % 1000 ? 1 : 0);
-  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay is ${delayS} s, but the next fuel or confirmation step is about ${waitS} s away. Add delay or increase Pre-Heat time if pilot fuel must be burning first.</span>`;
+  return `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--yellow);line-height:1.35;margin-top:.22rem">Wet-glow pilot-fuel delay starts when this plug is turned on (${delayS} s), but the next fuel or confirmation step is about ${waitS} s away. Add a Timed Delay after this On command if pilot fuel must be flowing first.</span>`;
 }
 
 function buildDeviceTargetHtml(bname, idx, tab) {
@@ -389,12 +395,25 @@ function buildParamsHtml(bname, idx, tab) {
   const sideHtml = buildSideActionsHtml(tab, idx);
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
+  if (bname === 'WaitForInput' || bname === 'WaitForInputOff') {
+    ensureWaitInputSlots(tab);
+    const wait = hwCfg[waitInputSeqKey(tab)][idx];
+    const channels = Array.from({length:4}, (_, channel) => {
+      const fitted = Number(hwCfg.di_channels?.[channel]?.pin ?? -1) >= 0;
+      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>DI-${channel + 1}${fitted ? '' : ' — not fitted'}</option>`;
+    }).join('');
+    const state = bname === 'WaitForInputOff' ? '' : `<div class="param-field"><span class="param-label">Wait until</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'active',this.value==='1')"><option value="1"${wait.active ? ' selected' : ''}>Active</option><option value="0"${wait.active ? '' : ' selected'}>Inactive</option></select></div>`;
+    return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}
+      <div class="param-grid"><div class="param-field"><span class="param-label">Digital input</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'channel',+this.value)">${channels}</select></div>
+      ${state}<div class="param-field"><span class="param-label">Maximum wait <span class="param-unit">(ms)</span></span><input class="param-input" type="number" min="500" max="60000" step="500" value="${Number(wait.timeout_ms)}" onchange="setWaitInputField('${tab}',${idx},'timeout_ms',+this.value)"></div></div>${sideHtml}</div>`;
+  }
   const hasSharedParams = !!def?.params?.some(p => p.configKey && !(bname === 'TimedDelay' && p.key === 'timed_delay_ms'));
   const sharedNoteHtml = hasSharedParams
-    ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared setting: parameter changes here apply to every ${def.label || bname} block that uses this setting. Timed Delay values and output-device selections are per card.</div>`
+    ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
     : '';
   if (!def || def.params.length === 0) {
-    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>'}${sideHtml}</div>`;
+    const noParams = bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
   }
   const inputs = def.params.map(p => {
     // visibleIf - skip this param if hw condition is false
@@ -449,6 +468,15 @@ function buildParamsHtml(bname, idx, tab) {
   </div>`;
 }
 
+function setWaitInputField(tab, idx, field, value) {
+  ensureWaitInputSlots(tab);
+  const wait = hwCfg[waitInputSeqKey(tab)][idx];
+  if (field === 'channel') wait.channel = Math.max(0, Math.min(3, Number(value) || 0));
+  else if (field === 'active') wait.active = !!value;
+  else if (field === 'timeout_ms') wait.timeout_ms = Math.max(500, Math.min(60000, Number(value) || 30000));
+  renderFast(tab);
+}
+
 function buildSetOutputHtml(tab, idx) {
   ensureActionSlots(tab);
   const acts = getEnabledActuators();
@@ -478,7 +506,7 @@ function buildSetOutputHtml(tab, idx) {
     : '';
   return `<div class="param-grid">
     <div class="param-field"><span class="param-label">Output device</span><select class="param-input" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select><span class="param-desc">Any fitted output may be selected. Hardware driver limits are always respected.</span></div>
-    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : 'Binary relay or switch output.'}</span></div>
+    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : meta.ignition ? 'On/Off command. Hardware sets the output level and ramp-up time.' : 'Binary relay or switch output.'}</span></div>
     ${starterTransition}
   </div>`;
 }
@@ -525,7 +553,7 @@ function onParamChange(bname, pkey, configKey, rawVal, tab, idx) {
     hwCfg[delaySeqKey(tab)][idx] = val;
     const card = document.querySelector(`#list-${tab} .block-card[data-idx="${idx}"]`);
     const summary = card?.querySelector('.block-cond');
-    if (summary) summary.textContent = `${seqRound(val / 1000)} s`;
+    if (summary) summary.textContent = `Wait ${seqRound(val / 1000)} s`;
     markSequenceDirty('Sequence edited — save to apply');
     return;
   }
@@ -607,6 +635,7 @@ function moveBlockTo(tab, idx, ni) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   const reorder = rows => {
     if (!Array.isArray(rows)) return;
     const [item] = rows.splice(idx, 1);
@@ -616,6 +645,7 @@ function moveBlockTo(tab, idx, ni) {
   reorder(hwCfg[delaySeqKey(tab)]);
   reorder(hwCfg[ignitionTargetSeqKey(tab)]);
   reorder(hwCfg[deviceTargetSeqKey(tab)]);
+  reorder(hwCfg[waitInputSeqKey(tab)]);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (!ak || !hwCfg[ak]) continue;
@@ -633,10 +663,12 @@ async function removeBlock(tab, idx) {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[seqKey(tab)].splice(idx, 1);
   hwCfg[delaySeqKey(tab)].splice(idx, 1);
   hwCfg[ignitionTargetSeqKey(tab)].splice(idx, 1);
   hwCfg[deviceTargetSeqKey(tab)].splice(idx, 1);
+  hwCfg[waitInputSeqKey(tab)].splice(idx, 1);
   for (const phase of ['enter','exit']) {
     const ak = actionKey(tab, phase);
     if (ak && hwCfg[ak]) hwCfg[ak].splice(idx, 1);
@@ -656,6 +688,7 @@ function addBlock(tab, selectedValue = '') {
   ensureActionSlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   hwCfg[delaySeqKey(tab)][hwCfg[key].length - 1] =
     bname === 'TimedDelay' ? (cfg?.sequence?.startup?.timed_delay_ms || 1000) : 0;
   hwCfg[ignitionTargetSeqKey(tab)][hwCfg[key].length - 1] = 0;
@@ -704,7 +737,7 @@ function openBlockPicker(tab) {
   list.querySelector('button')?.focus();
 }
 
-const _typeLabel = {while:'WHILE', action:'ACTION', wait:'WAIT', check:'CHECK'};
+const _typeLabel = {while:'UNTIL', action:'ACTION', wait:'TIMED', check:'CHECK'};
 
 function populateAddSelects() {
   const lists = {startup: STARTUP_BLOCKS, shutdown: SHUTDOWN_BLOCKS, afterburner: AFTERBURNER_BLOCKS, 'ab-shut': AB_SHUT_BLOCKS};
@@ -750,7 +783,7 @@ function updateBlockPreview(tab) {
   const bname = sel?.value?.split('::')[0];
   const def   = bname ? (BLOCKS[bname] || customBlocks[bname]) : null;
   if (!bname || !def) { prev.innerHTML = ''; return; }
-  const typeMap = {while:'WHILE - waits for condition', action:'ACTION - instant, completes in one tick', wait:'WAIT - fixed timer', check:'CHECK - verify then fault or complete'};
+  const typeMap = {while:'UNTIL - waits for a condition', action:'ACTION - completes after commanding an output', wait:'TIMED - waits for a set duration', check:'CHECK - verifies a condition before proceeding'};
   const typeStr = typeMap[def.type] ?? def.type.toUpperCase();
   const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -931,13 +964,13 @@ function getEnabledActuators() {
   if (registryOutputPurpose('starter_enable')) list.push({key:'starter_en', target:targetFor('starter_enable'), label:outputName('starter_enable', 'Starter Enable'), mode:'relay'});
   if (oilPumpAct) list.push({key:'oil_pump', target:targetFor('oil_pump'), label:outputName('oil_pump', 'Oil Pump'), mode:isOnOff(oilPumpAct) ? 'relay':'pct'});
   if (registryOutputPurpose('fuel_shutoff')) list.push({key:'fuel_sol', target:targetFor('fuel_shutoff'), label:outputName('fuel_shutoff', 'Main Fuel Shutoff'), mode:'relay'});
-  if (registryOutputPurpose('igniter')) list.push({key:'igniter', target:targetFor('igniter'), label:outputName('igniter', 'Igniter'), mode:'relay'});
-  if (registryOutputPurpose('ab_igniter')) list.push({key:'igniter2', target:targetFor('ab_igniter'), label:outputName('ab_igniter', hasAB ? 'Afterburner Igniter' : 'Secondary Igniter'), mode:'relay'});
+  if (registryOutputPurpose('igniter')) list.push({key:'igniter', target:targetFor('igniter'), label:outputName('igniter', 'Igniter'), mode:'relay', ignition:true});
+  if (registryOutputPurpose('ab_igniter')) list.push({key:'igniter2', target:targetFor('ab_igniter'), label:outputName('ab_igniter', hasAB ? 'Afterburner Igniter' : 'Secondary Igniter'), mode:'relay', ignition:true});
   if (registryOutputPurpose('air_starter')) list.push({key:'airstarter_sol', target:targetFor('air_starter'), label:outputName('air_starter', 'Air Starter Valve'), mode:'relay'});
   if (registryOutputPurpose('cooling_fan')) list.push({key:'cool_fan', target:targetFor('cooling_fan'), label:outputName('cooling_fan', 'Cooling Fan'), mode:'relay'});
   if (registryOutputPurpose('scavenge_pump')) list.push({key:'oil_scavenge_pump', target:targetFor('scavenge_pump'), label:outputName('scavenge_pump', 'Oil Scavenge Pump'), mode:'relay'});
   if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:outputName('bleed_valve', 'Bleed Valve'), mode:'relay'});
-  if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:actuatorIsRelay('glow_plug') ? 'relay':'pct'});
+  if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:'relay', ignition:true});
   const fuelPump2Act = effectiveAct(a.fuel_pump2, 'fuel_pump');
   if (fuelPump2Act) list.push({key:'fuel_pump2', target:targetFor('fuel_pump'), label:outputName('fuel_pump', 'Secondary / Auxiliary Fuel Pump'), mode:isOnOff(fuelPump2Act) ? 'relay':'pct'});
   if (propPitchAct) list.push({key:'prop_pitch', target:targetFor('prop_pitch'), label:outputName('prop_pitch', 'Propeller Pitch'), mode:isOnOff(propPitchAct) ? 'relay':'pct'});
@@ -948,7 +981,8 @@ function getEnabledActuators() {
   (hwCfg.channel_registry?.outputs || []).forEach((c, i) => {
     if (!registryChannelInstalled(c) || String(c.mirror_of || '') || registryOutputCoreBound(c)) return;
     const relay = [4,11].includes(Number(c.driver));
-    list.push({key:c.id, target:c.id, label:registryLabel(c, `Output ${i+1}`), mode:relay ? 'relay':'pct'});
+    const ignition = ['igniter','ab_igniter','glow_plug'].includes(String(c.purpose || ''));
+    list.push({key:c.id, target:c.id, label:registryLabel(c, `Output ${i+1}`), mode:relay || ignition ? 'relay':'pct', ignition});
   });
   const outputs = hwCfg.channel_registry?.outputs || [];
   return list.map(meta => ({

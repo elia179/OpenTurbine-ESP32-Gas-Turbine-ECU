@@ -140,7 +140,7 @@ function extraCooldownAvailable() {
   );
 }
 
-const TEST_OUTPUT_KEYS={START_TEST:'start_test_pct',GLOW_TEST:'glow_test_pct',FUEL_PUMP2_TEST:'fuel_pump2_test_pct',AB_PUMP_TEST:'ab_pump_test_pct',PROP_PITCH_TEST:'prop_pitch_test_pct'};
+const TEST_OUTPUT_KEYS={START_TEST:'start_test_pct',FUEL_PUMP2_TEST:'fuel_pump2_test_pct',AB_PUMP_TEST:'ab_pump_test_pct',PROP_PITCH_TEST:'prop_pitch_test_pct'};
 const CORE_REGISTRY_OUTPUT_IDS=new Set([
   'main_fuel_output','main_fuel','throttle',
   'main_starter','starter','starter_main',
@@ -196,14 +196,15 @@ function syncRegistryOutputTools(){
       : c?.pin!=null&&Number(c.pin)>=0;
     if(!c||!hasPhysicalEndpoint) return;
     if(CORE_REGISTRY_OUTPUT_IDS.has(String(c.id||''))||coreBound.has(String(c.id||''))) return;
-    const relay=driver===4||driver===11;
+    const ignition=['igniter','ab_igniter','glow_plug'].includes(String(c.purpose||''));
+    const relay=driver===4||driver===11||ignition;
     const displayName=registryToolDisplayName(c,i);
     TOOLS.push({
       id:'REGISTRY_OUTPUT_TEST_'+i,
       cmd:'REGISTRY_OUTPUT_TEST',
       name:displayName+' Test',
       durationMs:3000,
-      desc:'Bench-test '+displayName+' at '+(relay?'ON':'50%')+' for 3 s.',
+      desc:'Bench-test '+displayName+(ignition?' using its Hardware ignition behavior':relay?' at ON':' at 50%')+' for 3 s.',
       registryOutput:true,
       relayOutput:relay,
       testDemandPct:relay?100:50,
@@ -852,7 +853,8 @@ function syncDynamicToolText() {
   const glowTool = tool('GLOW_TEST');
   if (!glowTool) return;
   const glow = act('glow_plug');
-  const pct = Number(tools.glow_test_pct ?? 100);
+  const output = (hwCfg.channel_registry?.outputs || []).find(row => row.purpose === 'glow_plug' && row.installed !== false);
+  const pct = Math.round(Number(output?.ignition_on_demand ?? 1) * 100);
   const durationMs = Number(tools.glow_test_ms ?? glowTool.durationMs);
   const durationS = sec(durationMs);
   const demandText = isRelay('glow_plug') ? 'ON' : pctText(pct);

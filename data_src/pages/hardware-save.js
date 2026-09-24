@@ -48,11 +48,9 @@ function _registryFieldLabel(key) {
     safe_demand:'Power-on demand', mirror_of:'Mirrored command source', force_safe_on_fault:'Force safe state on fault', min_run_demand:'Minimum reliable command', pwm_freq_hz:'PWM carrier frequency', pwm_res_bits:'PWM resolution', invert:'Signal inversion',
     active_high:'Active polarity', pullup:'Internal pull-up', pulldown:'Internal pull-down',
     has_current:'Current sensing', current_pin:'Current sensor pin', current_mv_a:'Current sensor mV/A',
-    current_zero_v:'Current zero voltage', current_max_a:'Current limit', current_ready_a:'Glow ready current', current_trip_delay_ms:'Overcurrent confirmation',
+    current_zero_v:'Current zero voltage', current_max_a:'Current limit', current_ready_a:'Glow hot-status current', current_trip_delay_ms:'Overcurrent confirmation',
     ignition_mode:'Ignition mode', ignition_dwell_ms:'Ignition dwell', ignition_rest_ms:'Ignition rest',
-    ignition_coil_sat_a:'Coil saturation current', ignition_preheat_ms:'Device preheat duration',
-    ignition_peak_demand:'Glow peak command', ignition_hold_demand:'Glow hold command',
-    ignition_wait_hot:'Wait for hot confirmation', ignition_hot_timeout_ms:'Hot-confirm timeout',
+    ignition_coil_sat_a:'Coil saturation current', ignition_on_demand:'Ignition On level', ignition_ramp_ms:'Ignition ramp-up time',
     has_flow_monitor:'Flow monitoring', minimum_flow_l_min:'Minimum oil flow', flow_input:'Flow sensor'
   })[key] || key.replace(/_/g, ' ');
 }
@@ -139,9 +137,7 @@ function _registryEffectiveValue(key, value) {
     pulldown:false, has_current:false, current_pin:-1, current_mv_a:100,
     current_zero_v:1.65, current_max_a:0, current_ready_a:3, current_trip_delay_ms:5000, has_flow_monitor:false,
     minimum_flow_l_min:0, flow_input:'', ignition_mode:0, ignition_dwell_ms:6,
-    ignition_rest_ms:3, ignition_coil_sat_a:8, ignition_preheat_ms:10000,
-    ignition_peak_demand:.8, ignition_hold_demand:.3, ignition_wait_hot:false,
-    ignition_hot_timeout_ms:30000
+    ignition_rest_ms:3, ignition_coil_sat_a:8, ignition_on_demand:1, ignition_ramp_ms:0
   };
   return Object.prototype.hasOwnProperty.call(defaults, key) ? defaults[key] : value;
 }

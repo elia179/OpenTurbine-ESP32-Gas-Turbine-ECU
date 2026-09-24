@@ -353,6 +353,17 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
   color: var(--dim);
   font-size: .7rem;
 }
+.dashboard-hide-card{display:none;position:absolute;right:.42rem;top:.38rem;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--dim);font-size:1rem;line-height:1;cursor:pointer;z-index:2}
+body.dashboard-card-editing .dashboard-hide-card{display:block}
+body.dashboard-card-editing .dashboard-customizable-card{outline:1px dashed var(--border-light);outline-offset:-1px}
+.dashboard-customizable-card{position:relative}
+.dashboard-user-hidden{display:none!important}
+.dashboard-group-user-empty{display:none!important}
+section:has(> .dashboard-user-hidden:only-child){display:none!important}
+.dashboard-hidden-cards{flex:1 1 100%;justify-content:flex-end;align-items:center;gap:.35rem;flex-wrap:wrap;padding-top:.1rem}
+.dashboard-hidden-cards:not([hidden]){display:flex}
+.dashboard-hidden-cards span{font-size:.67rem;color:var(--dim)}
+.dashboard-hidden-cards button{min-height:30px;padding:.2rem .5rem;font-size:.68rem;background:transparent;color:var(--cyan);border:1px solid var(--border);border-radius:4px}
 .telemetry-card-bin:empty { display: none !important; margin: 0; }
 .gs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
 .gs-title  { font-weight: 700; font-size: 0.9rem; color: var(--text); }
@@ -1552,6 +1563,15 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
 
 .hw-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.65rem; align-items: start; }
 .hw-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+/* Hardware registry cards mix one-line and multi-line help in each row. Keep
+   their controls on one baseline without stretching unrelated page sections. */
+.registry-card-editor .hw-grid { align-items: stretch; }
+.registry-card-editor .hw-grid > .hw-field > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { margin-top: auto; }
+.registry-card-editor .registry-ignition-relay-note { grid-column: 1 / -1; }
+.registry-range-pair { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem .65rem; }
+.registry-range-intro { grid-column: 1 / -1; display: flex; flex-direction: column; gap: .2rem; }
+.registry-range-pair > .hw-field > :is(input, select) { margin-top: auto; }
+@media (max-width: 600px) { .registry-range-pair { grid-template-columns: minmax(0, 1fr); } }
 .hw-label { font-size: 0.67rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--font-ui); }
 .hw-desc  { font-size: 0.72rem; color: var(--dim); line-height: 1.4; min-height: 1.5rem; font-family: var(--font-ui); }
 .hw-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
@@ -1789,6 +1809,7 @@ select option.pin-inonly { color: #5ba3e0; }
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .seq-tab.active { background: var(--accent); color: color-mix(in srgb, var(--accent) 22%, #000); border-color: var(--accent); }
+.seq-card-hint { margin: -.15rem 0 .7rem; color: var(--dim); font-size: .74rem; line-height: 1.45; }
 
 .block-list { display: flex; flex-direction: column; gap: 0.7rem; }
 .block-card {
@@ -1814,6 +1835,7 @@ select option.pin-inonly { color: #5ba3e0; }
 .block-badge {
   font-size: 0.57rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
   padding: 0.18rem 0.45rem; border-radius: 4px; flex-shrink: 0;
+  min-width: 3.45rem; text-align: center;
   font-family: var(--font-ui);
 }
 .badge-while  { background: var(--yellow); color: color-mix(in srgb, var(--yellow) 22%, #000); }
@@ -1821,7 +1843,7 @@ select option.pin-inonly { color: #5ba3e0; }
 .badge-wait   { background: var(--blue);   color: color-mix(in srgb, var(--blue) 22%, #000); }
 .badge-check  { background: var(--green);  color: color-mix(in srgb, var(--green) 22%, #000); }
 
-.block-name { font-weight: 600; font-size: 0.88rem; flex: 1; }
+.block-name { font-weight: 600; font-size: 0.88rem; flex: 1; min-width: 0; }
 .block-cond {
   font-size: 0.7rem; color: var(--dim); background: var(--bg);
   padding: 0.18rem 0.55rem; border-radius: 12px; flex-shrink: 0;

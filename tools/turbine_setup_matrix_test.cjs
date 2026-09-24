@@ -211,19 +211,19 @@ const setups = [
         outputs: [regOut('air_starter', 'Air Starter', 'air_starter', 'starter', 4, 26), regOut('pilot_fuel', 'Start Fuel', 'pilot_fuel', 'valve', 4, 27), regOut('purge_valve', 'Purge Valve', 'purge_valve', 'valve', 4, 14)]
       })
     },
-    config: { glow_plug: { preheat_ms: 2200, preheat_max_pct: 65, hold_pct: 25 }, sequence: { startup: { preheat_ms: 2200 } } },
+    config: {},
     commands: [{ cmd: 'AIRSTARTER_TEST' }, { cmd: 'GLOW_TEST', fParam: 0.5 }]
   },
   {
     id: 'dwell_igniter_wet_glow',
     title: 'Dwell igniter plus wet glow plug',
     hardware: {
-      actuators: { igniter: { enabled: true, pwm: true, dwell_ms: 6, rest_ms: 4, coil: true, has_current: true, current_pin: 12 }, glow_plug: { enabled: true, has_current: true, wet: true } },
+      actuators: { igniter: { enabled: true, pwm: true, dwell_ms: 6, rest_ms: 4, coil: true, has_current: true, current_pin: 12 }, igniter2: { enabled: true }, glow_plug: { enabled: true, has_current: true, type: 2, fuel_pin: 26, fuel_delay_ms: 4000 } },
       channel_registry: merge(clone(baseRegistry), {
-        outputs: [regOut('igniter', 'Dwell Igniter', 'igniter', 'igniter', 5, 0, { has_current: true, current_pin: 12 }), regOut('glow_plug', 'Wet Glow Plug', 'glow_plug', 'glow_plug', 5, 17, { has_current: true, current_pin: 36 })]
+        outputs: [regOut('igniter', 'Dwell Igniter', 'igniter', 'igniter', 5, 0, { ignition_mode: 2, ignition_dwell_ms: 6, ignition_rest_ms: 4, has_current: true, current_pin: 12 }), regOut('ab_igniter', 'Simple PWM Igniter', 'ab_igniter', 'ab_igniter', 5, 25, { ignition_mode: 0, ignition_on_demand: 0.8, ignition_ramp_ms: 1200 }), regOut('glow_plug', 'Wet Glow Plug', 'glow_plug', 'glow_plug', 5, 17, { ignition_mode: 0, ignition_on_demand: 0.65, ignition_ramp_ms: 2500, has_current: true, current_pin: 36 })]
       })
     },
-    config: { glow_plug: { wait_until_hot: true, preheat_ms: 2500 }, misc: { igniter_on_start: true } },
+    config: { misc: { igniter_on_start: true } },
     commands: [{ cmd: 'IGN_TEST' }, { cmd: 'GLOW_TEST', fParam: 0.65 }]
   },
   {
@@ -472,7 +472,70 @@ const setups = [
       await page.goto(`${base}/hardware.html#${setup.id}`);
       await page.waitForFunction(() => /Loaded|Converted/i.test(document.querySelector('#save-msg')?.textContent || ''));
       await assertVisibleTextClean(page, `${setup.id} hardware`);
+      if (setup.id === 'dwell_igniter_wet_glow') {
+        const glowCardText = await page.locator('#registry-outputs .registry-card[data-registry-id="glow_plug"]').textContent();
+        assert.match(glowCardText, /Set glow plug On\/Off in Sequence/);
+        assert.doesNotMatch(glowCardText, /preheat block/i);
+        const ignitionSetup = await page.evaluate(() => {
+          const outputs = cfg.channel_registry.outputs;
+          const glow = outputs.find(row => row.purpose === 'glow_plug');
+          const simple = outputs.find(row => row.purpose === 'ab_igniter');
+          const coil = outputs.find(row => row.purpose === 'igniter');
+          const originalPilotDelay = cfg.actuators.glow_plug.fuel_delay_ms;
+          cfg.actuators.glow_plug.fuel_delay_ms = 1000;
+          const earlyPilotFields = registryGlowSubcards(glow, outputs.indexOf(glow));
+          cfg.actuators.glow_plug.fuel_delay_ms = originalPilotDelay;
+          return {
+            glowLevel: glow?.ignition_on_demand,
+            glowRamp: glow?.ignition_ramp_ms,
+            simpleLevel: simple?.ignition_on_demand,
+            simpleRamp: simple?.ignition_ramp_ms,
+            glowFields: registryGlowSubcards(glow, outputs.indexOf(glow)),
+            earlyPilotFields,
+            simpleFields: registryIgniterSubcards(simple, outputs.indexOf(simple), 'igniter2'),
+            coilFields: registryIgniterSubcards(coil, outputs.indexOf(coil), 'igniter')
+          };
+        });
+        assert.equal(ignitionSetup.glowLevel, 0.65);
+        assert.equal(ignitionSetup.glowRamp, 2500);
+        assert.equal(ignitionSetup.simpleLevel, 0.8);
+        assert.equal(ignitionSetup.simpleRamp, 1200);
+        assert.match(ignitionSetup.glowFields, /timer runs while the glow output ramps/);
+        assert.doesNotMatch(ignitionSetup.glowFields, /before the glow output reaches its On level/);
+        assert.match(ignitionSetup.earlyPilotFields, /before the glow output reaches its On level/);
+        assert.match(ignitionSetup.glowFields, /On level \(%\)/);
+        assert.match(ignitionSetup.simpleFields, /Ramp-up time \(ms\)/);
+        assert.match(ignitionSetup.coilFields, /Coil saturation current/);
+        assert.doesNotMatch(ignitionSetup.coilFields, /Ramp-up time \(ms\)/);
+      }
       if (setup.id === 'minimal_timer_turbojet') {
+        const fuelCard = page.locator('#registry-outputs .registry-card[data-registry-id="main_fuel"]');
+        await fuelCard.getByRole('button', {name:'EDIT'}).click();
+        const firstRowBottoms = await fuelCard.evaluate(card =>
+          [...card.querySelector('.registry-card-editor .hw-grid').children].slice(0, 3)
+            .map(field => field.querySelector('input, select')?.getBoundingClientRect().bottom));
+        assert.equal(firstRowBottoms.length, 3);
+        assert.ok(firstRowBottoms.every(Number.isFinite) &&
+          Math.max(...firstRowBottoms) - Math.min(...firstRowBottoms) <= 1,
+          'registry card controls should share a baseline despite different help-text lengths');
+        const outputEndpoints = await fuelCard.evaluate(card => {
+          const pair = card.querySelector('.registry-range-pair');
+          if (!pair) return null;
+          const fields = [...pair.querySelectorAll(':scope > .hw-field')];
+          return {
+            title: pair.querySelector('.registry-range-intro .hw-label')?.textContent,
+            labels: fields.map(field => field.querySelector('.hw-label')?.textContent),
+            columns: getComputedStyle(pair).gridTemplateColumns.split(' ').length,
+            controlBottoms: fields.map(field => field.querySelector('input')?.getBoundingClientRect().bottom)
+          };
+        });
+        assert.equal(outputEndpoints?.title, 'Electrical output endpoints');
+        assert.equal(outputEndpoints?.labels.length, 2);
+        assert.match(outputEndpoints.labels[0], /0% command/i);
+        assert.match(outputEndpoints.labels[1], /100% command/i);
+        assert.equal(outputEndpoints.columns, 2, 'servo pulse endpoints should sit together');
+        assert.ok(Math.abs(outputEndpoints.controlBottoms[0] - outputEndpoints.controlBottoms[1]) <= 1,
+          'servo pulse endpoints should share a baseline');
         const mainFuelUsage = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
           const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));

@@ -198,8 +198,6 @@ namespace FeedbackRequirements {
         if (HardwareConfig::hasThrottleInput && !ed.throttleInputValid) failed |= THROTTLE;
         if (HardwareConfig::hasIdleInput &&
             (startupHas("FuelPumpIdle") || startupHas("ModifiedIdle")) && !ed.idleInputValid) failed |= IDLE;
-        if (Config::glowWaitUntilHot && startupHas("GlowPreheat") &&
-            (!HardwareConfig::hasGlowCurrentSensor || !ed.glowCurrentHealthy)) failed |= GLOW_CURRENT;
         return failed;
     }
 

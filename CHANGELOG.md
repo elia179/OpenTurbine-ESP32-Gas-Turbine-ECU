@@ -10,6 +10,17 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.4.1] — 2026-09-22
+
+- Ignore dormant oil-pressure, shaft pullback, Automatic Idle, windmilling-oil, and afterburner relationships when their required hardware or controller is unavailable.
+- Add direct setting links to Controllers validation messages.
+- Add a browser-local dashboard card editor for optional telemetry and information cards, while keeping engine state and controls permanently visible; editing controls stay invisible during normal operation.
+- Move shared sensor buses and the board/PCB summary to the end of Hardware, with the board/PCB summary after the buses.
+- Minify installed inline page scripts to restore ample Classic ESP32 filesystem working and log reserve without reducing the editable UI sources.
+- Keep sequencer cards and output ownership consistent: one glow-plug control path, hardware-owned On level and ramp, and no separate igniter preheat setting. Relay outputs show no ramp controls; wet-glow pilot fuel follows its glow-plug command after the configured delay.
+- Align Hardware editor controls and group servo/ESC electrical pulse endpoints together, including on narrow screens.
+- Clarify unavailable ignition options, hardware ramp behavior, and sequence output targets in the UI.
+
 ## [2.4.0] — 2026-09-15
 
 ### Added

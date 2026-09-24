@@ -24,6 +24,15 @@ function validateSequenceHardwareForSave() {
       else if (!sideActionMeta(action))
         errors.push(`${label} block ${index + 1} (Set Output) references missing output "${target || 'unknown'}".`);
     }
+    if (name === 'WaitForInput' || name === 'WaitForInputOff') {
+      ensureWaitInputSlots(tab);
+      const wait = hwCfg[waitInputSeqKey(tab)][index];
+      if (Number(wait.channel) < 0 || Number(wait.channel) > 3 ||
+          Number(hwCfg.di_channels?.[Number(wait.channel)]?.pin ?? -1) < 0)
+        errors.push(`${label} block ${index + 1} needs a fitted digital input channel.`);
+      if (!Number.isFinite(Number(wait.timeout_ms)) || Number(wait.timeout_ms) < 500 || Number(wait.timeout_ms) > 60000)
+        errors.push(`${label} block ${index + 1} needs a 500–60000 ms maximum wait.`);
+    }
   }));
   return errors;
 }
@@ -98,6 +107,7 @@ async function saveAll() {
       'startup_delay_ms','shutdown_delay_ms','ab_delay_ms','ab_shut_delay_ms',
       'startup_ignition_target','shutdown_ignition_target','ab_ignition_target','ab_shut_ignition_target',
       'startup_device_target','shutdown_device_target','ab_device_target','ab_shut_device_target',
+      'startup_wait_inputs','shutdown_wait_inputs','ab_wait_inputs','ab_shut_wait_inputs',
       'startup_enter_actions','startup_exit_actions','shutdown_enter_actions','shutdown_exit_actions',
       'ab_enter_actions','ab_exit_actions','ab_shut_enter_actions','ab_shut_exit_actions',
       'custom_blocks','ab_trigger'

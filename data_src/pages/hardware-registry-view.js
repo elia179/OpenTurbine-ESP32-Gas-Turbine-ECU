@@ -365,21 +365,21 @@ function registryCurrentUsers(direction, id) {
 }
 function registryBlockLabel(block) {
   const labels = {
-    OilPrime:'Build Oil Pressure', StarterSpin:'Set Starter', PreIgnSpark:'Igniter 1 Timed On',
+    OilPrime:'Build Oil Pressure', StarterSpin:'Set Starter',
     FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor', TempConfirm:'Confirm Combustion by Temperature',
     FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
     SafetyHold:'Final Startup Checks', OilPumpOn:'Oil Pump On', OilPumpOff:'Oil Pump Off',
     OilScavengeOn:'Scavenge On', OilScavengeOff:'Scavenge Off', StarterOff:'Starter Off',
     ImmediateCut:'Immediate Fuel and Ignition Cut', RPMDrop:'Wait for Rotor to Slow',
     CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop', ThrottleSet:'Set Main Fuel Demand',
-    GlowPreheat:'Glow Preheat', FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
+    FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
     FuelPump2On:'Secondary / Auxiliary Fuel Pump On', FuelPump2Off:'Secondary / Auxiliary Fuel Pump Off',
     CoolFanOn:'Cooling Fan On', CoolFanOff:'Cooling Fan Off',
     BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close',
     AirstarterOn:'Air Starter Valve Open', AirstarterOff:'Air Starter Valve Close',
     StarterEnOn:'Starter Enable On', StarterEnOff:'Starter Enable Off',
     FuelSolClose:'Close Main Fuel Shutoff', FuelPulse:'Pulse Main Fuel Shutoff',
-    IgniterOn:'Igniter On', IgniterOff:'Igniter Off', PreHeat:'Pre-Heat',
+    IgniterOn:'Igniter On', IgniterOff:'Igniter Off',
     ABPumpOn:'Afterburner Fuel Pump On', ABPumpOff:'Afterburner Fuel Pump Off', ABIgnOn:'Afterburner Igniter On',
     ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
     ABCheckReady:'Check Afterburner Entry Conditions', ABFlameConfirm:'Confirm Afterburner Flame', ABStabilize:'Stabilize Afterburner'
@@ -1179,7 +1179,7 @@ function registryContextLinks(direction, c) {
       add('/controllers.html#cf-rl_oid', 'Set relight behavior');
       add('/sequence.html#tab-startup', 'Open ignition sequence');
     } else if (purpose === 'glow_plug') {
-      add('/sequence.html#tab-startup', 'Place the preheat block');
+      add('/sequence.html#tab-startup', 'Set glow plug On/Off in Sequence');
     } else if (purpose === 'ab_igniter') {
       add('/controllers.html#cf-ab_ui', 'Set AB ignition method');
       add('/sequence.html#tab-afterburner', 'Open AB sequence');

@@ -175,6 +175,21 @@ function switchTab(tab) {
 function revealSequenceDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
+  const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
+                    'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm'],
+                    'starter-target':['pre_ign_rpm']}[id];
+  if (fieldKey) {
+    switchTab('startup');
+    const field = fieldKey.map(key => document.querySelector(`#tab-startup .param-field[data-pkey="${key}"]`)).find(Boolean);
+    if (field) {
+      field.closest('.block-params')?.classList.add('open');
+      field.classList.add('deep-link-target');
+      requestAnimationFrame(() => field.scrollIntoView({behavior:'smooth', block:'center'}));
+      return;
+    }
+    document.getElementById('tab-startup')?.scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
   const tab = id.startsWith('tab-') ? id.slice(4) : '';
   if (['startup','shutdown','afterburner'].includes(tab)) switchTab(tab);
   const target = document.getElementById(id);
@@ -285,6 +300,31 @@ function setConfigVal(key, val) {
     if (i < parts.length-1) obj = obj[parts[i]];
     else obj[parts[i]][map.key] = val;
   }
+  // Several cards intentionally expose the same engine setting. Keep their
+  // visible controls in agreement without rebuilding cards or losing focus.
+  for (const [bname, block] of Object.entries({...BLOCKS, ...customBlocks})) {
+    for (const param of block.params || []) {
+      if (param.configKey !== key) continue;
+      paramVals[bname + '.' + param.key] = val;
+      document.querySelectorAll(`.param-field[data-bname="${bname}"][data-pkey="${param.key}"]`).forEach(field => {
+        const control = field.querySelector('input, select');
+        if (!control || control === document.activeElement) return;
+        if (param.type === 'bool') {
+          control.checked = !!val;
+          const label = field.querySelector('label');
+          if (label) label.textContent = val ? 'Yes' : 'No';
+        } else {
+          control.value = String(param.type === 'select' ? val : seqDisplayValue(param, val));
+        }
+      });
+    }
+  }
+  for (const card of document.querySelectorAll('.block-card')) {
+    if (card.dataset.block === 'TimedDelay') continue; // duration is per card
+    const def = BLOCKS[card.dataset.block] || customBlocks[card.dataset.block];
+    const condition = card.querySelector('.block-cond');
+    if (condition && def?.condition) condition.textContent = def.condition(flattenHw());
+  }
 }
 
 // ------ Render a sequence tab ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -311,6 +351,26 @@ function deviceTargetSeqKey(tab) {
   if (tab === 'shutdown') return 'shutdown_device_target';
   if (tab === 'ab-shut') return 'ab_shut_device_target';
   return 'ab_device_target';
+}
+function waitInputSeqKey(tab) {
+  if (tab === 'startup') return 'startup_wait_inputs';
+  if (tab === 'shutdown') return 'shutdown_wait_inputs';
+  if (tab === 'ab-shut') return 'ab_shut_wait_inputs';
+  return 'ab_wait_inputs';
+}
+function ensureWaitInputSlots(tab) {
+  const seq = hwCfg[seqKey(tab)] || [];
+  const key = waitInputSeqKey(tab);
+  if (!Array.isArray(hwCfg[key])) hwCfg[key] = [];
+  for (let i = 0; i < seq.length; i++) {
+    if (hwCfg[key][i] && typeof hwCfg[key][i] === 'object') continue;
+    hwCfg[key][i] = {
+      channel: Number(cfg?.sequence?.startup?.wait_for_input_ch ?? 0),
+      active: seq[i] === 'WaitForInputOff' ? false : cfg?.sequence?.startup?.wait_for_input_state !== false,
+      timeout_ms: Math.max(500, Number(cfg?.sequence?.startup?.wait_for_input_timeout ?? 30000)),
+    };
+  }
+  hwCfg[key].length = seq.length;
 }
 function ensureDelaySlots(tab) {
   const seq = hwCfg[seqKey(tab)] || [];
@@ -352,6 +412,7 @@ function render(tab, idleRaw, openKeys = new Set()) {
   ensureDelaySlots(tab);
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
+  ensureWaitInputSlots(tab);
   ensureActionSlots(tab);
   const list = document.getElementById('list-' + tab);
   list.innerHTML = '';
@@ -473,7 +534,7 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'StarterSpin')  { state.starter = 'on'; state.starterEn = 'on'; }
       if (bname === 'FuelOpen')     state.fuelSol   = 'open';
       if (bname === 'FuelPulse')    state.fuelSol   = 'closed';
-      if (bname === 'IgniterOn' || bname === 'PreHeat' || bname === 'PreIgnSpark') {
+      if (bname === 'IgniterOn') {
         const target = Number(hwCfg[ignitionTargetSeqKey(tab)]?.[i] ?? 0);
         setIgnitionPreviewState(state, target, true);
         sequenceIgnitionTargets.add(target);
@@ -499,13 +560,6 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       if (bname === 'CoolFanOff')    state.coolFan = 'off';
       if (bname === 'BleedOpen')     state.bleed = 'open';
       if (bname === 'BleedClose')    state.bleed = 'closed';
-      if (bname === 'GlowPreheat') {
-        const targetId = String(hwCfg[deviceTargetSeqKey(tab)]?.[i] || '');
-        const plug = (hwCfg.channel_registry?.outputs || []).find(row => String(row.id || '') === targetId);
-        const relay = plug ? [4,11].includes(Number(plug.driver)) : actuatorIsRelay('glow_plug');
-        const hold = Math.round(Number(plug?.ignition_hold_demand ?? .3) * 100);
-        state.glow = relay ? 'on during preheat' : `${hold}% hold`;
-      }
       if (bname === 'FuelPumpRamp')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPumpRamp.fp2_end_pct'] ?? 80);
       if (bname === 'FuelPump2Set')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPump2Set.fp2_demand_pct'] ?? 0);
       if (bname === 'FuelPump2On')   state.fuelPump2 = 'on';

@@ -75,15 +75,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div id="standby-warn" class="error-banner" style="display:none">⚠ Hardware changes require STANDBY or FAULT.</div>
   <div id="pin-conflict-banner" class="error-banner" style="display:none;margin-bottom:.75rem"></div>
 
-  <div class="hw-section" id="hardware-profile-section">
-    <div class="hw-title">Board and PCB profile</div>
-    <div id="pcb-profile-identity" class="warning-banner" style="display:none;margin-bottom:.65rem"></div>
-    <div class="hw-item-card">
-      <span class="hw-desc">The flashed target and PCB profile define electrical capabilities. Engine identity, Wi-Fi, and telemetry behavior are on <a href="/system.html">System</a>.</span>
-      <div id="hardware-board-summary" class="board-summary" style="margin-top:.55rem">Loading board summary...</div>
-    </div>
-  </div>
-
   <!-- ── Features ─────────────────────────────────────── -->
   <div class="hw-section" id="hardware-inputs-panel">
     <div class="hw-title">Inputs</div>
@@ -147,7 +138,16 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     </div>
   </div>
 
-  <div class="hw-section">
+  <div class="hw-section" id="hardware-profile-section">
+    <div class="hw-title">Board and PCB profile</div>
+    <div id="pcb-profile-identity" class="warning-banner" style="display:none;margin-bottom:.65rem"></div>
+    <div class="hw-item-card">
+      <span class="hw-desc">The flashed target and PCB profile define electrical capabilities. Engine identity, Wi-Fi, and telemetry behavior are on <a href="/system.html">System</a>.</span>
+      <div id="hardware-board-summary" class="board-summary" style="margin-top:.55rem">Loading board summary...</div>
+    </div>
+  </div>
+
+  <div class="hw-section" id="hardware-next-section">
     <div class="hw-title">Next: choose what controls these outputs</div>
     <div class="hw-desc" style="margin-bottom:.65rem">Hardware ends with wiring, signal type, and calibration. Normal output ownership and safety behavior are configured together on Controllers.</div>
     <a class="btn-link" href="/controllers.html">Open Controllers &rarr;</a>

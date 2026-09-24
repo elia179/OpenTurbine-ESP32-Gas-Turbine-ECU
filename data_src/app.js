@@ -69,7 +69,7 @@ function selectedEgtKey(d) {
     : (d?.egt_source === 1 ? 'tot' : (d?.has_tot ? 'tot' : (d?.has_tit ? 'tit' : null)));
 }
 const SEQUENCE_BLOCK_LABELS = {
-  OilPrime:'Build Oil Pressure', StarterSpin:'Starter Spin to Light-Off Speed', PreIgnSpark:'Igniter 1 Timed On',
+  OilPrime:'Build Oil Pressure', StarterSpin:'Starter Spin to Light-Off Speed',
   FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor',
   TempConfirm:'Confirm Combustion by Temperature', TimedDelay:'Timed Delay',
   FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
@@ -80,12 +80,12 @@ const SEQUENCE_BLOCK_LABELS = {
   StarterOff:'Starter Off', ImmediateCut:'Immediate Fuel and Ignition Cut', RPMDrop:'Wait for Rotor to Slow',
   CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop', FuelPulse:'Pulse Main Fuel Shutoff',
   WaitTOTCool:'Wait for Safe Restart Temperature', ThrottleSet:'Set Main Fuel Demand',
-  WaitForInput:'Wait for External Input', WaitForInputOff:'Wait for External Input to Release', PreHeat:'Pre-Heat',
+  WaitForInput:'Wait for External Input', WaitForInputOff:'Wait for External Input to Release',
   ABPumpOn:'Afterburner Fuel Pump On', ABPumpOff:'Afterburner Fuel Pump Off', ABIgnOn:'Afterburner Igniter On',
   ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
   ABCheckReady:'Check Afterburner Entry Conditions', ABIgnite:'Ignite Afterburner',
   ABFlameConfirm:'Confirm Afterburner Flame', ABStabilize:'Stabilize Afterburner',
-  BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close', GlowPreheat:'Glow Preheat',
+  BleedOpen:'Bleed Valve Open', BleedClose:'Bleed Valve Close',
   FuelPumpRamp:'Secondary / Auxiliary Fuel Pump Ramp', FuelPump2Set:'Secondary / Auxiliary Fuel Pump Set',
   FuelPump2On:'Secondary / Auxiliary Fuel Pump On', FuelPump2Off:'Secondary / Auxiliary Fuel Pump Off',
   GovernorHold:'Verify Power-Turbine Governor'
@@ -175,7 +175,100 @@ function organizeDashboardCards() {
     const anchor = advActSection || modeRow;
     anchor.insertAdjacentElement('afterend', outputCards);
   }
+  initializeDashboardCardEditing();
 }
+
+const DASHBOARD_CARD_PREF_KEY = 'ot_dashboard_hidden_cards_v1';
+const DASHBOARD_CUSTOM_CARD_IDS = [
+  'n1-card','n2-card','tot-card','tit-card','oil-card','oil-temp-card','oilpump-current-card',
+  'flame-card','fuel-press-card','fuel-flow-card','p1-card','p2-card','batt-card','torque-card',
+  'thrust-card','glow-current-card','igniter-current-card','igniter2-current-card',
+  'throttle-output-card','oil-output-card','switch-inputs-card','governor-card',
+  'actuator-outputs-card','afterburner-card','last-event-card','uptime-card',
+  'hour-meter-card','relight-card','extra-cooldown-card','system-card'
+];
+let _dashboardHiddenCards = (() => {
+  try {
+    const value = JSON.parse(localStorage.getItem(DASHBOARD_CARD_PREF_KEY) || '[]');
+    return new Set(Array.isArray(value) ? value.filter(id => DASHBOARD_CUSTOM_CARD_IDS.includes(id)) : []);
+  } catch (_) { return new Set(); }
+})();
+
+function dashboardCardLabel(card) {
+  return (card.querySelector('.label')?.textContent || card.id)
+    .replace(/\s+/g, ' ').trim() || card.id;
+}
+
+function saveDashboardCardPrefs() {
+  try { localStorage.setItem(DASHBOARD_CARD_PREF_KEY, JSON.stringify([..._dashboardHiddenCards])); } catch (_) {}
+}
+
+function refreshDashboardCardVisibility() {
+  DASHBOARD_CUSTOM_CARD_IDS.forEach(id => {
+    document.getElementById(id)?.classList.toggle('dashboard-user-hidden', _dashboardHiddenCards.has(id));
+  });
+  document.querySelectorAll('.telemetry-group').forEach(group => {
+    const cards = Array.from(group.querySelectorAll('.dashboard-customizable-card'));
+    const hasShownFittedCard = cards.some(card => card.style.display !== 'none' && !_dashboardHiddenCards.has(card.id));
+    group.classList.toggle('dashboard-group-user-empty', cards.length > 0 && !hasShownFittedCard);
+  });
+  const restore = document.getElementById('dashboard-hidden-cards');
+  if (!restore) return;
+  restore.replaceChildren();
+  const editing = document.body.classList.contains('dashboard-card-editing');
+  restore.hidden = !editing || _dashboardHiddenCards.size === 0;
+  if (restore.hidden) return;
+  const label = document.createElement('span');
+  label.textContent = 'Hidden:';
+  restore.appendChild(label);
+  [..._dashboardHiddenCards].forEach(id => {
+    const card = document.getElementById(id);
+    if (!card) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Show ' + dashboardCardLabel(card);
+    button.addEventListener('click', () => {
+      _dashboardHiddenCards.delete(id);
+      saveDashboardCardPrefs();
+      refreshDashboardCardVisibility();
+    });
+    restore.appendChild(button);
+  });
+}
+
+function initializeDashboardCardEditing() {
+  DASHBOARD_CUSTOM_CARD_IDS.forEach(id => {
+    const card = document.getElementById(id);
+    if (!card || card.querySelector('.dashboard-hide-card')) return;
+    card.classList.add('dashboard-customizable-card');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dashboard-hide-card';
+    button.textContent = '−';
+    button.setAttribute('aria-label', 'Hide ' + dashboardCardLabel(card));
+    button.title = 'Hide this card in this browser';
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      _dashboardHiddenCards.add(id);
+      saveDashboardCardPrefs();
+      refreshDashboardCardVisibility();
+    });
+    card.appendChild(button);
+  });
+  refreshDashboardCardVisibility();
+}
+
+function toggleDashboardCardEdit() {
+  const editing = !document.body.classList.contains('dashboard-card-editing');
+  document.body.classList.toggle('dashboard-card-editing', editing);
+  const button = document.getElementById('dashboard-card-edit-btn');
+  if (button) {
+    button.textContent = editing ? 'Done' : 'Edit cards';
+    button.setAttribute('aria-pressed', editing ? 'true' : 'false');
+  }
+  refreshDashboardCardVisibility();
+}
+window.toggleDashboardCardEdit = toggleDashboardCardEdit;
 
 // ── Sparkline circular buffers ────────────────────────────────
 function resolveCssColor(color) {
@@ -1768,6 +1861,7 @@ function applyData(d) {
 
   // ── Post-run summary + sequence timeline tracking ─────────
   _trackRunState(d);
+  refreshDashboardCardVisibility();
   return d;
 }
 

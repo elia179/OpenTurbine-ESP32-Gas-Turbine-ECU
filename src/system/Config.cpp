@@ -127,7 +127,6 @@ float Config::oilFailsafePct        = 60.0f;
 
 int   Config::startupOilArmTimeoutMs  = 3000;
 float Config::preIgnRpm               = 5000;
-int   Config::preIgnSparkMs           = 1500;
 int   Config::flameTimeoutMs          = 5000;
 int   Config::flameCheckIntervalMs    = 300;
 float Config::spoolRpmTarget          = 32000;
@@ -255,7 +254,6 @@ uint32_t Config::toolOilPrimeMs     = 5000;
 uint32_t Config::toolIgnTestMs      = 2000;
 uint32_t Config::toolIgn2TestMs     = 2000;
 uint32_t Config::toolGlowTestMs     = 10000;
-float    Config::toolGlowTestPct    = 100.0f;
 uint32_t Config::toolStartTestMs    = 2000;
 float    Config::toolStartTestPct   = 30.0f;
 uint32_t Config::toolFuelSolTestMs  = 1000;
@@ -331,7 +329,6 @@ int      Config::fuelPulseOffMs          = 300;
 float    Config::waitTotCoolTarget       = 150.0f;
 int      Config::waitTotCoolTimeoutMs    = 120000;
 float    Config::throttleSetPct          = 10.0f;
-int      Config::preHeatMs               = 3000;
 float    Config::oilPumpOnPct            = 100.0f;
 
 bool     Config::flameConfirmTurnOffIgniter  = true;
@@ -396,10 +393,6 @@ float Config::fp2EndPct             = 80.0f;
 int   Config::fp2RampMs             = 3000;
 float Config::fp2DemandPct          = 0.0f;
 
-int   Config::glowPreheatMs         = 10000;
-float Config::glowPreheatMaxPct     = 80.0f;
-float Config::glowHoldPct           = 30.0f;
-bool  Config::glowWaitUntilHot      = false;
 
 volatile uint32_t Config::totalRunSeconds    = 0;
 volatile uint32_t Config::startAttemptCount  = 0;
@@ -680,9 +673,9 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     JsonVariantConst sd = doc["sequence"]["shutdown"];
     if (!su.is<JsonObjectConst>() || !sd.is<JsonObjectConst>()) return false;
     const char* startupMs[] = {
-        "oil_arm_timeout_ms", "pre_ign_spark_ms", "flame_timeout_ms", "rpm_timeout_ms",
+        "oil_arm_timeout_ms", "flame_timeout_ms", "rpm_timeout_ms",
         "safety_hold_ms", "safety_hold_timeout_ms", "starter_timeout_ms", "temp_confirm_timeout", "wait_for_input_timeout",
-        "timed_delay_ms", "fuel_pulse_ms", "fuel_off_ms", "wait_tot_timeout", "preheat_ms",
+        "timed_delay_ms", "fuel_pulse_ms", "fuel_off_ms", "wait_tot_timeout",
         "fp2_ramp_ms", "gov_hold_timeout_ms"
     };
     if (!validMsFields(su, startupMs, sizeof(startupMs) / sizeof(startupMs[0])) ||
@@ -740,8 +733,12 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     if (validateHardwareDependencies) {
         if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "OilPrime") &&
             (!present(su["oil_arm_timeout_ms"]) || su["oil_arm_timeout_ms"].as<int>() < 500)) return false;
-        if ((sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInput") ||
-             sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInputOff")) &&
+        bool legacyInputWait = false;
+        for (int i = 0; i < HardwareConfig::startupSeqLen; ++i)
+            if ((!strcmp(HardwareConfig::startupSeq[i], "WaitForInput") ||
+                 !strcmp(HardwareConfig::startupSeq[i], "WaitForInputOff")) &&
+                !HardwareConfig::startupWaitInputs[i].configured) legacyInputWait = true;
+        if (legacyInputWait &&
             (!present(su["wait_for_input_timeout"]) || su["wait_for_input_timeout"].as<int>() < 500)) return false;
         if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "SafetyHold") &&
             ((!present(su["safety_hold_ms"]) || su["safety_hold_ms"].as<int>() < 100) ||
@@ -791,20 +788,20 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     const char* limiterStrengths[] = {"pullback_n1_strength","pullback_n2_strength","pullback_egt_strength",
                                       "pullback_p1_strength","pullback_p2_strength","pullback_torque_strength"};
     for (const char* key : limiterStrengths) if (!validNumber(th[key], 0.0f, 5.0f)) return false;
-    if (present(th["pullback_n1_soft_rpm"]) && present(th["pullback_n1_hard_rpm"]) &&
+    if ((th["pullback_n1"] | false) && present(th["pullback_n1_soft_rpm"]) && present(th["pullback_n1_hard_rpm"]) &&
         th["pullback_n1_hard_rpm"].as<float>() > 0.0f &&
         th["pullback_n1_hard_rpm"].as<float>() <= th["pullback_n1_soft_rpm"].as<float>()) return false;
-    if (present(th["pullback_n2_soft_rpm"]) && present(th["pullback_n2_hard_rpm"]) &&
+    if ((th["pullback_n2"] | false) && present(th["pullback_n2_soft_rpm"]) && present(th["pullback_n2_hard_rpm"]) &&
         th["pullback_n2_hard_rpm"].as<float>() > 0.0f &&
         th["pullback_n2_hard_rpm"].as<float>() <= th["pullback_n2_soft_rpm"].as<float>()) return false;
-    if (present(th["pullback_egt_soft_c"]) && present(th["pullback_egt_hard_c"]) &&
+    if ((th["pullback_egt"] | false) && present(th["pullback_egt_soft_c"]) && present(th["pullback_egt_hard_c"]) &&
         th["pullback_egt_hard_c"].as<float>() > 0.0f &&
         th["pullback_egt_hard_c"].as<float>() <= th["pullback_egt_soft_c"].as<float>()) return false;
-    if (present(th["pullback_p1_hard_bar"]) && th["pullback_p1_hard_bar"].as<float>() > 0.0f &&
+    if ((th["pullback_p1"] | false) && present(th["pullback_p1_hard_bar"]) && th["pullback_p1_hard_bar"].as<float>() > 0.0f &&
         th["pullback_p1_hard_bar"].as<float>() <= th["pullback_p1_soft_bar"].as<float>()) return false;
-    if (present(th["pullback_p2_hard_bar"]) && th["pullback_p2_hard_bar"].as<float>() > 0.0f &&
+    if ((th["pullback_p2"] | false) && present(th["pullback_p2_hard_bar"]) && th["pullback_p2_hard_bar"].as<float>() > 0.0f &&
         th["pullback_p2_hard_bar"].as<float>() <= th["pullback_p2_soft_bar"].as<float>()) return false;
-    if (present(th["pullback_torque_hard_nm"]) && th["pullback_torque_hard_nm"].as<float>() > 0.0f &&
+    if ((th["pullback_torque"] | false) && present(th["pullback_torque_hard_nm"]) && th["pullback_torque_hard_nm"].as<float>() > 0.0f &&
         th["pullback_torque_hard_nm"].as<float>() <= th["pullback_torque_soft_nm"].as<float>()) return false;
 
 
@@ -815,7 +812,6 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validInt(tools["ign_test_ms"], 100, 60000) ||
         !validInt(tools["ign2_test_ms"], 100, 60000) ||
         !validInt(tools["glow_test_ms"], 100, 60000) ||
-        !validNumber(tools["glow_test_pct"], 0.0f, 100.0f) ||
         !validInt(tools["start_test_ms"], 100, 60000) ||
         !validNumber(tools["start_test_pct"], 0.0f, 100.0f) ||
         !validInt(tools["fuel_sol_test_ms"], 50, 60000) ||
@@ -993,13 +989,6 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(gov["kp"], 0.0f, 0.01f) ||
         !validNumber(gov["pitch_kp"], 0.0f, 0.01f) ||
         !validNumber(gov["pitch_ramp_sec"], 0.0f, 3600000.0f))) return false;
-
-    JsonVariantConst glow = doc["glow_plug"];
-    if (present(glow) && (!glow.is<JsonObjectConst>() ||
-        !validInt(glow["preheat_ms"], 0, 3600000) ||
-        !validNumber(glow["preheat_max_pct"], 0.0f, 100.0f) ||
-        !validNumber(glow["hold_pct"], 0.0f, 100.0f) ||
-        !validBool(glow["wait_until_hot"]))) return false;
 
     JsonVariantConst rc = doc["rc_input"];
     if (present(rc) && (!rc.is<JsonObjectConst>() ||
@@ -1344,6 +1333,21 @@ void Config::autoFillNewlyEnabledSafety(bool prevOilTemp,
 
 bool Config::sanitizeForHardware() {
     bool changed = false;
+    auto disarmUnavailable = [&](bool available, bool& enabled) {
+        if (!available && enabled) {
+            enabled = false;
+            changed = true;
+        }
+    };
+    // Limiter tuning is intentionally preserved for later hardware changes,
+    // but an unavailable feedback source must not leave a hidden limiter
+    // enabled or make its dormant ordering values block unrelated edits.
+    disarmUnavailable(HardwareConfig::hasN1Rpm, pullbackN1Enabled);
+    disarmUnavailable(HardwareConfig::hasN2Rpm, pullbackN2Enabled);
+    disarmUnavailable(HardwareConfig::hasTot || HardwareConfig::hasTit, pullbackEgtEnabled);
+    disarmUnavailable(HardwareConfig::hasP1, pullbackP1Enabled);
+    disarmUnavailable(HardwareConfig::hasP2, pullbackP2Enabled);
+    disarmUnavailable(HardwareConfig::hasTorque, pullbackTorqueEnabled);
     // An enabled starter-assist mode is an operating command, not merely a
     // tuning value. If a Hardware edit removes its required starter/N1 path
     // (or changes to a non-PWM starter), disarm it while preserving all of its
@@ -2011,9 +2015,10 @@ bool Config::validateRuntimeHardwareDependencies() {
     };
     if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "OilPrime") &&
         startupOilArmTimeoutMs < 500) return false;
-    if ((sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInput") ||
-         sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "WaitForInputOff")) &&
-        waitForInputTimeoutMs < 500) return false;
+    for (int i = 0; i < HardwareConfig::startupSeqLen; ++i)
+        if ((!strcmp(HardwareConfig::startupSeq[i], "WaitForInput") ||
+             !strcmp(HardwareConfig::startupSeq[i], "WaitForInputOff")) &&
+            !HardwareConfig::startupWaitInputs[i].configured && waitForInputTimeoutMs < 500) return false;
     if (sequenceContains(HardwareConfig::startupSeq, HardwareConfig::startupSeqLen, "SafetyHold") &&
         (safetyHoldMs < 100 || safetyHoldTimeoutMs < 100)) return false;
     if (sequenceContains(HardwareConfig::shutdownSeq, HardwareConfig::shutdownSeqLen, "RPMDrop") &&

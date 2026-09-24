@@ -227,13 +227,18 @@ async function optionDisabled(page, selector, value) {
       cfg.actuators.igniter = {...(cfg.actuators.igniter || {}), pwm:true, coil:true};
       const relay = registryIgniterSubcards({driver:11}, 0, 'igniter');
       const pwm = registryIgniterSubcards({driver:5}, 0, 'igniter');
+      const simplePwm = registryIgniterSubcards({driver:5, ignition_mode:0}, 0, 'igniter');
+      const relayRamp = registryIgnitionOnRampFields({driver:11, ignition_on_demand:1, ignition_ramp_ms:0}, 0);
       return {
         relaySimple: relay.includes('simple on/off igniter') &&
           !relay.includes('value="1"') && !relay.includes('value="2"'),
-        pwmAdvanced: pwm.includes('value="1"') && pwm.includes('value="2"')
+        pwmAdvanced: pwm.includes('value="1"') && pwm.includes('value="2"'),
+        simplePwmProfile: simplePwm.includes('On level (%)') && simplePwm.includes('Ramp-up time (ms)'),
+        relayNoRamp: !relayRamp.includes('Ramp-up time (ms)')
       };
     });
-    assert.deepEqual(igniterCapabilityUx, {relaySimple:true, pwmAdvanced:true});
+    assert.deepEqual(igniterCapabilityUx, {relaySimple:true, pwmAdvanced:true,
+      simplePwmProfile:true, relayNoRamp:true});
     results.push('igniter modes follow the selected output driver capability');
 
     const sensorInterfaceUx = await page.evaluate(() => {
@@ -303,7 +308,8 @@ async function optionDisabled(page, selector, value) {
     assert.match(n1UnlockTip || '', /windmilling oil/i);
     assert.match(n1UnlockTip || '', /overspeed/i);
     assert.match(dependencyTips.cluster, /external display/i);
-    assert.match(dependencyTips.glowCurrent, /wait-until-hot/i);
+    assert.match(dependencyTips.glowCurrent, /glow current live data/i);
+    assert.doesNotMatch(dependencyTips.glowCurrent, /wait-until-hot|preheat/i);
     results.push('hardware enable checkboxes explain what currently disabled hardware unlocks');
 
     await reset(page);
@@ -850,9 +856,91 @@ async function optionDisabled(page, selector, value) {
       sensors: getEnabledSensors().map(s => s.key),
       actuators: getEnabledActuators().map(a => ({key:a.key, target:a.target}))
     }));
-    for (const key of ['OilPrime', 'StarterSpin', 'PreHeat', 'TimedDelay', 'FuelPumpIdle']) {
+    const sequenceCardContract = await page.evaluate(() => {
+      const oilTarget = BLOCKS.OilPrime.params.find(p => p.key === 'startup_oil_demand');
+      const fixedPump = BLOCKS.OilPrime.params.find(p => p.key === 'startup_oil_pct');
+      const oldLoop = hwCfg.controllers.oil_loop;
+      hwCfg.controllers.oil_loop = false;
+      const loopOff = {target:oilTarget.visibleIf(hwCfg), fixed:fixedPump.visibleIf(hwCfg)};
+      hwCfg.controllers.oil_loop = true;
+      const loopOn = {target:oilTarget.visibleIf(hwCfg), fixed:fixedPump.visibleIf(hwCfg)};
+      const oilPump = registryOutputPurpose('oil_pump');
+      const oldDriver = oilPump.driver;
+      oilPump.driver = 4;
+      const relayTargets = {prime:oilTarget.visibleIf(hwCfg),
+        cooldown:BLOCKS.CooldownSpin.params.find(p => p.key === 'cooldown_oil_pressure_bar').visibleIf(hwCfg)};
+      oilPump.driver = oldDriver;
+      const starter = registryOutputPurpose('starter');
+      const oldStarterDriver = starter?.driver;
+      if (starter) starter.driver = 4;
+      const relayStarterControls = ['starter_demand','ramp_pct_per_s','pulsed_assist_enabled','cooldown_starter_pct']
+        .map(key => {
+          const owner = key === 'cooldown_starter_pct' ? BLOCKS.CooldownSpin : BLOCKS.StarterSpin;
+          return owner.params.find(p => p.key === key)?.visibleIf(hwCfg);
+        });
+      if (starter) starter.driver = oldStarterDriver;
+      hwCfg.controllers.oil_loop = oldLoop;
+      const oldInputs = hwCfg.channel_registry.inputs;
+      hwCfg.channel_registry.inputs = [{id:'test_p1',purpose:'p1_pressure',driver:0,pin:33,installed:true}];
+      const p1OnlyAllowed = BLOCKS.SafetyHold.visibleIf(hwCfg) &&
+        BLOCKS.SafetyHold.hwWarnings.every(w => w.check(hwCfg));
+      hwCfg.channel_registry.inputs = oldInputs;
+      return {loopOff, loopOn, relayTargets, relayStarterControls, p1OnlyAllowed,
+        ignitionModes:getEnabledActuators().filter(a => ['igniter','igniter2','glow_plug'].includes(a.key)).map(a => a.mode),
+        coolCondition:BLOCKS.WaitTOTCool.condition(flattenHw()),
+        starterCondition:BLOCKS.StarterSpin.condition(flattenHw())};
+    });
+    assert.deepEqual(sequenceCardContract.loopOff, {target:false, fixed:true},
+      'Oil Prime must expose fixed pump demand when the pressure loop is Off');
+    assert.deepEqual(sequenceCardContract.loopOn, {target:true, fixed:false},
+      'Oil Prime must expose its pressure target when the pressure loop is On');
+    assert.deepEqual(sequenceCardContract.relayTargets, {prime:true, cooldown:true},
+      'oil-pressure targets must stay editable for relay pumps with pressure feedback');
+    assert.deepEqual(sequenceCardContract.relayStarterControls, [false,false,false,false],
+      'relay starters must not expose proportional demand, ramp, pulse-assist or cooldown-speed controls');
+    assert.ok(sequenceCardContract.ignitionModes.length > 0 &&
+      sequenceCardContract.ignitionModes.every(mode => mode === 'relay'),
+      'sequence ignition commands must be On/Off; Hardware owns output level and ramp');
+    assert.equal(sequenceCardContract.p1OnlyAllowed, true,
+      'Final Startup Checks must accept a fitted P1-only profile without a false N1/oil warning');
+    assert.match(sequenceCardContract.coolCondition, /^Until EGT ≤ /);
+    assert.match(sequenceCardContract.starterCondition, /^Until N1 ≥ /);
+    assert.match(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').first().textContent(), /^Wait \d/,
+      'Timed Delay cards should state that their duration is a wait');
+    const independentInputCards = await page.evaluate(() => {
+      addBlock('shutdown', 'WaitForInput');
+      addBlock('shutdown', 'WaitForInputOff');
+      const first = hwCfg.shutdown_seq.lastIndexOf('WaitForInput');
+      const second = hwCfg.shutdown_seq.lastIndexOf('WaitForInputOff');
+      setWaitInputField('shutdown', first, 'channel', 2);
+      setWaitInputField('shutdown', first, 'active', true);
+      setWaitInputField('shutdown', first, 'timeout_ms', 4500);
+      setWaitInputField('shutdown', second, 'channel', 1);
+      setWaitInputField('shutdown', second, 'timeout_ms', 9000);
+      moveBlockTo('shutdown', second, first);
+      return ['WaitForInput','WaitForInputOff'].map(name => {
+        const card = document.querySelector(`#list-shutdown .block-card[data-block="${name}"]`);
+        const idx = Number(card?.dataset.idx);
+        const spec = hwCfg.shutdown_wait_inputs[idx];
+        return {
+          channel:spec.channel,
+          timeout:spec.timeout_ms,
+          condition:card.querySelector('.block-cond')?.textContent
+        };
+      });
+    });
+    assert.deepEqual(independentInputCards.map(row => [row.channel, row.timeout]), [[2,4500],[1,9000]],
+      'each input-wait card must keep its own channel and timeout when reordered');
+    assert.match(independentInputCards[1].condition, /DI-2 inactive/);
+    for (const key of ['OilPrime', 'StarterSpin', 'TimedDelay', 'FuelPumpIdle']) {
       assert.ok(sequenceFull.startup.includes(key), `full startup should include ${key}`);
     }
+    assert.ok(!sequenceFull.startup.includes('PreHeat') && !sequenceFull.startup.includes('GlowPreheat') &&
+      !sequenceFull.startup.includes('PreIgnSpark'),
+      'ignition uses On/Off plus Timed Delay, not a separate preheat step');
+    assert.equal(await page.evaluate(() => BLOCKS.PreHeat), undefined,
+      'Pre-Heat must not remain as a hidden sequence definition');
+    results.push('sequence cards use consistent completion conditions, match oil/final checks to hardware, and keep input-wait settings per card');
     for (const key of ['ABCheckReady', 'ABIgnite', 'ABFlameConfirm', 'ABStabilize', 'TimedDelay']) {
       assert.ok(sequenceFull.afterburner.includes(key), `full AB should include ${key}`);
     }
@@ -892,7 +980,7 @@ async function optionDisabled(page, selector, value) {
       sensors: getEnabledSensors().map(s => s.key),
       actuators: getEnabledActuators().map(a => ({key:a.key, target:a.target}))
     }));
-    assert.ok(sequenceHidden.startup.some(o => o.value === 'PreHeat' && !o.disabled), 'PreHeat should remain available when Igniter 2 is fitted');
+    assert.ok(!sequenceHidden.startup.some(o => o.value === 'PreHeat'), 'Pre-Heat must stay absent with any igniter combination');
     for (const actuator of sequenceHidden.actuators) {
       assert.ok(sequenceHidden.startup.some(o => o.value === `SetOutput::${actuator.target}` && !o.disabled),
         `startup should keep the fitted ${actuator.key} output selectable`);

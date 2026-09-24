@@ -33,10 +33,10 @@ const BLOCKS = {
     label:'Build Oil Pressure', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('oil_pump'),
     condition: hw => sensorEnabled('oil_press')
-      ? `oil >= ${hw.oil_arm_min_bar ?? 1.5} bar`
-      : `timer (no pressure sensor)`,
+      ? `Until oil ≥ ${hw.oil_arm_min_bar ?? 1.5} bar`
+      : `Timed run (no sensor)`,
     timeout_action:'abort',
-    desc:'Turns oil pump ON and pre-lubricates bearings. WITH pressure sensor: waits until oil >= arm threshold, aborts on timeout (safe - no fuel or ignition active). WITHOUT pressure sensor: runs pump at fixed duty % for the configured timeout, then completes automatically.',
+    desc:'Runs the oil pump before ignition. With pressure feedback, waits for the minimum pressure and aborts if it is not reached. Without a pressure sensor, runs for the configured time. A fitted pressure sensor with the oil-control loop Off still uses fixed pump demand while checking pressure.',
     hwWarnings:[
       { check: hw => actuatorEnabled('oil_pump'),
         msg: 'Warning: No oil pump output is configured, so this block cannot pump oil. Add one under Hardware -> Outputs.' },
@@ -44,15 +44,15 @@ const BLOCKS = {
     params:[
       // ------ With oil pressure sensor ------------------------------------------------------------------------------------------------------------------------------
       {key:'startup_oil_demand', label:'Oil pressure target', unit:'bar', type:'float', min:0, max:20, step:0.1, def:2.5,
-        visibleIf: hw => sensorEnabled('oil_press') && actuatorHasProportionalOutput('oil_pump'),
+        visibleIf: hw => sensorEnabled('oil_press') && hw.controllers?.oil_loop && actuatorEnabled('oil_pump'),
         configKey:'startup_oil_demand'},
       {key:'oil_arm_min_bar',    label:'Minimum pressure before ignition', unit:'bar', type:'float', min:0, max:20, step:0.1, def:1.5,
         visibleIf: hw => sensorEnabled('oil_press'), configKey:'oil_arm_min_bar'},
       // ------ Without oil pressure sensor ---------------------------------------------------------------------------------------------------------------------
       {key:'startup_oil_pct',    label:'Pump duty %',         unit:'%',  type:'float', min:0, max:100, step:5, def:80,
-        visibleIf: hw => !sensorEnabled('oil_press') && actuatorHasProportionalOutput('oil_pump'),
+        visibleIf: hw => (!sensorEnabled('oil_press') || !hw.controllers?.oil_loop) && actuatorHasProportionalOutput('oil_pump'),
         configKey:'startup_oil_pct',
-        desc:'Pump runs at this fixed duty since no pressure sensor is fitted. Run timeout (below) determines how long the block holds.'},
+        desc:'Direct pump demand when there is no active oil-pressure control loop. With a fitted pressure sensor, the block still waits for the minimum pressure; without one, it runs until the timer completes.'},
       // ------ Common ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
       {key:'oil_arm_timeout_ms', label:'Timeout', unit:'ms', type:'int', min:500, max:30000, step:100, def:3000, configKey:'oil_arm_timeout_ms'},
       {key:'oil_prime_use_scavenge', label:'Run scavenge pump', type:'bool', def:false,
@@ -63,9 +63,9 @@ const BLOCKS = {
   StarterSpin: {
     label:'Set Starter', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('starter') && sensorEnabled('n1_rpm'),
-    condition: hw => `N1 < ${hw.pre_ign_rpm ?? 5000} rpm`,
+    condition: hw => `Until N1 ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
     timeout_action:'fault',
-    desc:'Asserts the starter-enable output when fitted, then ramps the starter to the requested demand and waits for N1 to reach the pre-ignition target. The enable delay configured on the starter device is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
+    desc:'Asserts the starter-enable output when fitted, then drives the starter until N1 reaches the pre-ignition target. A relay switches fully on; a proportional starter can ramp to its requested demand. The device enable delay is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
     hwWarnings:[
       { check: hw => actuatorEnabled('starter'),
         msg: 'Warning: No starter output is configured, so this block has no physical effect. Add one under Hardware -> Outputs.',
@@ -100,18 +100,9 @@ const BLOCKS = {
       {key:'starter_timeout_ms', label:'Timeout',       unit:'ms',  type:'int',   min:1000,max:60000, step:500, def:8000,
         configKey:'starter_timeout_ms',
         desc:'Maximum spin time before fault shutdown. Bench Mode is the only mode where this timeout completes without verified N1 feedback.'},
-      {key:'oil_startup_min_bar',label:'Oil arm min',   unit:'bar', type:'float', min:0,   max:20,    step:0.1, def:1.5,
+      {key:'oil_startup_min_bar',label:'Minimum oil pressure before ignition', unit:'bar', type:'float', min:0, max:20, step:0.1, def:1.5,
         visibleIf: hw => sensorEnabled('oil_press'), configKey:'oil_startup_min_bar',
         desc:'Shared with OilPrime arm threshold - both use the same config value.'},
-    ]
-  },
-  PreIgnSpark: {
-    label:'Igniter 1 Timed On', type:'wait', badgeClass:'badge-wait',
-    visibleIf: hw => actuatorEnabled('igniter'),
-    condition: null, timeout_action:null,
-    desc:'Turns igniter 1 on, waits for the configured dwell, then completes while leaving it on. Prefer Igniter On or Pre-Heat when the block must select igniter 1, secondary igniter, glow, or wet glow.',
-    params:[
-      {key:'pre_ign_spark_ms', label:'Ignition on time', unit:'ms', type:'int', min:100, max:10000, step:100, def:1500, configKey:'pre_ign_spark_ms'},
     ]
   },
   FuelOpen: {
@@ -124,7 +115,7 @@ const BLOCKS = {
   FlameConfirm: {
     label:'Confirm Combustion by Flame Sensor', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('flame'),
-    condition: hw => `flame count < ${hw.flame_required_count ?? 3}`,
+    condition: hw => `Until ${hw.flame_required_count ?? 3} flame detections`,
     timeout_action:'abort',
     desc:'Waits until the flame sensor reports the required consecutive detections. Confirms that combustion is self-sustained. Timeout aborts startup. On exit it can release only the ignition devices energized by dedicated ignition blocks in this sequence.',
     hwWarnings:[
@@ -145,7 +136,7 @@ const BLOCKS = {
   TempConfirm: {
     label:'Confirm Combustion by Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `EGT < ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
+    condition: hw => `Until EGT ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
     timeout_action:'abort',
     desc:'Waits until selected engine temperature (TOT or TIT) rises above the configured threshold. Use as an alternative to or alongside FlameConfirm when a flame sensor is not fitted. On timeout -> ABORT. Does NOT change any actuator state.',
     hwWarnings:[
@@ -160,7 +151,7 @@ const BLOCKS = {
   },
   TimedDelay: {
     label:'Timed Delay', type:'wait', badgeClass:'badge-wait',
-    condition: hw => `${seqRound((hw.timed_delay_ms ?? 1000) / 1000)} s`,
+    condition: hw => `Wait ${seqRound((hw.timed_delay_ms ?? 1000) / 1000)} s`,
     timeout_action:null,
     desc:'Pauses the sequence for the configured duration. No actuator changes - all outputs remain in whatever state the previous block left them.',
     params:[
@@ -190,7 +181,7 @@ const BLOCKS = {
   Spool: {
     label:'Accelerate to Idle', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorHasProportionalOutput('throttle') && sensorEnabled('n1_rpm'),
-    condition: hw => `N1 < ${hw.rpm_target ?? 32000} rpm`,
+    condition: hw => `Until N1 ≥ ${hw.rpm_target ?? 32000} rpm`,
     timeout_action:'fault',
     desc:'Sets main fuel demand to the calibrated minimum reliable metering output and holds until N1 reaches the idle-entry target. Flame monitoring is active; loss of combustion causes a fault shutdown. The running oil-pressure minimum is enforced from this block onward.',
     hwWarnings:[
@@ -200,7 +191,7 @@ const BLOCKS = {
     params:[
       {key:'rpm_target',                label:'Idle-entry N1 target', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:32000, configKey:'rpm_target'},
       {key:'rpm_timeout_ms',            label:'Timeout',                    unit:'ms', type:'int',   min:1000, max:120000, step:1000, def:12000, configKey:'rpm_timeout_ms'},
-      {key:'oil_running_min',           label:'Running oil min',            unit:'bar',type:'float', min:0,    max:20,     step:0.1,  def:2.8,   configKey:'oil_running_min',
+      {key:'oil_running_min',           label:'Running Low-Pressure Shutdown', unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
         desc:'Oil pressure minimum enforced from Spool start through running. Shared with Final Startup Checks and Controllers -> Oil Pressure Safety; editing any of them changes the same value.'},
       {key:'spool_cut_starter_on_exit', label:'Cut starter demand on exit',            type:'bool',                                  def:true,  configKey:'spool_cut_starter_on_exit'},
@@ -211,33 +202,35 @@ const BLOCKS = {
   SafetyHold: {
     label:'Final Startup Checks', type:'check', badgeClass:'badge-check',
     visibleIf: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') || sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') || sensorEnabled('tit') || sensorEnabled('flame'),
-    condition: hw => `${hw.safety_hold_ms ?? 1000} ms continuously stable`,
+    condition: hw => `Stable for ${hw.safety_hold_ms ?? 1000} ms`,
     timeout_action:'fault',
     desc:'Requires every enabled check to remain continuously valid for the stable time before RUNNING. A failed or unhealthy sensor resets the stable timer; the overall timeout causes a fault shutdown. Starter state is not treated as proof of engine health.',
     hwWarnings:[
-      { check: hw => sensorEnabled('n1_rpm') || sensorEnabled('oil_press'),
+      { check: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') ||
+          sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') ||
+          sensorEnabled('tit') || sensorEnabled('flame'),
         level: 'error',
-        msg: 'Error: No N1 RPM or oil pressure sensor - SafetyHold has nothing to verify before RUNNING. Add N1 or oil pressure feedback, remove SafetyHold, or use Bench Mode for timer-only testing.' },
+        msg: 'No fitted sensor is available for Final Startup Checks. Fit a sensor, remove this block, or use Bench Mode for timer-only testing.' },
     ],
     params:[
       {key:'safety_hold_ms', label:'Stable time required',unit:'ms', type:'int', min:100, max:10000, step:100, def:1000, configKey:'safety_hold_ms'},
       {key:'safety_hold_timeout_ms', label:'Overall timeout',unit:'ms', type:'int', min:100, max:120000, step:500, def:15000, configKey:'safety_hold_timeout_ms'},
       {key:'final_check_n1_enabled',label:'Require N1',type:'bool',def:true,configKey:'final_check_n1_enabled',visibleIf:hw=>sensorEnabled('n1_rpm')},
       {key:'final_check_rpm',label:'Minimum accepted N1', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:31000, configKey:'final_check_rpm',
-        visibleIf: hw => sensorEnabled('n1_rpm'),
+        visibleIf: hw => sensorEnabled('n1_rpm'), showWhen: vals => !!vals['SafetyHold.final_check_n1_enabled'],
         desc:'N1 must remain at or above this value for the full stable time.'},
       {key:'final_check_n2_enabled',label:'Require N2',type:'bool',def:false,configKey:'final_check_n2_enabled',visibleIf:hw=>sensorEnabled('n2_rpm')},
-      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm')},
+      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm'),showWhen:vals=>!!vals['SafetyHold.final_check_n2_enabled']},
       {key:'final_check_p1_enabled',label:'Require P1 pressure',type:'bool',def:false,configKey:'final_check_p1_enabled',visibleIf:hw=>sensorEnabled('p1')},
-      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1')},
+      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1'),showWhen:vals=>!!vals['SafetyHold.final_check_p1_enabled']},
       {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
-      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2')},
+      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
       {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
-      {key:'oil_running_min',label:'Minimum accepted oil pressure',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
+      {key:'oil_running_min',label:'Running Low-Pressure Shutdown',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Same threshold used by Accelerate to Idle and Controllers -> Oil Pressure Safety.'},
+        desc:'Independent running oil-pressure shutdown threshold. The final-startup oil check uses this same value only when Require oil pressure is on. Also shown in Accelerate to Idle and Controllers -> Oil Pressure Safety.'},
       {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
-      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
+      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
       {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
       {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:false, configKey:'safety_turn_off_starter'},
       {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:false, configKey:'safety_turn_off_starter_en',
@@ -279,7 +272,7 @@ const BLOCKS = {
     label:'Ignition Output On', type:'action', badgeClass:'badge-action',
     visibleIf: hw => hasIgnitionOutput(hw),
     condition: null, timeout_action:null,
-    desc:'Switch the selected ignition output on. Choose igniter 1, secondary igniter, glow plug, or wet glow from this card.',
+    desc:'Command the selected igniter or glow plug on. A relay turns on immediately; a proportional device uses its Hardware On level and optional ramp. Wet-glow pilot fuel starts after its device delay. Add Timed Delay after this card if ignition needs a lead-in before fuel.',
     params:[]
   },
   IgniterOff: {
@@ -372,7 +365,7 @@ const BLOCKS = {
   },
   RPMDrop: {
     label:'Wait for Rotor to Slow', type:'while', badgeClass:'badge-while',
-    condition: hw => `N1 > ${hw.rpm_drop_threshold ?? 5000} rpm`,
+    condition: hw => `Until N1 < ${hw.rpm_drop_threshold ?? 5000} rpm`,
     timeout_action:'continue',
     desc:'Waits for N1 to fall below the threshold RPM before proceeding to cooldown. Ensures the starter motor is not fighting against residual turbine spin. On timeout -> continues anyway. No actuator changes.',
     hwWarnings:[
@@ -386,7 +379,7 @@ const BLOCKS = {
   },
   CooldownSpin: {
     label:'Cooldown', type:'while', badgeClass:'badge-while',
-    condition: hw => `EGT > ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
+    condition: hw => `Until EGT < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
     timeout_action:'continue',
     desc:'Spin starter and/or run oil pump to cool EGT below target. Skipped if fuel was never opened. Proceeds on timeout. With oil pressure sensor: pump is regulated to target pressure; without: runs at fixed %.',
     hwWarnings:[
@@ -412,16 +405,13 @@ const BLOCKS = {
       {key:'cooldown_use_starter',      label:'Use starter motor',                  type:'bool',                                  def:true,   configKey:'cooldown_use_starter',
         visibleIf: hw => actuatorEnabled('starter')},
       {key:'cooldown_starter_pct',      label:'Starter speed',           unit:'%',  type:'float',min:0,    max:100,    step:5,     def:40,     configKey:'cooldown_starter_pct',
-        visibleIf: hw => actuatorHasProportionalOutput('starter')},
-      {key:'cooldown_starter_en_relay', label:'Starter enable output asserted automatically', type:'bool', def:true,
-        visibleIf: hw => actuatorEnabled('starter_en') && actuatorEnabled('starter'),
-        desc:'When a dedicated starter enable output is fitted, it is always asserted before the starter motor runs. This is handled automatically - no action needed.'},
+        visibleIf: hw => actuatorHasProportionalOutput('starter'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_starter']},
       {key:'cooldown_use_oil_pump',     label:'Run oil pump',                       type:'bool',                                  def:true,   configKey:'cooldown_use_oil',
         visibleIf: hw => actuatorEnabled('oil_pump')},
       {key:'cooldown_oil_pct',          label:'Oil pump %',              unit:'%',  type:'float',min:0,    max:100,    step:5,     def:30,     configKey:'cooldown_oil_pct',
-        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && !sensorEnabled('oil_press')},
+        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && !sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
       {key:'cooldown_oil_pressure_bar', label:'Oil pressure target',     unit:'bar',type:'float',min:0.5,  max:10,     step:0.1,   def:2.0,    configKey:'cooldown_oil_pressure_bar',
-        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && sensorEnabled('oil_press')},
+        visibleIf: hw => actuatorEnabled('oil_pump') && sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
       {key:'cooldown_use_scavenge',     label:'Run scavenge pump',                  type:'bool',                                  def:false,  configKey:'cooldown_use_scavenge',
         visibleIf: hw => actuatorEnabled('oil_scavenge_pump')},
     ]
@@ -429,8 +419,8 @@ const BLOCKS = {
   FinalStop: {
     label:'Wait for Complete Stop', type:'while', badgeClass:'badge-while',
     condition: hw => sensorEnabled('n1_rpm')
-      ? `N1 > ${hw.rpm_zero_threshold ?? 100} rpm`
-      : `timer (no N1 sensor)`,
+      ? `Until N1 ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
+      : `Timed run (no N1 sensor)`,
     timeout_action:'continue',
     desc:'Wait for complete stop. With healthy N1 feedback, the main oil pump cuts when speed reaches the stop threshold. If N1 is missing or unhealthy, the block waits for the full timeout as a conservative spool-down delay. A fitted scavenge pump can then continue to flush hot oil from bearings.',
     params:[
@@ -459,7 +449,7 @@ const BLOCKS = {
   WaitTOTCool: {
     label:'Wait for Safe Restart Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `EGT < ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
+    condition: hw => `Until EGT ≤ ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
     timeout_action:null,
     desc:'Holds until selected EGT is healthy and below the target. In STARTUP, an unhealthy/hot timeout aborts the start. In SHUTDOWN, timeout permits completion so shutdown cannot hang indefinitely.',
     params:[
@@ -479,43 +469,27 @@ const BLOCKS = {
   WaitForInput: {
     label:'Wait for External Input', type:'while', badgeClass:'badge-while',
     visibleIf: hw => hw.di_channels?.some(ch => ch.pin >= 0),
-    condition: hw => `DI-${(hw.wait_for_input_ch ?? 0) + 1} ${hw.wait_for_input_state !== false ? '-> active' : '-> inactive'}`,
+    condition:null,
     timeout_action:'abort',
-    desc:'Holds the sequence until a digital input channel reaches the expected state. Useful for interlocks, limit switches, or external gate signals. The wait is always finite and aborts on timeout. Note: all WaitForInput blocks in a session share the same channel/state config.',
+    desc:'Holds the sequence until this card\'s selected digital input becomes active or inactive. Each card has its own channel, condition, and finite timeout; failure aborts the sequence.',
     hwWarnings:[
       { check: hw => hw.di_channels?.some(ch => ch.pin >= 0),
         msg: 'Warning: No digital inputs configured in Hardware. This block will never receive a signal and will always timeout/abort.',
         level: 'error' },
     ],
-    params:[
-      {key:'wait_for_input_ch',      label:'Channel',       type:'select', def:0,    configKey:'wait_for_input_ch',
-        options:[{v:0,l:'DI-1'},{v:1,l:'DI-2'},{v:2,l:'DI-3'},{v:3,l:'DI-4'}],
-        desc:'Digital input channel (DI-1..DI-4). Must match a channel configured in Hardware -> Digital Inputs.'},
-      {key:'wait_for_input_state',   label:'Wait until active',        type:'bool', def:true, configKey:'wait_for_input_state',
-        desc:'ON = hold until input goes active (high). OFF = hold until input goes inactive (low).'},
-      {key:'wait_for_input_timeout', label:'Timeout',       unit:'ms', type:'int',  min:500, max:60000, step:500, def:30000, configKey:'wait_for_input_timeout',
-        desc:'Maximum finite wait time. Remove the block if this gate is not required.'},
-    ]
+    params:[]
   },
   WaitForInputOff: {
     label:'Wait for External Input to Release', type:'while', badgeClass:'badge-while',
     visibleIf: hw => hw.di_channels?.some(ch => ch.pin >= 0),
-    condition: hw => `DI-${(hw.wait_for_input_ch ?? 0) + 1} -> inactive`,
+    condition:null,
     timeout_action:'abort',
-    desc:'Holds shutdown until the selected digital input is released. The stock shutdown uses this to wait for the fuel switch to turn off before stopping the oil pump.',
+    desc:'Older shutdown-only input-release step. Its selected channel and timeout now belong to this card; use Wait for External Input for new steps.',
     hwWarnings:[
       { check: hw => hw.di_channels?.some(ch => ch.pin >= 0),
         msg: 'No digital inputs configured in Hardware. This block will never receive a switch signal.',
         level: 'error' },
     ],
-    params:[]
-  },
-  PreHeat: {
-    label:'Pre-Heat', type:'wait', badgeClass:'badge-wait',
-    visibleIf: hw => hasIgnitionOutput(hw),
-    condition: () => 'selected ignition device pre-heat',
-    timeout_action:null,
-    desc:'Turns the exact selected ignition output on for that device card\'s pre-heat duration without opening main fuel. The output remains ON when this block exits - place FuelOpen or a later Ignition Output Off block intentionally.',
     params:[]
   },
   // ------ Afterburner blocks ---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -563,20 +537,20 @@ const BLOCKS = {
   },
   ABCheckReady: {
     label:'Check Afterburner Entry Conditions', type:'check', badgeClass:'badge-check',
-    condition: hw => 'entry conditions above',
+    condition: hw => 'Check entry conditions',
     timeout_action:'abort',
     desc:'Gate block: checks the entry conditions configured above before proceeding with AB ignition. Aborts if any condition fails.',
     params:[]
   },
   ABIgnite: {
-    label:'Ignite Afterburner', type:'action', badgeClass:'badge-action',
-    condition: null, timeout_action:null,
+    label:'Ignite Afterburner', type:'wait', badgeClass:'badge-wait',
+    condition: () => `Wait ${seqRound(Number(cfg?.afterburner?.torch_duration_ms ?? 400) / 1000)} s ignition`, timeout_action:null,
     desc:'Fires the method selected under Controllers -> Afterburner Ignition: torch, afterburner igniter, or both. The block completes after the configured ignition duration.',
     params:[]
   },
   ABFlameConfirm: {
     label:'Verify Afterburner Light-up', type:'while', badgeClass:'badge-while',
-    condition: hw => 'Waiting for configured light-up evidence',
+    condition: hw => 'Until light-up evidence',
     timeout_action:'fault',
     desc:'Uses the configured flame sensor, EGT rise, or explicitly unverified timed assumption. Timed mode does not confirm flame. Faults if the overall timeout is exceeded.',
     params:[
@@ -586,7 +560,7 @@ const BLOCKS = {
   },
   ABStabilize: {
     label:'Stabilize Afterburner', type:'while', badgeClass:'badge-while',
-    condition: hw => `Hold ${hw.ab_stab_ms ?? 1000} ms, monitor EGT`,
+    condition: hw => `Hold ${hw.ab_stab_ms ?? 1000} ms; check EGT`,
     timeout_action:'complete',
     desc:'Hold after lighting. Monitors selected EGT - faults if too hot. On completion, sets AB state to Running.',
     params:[
@@ -611,13 +585,6 @@ const BLOCKS = {
     desc:'Closes the compressor bleed valve immediately. Use after spool-up when full pressure recovery is required.',
     params:[],
     visibleIf: hw => actuatorEnabled('bleed_valve'),
-  },
-  GlowPreheat: {
-    label:'Glow Preheat', type:'action', badgeClass:'badge-action',
-    condition: null, timeout_action: null,
-    desc:'Runs the exact selected glow plug using that device card\'s own preheat ramp, hold command, hot-current confirmation, and paired pilot-fuel settings. The plug remains at its configured hold command when this block exits.',
-    params:[],
-    visibleIf: hw => actuatorEnabled('glow_plug'),
   },
   FuelPumpRamp: {
     label:'Secondary / Auxiliary Fuel Pump Ramp', type:'action', badgeClass:'badge-action',
@@ -655,7 +622,7 @@ const BLOCKS = {
   },
   GovernorHold: {
     label:'Wait for N2 Speed Control', type:'while', badgeClass:'badge-while',
-    condition: hw => `N2 within ${hw.gov_hold_band_rpm ?? 500} rpm of target`,
+    condition: hw => `Until N2 within ${hw.gov_hold_band_rpm ?? 500} rpm of target`,
     timeout_action:'fault',
     desc:'Engages the real N2 speed controller bumplessly from the current demand, then requires healthy N2 feedback inside the selected band for 500 ms. Timeout faults startup and enters safe shutdown.',
     params:[
@@ -682,7 +649,6 @@ const CONFIG_SECTIONS = {
   temp_confirm_target:     {sec:'sequence.startup', key:'temp_confirm_target'},
   temp_confirm_timeout:    {sec:'sequence.startup', key:'temp_confirm_timeout'},
   pre_ign_rpm:             {sec:'sequence.startup', key:'pre_ign_rpm'},
-  pre_ign_spark_ms:        {sec:'sequence.startup', key:'pre_ign_spark_ms'},
   flame_required_count:    {sec:'sequence.startup', key:'flame_required_count'},
   flame_check_interval_ms: {sec:'sequence.startup', key:'flame_check_interval_ms'},
   flame_timeout_ms:        {sec:'sequence.startup', key:'flame_timeout_ms'},
@@ -780,12 +746,12 @@ const CONFIG_SECTIONS = {
 
 // Available block names per tab
 const STARTUP_BLOCKS = [
-  'OilPrime','StarterSpin','SetOutput','PreHeat','FlameConfirm','TempConfirm',
+  'OilPrime','StarterSpin','SetOutput','FlameConfirm','TempConfirm',
   'TimedDelay','FuelPumpIdle','Spool','SafetyHold','WaitForInput'
 ];
 const SHUTDOWN_BLOCKS    = [
   'ImmediateCut','RPMDrop','CooldownSpin','FinalStop','TimedDelay','SetOutput',
-  'WaitTOTCool','WaitForInput','WaitForInputOff'
+  'WaitTOTCool','WaitForInput'
 ];
 // AB ignition sequence blocks (ab_seq)
 const AFTERBURNER_BLOCKS = [
@@ -807,15 +773,11 @@ let customBlocks = {};
 // ------ Block info map - describes what config each block uses ---------------------------------------------------
 const BLOCK_INFO = {
   OilPrime: {
-    desc: 'Turns the oil pump ON and waits until oil pressure exceeds the arm threshold. Safe to abort - no fuel or ignition active.',
+    desc: 'Runs the oil pump before ignition. With pressure feedback it waits for the minimum pressure and aborts if that is not reached. Without feedback it runs for the configured time. If the pressure-control loop is Off, it uses fixed pump demand even when a pressure sensor is fitted.',
     links: []
   },
   StarterSpin: {
-    desc: 'Enables and ramps the starter until N1 reaches the pre-ignition target. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
-    links: []
-  },
-  PreIgnSpark: {
-    desc: 'Turns igniter 1 on, waits for its dwell time, and leaves it on. Prefer target-selectable Igniter On or Pre-Heat for other ignition devices.',
+    desc: 'Enables the starter until N1 reaches the pre-ignition target. Relay starters switch fully on; proportional starters can ramp. Normal completion leaves starter demand active for a later cut action; timeout causes a fault shutdown.',
     links: []
   },
   FuelOpen: {
@@ -839,14 +801,14 @@ const BLOCK_INFO = {
     links: [
       { label: 'Minimum Reliable Fuel-Metering Output', url: '/calibration.html#fuelpump-min-cal-row' },
       { label: 'Throttle Open Speed', url: '/controllers.html#throttle' },
-      { label: 'Running Oil Min',     url: '/controllers.html#oil-config-section' },
+      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
     ]
   },
   SafetyHold: {
-    desc: 'Requires all enabled final sensor checks to remain continuously stable before RUNNING. Optional exit actions can turn off starter and ignition outputs.',
+    desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
-      { label: 'Running Oil Min', url: '/controllers.html#oil-config-section' },
+      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
     ]
   },
   CooldownSpin: {
@@ -884,10 +846,6 @@ const BLOCK_INFO = {
     desc: 'Pauses the sequence for the configured duration. No actuator changes.',
     links: []
   },
-  PreHeat: {
-    desc: 'Turns the selected ignition device on for that device card\'s pre-heat duration without opening main fuel, then leaves it on.',
-    links: [{ label: 'Configure ignition device', url: '/hardware.html#registry-outputs' }]
-  },
   ABCheckReady: {
     desc: 'Gate block: checks N1, selected EGT, and throttle conditions before proceeding with AB ignition.',
     links: []
@@ -909,10 +867,6 @@ const BLOCK_INFO = {
     links: [
       { label: 'Afterburner Running Control', url: '/controllers.html#ab-run-section' },
     ]
-  },
-  GlowPreheat: {
-    desc: 'Runs the selected glow plug\'s device-local preheat profile. A wet glow plug also commands its own paired pilot-fuel output.',
-    links: [{ label: 'Configure glow-plug device', url: '/hardware.html#registry-outputs' }]
   },
   GovernorHold: {
     desc: 'Waits until N2 remains within the configured band around the governor target before completing.',
@@ -954,12 +908,9 @@ function showBlockInfo(bname, trigger) {
   hideBlockInfo();
   const def = BLOCKS[bname] || {};
   const info = BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
-  const missingGlowHardware = bname === 'GlowPreheat' && !actuatorEnabled('glow_plug');
-  const infoLinks = missingGlowHardware
-    ? [{label:'Install or configure Glow Plug hardware', url:'/hardware.html#registry-outputs'}]
-    : (info.links || []);
+  const infoLinks = info.links || [];
   const linksHtml = infoLinks.length
-    ? `<div class="bip-links-label">${missingGlowHardware ? 'Hardware required:' : 'Related settings:'}</div><div class="bip-links">` +
+    ? `<div class="bip-links-label">Related settings:</div><div class="bip-links">` +
       infoLinks.map(l => `<a class="bip-link" href="${l.url}">${l.label}</a>`).join('') +
       '</div>'
     : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';

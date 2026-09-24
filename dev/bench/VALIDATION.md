@@ -18,7 +18,7 @@ either target to a build-only-by-a-few-bytes state.
 
 Systematic hardware-in-the-loop validation of the OpenTurbine firmware on the
 bench rig, aimed at finding defects **before** they reach a real turbine engine.
-The current release candidate is OpenTurbine 2.4.0. DUT and tester roles may be
+The current release candidate is OpenTurbine 2.4.1. DUT and tester roles may be
 swapped between the ESP32-S3 and Classic ESP32 as a campaign requires. Tests
 drive physical ADC/PCNT/SPI/digital paths where wired and use explicit simulator
 coverage for unavailable I²C devices.
@@ -29,6 +29,35 @@ the **v2.0.0 release-candidate HIL** section as the baseline and the newer
 superseded EGT-rate and old configuration behavior are not v2 requirements.
 
 Legend: ✅ pass · ⚠️ anomaly/concern · ❌ bug · ⏭️ not physically testable
+
+## v2.4.1 focused two-target browser and dry-bench check — 2026-09-23
+
+- ✅ Both ESP32-S3 (`0092c92b4ad56d74`) and Classic ESP32
+  (`2ace97bdb4d02569`) loaded all eight UI pages at mobile width without
+  navigation/API failures.
+- ✅ On each target, the browser downloaded a complete engine-file backup,
+  uploaded that same file, rebooted, and retained the original channel
+  registry, startup sequence, and disabled status LED. Both also completed a
+  12-file browser web-asset upload (51 bounded chunks) and a same-image
+  browser firmware OTA (S3: 403 chunks; Classic: 406 chunks). The board
+  returned to STANDBY with outputs inactive after each transfer.
+- ✅ Sequence UI on both targets added a Set Igniter block, saved the exact
+  output and ON demand, and restored the original engine file. The S3 also
+  passed the normal-wiring STOP input, igniter relay, and oil-pump PWM checks;
+  its GPIO4 glow relay was tested with no load, using telemetry only. With
+  board roles reversed, the Classic passed wired STOP, igniter, oil-pump PWM,
+  and glow relay tests against the S3 tester. The temporary Classic hardware
+  profile was restored.
+- ⚠️ Resetting/flashing the Classic OTBench tester briefly asserted the wired
+  active-low START input on the S3 DUT. The ECU entered its bench startup
+  sequence; wired STOP initiated SHUTDOWN, and it returned to STANDBY with
+  outputs inactive. This is the known tester-reset/jumper hazard documented in
+  `dev/bench/README.md`, not a deliberate startup test. Disconnect START or
+  provide a physical pull-up before future tester resets. No turbine or
+  powered actuator load was connected, and this dry-bench check is not a
+  substitute for powered-load or real-engine qualification.
+- ✅ Normal roles restored: S3 is the OpenTurbine DUT and Classic is OTBench;
+  S3 status LED remains disabled.
 
 ## v2.4.0 final focused two-target acceptance — 2026-09-15
 

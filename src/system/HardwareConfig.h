@@ -502,11 +502,18 @@ public:
     };
     static CustomBlockDef customBlocks[MAX_CUSTOM_BLOCKS];
     static int customBlockCount;
+    struct SeqWaitInput {
+        uint8_t channel = 0;
+        bool active = true;
+        uint32_t timeoutMs = 30000;
+        bool configured = false; // absent in an older engine file: use legacy shared settings
+    };
     static char  startupSeq[MAX_SEQ_BLOCKS][24];
     static int   startupSeqLen;
     static int   startupDelayMs[MAX_SEQ_BLOCKS];
     static uint8_t startupIgnitionTarget[MAX_SEQ_BLOCKS]; // 0=igniter1, 1=igniter2, 2=glow plug
     static char  startupDeviceTarget[MAX_SEQ_BLOCKS][20]; // stable registry output ID; empty = migrate/default
+    static SeqWaitInput startupWaitInputs[MAX_SEQ_BLOCKS];
     static SeqSideAction startupEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static SeqSideAction startupExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static char  shutdownSeq[MAX_SEQ_BLOCKS][24];
@@ -514,6 +521,7 @@ public:
     static int   shutdownDelayMs[MAX_SEQ_BLOCKS];
     static uint8_t shutdownIgnitionTarget[MAX_SEQ_BLOCKS];
     static char  shutdownDeviceTarget[MAX_SEQ_BLOCKS][20];
+    static SeqWaitInput shutdownWaitInputs[MAX_SEQ_BLOCKS];
     static SeqSideAction shutdownEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static SeqSideAction shutdownExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static char  abSeq[MAX_SEQ_BLOCKS][24];     // AB ignition sequence
@@ -521,6 +529,7 @@ public:
     static int   abDelayMs[MAX_SEQ_BLOCKS];
     static uint8_t abIgnitionTarget[MAX_SEQ_BLOCKS];
     static char  abDeviceTarget[MAX_SEQ_BLOCKS][20];
+    static SeqWaitInput abWaitInputs[MAX_SEQ_BLOCKS];
     static SeqSideAction abEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static SeqSideAction abExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static char  abShutSeq[MAX_SEQ_BLOCKS][24]; // AB shutdown sequence
@@ -528,6 +537,7 @@ public:
     static int   abShutDelayMs[MAX_SEQ_BLOCKS];
     static uint8_t abShutIgnitionTarget[MAX_SEQ_BLOCKS];
     static char  abShutDeviceTarget[MAX_SEQ_BLOCKS][20];
+    static SeqWaitInput abShutWaitInputs[MAX_SEQ_BLOCKS];
     static SeqSideAction abShutEnterActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
     static SeqSideAction abShutExitActions[MAX_SEQ_BLOCKS][MAX_SEQ_SIDE_ACTIONS];
 

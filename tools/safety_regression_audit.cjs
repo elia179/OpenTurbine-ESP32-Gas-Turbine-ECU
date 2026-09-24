@@ -295,8 +295,7 @@ expect('reduced-power startup bypasses only its unavailable feedback while retai
   starterSpin.includes('timed crank completed without N1 feedback') &&
   read('src/engine/sequencer/blocks/Spool.h').includes('timed spool completed without N1 feedback') &&
   read('src/engine/sequencer/blocks/SafetyHold.h').includes('bypassUnhealthyStartupCheck') &&
-  read('src/engine/sequencer/blocks/OilPrime.h').includes('[REDUCED POWER]') &&
-  main.includes('unavailable current-ready check skipped'));
+  read('src/engine/sequencer/blocks/OilPrime.h').includes('[REDUCED POWER]'));
 expect('automatic limp cannot be cleared by manual controls during a run',
   engineData.includes('manualLimpRequested') &&
   engineData.includes('automaticLimpLatched') &&
@@ -402,8 +401,9 @@ expect('independent direct HX711 inputs support both torque and thrust',
   hardware.includes('MAX_REGISTRY_HX711 = 2') &&
   hardware.includes('g_registryHx711Slot'));
 expect('glow output owns sequence behavior and exposes its compound wet-glow hardware',
-  main.includes('output->ignitionHoldDemand') &&
-  main.includes('const float demand = on ? _onDemand : 0.0f') &&
+  main.includes('const float demand = on ? 1.0f : 0.0f') &&
+  hardware.includes('simpleIgnitionPhysicalDemand(output, glowDemand, millis()') &&
+  hardware.includes('g_wetGlowOnMs = millis()') &&
   hardwareCatalog.includes('Glow-plug type and ignition behavior') &&
   hardwareCatalog.includes('Wet-glow pilot fuel') &&
   hardwareCatalog.includes('Pilot-fuel GPIO') &&
@@ -488,9 +488,17 @@ expect('low-temperature interfaces cannot masquerade as turbine-gas feedback',
   channelRegistry.includes('const bool lowTemperaturePurpose') &&
   channelRegistry.includes('if (!lowTemperaturePurpose || turbineGasPurpose) return false') &&
   hardwareHtml.includes('NTC and DS18B20 interfaces require a low-range or general temperature purpose'));
-expect('GlowPreheat help redirects missing hardware to the installed-output editor',
-  sequenceHtml.includes("bname === 'GlowPreheat' && !actuatorEnabled('glow_plug')") &&
-  sequenceHtml.includes("/hardware.html#registry-outputs"));
+expect('ignition has On/Off commands and a device-owned ramp without a Pre-Heat block',
+  sequenceHtml.includes("IgniterOn:['igniter','ab_igniter','glow_plug']") &&
+  !sequenceHtml.includes('PreHeat: {') &&
+  !main.includes('"PreHeat"') &&
+  channelRegistry.includes('"ignition_on_demand"') &&
+  channelRegistry.includes('"ignition_ramp_ms"') &&
+  hardware.includes('simpleIgnitionPhysicalDemand(output, glowDemand, millis()') &&
+  hardware.includes('ed.igniterOn ? 1.0f : 0.0f, millis()') &&
+  hardware.includes('ed.igniter2On ? 1.0f : 0.0f, millis()') &&
+  hardware.includes('g_wetGlowOnMs = millis()') &&
+  hardware.includes('if (!output || ChannelRegistry::driverIsOnOffOutput(output->driver)) return 1.0f'));
 expect('every forced STANDBY transition stops an active main sequence before all-off',
   main.includes('if (g_sequencer.isRunning()) g_sequencer.stopSequence();') &&
   main.indexOf('if (g_sequencer.isRunning()) g_sequencer.stopSequence();') < main.indexOf('ResetRecovery::markSafe();'));

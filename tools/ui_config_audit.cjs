@@ -20,6 +20,7 @@ function auditConfigStructure() {
   const sequenceSource = fs.readFileSync(path.join(root, 'data_src', 'sequence.html'), 'utf8');
   const logSource = fs.readFileSync(path.join(root, 'data_src', 'log.html'), 'utf8');
   const toolsSource = fs.readFileSync(path.join(root, 'data_src', 'tools.html'), 'utf8');
+  const dialogSource = fs.readFileSync(path.join(root, 'data_src', 'ui_dialog.js'), 'utf8');
   const configCpp = fs.readFileSync(path.join(root, 'src', 'system', 'Config.cpp'), 'utf8');
   const schema = readConstExpression(configSource, 'const ALL_CONFIG_SCHEMA = ', '\n];');
   const groups = readConstExpression(configSource, 'const ALL_WORKSPACE_GROUPS = ', '\n];');
@@ -61,6 +62,12 @@ function auditConfigStructure() {
   assert.match(configSource, /On \/ Off with hysteresis/, 'Simple controls must expose an understandable binary method');
   assert.match(configSource, /Map input to output/, 'Variable outputs must support proportional mapping');
   assert.match(configSource, /One normal owner per output/, 'Controller ownership must be explicit');
+  assert.match(configSource, /links:OTValidationLinks\(errors\)/,
+    'blocking validation errors must expose direct setting links');
+  assert.match(configSource, /links:OTValidationLinks\(warns\)/,
+    'validation warnings must expose direct setting links');
+  assert.match(dialogSource, /item\?\.target[\s\S]*scrollIntoView/,
+    'the shared dialog must focus and reveal linked settings without unsafe HTML');
   assert.match(configSource, /Hold a feedback target/, 'Custom variable outputs must support feedback control');
 
   const firmwareToolKeys = [...new Set(
@@ -352,6 +359,21 @@ async function goto(page, route, waitSelector) {
     });
     await patchData(page, { mode:'STANDBY', config_locked:false });
     await goto(page, 'controllers.html', '#cf-tot_limit');
+    const validationRoutes = await page.evaluate(() => OTValidationLinks([
+      'Custom controller: choose a fitted input or feedback signal.',
+      'Startup oil-pressure minimum is below Running Low-Pressure Shutdown.',
+      'Pulsed Starter Assist requires N1.',
+      'Cluster N2 warning reaches Maximum N2 Speed.',
+      'Governor target plus no-correction band reaches Maximum N2 Speed.',
+      'N2-based idle target is at or above Maximum N2 Speed.',
+      'Normal Running Oil Pressure is greater than Full-Throttle Oil Pressure.'
+    ]));
+    assert.deepEqual(validationRoutes.map(link => link.target || link.url), [
+      '#controller-overview', '/sequence.html#oil-arm-min', '#cf-oil_rm',
+      '/sequence.html#starter-assist', '/system.html#cf-cl_n2',
+      '#cf-gv_tr', '#cf-gv_bd', '#cf-di_tr', '#cf-oil_mm', '#cf-oil_mx'
+    ]);
+    assert.equal(await page.locator('#controller-overview').count(), 1);
     assert.ok(await page.locator('[data-controller-card]').count() >= 1,
       'Controllers should render saved output-first controller definitions');
     assert.equal(await page.locator('#controller-hardware-setup').count(), 0,
@@ -467,7 +489,7 @@ async function goto(page, route, waitSelector) {
       channel_registry: {
         ...configFullHardware.channel_registry,
         inputs: configFullHardware.channel_registry.inputs.filter(channel =>
-          !['n1_speed', 'tot', 'tit', 'oil_temperature', 'fuel_pressure', 'battery_voltage', 'ab_flame'].includes(channel.purpose)),
+          !['n1_speed', 'tot', 'tit', 'oil_pressure', 'oil_temperature', 'fuel_pressure', 'battery_voltage', 'ab_flame'].includes(channel.purpose)),
         outputs: configFullHardware.channel_registry.outputs.filter(channel =>
           !['ab_igniter', 'ab_valve', 'ab_pump'].includes(channel.purpose))
       }
@@ -484,6 +506,49 @@ async function goto(page, route, waitSelector) {
     for (const selector of ['#ab-ign-section', '#ab-flame-section', '#ab-run-section']) {
       assert.equal(await shown(page, selector), false, `${selector} should hide`);
     }
+    const inactiveValidation = await page.evaluate(async () => {
+      const validateCase = async candidate => {
+        const messages = [];
+        const originalConfirm = OTDialog.confirm;
+        const originalDialogAlert = OTDialog.alert;
+        const originalAlert = window.alert;
+        OTDialog.confirm = async message => { messages.push(message); return true; };
+        OTDialog.alert = async message => { messages.push(message); return true; };
+        window.alert = message => messages.push(message);
+        try {
+          return {accepted:await validateBeforeSave(candidate), messages};
+        } finally {
+          OTDialog.confirm = originalConfirm;
+          OTDialog.alert = originalDialogAlert;
+          window.alert = originalAlert;
+        }
+      };
+      const baseline = JSON.parse(JSON.stringify(cfg));
+      baseline.oil.running_min = 4;
+      baseline.oil.startup_min_bar = 4;
+      baseline.oil.map_min = 4;
+      baseline.throttle.pullback_n1 = false;
+      baseline.throttle.pullback_n1_soft_rpm = 40000;
+      baseline.throttle.pullback_n1_hard_rpm = 50000;
+      const dormantMismatch = JSON.parse(JSON.stringify(baseline));
+      dormantMismatch.oil.startup_min_bar = 1.5;
+      dormantMismatch.oil.map_min = 3.6;
+      dormantMismatch.throttle.pullback_n1_soft_rpm = 50000;
+      dormantMismatch.throttle.pullback_n1_hard_rpm = 40000;
+      const baselineResult = await validateCase(baseline);
+      const mismatchResult = await validateCase(dormantMismatch);
+      runValidation();
+      return {
+        baselineResult,
+        mismatchResult,
+        inline: Array.from(document.querySelectorAll('.cfg-inline-warn')).map(el => el.textContent)
+      };
+    });
+    assert.equal(inactiveValidation.mismatchResult.accepted, inactiveValidation.baselineResult.accepted);
+    const inactiveMessages = [...inactiveValidation.mismatchResult.messages, ...inactiveValidation.inline].join('\n');
+    assert.doesNotMatch(inactiveMessages, /Startup oil-pressure minimum|Running Low-Pressure Shutdown|Normal Running Oil Pressure|N1 Pullback/i,
+      'missing oil/N1 hardware and an Off limiter must suppress their dormant cross-checks');
+    results.push('inactive oil-pressure and N1 pullback values do not warn or block saves without their sensors');
     results.push('config unit conversions preserve meaning and optional sections hide when hardware is absent');
 
     await reset(page);

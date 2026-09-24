@@ -17,8 +17,9 @@ public:
     int           channelIdx    = 0;
     bool          expectedState = true;
     unsigned long timeoutMs     = 30000;
+    const char* blockName       = "WaitForInput";
 
-    const char* name() override { return "WaitForInput"; }
+    const char* name() override { return blockName; }
 
     void onEnter() override {
         _entryMs = millis();

@@ -458,6 +458,14 @@ namespace Hardware {
     inline uint32_t g_registryIgnitionPhaseMs[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline bool g_registryIgnitionActive[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     inline bool g_registryIgnitionCharging[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
+    inline bool g_glowRampActive = false;
+    inline uint32_t g_glowRampStartMs = 0;
+    inline bool g_igniterRampActive = false;
+    inline uint32_t g_igniterRampStartMs = 0;
+    inline bool g_abIgniterRampActive = false;
+    inline uint32_t g_abIgniterRampStartMs = 0;
+    inline bool g_wetGlowActive = false;
+    inline uint32_t g_wetGlowOnMs = 0;
     struct RegistryOutputPlan {
         int8_t starterEnable = -1, airStarter = -1;
         int8_t coolingFan = -1, scavengePump = -1, fuelPump = -1;
@@ -1319,9 +1327,18 @@ namespace Hardware {
         if (registryOutputManaged(c)) writeRegistryOutputSignal(c, demand, immediate);
     }
 
+    inline float simpleIgnitionPhysicalDemand(const ChannelRegistry::Channel* output,
+                                              float requested, uint32_t nowMs,
+                                              bool& active, uint32_t& startedMs);
+
     inline float registryIgnitionPhysicalDemand(const ChannelRegistry::Channel& c,
                                                 uint8_t index, float logicalDemand,
                                                 uint32_t nowMs) {
+        if (!strcmp(c.purpose, "glow_plug") ||
+            ((!strcmp(c.purpose, "igniter") || !strcmp(c.purpose, "ab_igniter")) &&
+             c.ignitionMode == 0))
+            return simpleIgnitionPhysicalDemand(&c, logicalDemand, nowMs,
+                g_registryIgnitionActive[index], g_registryIgnitionPhaseMs[index]);
         const bool ignitionPurpose = !strcmp(c.purpose, "igniter") ||
                                      !strcmp(c.purpose, "ab_igniter");
         const bool requested = RelayDemand::requested(logicalDemand);
@@ -1357,6 +1374,28 @@ namespace Hardware {
             g_registryIgnitionPhaseMs[index] = nowMs;
         }
         return g_registryIgnitionCharging[index] ? 1.0f : 0.0f;
+    }
+
+    inline float simpleIgnitionPhysicalDemand(const ChannelRegistry::Channel* output,
+                                              float requested, uint32_t nowMs,
+                                              bool& active, uint32_t& startedMs) {
+        if (!RelayDemand::requested(requested)) {
+            active = false;
+            startedMs = 0;
+            return 0.0f;
+        }
+        if (!active) {
+            active = true;
+            startedMs = nowMs;
+        }
+        if (!output || ChannelRegistry::driverIsOnOffOutput(output->driver)) return 1.0f;
+        const float target = output->ignitionProfileConfigured
+            ? output->ignitionOnDemand : 1.0f;
+        if (output->ignitionRampMs == 0) return target;
+        const uint32_t elapsed = nowMs - startedMs;
+        if (elapsed >= output->ignitionRampMs) return target;
+        return constrain(target *
+            (float)elapsed / (float)output->ignitionRampMs, 0.0f, 1.0f);
     }
 
     inline void initRegistryOutputs(float fallbackDemand) {
@@ -2646,9 +2685,7 @@ namespace Hardware {
             ed.glowCurrentAmps = g_sensorGlowCurrent.getValue();
             ed.glowCurrentHealthy = g_sensorGlowCurrent.railHealthy();
             // Plug is hot when current has dropped below threshold and plug is
-            // powered.  Health gate: a disconnected/railed ADC reads ~0 A and
-            // would instantly flag a cold plug 'hot' (GlowPreheat has its own
-            // waitHotTimeout, so an unhealthy sensor cannot hang the sequence).
+            // powered. A disconnected/railed ADC must not read as ready.
             ed.glowPlugHot = ed.glowCurrentHealthy &&
                              (ed.glowPlugDemand > 0.05f) &&
                              (ed.glowCurrentAmps <= hw.glowCurrentReadyAmps);
@@ -3132,13 +3169,17 @@ namespace Hardware {
                     s_coilPhaseStart = (uint32_t)millis();
                     g_actIgniter->set(0.0f);
                 }
-            } else {
-                float duty = hw.igniterPwm
-                    ? ((hw.igniterDwellMs + hw.igniterRestMs > 0)
-                       ? ((float)hw.igniterDwellMs / (hw.igniterDwellMs + hw.igniterRestMs))
-                       : 0.5f)
-                    : 1.0f;
+            } else if (hw.igniterPwm) {
+                const float duty = hw.igniterDwellMs + hw.igniterRestMs > 0
+                    ? (float)hw.igniterDwellMs / (hw.igniterDwellMs + hw.igniterRestMs)
+                    : 0.5f;
                 g_actIgniter->set(ed.igniterOn ? duty : 0.0f);
+            } else {
+                const char* id = HardwareConfig::defaultOutputIdForPurpose("igniter");
+                const auto* output = hw.channelRegistry.find(id, ChannelRegistry::Output);
+                g_actIgniter->set(simpleIgnitionPhysicalDemand(output,
+                    ed.igniterOn ? 1.0f : 0.0f, millis(),
+                    g_igniterRampActive, g_igniterRampStartMs));
             }
         }
         if (hw.hasIgniter2 && g_actIgniter2) {
@@ -3171,13 +3212,17 @@ namespace Hardware {
                     s_coil2PhaseStart = (uint32_t)millis();
                     g_actIgniter2->set(0.0f);
                 }
-            } else {
-                float duty2 = hw.igniter2Pwm
-                    ? ((hw.igniter2DwellMs + hw.igniter2RestMs > 0)
-                       ? ((float)hw.igniter2DwellMs / (hw.igniter2DwellMs + hw.igniter2RestMs))
-                       : 0.5f)
-                    : 1.0f;
+            } else if (hw.igniter2Pwm) {
+                const float duty2 = hw.igniter2DwellMs + hw.igniter2RestMs > 0
+                    ? (float)hw.igniter2DwellMs / (hw.igniter2DwellMs + hw.igniter2RestMs)
+                    : 0.5f;
                 g_actIgniter2->set(ed.igniter2On ? duty2 : 0.0f);
+            } else {
+                const char* id = HardwareConfig::defaultOutputIdForPurpose("ab_igniter");
+                const auto* output = hw.channelRegistry.find(id, ChannelRegistry::Output);
+                g_actIgniter2->set(simpleIgnitionPhysicalDemand(output,
+                    ed.igniter2On ? 1.0f : 0.0f, millis(),
+                    g_abIgniterRampActive, g_abIgniterRampStartMs));
             }
         }
         if (hw.hasFuelPump2 && g_actFuelPump2) {
@@ -3196,25 +3241,27 @@ namespace Hardware {
             float glowDemand = constrain(ed.glowPlugDemand, 0.0f, 1.0f);
             if (hw.glowPlugOutputType == 1)
                 g_actGlowPlugRelay.setOn(RelayDemand::requested(glowDemand));
-            else
-                g_actGlowPlug.set(glowDemand);
+            else {
+                const char* id = HardwareConfig::defaultOutputIdForPurpose("glow_plug");
+                const auto* output = hw.channelRegistry.find(id, ChannelRegistry::Output);
+                g_actGlowPlug.set(simpleIgnitionPhysicalDemand(output, glowDemand, millis(),
+                    g_glowRampActive, g_glowRampStartMs));
+            }
             if (hw.glowPlugType == 2 && g_actWetGlowFuel) {
-                static bool s_wetGlowActive = false;
-                static unsigned long s_wetGlowOnMs = 0;
                 bool commandOn = RelayDemand::requested(glowDemand);
-                if (commandOn && !s_wetGlowActive) {
-                    s_wetGlowActive = true;
-                    s_wetGlowOnMs = millis();
+                if (commandOn && !g_wetGlowActive) {
+                    g_wetGlowActive = true;
+                    g_wetGlowOnMs = millis();
                     ed.wetGlowFuelDemand = 0.0f;
                     if (g_actWetGlowFuel) g_actWetGlowFuel->off();
                 } else if (!commandOn) {
-                    s_wetGlowActive = false;
-                    s_wetGlowOnMs = 0;
+                    g_wetGlowActive = false;
+                    g_wetGlowOnMs = 0;
                     ed.wetGlowFuelDemand = 0.0f;
                     if (g_actWetGlowFuel) g_actWetGlowFuel->off();
                 }
-                if (commandOn && s_wetGlowActive &&
-                    (millis() - s_wetGlowOnMs) >= (unsigned long)hw.wetGlowFuelDelayMs) {
+                if (commandOn && g_wetGlowActive &&
+                    (millis() - g_wetGlowOnMs) >= (unsigned long)hw.wetGlowFuelDelayMs) {
                     float fuelDemand = hw.wetGlowFuelType == 0 ? 1.0f : (hw.wetGlowFuelDemandPct / 100.0f);
                     ed.wetGlowFuelDemand = constrain(fuelDemand, 0.0f, 1.0f);
                     if (g_actWetGlowFuel) g_actWetGlowFuel->set(ed.wetGlowFuelDemand);
@@ -3229,6 +3276,17 @@ namespace Hardware {
     // ── Emergency all-off ─────────────────────────────────────
     inline void allOff() {
         auto& hw = HardwareConfig::instance();
+        g_glowRampActive = false;
+        g_glowRampStartMs = 0;
+        g_igniterRampActive = false;
+        g_igniterRampStartMs = 0;
+        g_abIgniterRampActive = false;
+        g_abIgniterRampStartMs = 0;
+        g_wetGlowActive = false;
+        g_wetGlowOnMs = 0;
+        memset(g_registryIgnitionActive, 0, sizeof(g_registryIgnitionActive));
+        memset(g_registryIgnitionCharging, 0, sizeof(g_registryIgnitionCharging));
+        memset(g_registryIgnitionPhaseMs, 0, sizeof(g_registryIgnitionPhaseMs));
         if (hw.hasThrottle && g_actThrottle)  g_actThrottle->off();
         if (hw.hasStarter  && g_actStarter)   g_actStarter->off();
         if (hw.hasOilPump && g_actOilPump)    g_actOilPump->off();

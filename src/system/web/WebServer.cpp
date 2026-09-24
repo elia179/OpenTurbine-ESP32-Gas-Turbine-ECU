@@ -4437,6 +4437,8 @@ void WebServer::_setupRoutes() {
                             strcmp(topKey, "ab_ignition_target") == 0 || strcmp(topKey, "ab_shut_ignition_target") == 0 ||
                             strcmp(topKey, "startup_device_target") == 0 || strcmp(topKey, "shutdown_device_target") == 0 ||
                             strcmp(topKey, "ab_device_target") == 0 || strcmp(topKey, "ab_shut_device_target") == 0 ||
+                            strcmp(topKey, "startup_wait_inputs") == 0 || strcmp(topKey, "shutdown_wait_inputs") == 0 ||
+                            strcmp(topKey, "ab_wait_inputs") == 0 || strcmp(topKey, "ab_shut_wait_inputs") == 0 ||
                             strcmp(topKey, "startup_enter_actions") == 0 || strcmp(topKey, "startup_exit_actions") == 0 ||
                             strcmp(topKey, "shutdown_enter_actions") == 0 || strcmp(topKey, "shutdown_exit_actions") == 0 ||
                             strcmp(topKey, "ab_enter_actions") == 0 || strcmp(topKey, "ab_exit_actions") == 0 ||

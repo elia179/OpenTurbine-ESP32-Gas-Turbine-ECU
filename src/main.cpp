@@ -71,7 +71,7 @@ static bool perSlotBlockName(const char* name) {
     if (!name) return false;
     static const char* const names[] = {
         "TimedDelay", "IgniterOn", "IgniterOff", "ABIgnOn", "ABIgnOff",
-        "PreHeat", "PreIgnSpark", "GlowPreheat", "FuelOpen", "FuelSolClose",
+        "FuelOpen", "FuelSolClose",
         "FuelPulse", "StarterEnOn", "StarterEnOff", "StarterOff", "OilPumpOn",
         "OilPumpOff", "CoolFanOn", "CoolFanOff", "AirstarterOn", "AirstarterOff",
         "ABPumpOn", "ABPumpOff", "OilScavengeOn", "OilScavengeOff",
@@ -201,113 +201,30 @@ private:
 
 class IgnitionCommandBlock : public IBlock {
 public:
-    void bind(const char* blockName, const char* targetId, const char* defaultPurpose,
-              unsigned long dwellMs) {
+    void bind(const char* blockName, const char* targetId, const char* defaultPurpose) {
         _name = blockName;
         const char* resolved = targetId && targetId[0] ? targetId :
             HardwareConfig::defaultOutputIdForPurpose(defaultPurpose);
         const auto* output = HardwareConfig::channelRegistry.find(resolved, ChannelRegistry::Output);
-        _glow = output && !strcmp(output->purpose, "glow_plug");
-        _relay = output && ChannelRegistry::driverIsOnOffOutput(output->driver);
         _outputIndex = output ? (int8_t)(output - HardwareConfig::channelRegistry.outputs) : -1;
         _target = HardwareConfig::outputActuatorForId(resolved);
-        _dwellMs = dwellMs;
-        _onDemand = _glow && output && output->ignitionProfileConfigured
-            ? output->ignitionHoldDemand
-            : _glow ? constrain(Config::glowHoldPct / 100.0f, 0.0f, 1.0f) : 1.0f;
-        _glowRamp = blockName && !strcmp(blockName, "GlowPreheat");
-        if (output && output->ignitionProfileConfigured &&
-            blockName && !strcmp(blockName, "PreHeat"))
-            _dwellMs = output->ignitionPreheatMs;
-        if (_glowRamp) {
-            _dwellMs = output && output->ignitionProfileConfigured
-                ? output->ignitionPreheatMs : (unsigned long)max(Config::glowPreheatMs, 0);
-            _peakDemand = _relay ? 1.0f : output && output->ignitionProfileConfigured
-                ? output->ignitionPeakDemand : constrain(Config::glowPreheatMaxPct / 100.0f, 0.0f, 1.0f);
-            _holdDemand = _relay ? 1.0f : output && output->ignitionProfileConfigured
-                ? output->ignitionHoldDemand : constrain(Config::glowHoldPct / 100.0f, 0.0f, 1.0f);
-            _waitUntilHot = output && output->ignitionProfileConfigured
-                ? output->ignitionWaitUntilHot : Config::glowWaitUntilHot;
-            _hotTimeoutMs = output && output->ignitionProfileConfigured
-                ? output->ignitionHotTimeoutMs : 30000UL;
-        }
     }
 
     const char* name() override { return _name ? _name : "IgnitionCommand"; }
 
     void onEnter() override {
-        _entryMs = millis();
-        if (_glowRamp) {
-            _setDemand(0.0f);
-            return;
-        }
         if (strcmp(name(), "IgniterOff") == 0 || strcmp(name(), "ABIgnOff") == 0) _setTarget(false);
         else _setTarget(true);
-        if (strcmp(name(), "PreIgnSpark") == 0)
-            EngineData::instance().clusterCode = 5;
     }
 
-    BlockResult tick() override {
-        if (_glowRamp) {
-            const unsigned long elapsed = millis() - _entryMs;
-            if (_dwellMs && elapsed < _dwellMs) {
-                _setDemand(_peakDemand * ((float)elapsed / (float)_dwellMs));
-                return BlockResult::Running;
-            }
-            _setDemand(_holdDemand);
-            if (!_waitUntilHot || EngineData::instance().benchMode) {
-                clearWaitReason();
-                return BlockResult::Complete;
-            }
-            auto& ed = EngineData::instance();
-            bool feedbackFitted = false;
-            bool feedbackHealthy = false;
-            bool hot = false;
-            if (_outputIndex >= 0 && _outputIndex < HardwareConfig::channelRegistry.outputCount) {
-                const auto& output = HardwareConfig::channelRegistry.outputs[_outputIndex];
-                feedbackFitted = output.hasCurrent;
-                feedbackHealthy = ed.registryOutputCurrentHealthy[_outputIndex];
-                hot = feedbackHealthy &&
-                      ed.registryOutputCurrentAmps[_outputIndex] <= output.currentReadyAmps;
-            } else {
-                feedbackFitted = HardwareConfig::hasGlowCurrentSensor;
-                feedbackHealthy = ed.glowCurrentHealthy;
-                hot = ed.glowPlugHot;
-            }
-            if (feedbackFitted && feedbackHealthy && hot) {
-                clearWaitReason();
-                return BlockResult::Complete;
-            }
-            if (FeedbackRequirements::bypassUnhealthyStartupCheck(
-                    ed, FeedbackRequirements::GLOW_CURRENT, feedbackHealthy)) {
-                clearWaitReason();
-                Serial.println("[GlowPreheat] REDUCED POWER: unavailable current-ready check skipped");
-                return BlockResult::Complete;
-            }
-            setWaitReason(!feedbackFitted ? "Glow current feedback not fitted" :
-                          !feedbackHealthy ? "Glow current feedback unavailable" :
-                          "Waiting for selected glow plug temperature");
-            if (elapsed < _dwellMs + _hotTimeoutMs) return BlockResult::Running;
-            _setDemand(0.0f);
-            return BlockResult::Abort;
-        }
-        if (strcmp(name(), "PreHeat") != 0 && strcmp(name(), "PreIgnSpark") != 0)
-            return BlockResult::Complete;
-        return (millis() - _entryMs) >= _dwellMs ? BlockResult::Complete : BlockResult::Running;
-    }
+    BlockResult tick() override { return BlockResult::Complete; }
 
     void onExit() override {}
 
 private:
-    void _setDemand(float demand) {
-        if (_target >= 0) {
-            RulesEngine::applyActuatorDemand((uint8_t)_target, constrain(demand, 0.0f, 1.0f));
-            setSequenceIgnitionTracked(_outputIndex, demand > 0.0f);
-        }
-    }
     void _setTarget(bool on) {
         if (_target < 0) return;
-        const float demand = on ? _onDemand : 0.0f;
+        const float demand = on ? 1.0f : 0.0f;
         RulesEngine::applyActuatorDemand((uint8_t)_target, demand);
         setSequenceIgnitionTracked(_outputIndex, on && demand > 0.0f);
     }
@@ -315,16 +232,6 @@ private:
     const char* _name = nullptr;
     int8_t _target = -1;
     int8_t _outputIndex = -1;
-    bool _glow = false;
-    bool _relay = false;
-    bool _glowRamp = false;
-    bool _waitUntilHot = false;
-    float _peakDemand = 1.0f;
-    float _holdDemand = 1.0f;
-    float _onDemand = 1.0f;
-    unsigned long _hotTimeoutMs = 30000;
-    unsigned long _dwellMs = 0;
-    unsigned long _entryMs = 0;
 };
 
 class TargetedActuatorBlock : public IBlock {
@@ -462,16 +369,15 @@ static void commandConfiguredIgnitionOutput(const char* outputId, uint8_t legacy
     const auto* output = HardwareConfig::channelRegistry.find(outputId, ChannelRegistry::Output);
     const int8_t actuator = HardwareConfig::outputActuatorForId(outputId);
     if (!output || actuator < 0) return;
-    const float demand = on && !strcmp(output->purpose, "glow_plug")
-        ? (output->ignitionProfileConfigured
-            ? output->ignitionHoldDemand : Config::glowHoldPct / 100.0f)
-        : on ? 1.0f : 0.0f;
+    const float demand = on ? 1.0f : 0.0f;
     RulesEngine::applyActuatorDemand((uint8_t)actuator, demand);
 }
 
 static CustomSequenceBlock* _sequenceCustomBlockStorage = nullptr;
 static uint8_t _sequenceCustomBlockCapacity = 0;
 static IgnitionCommandBlock* _sequenceIgnitionBlockStorage = nullptr;
+static WaitForInput* _sequenceWaitInputStorage = nullptr;
+static uint8_t _sequenceWaitInputBlockCapacity = 0;
 static uint8_t _sequenceIgnitionBlockCapacity = 0;
 // Targeted actuator blocks are comparatively large and most engine sequences
 // use only a few of them.  Allocating the theoretical maximum of 64 objects at
@@ -535,14 +441,15 @@ static void buildSequences() {
     uint8_t targetedRequired = 0;
     uint8_t customRequired = 0;
     uint8_t ignitionRequired = 0;
+    uint8_t waitInputRequired = 0;
     auto countPlacedBlocks = [&](const char blocks[][24], int length) {
         for (uint8_t i = 0; i < length; ++i) {
             if (isTargetedActuatorBlock(blocks[i])) ++targetedRequired;
             if (!strncmp(blocks[i], "custom_", 7)) ++customRequired;
             if (!strcmp(blocks[i], "IgniterOn") || !strcmp(blocks[i], "IgniterOff") ||
-                !strcmp(blocks[i], "ABIgnOn") || !strcmp(blocks[i], "ABIgnOff") ||
-                !strcmp(blocks[i], "PreHeat") || !strcmp(blocks[i], "PreIgnSpark") ||
-                !strcmp(blocks[i], "GlowPreheat")) ++ignitionRequired;
+                !strcmp(blocks[i], "ABIgnOn") || !strcmp(blocks[i], "ABIgnOff")) ++ignitionRequired;
+            if (!strcmp(blocks[i], "WaitForInput") || !strcmp(blocks[i], "WaitForInputOff"))
+                ++waitInputRequired;
         }
     };
     countPlacedBlocks(hw.startupSeq, hw.startupSeqLen);
@@ -570,6 +477,14 @@ static void buildSequences() {
     };
     const bool customPoolReady = growCustomPool(customRequired);
     const bool ignitionPoolReady = growIgnitionPool(ignitionRequired);
+    if (waitInputRequired > _sequenceWaitInputBlockCapacity) {
+        auto* expanded = new (std::nothrow) WaitForInput[waitInputRequired]();
+        if (expanded) {
+            delete[] _sequenceWaitInputStorage;
+            _sequenceWaitInputStorage = expanded;
+            _sequenceWaitInputBlockCapacity = waitInputRequired;
+        }
+    }
     if (targetedRequired > _sequenceTargetedBlockCapacity) {
         auto* expanded = new (std::nothrow) TargetedActuatorBlock[targetedRequired]();
         if (expanded) {
@@ -580,6 +495,8 @@ static void buildSequences() {
     }
     if (!_sequenceBlockStorage || !_sequenceDelayStorage ||
         !customPoolReady || !ignitionPoolReady ||
+        (waitInputRequired > 0 && (!_sequenceWaitInputStorage ||
+                                   _sequenceWaitInputBlockCapacity < waitInputRequired)) ||
         (targetedRequired > 0 && (!_sequenceTargetedBlockStorage ||
                                  _sequenceTargetedBlockCapacity < targetedRequired))) {
         _startupCount = _shutdownCount = _abIgnCount = _abShutCount = 0;
@@ -605,8 +522,10 @@ static void buildSequences() {
     uint8_t targetedUsed = 0;
     uint8_t customUsed = 0;
     uint8_t ignitionUsed = 0;
+    uint8_t waitInputUsed = 0;
     auto addBlock = [&](const char* name, int delayMs, uint8_t ignitionTarget,
                        const char* deviceTarget,
+                       const HardwareConfig::SeqWaitInput& waitSpec,
                        TimedDelay& delay,
                        IBlock** blocks, int& count) {
         if (strcmp(name, "TimedDelay") == 0) {
@@ -614,20 +533,25 @@ static void buildSequences() {
             blocks[count++] = &delay;
             return;
         }
+        if (!strcmp(name, "WaitForInput") || !strcmp(name, "WaitForInputOff")) {
+            WaitForInput& wait = _sequenceWaitInputStorage[waitInputUsed++];
+            wait.blockName = !strcmp(name, "WaitForInputOff") ? "WaitForInputOff" : "WaitForInput";
+            wait.channelIdx = waitSpec.configured ? waitSpec.channel : Config::waitForInputChannel;
+            wait.expectedState = !strcmp(name, "WaitForInputOff") ? false :
+                (waitSpec.configured ? waitSpec.active : Config::waitForInputExpected);
+            wait.timeoutMs = waitSpec.configured ? waitSpec.timeoutMs :
+                (Config::waitForInputTimeoutMs >= 500 ? Config::waitForInputTimeoutMs : 30000);
+            blocks[count++] = &wait;
+            return;
+        }
         if (strcmp(name, "IgniterOn") == 0 || strcmp(name, "IgniterOff") == 0 ||
-            strcmp(name, "ABIgnOn") == 0 || strcmp(name, "ABIgnOff") == 0 ||
-            strcmp(name, "PreHeat") == 0 || strcmp(name, "PreIgnSpark") == 0 ||
-            strcmp(name, "GlowPreheat") == 0) {
+            strcmp(name, "ABIgnOn") == 0 || strcmp(name, "ABIgnOff") == 0) {
             const char* purpose = ignitionTarget == 1 ? "ab_igniter" :
                                   ignitionTarget == 2 ? "glow_plug" : "igniter";
             if (strcmp(name, "ABIgnOn") == 0 || strcmp(name, "ABIgnOff") == 0)
                 purpose = "ab_igniter";
-            if (strcmp(name, "GlowPreheat") == 0)
-                purpose = "glow_plug";
-            const unsigned long dwell = !strcmp(name, "PreIgnSpark")
-                ? (unsigned long)Config::preIgnSparkMs : (unsigned long)Config::preHeatMs;
             IgnitionCommandBlock& ignition = _sequenceIgnitionBlockStorage[ignitionUsed++];
-            ignition.bind(name, deviceTarget, purpose, dwell);
+            ignition.bind(name, deviceTarget, purpose);
             blocks[count++] = &ignition;
             return;
         }
@@ -682,12 +606,14 @@ static void buildSequences() {
     _startupCount = 0;
     for (int i = 0; i < hw.startupSeqLen; i++) {
         addBlock(hw.startupSeq[i], hw.startupDelayMs[i], hw.startupIgnitionTarget[i], hw.startupDeviceTarget[i],
+                 hw.startupWaitInputs[i],
                  _startupDelays[i],
                  _startupBlocks, _startupCount);
     }
     _shutdownCount = 0;
     for (int i = 0; i < hw.shutdownSeqLen; i++) {
         addBlock(hw.shutdownSeq[i], hw.shutdownDelayMs[i], hw.shutdownIgnitionTarget[i], hw.shutdownDeviceTarget[i],
+                 hw.shutdownWaitInputs[i],
                  _shutdownDelays[i],
                  _shutdownBlocks, _shutdownCount);
     }
@@ -695,6 +621,7 @@ static void buildSequences() {
     _abIgnCount = 0;
     for (int i = 0; i < hw.abSeqLen; i++) {
         addBlock(hw.abSeq[i], hw.abDelayMs[i], hw.abIgnitionTarget[i], hw.abDeviceTarget[i],
+                 hw.abWaitInputs[i],
                  _abIgnDelays[i],
                  _abIgnBlocks, _abIgnCount);
     }
@@ -702,6 +629,7 @@ static void buildSequences() {
     _abShutCount = 0;
     for (int i = 0; i < hw.abShutSeqLen; i++) {
         addBlock(hw.abShutSeq[i], hw.abShutDelayMs[i], hw.abShutIgnitionTarget[i], hw.abShutDeviceTarget[i],
+                 hw.abShutWaitInputs[i],
                  _abShutDelays[i],
                  _abShutBlocks, _abShutCount);
     }
@@ -783,9 +711,7 @@ static void validateSequences(bool report) {
 
     auto isIgnitionTargetBlock = [](const char* block) {
         return block && (!strcmp(block, "IgniterOn") || !strcmp(block, "IgniterOff") ||
-            !strcmp(block, "ABIgnOn") || !strcmp(block, "ABIgnOff") ||
-            !strcmp(block, "PreHeat") || !strcmp(block, "PreIgnSpark") ||
-            !strcmp(block, "GlowPreheat"));
+            !strcmp(block, "ABIgnOn") || !strcmp(block, "ABIgnOff"));
     };
     auto blockAcceptsPurpose = [isIgnitionTargetBlock](const char* block, const char* purpose) {
         if (!block || !purpose) return false;
@@ -1035,19 +961,8 @@ static void validateSequences(bool report) {
         checkCommonBlockHardware(nm);
 
         // Targeted action blocks are validated against their exact selected
-        // device above. Only retain the glow-specific feedback warning when a
-        // real glow-plug profile requests wait-until-hot behavior.
+        // device above.
         if (isDeviceTargetBlock(nm)) {
-            if (strcmp(nm, "GlowPreheat") == 0) {
-                const char* targetId = hw.startupDeviceTarget[i];
-                const auto* target = targetId[0]
-                    ? hw.channelRegistry.find(targetId, ChannelRegistry::Output) : nullptr;
-                if (target && !strcmp(target->purpose, "glow_plug") &&
-                    (target->ignitionProfileConfigured
-                        ? target->ignitionWaitUntilHot : Config::glowWaitUntilHot) &&
-                    !target->hasCurrent)
-                    addIssue(nm, "Wait-until-hot requires current feedback on the selected glow plug", true);
-            }
             continue;
         }
 
@@ -1105,25 +1020,6 @@ static void validateSequences(bool report) {
             if (!hw.hasOilPump)
                 addIssue(nm, "No oil pump actuator configured - stock pre-lube step has no physical output", false);
         }
-        else if (strcmp(nm, "GlowPreheat") == 0) {
-            const char* targetId = hw.startupDeviceTarget[i];
-            const auto* target = targetId[0]
-                ? hw.channelRegistry.find(targetId, ChannelRegistry::Output) : nullptr;
-            if (!target || !target->installed || strcmp(target->purpose, "glow_plug"))
-                addIssue(nm, "Selected glow-plug output is missing or incompatible", true);
-            else if ((target->ignitionProfileConfigured
-                        ? target->ignitionWaitUntilHot : Config::glowWaitUntilHot) &&
-                     !target->hasCurrent)
-                addIssue(nm, "Wait-until-hot requires current feedback on the selected glow plug", true);
-        }
-        else if (strcmp(nm, "PreIgnSpark") == 0) {
-            if (!hw.hasIgniter)
-                addIssue(nm, "No Igniter 1 output configured - block will spend its configured time with no ignition output", false);
-        }
-        else if (strcmp(nm, "PreHeat") == 0) {
-            if (!ignitionTargetAvailableFor(hw.startupDeviceTarget[i], hw.startupIgnitionTarget[i]))
-                addIssue(nm, "Selected ignition output (igniter/glow) not fitted - pre-heat has no effect", false);
-        }
         else if (strcmp(nm, "IgniterOn") == 0) {
             if (!ignitionTargetAvailableFor(hw.startupDeviceTarget[i], hw.startupIgnitionTarget[i]))
                 addIssue(nm, "Selected ignition output (igniter/glow) not fitted - light-up has no ignition", false);
@@ -1148,12 +1044,12 @@ static void validateSequences(bool report) {
             if (!hw.hasThrottle)
                 addIssue(nm, "No main fuel metering output configured - fuel demand has no physical output", false);
         }
-        else if (strcmp(nm, "WaitForInput") == 0) {
-            if (Config::waitForInputTimeoutMs <= 0)
+        else if (strcmp(nm, "WaitForInput") == 0 || strcmp(nm, "WaitForInputOff") == 0) {
+            const auto* wait = static_cast<WaitForInput*>(_startupBlocks[i]);
+            if (wait->timeoutMs < 500)
                 addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
-            if (Config::waitForInputChannel < 0 ||
-                Config::waitForInputChannel >= HardwareConfig::MAX_DI ||
-                hw.diCh[Config::waitForInputChannel].pin < 0)
+            if (wait->channelIdx < 0 || wait->channelIdx >= HardwareConfig::MAX_DI ||
+                hw.diCh[wait->channelIdx].pin < 0)
                 addIssue(nm, "No switch assigned to the selected DI channel - startup cannot continue", true);
         }
         else if (strcmp(nm, "BleedOpen") == 0 || strcmp(nm, "BleedClose") == 0) {
@@ -1309,7 +1205,7 @@ static void validateSequences(bool report) {
         const char* nm = _startupBlocks[i]->name();
         if (strcmp(nm, "FlameConfirm") == 0 || strcmp(nm, "TempConfirm") == 0)
             hasCombustionConfirmation = true;
-        if (strcmp(nm, "IgniterOn") == 0 || strcmp(nm, "PreIgnSpark") == 0)
+        if (strcmp(nm, "IgniterOn") == 0)
             ignitionOn = true;
         if (strcmp(nm, "IgniterOff") == 0)
             ignitionOn = false;
@@ -1360,13 +1256,14 @@ static void validateSequences(bool report) {
             if (Config::effectiveEgtSource() == 0)
                 addIssue(nm, "No selected EGT source - cooldown will run until timeout instead of stopping by temperature", false);
         }
-        else if (strcmp(nm, "WaitForInputOff") == 0 &&
-                 (Config::waitForInputChannel < 0 ||
-                  Config::waitForInputChannel >= HardwareConfig::MAX_DI ||
-                  hw.diCh[Config::waitForInputChannel].pin < 0))
-            addIssue(nm, "No switch assigned to the selected DI channel - shutdown cannot finish", true);
-        if (strcmp(nm, "WaitForInputOff") == 0 && Config::waitForInputTimeoutMs <= 0)
-            addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
+        else if (strcmp(nm, "WaitForInput") == 0 || strcmp(nm, "WaitForInputOff") == 0) {
+            const auto* wait = static_cast<WaitForInput*>(_shutdownBlocks[i]);
+            if (wait->channelIdx < 0 || wait->channelIdx >= HardwareConfig::MAX_DI ||
+                hw.diCh[wait->channelIdx].pin < 0)
+                addIssue(nm, "No switch assigned to the selected DI channel - shutdown cannot finish", true);
+            if (wait->timeoutMs < 500)
+                addIssue(nm, "Sequencer input waits require a finite nonzero timeout", true);
+        }
         if (strcmp(nm, "FinalStop") == 0 && Config::shutdownFinalStopTimeoutMs <= 0)
             addIssue(nm, "FinalStop requires a finite nonzero timeout; remove the block if unused", true);
     }
@@ -3990,8 +3887,7 @@ static void handleCommand(const OTPacket& pkt) {
 
         case OTCommand::GLOW_TEST:
             if (HardwareConfig::hasGlowPlug && standbyLike && !anyToolTimerActive() && !ed.extraCooldownActive) {
-                ed.glowPlugDemand = HardwareConfig::glowPlugOutputType == 1 ? 1.0f
-                    : constrain(Config::toolGlowTestPct / 100.0f, 0.0f, 1.0f);
+                ed.glowPlugDemand = 1.0f;
                 _glowTestUntilMs = deadlineAfter(millis(), Config::toolGlowTestMs);
             }
             break;

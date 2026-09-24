@@ -44,7 +44,6 @@ public:
     static int   startupOilArmTimeoutMs;
     static int   starterTimeoutMs;
     static float preIgnRpm;
-    static int   preIgnSparkMs;
     static int   flameTimeoutMs;
     static int   flameCheckIntervalMs;
     static float tempConfirmTarget;      // TempConfirm threshold (°C)
@@ -182,7 +181,6 @@ public:
     static uint32_t toolIgnTestMs;
     static uint32_t toolIgn2TestMs;
     static uint32_t toolGlowTestMs;
-    static float    toolGlowTestPct;
     static uint32_t toolStartTestMs;
     static float    toolStartTestPct;
     static uint32_t toolFuelSolTestMs;
@@ -270,7 +268,6 @@ public:
     static float waitTotCoolTarget;      // WaitTOTCool target temperature (°C)
     static int   waitTotCoolTimeoutMs;   // WaitTOTCool timeout
     static float throttleSetPct;         // ThrottleSet demand %
-    static int   preHeatMs;             // PreHeat igniter duration
     static float oilPumpOnPct;          // OilPumpOn actuator block demand %
 
     // ── FlameConfirm exit actions ─────────────────────────────
@@ -361,12 +358,6 @@ public:
     static float fp2EndPct;              // FuelPumpRamp end % (0–100)
     static int   fp2RampMs;              // FuelPumpRamp ramp duration (ms)
     static float fp2DemandPct;           // FuelPump2Set fixed demand % (0–100)
-
-    // ── Glow plug preheating ──────────────────────────────────
-    static int   glowPreheatMs;          // total preheat duration (ms)
-    static float glowPreheatMaxPct;      // peak duty cycle during preheat (%)
-    static float glowHoldPct;            // hold duty once preheated (%)
-    static bool  glowWaitUntilHot;       // hold at holdPct until current sensor confirms hot
 
     // ── Hour meter / run statistics ───────────────────────────
     // volatile: Core 1 (ECU) increments these via the guarded add/inc helpers

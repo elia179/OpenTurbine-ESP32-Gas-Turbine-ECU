@@ -150,6 +150,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">bar</button>
     <button id="reset-peaks-btn" onclick="resetPeaks()" title="Clear session max values (after a bench spike or sensor glitch)"
       style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Reset peaks</button>
+    <button id="dashboard-card-edit-btn" onclick="toggleDashboardCardEdit()" aria-pressed="false"
+      style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Edit cards</button>
+    <div id="dashboard-hidden-cards" class="dashboard-hidden-cards" hidden></div>
   </div>
 
   <section class="telemetry-group" id="temperature-group" style="display:none">
@@ -324,7 +327,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Compact switch-input status strip -->
   <section id="di-states-wrap" class="switch-input-strip" style="display:none">
-    <div class="card small">
+    <div class="card small" id="switch-inputs-card">
       <div class="label">Switch Inputs</div>
       <div id="di-state-items" class="switch-input-items"></div>
     </div>
@@ -332,7 +335,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Governor status (shown only when governor enabled) -->
   <section id="governor-section" style="display:none;margin-bottom:.5rem">
-    <div class="card small">
+    <div class="card small" id="governor-card">
       <div class="label">Automatic N2 Speed Control <span id="gov-mode" style="display:none;font-size:.6rem;padding:.05rem .4rem;border-radius:999px;border:1px solid var(--border);color:var(--dim);vertical-align:middle;letter-spacing:.03em"></span></div>
       <div class="oil-sub">N2 target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
     </div>
@@ -340,7 +343,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Actuator status row -->
   <section id="adv-act-section" style="display:none;margin-bottom:.5rem">
-    <div class="card small" style="gap:.45rem">
+    <div class="card small" id="actuator-outputs-card" style="gap:.45rem">
       <div class="label">Actuator Outputs</div>
       <div style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.78rem;color:var(--dim)">
         <div id="adv-starter" style="display:none">
@@ -422,7 +425,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Afterburner card — shown only when hasAfterburner -->
   <section id="ab-section" style="display:none;margin-bottom:1rem">
-    <div class="card small" style="display:flex;flex-direction:column">
+    <div class="card small" id="afterburner-card" style="display:flex;flex-direction:column">
       <div class="label">Afterburner <span id="ab-sol-state" class="ab-state-word binary-state-inactive" title="Afterburner fuel valve">VALVE CLOSED</span></div>
       <div class="ab-mode-val ab-mode-Off" id="ab-mode-val">OFF</div>
       <div class="oil-sub" id="ab-state-reason" style="display:none;color:var(--yellow)"></div>
@@ -470,15 +473,15 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="oil-sub" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
       <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="oil-command-details">Owner unavailable</div></details>
     </div>
-    <div class="card small" style="grid-column:1/-1" title="Most recent state transition or ECU event. Full event history with timestamps is available on the Log page.">
+    <div class="card small" id="last-event-card" style="grid-column:1/-1" title="Most recent state transition or ECU event. Full event history with timestamps is available on the Log page.">
       <div class="label">Last Event</div>
       <div class="last-event-val" id="last-event">—</div>
     </div>
-    <div class="card small" title="Time since the ECU last powered on. Resets on every reboot.">
+    <div class="card small" id="uptime-card" title="Time since the ECU last powered on. Resets on every reboot.">
       <div class="label">Uptime</div>
       <div class="value small" id="uptime">—</div>
     </div>
-    <div class="card small" title="Cumulative engine run statistics stored in persistent flash memory. 'Starts' counts commanded start attempts; 'Runs' counts successful entries into RUNNING across all power cycles; 'Total' is cumulative time spent in RUNNING state across all power cycles.">
+    <div class="card small" id="hour-meter-card" title="Cumulative engine run statistics stored in persistent flash memory. 'Starts' counts commanded start attempts; 'Runs' counts successful entries into RUNNING across all power cycles; 'Total' is cumulative time spent in RUNNING state across all power cycles.">
       <div class="label">Hour Meter</div>
       <div class="hour-meter">
         Starts: <span id="hour-start-count">—</span>
@@ -495,7 +498,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label">Extra Cooldown</div>
       <div class="value small" style="color:var(--yellow)"><span id="extra-cooldown-remaining">—</span> s</div>
     </div>
-    <div class="card small" style="grid-column:1/-1" title="ECU storage health. Flash is the onboard LittleFS filesystem used for config, logs and session data. Low free space triggers automatic eviction of old session files.">
+    <div class="card small" id="system-card" style="grid-column:1/-1" title="ECU storage health. Flash is the onboard LittleFS filesystem used for config, logs and session data. Low free space triggers automatic eviction of old session files.">
       <div class="label">System</div>
       <div class="oil-sub">Flash: <span id="sys-flash-free">—</span> KB free · <span id="sys-flash-used">—</span> / <span id="sys-flash-total">—</span> KB used</div>
       <div class="oil-sub">Log: <span id="sys-log-records">—</span> / <span id="sys-log-max">—</span> records &nbsp;·&nbsp; <a href="/log.html" style="color:var(--dim);text-decoration:underline;font-size:.7rem">view →</a></div>

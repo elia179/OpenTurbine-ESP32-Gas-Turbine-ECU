@@ -324,8 +324,8 @@ function populate() {
   };
   const busesPanel = document.getElementById('hardware-buses-panel');
   const profilePanel = document.getElementById('hardware-profile-section');
-  if (busesPanel && profilePanel && profilePanel.nextElementSibling !== busesPanel)
-    profilePanel.insertAdjacentElement('afterend', busesPanel);
+  if (busesPanel && profilePanel && busesPanel.nextElementSibling !== profilePanel)
+    busesPanel.insertAdjacentElement('afterend', profilePanel);
   chk('en-i2c', !!cfg.i2c.enabled);
   const i2cSda = document.getElementById('f-i2c-sda'), i2cScl = document.getElementById('f-i2c-scl');
   if (i2cSda) i2cSda.innerHTML = buildPinOptions(cfg.i2c.sda_pin ?? -1, 'i2c-sda');
@@ -748,12 +748,12 @@ const ACT_DEPENDENCIES = {
               blocks:['FuelPumpIdle','ModifiedIdle','Spool','ThrottleSet'], functions:['Fuel sequence blocks','automatic idle/N2 speed-control output','fuel/throttle logging','rules driving throttle'] },
   fuel_pump2: { name:'Secondary / auxiliary fuel pump', logs:['fp2'], rules:[2], blocks:['FuelPumpRamp','FuelPump2Set','FuelPump2On','FuelPump2Off'],
                 functions:['Secondary / auxiliary fuel pump sequence blocks','secondary / auxiliary fuel logging','rules driving secondary / auxiliary fuel'] },
-  glow_plug: { name:'Glow plug', logs:['glow'], rules:[16], blocks:['GlowPreheat'], functions:['GlowPreheat block','glow logging','rules driving glow plug'] },
+  glow_plug: { name:'Glow plug', logs:['glow'], rules:[16], blocks:['IgniterOn','IgniterOff'], functions:['Igniter On/Off sequence blocks','glow logging','rules driving glow plug'] },
   prop_pitch: { name:'Prop pitch', controllers:['governor'], logs:['prop'], rules:[17], functions:['Governor prop-pitch output','prop pitch logging','rules driving prop pitch'] },
   cool_fan: { name:'Cooling fan', rules:[0], blocks:['CoolFanOn','CoolFanOff'], functions:['Cooling fan sequence blocks','rules driving cooling fan'] },
   bleed_valve: { name:'Bleed valve', rules:[1], blocks:['BleedOpen','BleedClose'], functions:['Bleed valve sequence blocks','rules driving bleed valve'] },
   fuel_sol: { name:'Main fuel shutoff', rules:[8], blocks:['FuelOpen','FuelSolClose','FuelPulse'], functions:['Main fuel shutoff sequence blocks','rules driving the main fuel shutoff'] },
-  igniter: { name:'Igniter 1', rules:[9], blocks:['IgniterOn','IgniterOff','PreIgnSpark','PreHeat'], functions:['Ignition sequence blocks','rules driving igniter'] },
+  igniter: { name:'Igniter 1', rules:[9], blocks:['IgniterOn','IgniterOff'], functions:['Ignition sequence blocks','rules driving igniter'] },
   igniter2: { name:'secondary igniter', rules:[10], blocks:['ABIgnOn','ABIgnOff'], functions:['secondary ignition blocks','rules driving secondary igniter'] },
   ab_sol: { name:'Afterburner fuel valve', rules:[11], blocks:['ABSolOpen','ABSolClose'], functions:['afterburner fuel-valve sequence blocks','rules driving the afterburner fuel valve'] },
   ab_pump: { name:'Afterburner fuel pump', logs:['ab'], rules:[12], blocks:['ABPumpOn','ABPumpOff'], functions:['afterburner fuel-pump sequence blocks','afterburner logging','rules driving the afterburner fuel pump'] },
@@ -764,7 +764,7 @@ const ACT_DEPENDENCIES = {
 
 const SPECIAL_DEPENDENCIES = {
   oil_pump_current: { name:'Oil pump current sensor', functions:['oil-pump current live data','oil-pump current calibration','oil-pump current session logging'] },
-  glow_current: { name:'Glow plug current sensor', functions:['wait-until-hot glow preheat','glow current live data','glow current calibration','glow current session logging'] },
+  glow_current: { name:'Glow plug current sensor', functions:['glow current live data','glow current calibration','glow current session logging'] },
   ab_flame: { name:'Afterburner flame sensor', functions:['AB flame-confirm mode','AB flame live data','rules and diagnostics using AB flame state'] },
   buzzer: { name:'Buzzer', functions:['audible mode transitions','audible fault indication','bench-test tone output'] },
   cluster: { name:'OT Cluster serial', functions:['external display telemetry','cluster warning thresholds','optional cluster command RX'] },
