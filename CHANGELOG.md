@@ -10,6 +10,12 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+### 2.4.2 bench candidate
+
+- Dashboard upper-limit bars use configured thresholds as visual references even when shutdown protection is off; only active protection draws a shutdown marker. Minimum-only sensors show coloured readings instead of misleading fill bars.
+- Add direct limit-setting links in Dashboard Edit cards, plus a browser-local drag arrangement with default-layout reset.
+- Validate the 2.4.2 Classic dashboard against S3-generated N1/N2 pulses and live browser green/yellow/red states.
+
 ## [2.4.1] — 2026-09-22
 
 - Ignore dormant oil-pressure, shaft pullback, Automatic Idle, windmilling-oil, and afterburner relationships when their required hardware or controller is unavailable.

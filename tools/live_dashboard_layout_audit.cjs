@@ -38,6 +38,18 @@ const executablePath = candidates.find(file => fs.existsSync(file));
     await page.locator('#dashboard-card-edit-btn').click();
     await page.getByRole('button', {name:'Show Uptime'}).click();
     assert.ok(!await page.locator('#uptime-card').evaluate(el => el.classList.contains('dashboard-user-hidden')));
+    await page.locator('#dashboard-arrange-btn').click();
+    assert.ok(await page.locator('#dashboard-custom-section').isVisible());
+    const before = await page.locator('#uptime-card').evaluate(el => [...el.parentElement.children].indexOf(el));
+    await page.locator('#uptime-card .dashboard-drag-handle').focus();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.locator('#uptime-card').evaluate(el => [...el.parentElement.children].indexOf(el)), before + 1);
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(() => document.getElementById('dashboard-custom-section')?.hidden === false);
+    assert.ok(await page.locator('#dashboard-custom-section').isVisible(), 'custom order did not persist');
+    await page.locator('#dashboard-card-edit-btn').click();
+    await page.locator('#dashboard-reset-btn').click();
+    assert.ok(!await page.locator('#dashboard-custom-section').isVisible(), 'default groups not restored');
 
     await page.goto(base + '/hardware.html', {waitUntil:'domcontentloaded', timeout:30000});
     await page.waitForFunction(() => /Loaded|Converted/i.test(document.getElementById('save-msg')?.textContent || ''), {timeout:25000});
@@ -54,7 +66,7 @@ const executablePath = candidates.find(file => fs.existsSync(file));
     await page.waitForURL(/\/sequence\.html#starter-assist$/);
     await page.waitForFunction(() => getComputedStyle(document.getElementById('tab-startup')).display !== 'none');
     assert.deepEqual(pageErrors, []);
-    console.log('Live dashboard/layout audit passed: optional cards hide locally, engine controls stay fixed, Hardware panel order and validation route are correct.');
+    console.log('Live dashboard/layout audit passed: hide, reorder, persist and reset stay browser-local; engine controls, Hardware panel order and validation route are correct.');
   } finally {
     await browser.close();
   }
