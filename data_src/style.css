@@ -459,6 +459,7 @@ section:has(> .dashboard-user-hidden:only-child){display:none!important}
 
 /* ── Gauge bar ──────────────────────────────────────────────── */
 .gauge-bar-wrap {
+  position: relative;
   height: 3px;
   background: var(--border);
   border-radius: 2px;
@@ -473,6 +474,18 @@ section:has(> .dashboard-user-hidden:only-child){display:none!important}
 }
 .gauge-bar.warn   { background: var(--yellow); }
 .gauge-bar.danger { background: var(--red); }
+.gauge-bar-wrap.shutdown-limit-high::after,
+.gauge-bar-wrap.shutdown-limit-low::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--red);
+}
+.gauge-bar-wrap.shutdown-limit-high::after { left: calc(90% - 1px); }
+.gauge-bar-wrap.shutdown-limit-low::after { left: calc(10% - 1px); }
 
 /* ── Sparkline ──────────────────────────────────────────────── */
 .sparkline {

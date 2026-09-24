@@ -1169,25 +1169,28 @@ function applyData(d) {
   }
 
   // ── Color gauges + approach-to-limit warnings ────────────
-  if (d.rpm_limit && d.n1 !== undefined) {
-    const pct = Math.min(100, (d.n1 / d.rpm_limit) * 100);
-    setGaugeBar('n1-gauge-bar', pct);
+  if (d.n1 !== undefined) {
+    const n1Limit = Number(d.rpm_limit || 0);
+    const pct = n1Limit > 0 ? Number(d.n1) / n1Limit * 100 : 0;
+    setShutdownGaugeBar('n1-gauge-bar', d.n1, n1Limit);
     const warn = document.getElementById('n1-approach-warn');
     if (warn) {
-      const show = pct >= 85;
+      const show = n1Limit > 0 && pct >= 85;
       warn.style.display = show ? '' : 'none';
       if (show) warn.textContent = '⚠ N1 at ' + pct.toFixed(0) + '% — '
-        + fmtInt(d.n1) + ' / ' + fmtInt(d.rpm_limit) + ' RPM';
+        + fmtInt(d.n1) + ' / ' + fmtInt(n1Limit) + ' RPM';
     }
     const absLbl = document.getElementById('n1-abs-label');
-    if (absLbl) absLbl.textContent = fmtInt(d.n1) + ' / ' + fmtInt(d.rpm_limit) + ' RPM';
+    if (absLbl) absLbl.textContent = n1Limit > 0
+      ? fmtInt(d.n1) + ' / ' + fmtInt(n1Limit) + ' RPM'
+      : fmtInt(d.n1) + ' RPM / OFF';
   }
   if (d.n2 !== undefined) {
     // This is the independent hard N2 shutdown limit. Gradual N2 pullback
     // points are separate control settings and must not be shown as a trip.
     const n2Limit = Number(d.n2_limit || 0);
-    const pct = n2Limit > 0 ? Math.min(100, (Number(d.n2) / n2Limit) * 100) : 0;
-    setGaugeBar('n2-gauge-bar', pct);
+    const pct = n2Limit > 0 ? Number(d.n2) / n2Limit * 100 : 0;
+    setShutdownGaugeBar('n2-gauge-bar', d.n2, n2Limit);
     const warn = document.getElementById('n2-approach-warn');
     if (warn) {
       const show = n2Limit > 0 && pct >= 85;
@@ -1203,61 +1206,51 @@ function applyData(d) {
   const selectedEgtSource = selectedEgtKey(d);
   const isPrimaryTot = selectedEgtSource === 'tot';
   const isPrimaryTit = selectedEgtSource === 'tit';
+  const startupEgtLimit = d.mode === 'STARTUP' ? Number(d.startup_egt_limit || 0) : 0;
 
   if (d.tot !== undefined) {
     const totLimit = Number(d.tot_limit || 0);
-    const pct = totLimit > 0 ? Math.min(100, (d.tot / totLimit) * 100) : 0;
-    setGaugeBar('tot-gauge-bar', pct);
+    const activeTotLimit = isPrimaryTot && startupEgtLimit > 0 ? startupEgtLimit : totLimit;
+    setShutdownGaugeBar('tot-gauge-bar', d.tot, activeTotLimit);
     const warn = document.getElementById('tot-approach-warn');
     if (warn) {
-      const limit = Number(d.egt_limit || totLimit);
-      const primaryPct = limit > 0 ? Math.min(100, (Number(d.tot) / limit) * 100) : 0;
-      const show = isPrimaryTot && primaryPct >= 85;
+      const limit = activeTotLimit;
+      const primaryPct = limit > 0 ? Number(d.tot) / limit * 100 : 0;
+      const show = isPrimaryTot && limit > 0 && primaryPct >= 85;
       warn.style.display = show ? '' : 'none';
       if (show) warn.textContent = 'Warning: ' + lbl('tot') + ' at ' + primaryPct.toFixed(0) + '% - '
         + toDispTemp(Number(d.tot)).toFixed(0) + ' / ' + toDispTemp(limit).toFixed(0) + ' ' + dispTempUnit();
     }
     const absLbl = document.getElementById('tot-abs-label');
-    if (absLbl) absLbl.textContent = totLimit > 0
-      ? toDispTemp(Number(d.tot)).toFixed(0) + ' / ' + toDispTemp(totLimit).toFixed(0) + ' ' + dispTempUnit()
+    if (absLbl) absLbl.textContent = activeTotLimit > 0
+      ? toDispTemp(Number(d.tot)).toFixed(0) + ' / ' + toDispTemp(activeTotLimit).toFixed(0) + ' ' + dispTempUnit()
       : toDispTemp(Number(d.tot)).toFixed(0) + ' ' + dispTempUnit() + ' / OFF';
   }
   if (d.oil !== undefined) {
     const oilMin = Number(d.oil_running_min || 0);
-    if (d.mode === 'RUNNING' || d.mode === 'SHUTDOWN') {
-      // SHUTDOWN included: pump is still active and the engine is spinning,
-      // and a low-oil red bar is the cue that explains a low-oil shutdown.
-      // Oil is inverted vs the other gauges: LOW pressure is the fault state.
-      // Width tracks pressure (minimum = 50% width, floor 8% so a red sliver
-      // is always visible); color is forced — red below the running minimum,
-      // amber within 15% above it, green otherwise. Previously a below-min
-      // reading rendered as an EMPTY neutral bar, which read as "fine".
-      const ratio = oilMin > 0 ? d.oil / oilMin : 0;
-      const width = oilMin > 0 ? Math.min(100, Math.max(8, ratio * 50)) : 0;
-      const cls = oilMin > 0
-                ? (d.oil < oilMin ? 'danger' : d.oil < oilMin * 1.15 ? 'warn' : 'ok')
-                : '';
-      setGaugeBar('oil-gauge-bar', width, cls);
+    const oilLimitActive = oilMin > 0 && (d.mode === 'RUNNING' || d.mode === 'SHUTDOWN');
+    if (oilLimitActive) {
+      // A low-pressure trip is at the LEFT edge, with 10% of travel below it.
+      setShutdownGaugeBar('oil-gauge-bar', d.oil, oilMin, 'low');
       const warn = document.getElementById('oil-approach-warn');
       if (warn) {
-        const low = oilMin > 0 && d.oil < oilMin * 1.15;
+        const low = Number(d.oil) < oilMin * 1.15;
         warn.style.display = low ? '' : 'none';
         if (low) warn.textContent = '⚠ Oil ' + toDispPress(Number(d.oil)).toFixed(1)
           + ' ' + dispPressUnit() + ' — near min ' + toDispPress(oilMin).toFixed(1) + ' ' + dispPressUnit();
       }
     } else {
-      // STANDBY/FAULT and other non-op modes: keep the bar live but neutral —
-      // clears a stale red 'danger' bar/warning left over from the last
-      // RUNNING/SHUTDOWN frame.
-      const ratio = oilMin > 0 ? d.oil / oilMin : 0;
-      const width = oilMin > 0 ? Math.min(100, Math.max(0, ratio * 50)) : 0;
-      setGaugeBar('oil-gauge-bar', width, 'ok');
+      // Low-oil protection is not active before running. Clear a stale red
+      // indication after a stop, rather than implying a standby trip.
+      setShutdownGaugeBar('oil-gauge-bar', d.oil, 0);
       const warn = document.getElementById('oil-approach-warn');
       if (warn) warn.style.display = 'none';
     }
     const absLbl = document.getElementById('oil-abs-label');
-    if (absLbl) absLbl.textContent = oilMin > 0
+    if (absLbl) absLbl.textContent = oilLimitActive
       ? toDispPress(Number(d.oil)).toFixed(1) + ' / ≥' + toDispPress(oilMin).toFixed(1) + ' ' + dispPressUnit()
+      : oilMin > 0
+        ? toDispPress(Number(d.oil)).toFixed(1) + ' ' + dispPressUnit() + ' / RUNNING ONLY'
       : toDispPress(Number(d.oil)).toFixed(1) + ' ' + dispPressUnit() + ' / OFF';
   }
 
@@ -1331,7 +1324,7 @@ function applyData(d) {
       setDot('oil-temp-health', d.oil_temp_healthy, lbl('oil_temp'));
       if (d.oil_temp !== undefined) {
         const oilTempLimit = Number(d.oil_temp_limit || 0);
-        setGaugeBar('oil-temp-gauge-bar', oilTempLimit > 0 ? Math.min(100, (d.oil_temp / oilTempLimit) * 100) : 0);
+        setShutdownGaugeBar('oil-temp-gauge-bar', d.oil_temp, oilTempLimit);
       }
     }
   }
@@ -1346,19 +1339,20 @@ function applyData(d) {
       setDot('tit-health', d.tit_healthy, lbl('tit'));
       if (d.tit !== undefined) {
         const titLimit = Number(d.tit_limit || 0);
-        setGaugeBar('tit-gauge-bar', titLimit > 0 ? Math.min(100, (d.tit / titLimit) * 100) : 0);
+        const activeTitLimit = isPrimaryTit && startupEgtLimit > 0 ? startupEgtLimit : titLimit;
+        setShutdownGaugeBar('tit-gauge-bar', d.tit, activeTitLimit);
         const warn = document.getElementById('tit-approach-warn');
         if (warn) {
-          const limit = Number(d.egt_limit || titLimit);
-          const primaryPct = limit > 0 ? Math.min(100, (Number(d.tit) / limit) * 100) : 0;
-          const show = isPrimaryTit && primaryPct >= 85;
+          const limit = activeTitLimit;
+          const primaryPct = limit > 0 ? Number(d.tit) / limit * 100 : 0;
+          const show = isPrimaryTit && limit > 0 && primaryPct >= 85;
           warn.style.display = show ? '' : 'none';
           if (show) warn.textContent = 'Warning: ' + lbl('tit') + ' at ' + primaryPct.toFixed(0) + '% - '
             + toDispTemp(Number(d.tit)).toFixed(0) + ' / ' + toDispTemp(limit).toFixed(0) + ' ' + dispTempUnit();
         }
         const absLbl = document.getElementById('tit-abs-label');
-        if (absLbl) absLbl.textContent = titLimit > 0
-          ? toDispTemp(Number(d.tit)).toFixed(0) + ' / ' + toDispTemp(titLimit).toFixed(0) + ' ' + dispTempUnit()
+        if (absLbl) absLbl.textContent = activeTitLimit > 0
+          ? toDispTemp(Number(d.tit)).toFixed(0) + ' / ' + toDispTemp(activeTitLimit).toFixed(0) + ' ' + dispTempUnit()
           : toDispTemp(Number(d.tit)).toFixed(0) + ' ' + dispTempUnit() + ' / OFF';
       } else {
         const warn = document.getElementById('tit-approach-warn');
@@ -1377,13 +1371,15 @@ function applyData(d) {
       setDot('fuel-press-health', d.fuel_press_healthy, lbl('fuel_press'));
       if (d.fuel_press !== undefined) {
         const fuelPressMin = Number(d.fuel_press_min || 0);
-        // Gauge: 0% = at min threshold, 100% = 3× min (typical healthy range)
-        const pct = fuelPressMin > 0 ? Math.min(100, Math.max(0,
-          ((d.fuel_press - fuelPressMin) / (fuelPressMin * 2)) * 100)) : 0;
-        setGaugeBar('fuel-press-gauge-bar', pct);
+        // Fuel pressure is a running-only low shutdown, not an upper limit.
+        const fuelLimitActive = fuelPressMin > 0 && d.mode === 'RUNNING';
+        setShutdownGaugeBar('fuel-press-gauge-bar', d.fuel_press,
+          fuelLimitActive ? fuelPressMin : 0, 'low');
         const absLbl = document.getElementById('fuel-press-abs-label');
-        if (absLbl) absLbl.textContent = fuelPressMin > 0
+        if (absLbl) absLbl.textContent = fuelLimitActive
           ? toDispPress(Number(d.fuel_press)).toFixed(1) + ' / ≥' + toDispPress(fuelPressMin).toFixed(1) + ' ' + dispPressUnit()
+          : fuelPressMin > 0
+            ? toDispPress(Number(d.fuel_press)).toFixed(1) + ' ' + dispPressUnit() + ' / RUNNING ONLY'
           : toDispPress(Number(d.fuel_press)).toFixed(1) + ' ' + dispPressUnit() + ' / OFF';
       }
     }
@@ -1401,24 +1397,7 @@ function applyData(d) {
         const battMin = Number(d.batt_volt_min || 0);
         setText('batt-volt-min', battMin > 0 ? battMin.toFixed(1) : 'OFF');
         if (d.batt_voltage !== undefined) {
-          const v = Number(d.batt_voltage);
-          // 0% width = at alarm threshold, 100% = 30% above threshold (typical full-charge headroom).
-          const fullV = battMin * 1.3;
-          const pct = battMin > 0 ? Math.min(100, Math.max(0,
-            ((v - battMin) / (fullV - battMin)) * 100)) : 0;
-          // Battery is inverted vs the temp/RPM gauges: a FULL pack is the good
-          // state (green), a near-empty pack is the fault (red). Colour is forced
-          // by voltage thresholds so a full battery never renders red. Optional
-          // over-voltage (charger fault / wrong cell count) also flags once the
-          // pack climbs meaningfully above the full reference.
-          let cls = 'ok';
-          if (battMin > 0) {
-            if (v <= battMin)            cls = 'danger';   // at/below undervoltage alarm
-            else if (v < battMin * 1.1)  cls = 'warn';     // within 10% of the alarm
-            else if (v > fullV * 1.08)   cls = 'danger';   // over-voltage (well above full)
-            else if (v > fullV)          cls = 'warn';     // slightly over full headroom
-          }
-          setGaugeBar('batt-gauge-bar', pct, battMin > 0 ? cls : 'ok');
+          setShutdownGaugeBar('batt-gauge-bar', d.batt_voltage, battMin, 'low');
         }
       }
     }
@@ -2080,6 +2059,47 @@ function setGaugeBar(id, pct, forceClass) {
   if (pct >= 95) { bar.className = 'gauge-bar danger'; }
   else if (pct >= 80) { bar.className = 'gauge-bar warn'; }
   else { bar.className = 'gauge-bar'; }
+}
+
+// Shutdown bars are deliberately separate from actuator-demand bars. The
+// marker is at 90% for high trips (10% overshoot) or 10% for low trips.
+// A zero limit means the safety is not fitted/enabled, so neither marker nor
+// threshold-derived color/scale is shown.
+function setShutdownGaugeBar(id, value, limit, direction = 'high') {
+  const bar = document.getElementById(id);
+  if (!bar) return;
+  const wrap = bar.parentElement;
+  const threshold = Number(limit);
+  const reading = Number(value);
+  const enabled = Number.isFinite(threshold) && threshold > 0 && Number.isFinite(reading);
+  wrap.style.display = enabled ? '' : 'none';
+  wrap.classList.toggle('shutdown-limit-high', enabled && direction === 'high');
+  wrap.classList.toggle('shutdown-limit-low', enabled && direction === 'low');
+  if (!enabled) {
+    bar.style.width = '0%';
+    bar.style.background = '';
+    return;
+  }
+  const ratio = Math.max(0, reading / threshold);
+  const width = direction === 'low'
+    ? Math.max(3, Math.min(100, ratio <= 1 ? ratio * 10 : 10 + (ratio - 1) * 90))
+    : Math.min(100, ratio * 90);
+  bar.style.width = width + '%';
+  bar.className = 'gauge-bar';
+  const blend = (from, to, percent) =>
+    `color-mix(in srgb, var(--${to}) ${Math.round(percent * 100)}%, var(--${from}))`;
+  if (direction === 'low') {
+    bar.style.background = ratio <= 1 ? 'var(--red)'
+      : ratio < 1.1 ? blend('red', 'yellow', (ratio - 1) / .1)
+      : ratio < 1.2 ? blend('yellow', 'green', (ratio - 1.1) / .1)
+      : 'var(--green)';
+  } else {
+    bar.style.background = ratio < .7 ? 'var(--green)'
+      : ratio < .8 ? blend('green', 'yellow', (ratio - .7) / .1)
+      : ratio < .87 ? blend('yellow', 'red', (ratio - .8) / .07)
+      : 'var(--red)';
+  }
+  wrap.title = direction === 'low' ? 'Minimum shutdown limit' : 'Maximum shutdown limit';
 }
 
 function formatUptime(s) {

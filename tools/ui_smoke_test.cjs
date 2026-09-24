@@ -165,6 +165,65 @@ function installedBrowser() {
       ['gauge-bar', 'abs-label', 'approach-warn'].every(suffix =>
         document.getElementById(`n1-${suffix}`) && document.getElementById(`n2-${suffix}`))), true);
     assert.equal(await text(page, '#n2-abs-label'), '24,200 / 30,000 RPM');
+    const shutdownGauge = await page.evaluate(() => {
+      const read = id => {
+        const bar = document.getElementById(id);
+        const wrap = bar.parentElement;
+        return {width:parseFloat(bar.style.width), color:getComputedStyle(bar).backgroundColor,
+          visible:getComputedStyle(wrap).display !== 'none',
+          marker:getComputedStyle(wrap, '::after').content,
+          high:wrap.classList.contains('shutdown-limit-high'),
+          low:wrap.classList.contains('shutdown-limit-low')};
+      };
+      for (const id of ['n1-gauge-bar','batt-gauge-bar'])
+        document.getElementById(id).style.transition = 'none';
+      setShutdownGaugeBar('n1-gauge-bar', 800, 1000);
+      const yellow = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 870, 1000);
+      const red = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 1000, 1000);
+      const trip = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 1100, 1000);
+      const overshoot = read('n1-gauge-bar');
+      setShutdownGaugeBar('n1-gauge-bar', 1100, 0);
+      const disabled = read('n1-gauge-bar');
+      setShutdownGaugeBar('batt-gauge-bar', 10, 10, 'low');
+      const lowTrip = read('batt-gauge-bar');
+      setShutdownGaugeBar('batt-gauge-bar', 12, 10, 'low');
+      const lowHealthy = read('batt-gauge-bar');
+      applyData({mode:'STARTUP', has_tot:true, has_tit:true, egt_source:1,
+        tot:850, tot_limit:1000, startup_egt_limit:900, tit:850, tit_limit:0,
+        n1:800, rpm_limit:0, n2:900, n2_limit:0, oil:0, oil_running_min:0,
+        batt_voltage:12, batt_volt_min:0, fuel_press:0, fuel_press_min:0});
+      const startup = {tot:read('tot-gauge-bar'), tit:read('tit-gauge-bar'),
+        n1:read('n1-gauge-bar'), n2:read('n2-gauge-bar'),
+        oil:read('oil-gauge-bar'), batt:read('batt-gauge-bar'),
+        fuel:read('fuel-press-gauge-bar'), totLabel:document.getElementById('tot-abs-label').textContent};
+      applyData({mode:'STARTUP', tot:850, tot_limit:0, startup_egt_limit:900});
+      const startupOnly = read('tot-gauge-bar');
+      return {yellow, red, trip, overshoot, disabled, lowTrip, lowHealthy, startup, startupOnly};
+    });
+    assert.ok(Math.abs(shutdownGauge.yellow.width - 72) < .1);
+    assert.ok(Math.abs(shutdownGauge.red.width - 78.3) < .1);
+    assert.ok(Math.abs(shutdownGauge.trip.width - 90) < .1);
+    assert.ok(Math.abs(shutdownGauge.overshoot.width - 99) < .1);
+    assert.equal(shutdownGauge.yellow.high, true);
+    assert.equal(shutdownGauge.yellow.marker, '""');
+    assert.notEqual(shutdownGauge.yellow.color, shutdownGauge.red.color);
+    assert.equal(shutdownGauge.disabled.visible, false);
+    assert.equal(shutdownGauge.disabled.high, false);
+    assert.ok(Math.abs(shutdownGauge.lowTrip.width - 10) < .1);
+    assert.equal(shutdownGauge.lowTrip.low, true);
+    assert.equal(shutdownGauge.lowTrip.marker, '""');
+    assert.ok(shutdownGauge.lowHealthy.width > shutdownGauge.lowTrip.width);
+    assert.notEqual(shutdownGauge.lowTrip.color, shutdownGauge.lowHealthy.color);
+    assert.ok(Math.abs(shutdownGauge.startup.tot.width - 85) < .1);
+    assert.ok(Math.abs(shutdownGauge.startupOnly.width - 85) < .1);
+    assert.match(shutdownGauge.startup.totLabel, /900/);
+    for (const id of ['tit','n1','n2','oil','batt','fuel'])
+      assert.equal(shutdownGauge.startup[id].visible, false, `${id} has no active shutdown limit`);
+    results.push('shutdown bars mark enabled high/low limits, reserve overshoot, blend colors, and hide inactive limits');
+    await scenario(page, 'full');
     await page.evaluate(() => _showRunSummary({
       mode: 'STANDBY', has_n1: true, max_n1: 67100,
       has_n2: true, max_n2: 24900

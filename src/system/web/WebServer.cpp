@@ -2488,20 +2488,32 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["flash_free_kb"]         = (int)(s_fsTotal - s_fsUsed);
         doc["max_p1"]                = (float)(int)(maxP1Bar * 100) / 100.0f;
         doc["max_p2"]                = (float)(int)(maxP2Bar * 100) / 100.0f;
-        // Safety limits (for color gauge thresholds)
-        doc["rpm_limit"]             = (int)Config::rpmLimit;
+        // Dashboard shutdown markers are sent only for fitted, enabled
+        // protections. A configured value alone does not mean it can trip.
+        doc["rpm_limit"]             = HardwareConfig::safetyOverspeed && HardwareConfig::hasN1Rpm
+                                         ? (int)Config::rpmLimit : 0;
         // Independent hard N2 shutdown limit. Gradual pullback points are sent
         // separately so clients cannot mistake a controller setting for a trip.
-        doc["n2_limit"]              = HardwareConfig::safetyN2Overspeed
+        doc["n2_limit"]              = HardwareConfig::safetyN2Overspeed && HardwareConfig::hasN2Rpm
                                          ? (int)Config::n2RpmLimit : 0;
-        doc["tot_limit"]             = Config::totLimit;
+        const int dashboardEgtSource = Config::effectiveEgtSource();
+        doc["tot_limit"]             = HardwareConfig::safetyOvertemp && dashboardEgtSource == 1
+                                         ? Config::totLimit : 0;
         doc["egt_source"]            = Config::effectiveEgtSource();
-        doc["egt_limit"]             = Config::primaryEgtLimitC();
-        doc["oil_running_min"]       = Config::oilRunningMin;
-        doc["oil_temp_limit"]        = Config::oilTempLimit;
-        doc["tit_limit"]             = Config::titLimit;
-        doc["batt_volt_min"]         = Config::battVoltMin;
-        doc["fuel_press_min"]        = Config::fuelPressMin;
+        doc["egt_limit"]             = HardwareConfig::safetyOvertemp
+                                         ? Config::primaryEgtLimitC() : 0;
+        doc["startup_egt_limit"]     = HardwareConfig::safetyOvertemp
+                                         ? Config::startupEgtLimitC : 0;
+        doc["oil_running_min"]       = HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress
+                                         && !HardwareConfig::hasOilLoop ? Config::oilRunningMin : 0;
+        doc["oil_temp_limit"]        = HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp
+                                         ? Config::oilTempLimit : 0;
+        doc["tit_limit"]             = HardwareConfig::safetyOvertemp && dashboardEgtSource == 2
+                                         ? Config::titLimit : 0;
+        doc["batt_volt_min"]         = HardwareConfig::safetyBattLow && HardwareConfig::hasBattVoltage
+                                         ? Config::battVoltMin : 0;
+        doc["fuel_press_min"]        = HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress
+                                         ? Config::fuelPressMin : 0;
         // has_* capability flags
         doc["has_ab_flame"]          = HardwareConfig::hasAfterburner && HardwareConfig::hasAbFlame;
         if (HardwareConfig::hasAbFlame) {
