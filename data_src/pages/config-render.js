@@ -1175,12 +1175,12 @@ function renderForm(preserveControllerOpenState = false) {
   const allOilPumpsBinary = configuredOilPumps.length > 0 && configuredOilPumps.every(oilPumpIsBinary);
   const mixedOilPumpDrivers = configuredOilPumps.some(oilPumpIsBinary) && configuredOilPumps.some(channel => !oilPumpIsBinary(channel));
   const protectionGroups = [
-    {id:'n1', title:'N1 core speed', desc:'Fuel pullback before the limit, hard overspeed shutdown at the maximum, and minimum running speed.',
+    {id:'n1', title:'N1 core speed', desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
       keys:['pb_n1e','pb_n1s','pb_n1h','rpm_limit','min_rpm'], advanced:['pb_n1l','pb_n1str','rl_ramp','rl_zone','rl_acc']},
-    {id:'n2', title:'N2 output-shaft speed', desc:'Gradual fuel reduction and independent power-turbine overspeed shutdown.',
+    {id:'n2', title:'N2 output-shaft speed', desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
       keys:['pb_n2e','pb_n2s','pb_n2h','n2_rpm_limit'], advanced:['pb_n2l','pb_n2str']},
-    {id:'egt', title:'Turbine temperature', desc:'Select TOT/TIT, reduce fuel near the limit, then shut down at the hard limit.',
-      keys:['eg_src','pb_egte','pb_egts','pb_egth','tot_limit','sf_tit','tot_safe_margin'], advanced:['pb_egtl','pb_egtstr']},
+    {id:'egt', title:'Turbine temperature', desc:'Select TOT/TIT, set running and startup Dashboard references, and optionally enable fuel limiting or overtemperature shutdown.',
+      keys:['eg_src','pb_egte','pb_egts','pb_egth','tot_limit','sf_tit','sf_st','tot_safe_margin'], advanced:['pb_egtl','pb_egtstr']},
     {id:'p1', title:`${controllerChannelName(controllerInputs('p1_pressure')[0]) || 'Pressure 1'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
       keys:['pb_p1e','pb_p1s','pb_p1h','sf_p1t','sf_p1d'], advanced:['pb_p1l','pb_p1str']},
     {id:'p2', title:`${controllerChannelName(controllerInputs('p2_pressure')[0]) || 'Pressure 2'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
@@ -1203,7 +1203,7 @@ function renderForm(preserveControllerOpenState = false) {
     const runtimeOptions = binaryOilFallback
       ? [{v:0,l:'Off'},{v:100,l:'On'}]
       : f.type === 'pullback_mode'
-      ? [{v:0,l:'Off — hard shutdown only'},{v:1,l:'Simple — measured value'},{v:2,l:'Advanced — predictive'}]
+      ? [{v:0,l:'Off — no gradual limiting'},{v:1,l:'Simple — measured value'},{v:2,l:'Advanced — predictive'}]
       : (typeof f.options === 'function' ? f.options() : (f.options || []));
     if (binaryOilFallback) val = Number(val) > 0 ? 100 : 0;
     const fieldLabel = binaryOilFallback ? 'Pump State After Pressure-Sensor Failure' : f.label;
@@ -1272,7 +1272,7 @@ function renderForm(preserveControllerOpenState = false) {
       ],
       'Combustion & Startup Protection': [
         {key:'flameout',label:'Combustion loss',available:controllerInputs('flame').length||controllerInputs('n1_speed').length||controllerInputs('tot').length||controllerInputs('tit').length,requirement:'Fit flame, N1, TOT, or TIT feedback',keys:['sf_fo','sf_fs','sf_fn','sf_eb','sf_ef'],desc:'Independent confirmed-loss timer; expiry cuts fuel and fault-shuts down'},
-        {key:'hot_start',label:'Hot-start protection',available:controllerInputs('tot').length||controllerInputs('tit').length,requirement:'Fit a TOT or TIT input',keys:['sf_hs','sf_st'],desc:'Pre-start and startup temperature limits'},
+        {key:'hot_start',label:'Hot-start protection',available:controllerInputs('tot').length||controllerInputs('tit').length,requirement:'Fit a TOT or TIT input',keys:['sf_hs'],desc:'Pre-start temperature check; the STARTUP EGT limit is under Turbine temperature'},
         {label:'Safety evaluation timing',available:true,keys:['sf_ci'],desc:'General protection check interval'}
       ],
       'Auxiliary Protection': [

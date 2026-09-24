@@ -361,7 +361,7 @@ async function goto(page, route, waitSelector) {
     await goto(page, 'controllers.html', '#cf-tot_limit');
     const validationRoutes = await page.evaluate(() => OTValidationLinks([
       'Custom controller: choose a fitted input or feedback signal.',
-      'Startup oil-pressure minimum is below Running Low-Pressure Shutdown.',
+      'Startup oil-pressure minimum is below Running Low-Pressure Limit.',
       'Pulsed Starter Assist requires N1.',
       'Cluster N2 warning reaches Maximum N2 Speed.',
       'Governor target plus no-correction band reaches Maximum N2 Speed.',
@@ -546,7 +546,7 @@ async function goto(page, route, waitSelector) {
     });
     assert.equal(inactiveValidation.mismatchResult.accepted, inactiveValidation.baselineResult.accepted);
     const inactiveMessages = [...inactiveValidation.mismatchResult.messages, ...inactiveValidation.inline].join('\n');
-    assert.doesNotMatch(inactiveMessages, /Startup oil-pressure minimum|Running Low-Pressure Shutdown|Normal Running Oil Pressure|N1 Pullback/i,
+    assert.doesNotMatch(inactiveMessages, /Startup oil-pressure minimum|Running Low-Pressure Limit|Normal Running Oil Pressure|N1 Pullback/i,
       'missing oil/N1 hardware and an Off limiter must suppress their dormant cross-checks');
     results.push('inactive oil-pressure and N1 pullback values do not warn or block saves without their sensors');
     results.push('config unit conversions preserve meaning and optional sections hide when hardware is absent');

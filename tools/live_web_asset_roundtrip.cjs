@@ -44,9 +44,13 @@ async function snapshot() {
     await page.goto(`${base}/system.html`, {waitUntil:'domcontentloaded', timeout:30000});
     await page.locator('#assets-files').waitFor({state:'attached'});
     await page.waitForFunction(() => typeof window.startSystemWebAssetsUpdate === 'function');
+    await page.waitForFunction(() => runtimeMode === 'STANDBY', null, {timeout:30000});
     await page.locator('#assets-files').setInputFiles(files);
-    await page.waitForFunction(() => /Done.*rebooting/i.test(document.getElementById('assets-state')?.textContent || ''),
+    await page.waitForFunction(() => /Done.*rebooting|Error/i.test(document.getElementById('assets-state')?.textContent || ''),
       null, {timeout:180000});
+    const uploadState = await page.locator('#assets-state').textContent();
+    const uploadMessage = await page.locator('#assets-msg').textContent();
+    assert.match(uploadState, /Done.*rebooting/i, `Web asset upload stopped after ${chunks} chunks: ${uploadMessage}`);
   } finally {await browser.close();}
   const expectedChunks = files.reduce((sum, file) => sum + Math.ceil(fs.statSync(file).size / 8192), 0);
   assert.equal(chunks, expectedChunks);

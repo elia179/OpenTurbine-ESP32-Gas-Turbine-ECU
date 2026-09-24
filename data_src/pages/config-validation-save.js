@@ -156,7 +156,7 @@ function runValidation() {
   if (hwCfg.safety?.hot_start && preStartEgtLimit > 0 && startupEgtLimit > 0 &&
       preStartEgtLimit >= startupEgtLimit) {
     warnings.push({section:'Combustion & Startup Protection', key:'warn-prestart-egt-limit',
-      msg:'⚠ Pre-start EGT maximum is at/above the startup hard EGT limit. Lower the pre-start value so a hot engine is blocked before START.'});
+      msg:'⚠ Pre-start EGT maximum is at/above the STARTUP EGT limit. Lower the pre-start value so a hot engine is blocked before START.'});
   }
   if (effectiveEgt === 1 && totLimitCanonical !== undefined && Math.abs(totLimitCanonical) < 0.001) {
     warnings.push({
@@ -179,7 +179,7 @@ function runValidation() {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
-      msg:     '⚠ Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. Set a value to protect the engine.'
+      msg:     '⚠ Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. Set a value before enabling low-oil safety.'
     });
   }
 
@@ -400,11 +400,11 @@ async function validateBeforeSave(cfg) {
   const hasOilPressure = hasRegistryInput('oil_pressure');
   if (hasOilPressure) {
     if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). Startup may pass and then immediately fault when the stricter running limit becomes active.');
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
     if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
       errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
     if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Shutdown (' + oilRunning + ' bar). The running oil setpoint should be at or above the fault threshold.');
+      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
   }
 
   // EGT / temperature cross-checks
@@ -428,7 +428,7 @@ async function validateBeforeSave(cfg) {
   const effectiveStartupLimit = separateStartupLimit > 0 ? separateStartupLimit : Number(primaryLimit || 0);
   if (hwCfg.safety?.hot_start && preStartLimit > 0 && effectiveStartupLimit > 0 &&
       preStartLimit >= effectiveStartupLimit)
-    warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the startup hard EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
+    warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the STARTUP EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
 
   // AB pump range — backend rejects max < min; name the fields before submit
   const abPmn = gv(cfg, 'afterburner', 'pump_min_pct');
@@ -461,7 +461,7 @@ async function validateBeforeSave(cfg) {
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
   if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Running Low-Pressure Shutdown is 0 — oil pressure fault protection is DISABLED. The engine will not shut down on oil loss.');
+    warns.push('Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {

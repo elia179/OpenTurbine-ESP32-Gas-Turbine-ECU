@@ -1,4 +1,4 @@
-# OpenTurbine 2.4.1 developer and validation documentation
+# OpenTurbine 2.4.2 developer and validation documentation
 
 The repository root [`README.md`](../README.md) is a concise user gateway. The detailed current user procedure is [`USER_GUIDE.md`](USER_GUIDE.md); public summaries live in the Pages site under `site/`.
 
@@ -76,5 +76,5 @@ Before publishing a release:
 6. Build the recommended ZIP with complete CP210x and CH340 driver packages.
 7. Test USB installation on a blank board and Wi-Fi update on an installed ECU.
 8. Perform the physical ECU bench campaign required by the changed control paths.
-9. Confirm the firmware, package manifest, changelog, release title, and website all identify `2.4.1`.
+9. Confirm the firmware, package manifest, changelog, release title, and website all identify `2.4.2`.
 10. Publish `OpenTurbineSetupTool.exe`, `OpenTurbine_Recommended.zip`, and their SHA-256 files under the exact stable asset names required by the release workflow and Setup Tool.

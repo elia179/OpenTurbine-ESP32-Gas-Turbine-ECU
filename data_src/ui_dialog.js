@@ -296,8 +296,9 @@
     [/relight/i,'#cf-rl_en','Automatic relight'],
     [/Oil Arm|startup oil-pressure minimum/i,'/sequence.html#oil-arm-min','Startup oil pressure in Sequence'],
     [/Normal Running Oil Pressure|Running Oil \(/i,'#cf-oil_mm','Normal running oil pressure'],
-    [/Running Low-Pressure Shutdown|Running Oil Min|oil pressure fault/i,'#cf-oil_rm','Running low-pressure shutdown'],
-    [/Pre-Start EGT|startup hard EGT/i,'#cf-sf_hs','Startup temperature'],
+    [/Running Low-Pressure (?:Limit|Shutdown)|Running Oil Min|oil pressure fault/i,'#cf-oil_rm','Running low-pressure limit'],
+    [/Pre-Start EGT/i,'#cf-sf_hs','Pre-start temperature'],
+    [/STARTUP EGT limit|startup hard EGT/i,'#cf-sf_st','STARTUP EGT limit'],
     [/EGT Soft/i,'#cf-tot_safe_margin','Temperature warning margin'],
     [/TIT Limit/i,'#cf-sf_tit','TIT limit'],
     [/TOT Limit|over-temperature/i,'#cf-tot_limit','TOT limit'],
@@ -311,9 +312,9 @@
   ];
   const relatedRoutes = [
     [/Pulsed Starter Assist threshold/i,'/sequence.html#starter-target','StarterSpin N1 target in Sequence'],
-    [/Startup oil-pressure minimum.*Running Low-Pressure Shutdown/i,'#cf-oil_rm','Running low-pressure shutdown'],
+    [/Startup oil-pressure minimum.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
     [/Normal Running Oil Pressure.*Full-Throttle Oil Pressure/i,'#cf-oil_mx','Full-throttle oil pressure'],
-    [/Normal Running Oil Pressure.*Running Low-Pressure Shutdown/i,'#cf-oil_rm','Running low-pressure shutdown'],
+    [/Normal Running Oil Pressure.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
     [/Governor target plus/i,'#cf-gv_bd','N2 governor no-correction band']
   ];
   window.OTValidationLinks = messages => {

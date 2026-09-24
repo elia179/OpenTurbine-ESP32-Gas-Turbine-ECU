@@ -43,13 +43,17 @@ function installedBrowser() {
   });
   await page.goto(base + '/system.html', {waitUntil:'domcontentloaded', timeout:20000});
   await page.waitForSelector('#ota-file', {state:'attached'});
+  await page.waitForFunction(() => runtimeMode === 'STANDBY', null, {timeout:30000});
   await page.locator('#ota-file').evaluate(input => {
     for (let parent=input.parentElement; parent; parent=parent.parentElement)
       if (parent.tagName === 'DETAILS') parent.open = true;
   });
   await page.locator('#ota-file').setInputFiles(firmware);
-  await page.waitForFunction(() => /Done.*rebooting/i.test(document.getElementById('ota-state')?.textContent || ''),
+  await page.waitForFunction(() => /Done.*rebooting|Error/i.test(document.getElementById('ota-state')?.textContent || ''),
     null, {timeout:600000});
+  const uploadState = await page.locator('#ota-state').textContent();
+  const uploadMessage = await page.locator('#ota-msg').textContent();
+  assert.match(uploadState, /Done.*rebooting/i, `Firmware upload stopped after ${chunks} chunks: ${uploadMessage}`);
   await browser.close();
 
   const expectedChunks = Math.ceil(fs.statSync(firmware).size / 4096);

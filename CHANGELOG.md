@@ -10,11 +10,13 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
-### 2.4.2 bench candidate
+## [2.4.2] — 2026-09-24
 
 - Dashboard upper-limit bars use configured thresholds as visual references even when shutdown protection is off; only active protection draws a shutdown marker. Minimum-only sensors show coloured readings instead of misleading fill bars.
 - Add direct limit-setting links in Dashboard Edit cards, plus a browser-local drag arrangement with default-layout reset.
 - Validate the 2.4.2 Classic dashboard against S3-generated N1/N2 pulses and live browser green/yellow/red states.
+- Clarify that configured dashboard limits remain advisory with safety off, move the STARTUP EGT limit beside its overtemperature switch, and link it from TOT/TIT Edit cards.
+- Align oil-pressure and gradual-protection help across Controllers and Sequence with the actual enabled-safety behavior.
 
 ## [2.4.1] — 2026-09-22
 

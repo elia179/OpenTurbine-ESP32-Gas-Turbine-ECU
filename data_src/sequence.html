@@ -512,9 +512,9 @@ const BLOCKS = {
     params:[
       {key:'rpm_target',                label:'Idle-entry N1 target', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:32000, configKey:'rpm_target'},
       {key:'rpm_timeout_ms',            label:'Timeout',                    unit:'ms', type:'int',   min:1000, max:120000, step:1000, def:12000, configKey:'rpm_timeout_ms'},
-      {key:'oil_running_min',           label:'Running Low-Pressure Shutdown', unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
+      {key:'oil_running_min',           label:'Running Low-Pressure Limit', unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Oil pressure minimum enforced from Spool start through running. Shared with Final Startup Checks and Controllers -> Oil Pressure Safety; editing any of them changes the same value.'},
+        desc:'Shared with Final Startup Checks and Controllers → Oil Pressure Safety; editing any of them changes the same value. It is a Dashboard advisory and becomes an automatic shutdown limit only when low-oil safety is enabled.'},
       {key:'spool_cut_starter_on_exit', label:'Cut starter demand on exit',            type:'bool',                                  def:true,  configKey:'spool_cut_starter_on_exit'},
       {key:'spool_cut_starter_en_on_exit',label:'Cut starter enable output on exit',   type:'bool',                                  def:true,  configKey:'spool_cut_starter_en_on_exit',
         visibleIf: hw => actuatorEnabled('starter_en')},
@@ -547,9 +547,9 @@ const BLOCKS = {
       {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
       {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
       {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
-      {key:'oil_running_min',label:'Running Low-Pressure Shutdown',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
+      {key:'oil_running_min',label:'Running Low-Pressure Limit',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Independent running oil-pressure shutdown threshold. The final-startup oil check uses this same value only when Require oil pressure is on. Also shown in Accelerate to Idle and Controllers -> Oil Pressure Safety.'},
+        desc:'The final-startup oil check uses this value only when Require oil pressure is on. Low-oil safety separately decides whether it causes a running shutdown; otherwise it is a Dashboard advisory. Also shown in Accelerate to Idle and Controllers → Oil Pressure Safety.'},
       {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
       {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
       {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
@@ -1122,14 +1122,14 @@ const BLOCK_INFO = {
     links: [
       { label: 'Minimum Reliable Fuel-Metering Output', url: '/calibration.html#fuelpump-min-cal-row' },
       { label: 'Throttle Open Speed', url: '/controllers.html#throttle' },
-      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
+      { label: 'Running Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
     ]
   },
   SafetyHold: {
     desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
-      { label: 'Running Low-Pressure Shutdown', url: '/controllers.html#oil-safety-section' },
+      { label: 'Running Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
     ]
   },
   CooldownSpin: {

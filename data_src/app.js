@@ -312,6 +312,13 @@ function initializeDashboardCardEditing() {
       editLink.textContent = 'Edit limit & safety →';
       editLink.title = 'Open this sensor’s limit and its safety switch in Controllers';
       links.appendChild(editLink);
+      if (id === 'tot-card' || id === 'tit-card') {
+        const startupLink = document.createElement('a');
+        startupLink.href = '/controllers.html#cf-sf_st';
+        startupLink.textContent = 'Edit STARTUP EGT limit →';
+        startupLink.title = 'During STARTUP this limit replaces the normal TOT/TIT Dashboard reference';
+        links.appendChild(startupLink);
+      }
       card.appendChild(links);
     }
   });

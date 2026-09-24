@@ -295,9 +295,14 @@ function installedBrowser() {
       'tit-card':'sf_tit', 'oil-card':'oil_rm', 'oil-temp-card':'sf_ot',
       'fuel-press-card':'sf_fp', 'batt-card':'sf_bv'
     })) {
-      assert.match(await page.locator(`#${card} .dashboard-limit-edit-links a`).getAttribute('href'),
+      assert.match(await page.locator(`#${card} .dashboard-limit-edit-links a`).first().getAttribute('href'),
         new RegExp(`^/controllers\\.html(?:\\?[^#]+)?#cf-${field}$`),
         `${card} must link to its exact limit field`);
+    }
+    for (const card of ['tot-card', 'tit-card']) {
+      const links = await page.locator(`#${card} .dashboard-limit-edit-links a`).evaluateAll(anchors => anchors.map(anchor => anchor.getAttribute('href')));
+      assert.ok(links.some(href => /^\/controllers\.html(?:\?[^#]+)?#cf-sf_st$/.test(href)),
+        `${card} must also link to the STARTUP EGT reference (found ${links.join(', ')})`);
     }
     assert.ok(await page.locator('.dashboard-limit-edit-links:visible').count() > 0);
     assert.ok(await page.locator('.dashboard-hide-card:visible').count() > 0,
@@ -568,6 +573,8 @@ function installedBrowser() {
     await page.goto(`${base}/controllers.html`);
     await page.waitForSelector('#cf-tot_limit', {state:'attached'});
     await openConfigWorkspace(page);
+    assert.equal(await page.locator('#cf-sf_st').locator('xpath=ancestor::*[@data-protection][1]').getAttribute('data-protection'), 'egt',
+      'STARTUP EGT limit must live beside the overtemperature safety switch');
     await page.goto(base);
     await waitShown(page, '#n1-card', true);
     const retainedTrend = await page.evaluate(() =>

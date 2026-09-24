@@ -844,7 +844,7 @@ function applyHwConditions() {
   ['tot_safe_margin'].forEach(k =>
     ghostField(k, hasEgt, 'Selected EGT safety requires a configured TOT or TIT sensor.'));
   ghostField('sf_hs', hasEgt, 'Hot-start protection requires a configured TOT or TIT sensor.');
-  ghostField('sf_st', hasEgt, 'The startup EGT hard limit requires a configured TOT or TIT sensor.');
+  ghostField('sf_st', hasEgt, 'The STARTUP EGT Dashboard reference and optional shutdown limit require a configured TOT or TIT sensor.');
   ghostField('sf_ot', hasOilTemp, 'Oil temperature sensor is not configured in Hardware.');
   ghostField('sf_ot_d', hasOilTemp, 'Oil-temperature confirmation has no effect without an oil-temperature sensor.');
   ghostField('sf_fp', hasFuelPress, 'Fuel pressure sensor is not configured in Hardware.');

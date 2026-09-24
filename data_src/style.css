@@ -373,7 +373,7 @@ body.dashboard-custom-layout #ab-section,
 body.dashboard-custom-layout #dashboard-secondary-cards{display:none!important}
 #dashboard-custom-cards .dashboard-customizable-card{min-width:0}
 .dashboard-limit-edit-links{display:none;margin-top:.55rem;padding-top:.45rem;border-top:1px solid var(--border);font-size:.68rem}
-body.dashboard-card-editing .dashboard-limit-edit-links{display:block}
+body.dashboard-card-editing .dashboard-limit-edit-links{display:flex;flex-wrap:wrap;gap:.3rem .8rem}
 .dashboard-limit-edit-links a{color:var(--accent);text-decoration:none}
 .dashboard-limit-edit-links a:hover{text-decoration:underline}
 body.dashboard-card-editing .dashboard-customizable-card{outline:1px dashed var(--border-light);outline-offset:-1px}

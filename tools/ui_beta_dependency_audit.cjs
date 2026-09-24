@@ -361,7 +361,7 @@ async function optionDisabled(page, selector, value) {
       const el = document.querySelector('#cf-oil_rm');
       el.value = '2.7';
       el.dispatchEvent(new Event('input', { bubbles: true }));
-      return _buildChanges().find(change => change.label.includes('Running Low-Pressure Shutdown'));
+      return _buildChanges().find(change => change.label.includes('Running Low-Pressure Limit'));
     });
     assert.equal(futureChange?.inactive, true, 'save recap must identify future-hardware edits as inactive');
     assert.match(futureChange?.inactiveReason || '', /oil pressure sensor is not configured/i);
