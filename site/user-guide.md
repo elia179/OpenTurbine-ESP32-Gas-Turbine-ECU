@@ -308,7 +308,7 @@ A controller continuously changes an output based on a measurement. Enable it on
 <tbody>
 <tr><td>Oil pressure loop</td><td>Compares measured oil pressure with a fixed, effective-fuel, N1, or N2 target and changes its explicitly selected pump. Proportional pumps modulate; relay pumps use full off/on hysteresis for accumulator systems. Fallback handles a failed sensor.</td><td>After the pressure input, selected pump, plumbing and safe fallback demand are proven.</td></tr>
 <tr><td>Smooth fuel/throttle movement</td><td>Limits how quickly the main fuel output opens or closes. It also supports gradual limit protection behavior.</td><td>Normally enabled for a proportional main-fuel output. Set opening/closing times from controlled tests, not examples.</td></tr>
-<tr><td>Automatic idle control</td><td>Measures one selected N1, N2, P1, or P2 source and adjusts fuel within configured bounds to hold idle. N1/N2 is the normal proven method; pressure control is experimental and has separate target, deadband, and disengagement settings.</td><td>Only after manual/fixed idle behavior is stable, the selected feedback is calibrated, and fuel limits are safe.</td></tr>
+<tr><td>Automatic idle control</td><td>Measures one selected N1, N2, P1, or P2 source and adjusts fuel within configured bounds to hold idle. N1/N2 is the usual feedback choice; pressure control is experimental and has separate target, deadband, and disengagement settings.</td><td>Only after manual/fixed idle behavior is stable, the selected feedback is calibrated, and fuel limits are safe.</td></tr>
 <tr><td>Automatic N2 speed control</td><td>Compares N2 with its target and changes proportional main fuel, proportional propeller pitch, or deliberate fine/coarse relay pitch. Coarser pitch increases load to restrain speed.</td><td>Only on an appropriate two-shaft system with verified N2, output direction, travel limits and conservative gains.</td></tr>
 </tbody></table></div>
 
@@ -342,7 +342,7 @@ Controllers disables protections whose required input is not fitted. Each expand
 
 1. Open **Controllers** only after Hardware saves without errors; use **System** for ECU-wide behavior and communications.
 2. Start in **Configured system**, which opens by default and shows the controls supported by the fitted hardware. Enter limits from the exact engine, sensor and actuator documentation.
-3. Use **Changed** to review every edit. Yellow fields are not saved yet.
+3. Use **Changed** to review every edit. The edit-accent outline marks unsaved fields; amber warnings indicate missing prerequisites.
 4. Use **Explore all features** to inspect or preconfigure features whose required hardware/controller is absent. Amber-bordered tuning values save normally but remain inactive until Hardware satisfies the displayed prerequisite. Enable switches and choices for missing hardware remain locked, so Explore cannot arm a feature unexpectedly. Search also reveals unavailable settings; neither Explore nor Developer Mode bypasses a missing physical prerequisite.
 5. Save one related group at a time and read the save recap.
 6. Reopen the page and confirm values survived the reboot/save.
@@ -367,7 +367,7 @@ Direct digital flame detectors and switches need only the correct active electri
 Most analog voltage/current transmitters need only the normal two-point calibration. For a nonlinear resistive sender, open **Advanced sensor curve** on its Hardware card and enter 2–6 measured or datasheet points. Raw ADC points must increase; physical values may consistently increase or decrease. The ECU interpolates between points and clamps outside the endpoints. NTC inputs normally use their resistance/beta model, but may use this curve when the manufacturer supplies a temperature table. Thermocouple, pulse/frequency, and load-cell inputs retain their dedicated calibration methods.
 
 1. Open **Calibration** and confirm it shows only fitted hardware.
-2. Start with raw readings. A disconnected sensor should not look like a believable safe value.
+2. Start with raw readings and test deliberate signal loss. An unconnected ADC input can float while still appearing healthy; disable unfitted inputs and do not rely on its displayed value as open-wire detection.
 3. Apply a known low reference, capture/enter the low point, and record the physical value.
 4. Apply a known high reference, capture/enter the high point, and record the physical value.
 5. Test one or more points between them. If the middle is wrong, the sensor may be nonlinear or the electrical type may be incorrect.
