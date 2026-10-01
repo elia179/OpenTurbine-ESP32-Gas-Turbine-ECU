@@ -2,7 +2,7 @@
 
 OpenTurbine is an open-source ESP32 turbine engine controller with a built-in web interface. It is intended for experimental turbojets, APUs, generators, turboshafts, turboprops, and other small turbine installations.
 
-The project aims to support the variety found in hobby turbines instead of prescribing one engine layout. The normal interface keeps common setup simple and shows only controls relevant to the fitted hardware; Advanced views, configurable sequences, custom controls, sensor models, and actuator choices remain available for unusual installations. Suggestions are starting points to verify, not mandatory engine settings. OpenTurbine should require an action only when needed to prevent an immediate unsafe operation, destructive data loss, or an internally invalid configuration.
+Configure only fitted hardware, then its controllers, calibration and sequences. Verify suggested values against the actual hardware; examples are not engine settings. For illustrated setup, use the [guided builds](https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/guided-builds/).
 
 > **Experimental engine control software:** A turbine can cause fire, burns, overspeed failure, fuel spray, projectiles, hearing damage, and death. OpenTurbine does not know the safe limits of your engine. You must verify every limit, output direction, shutdown path, and sequence on a safe test stand before introducing fuel.
 
@@ -216,7 +216,7 @@ Sensor supply           -> voltage required by sensor
 ```
 
 - The GPIO must never receive more than 3.3 V.
-- An open-collector/open-drain sensor needs a pull-up to 3.3 V.
+- An open-collector/open-drain sensor needs a pull-up to 3.3 V. A suitable GPIO can use **Hardware → N1/N2 Speed → Input bias → Pull-up** instead of an external resistor on short bench wiring. Internal bias is weak; verify pulse edges at the highest required rate and use external bias/conditioning where needed. Classic ESP32 GPIO 34–39 have no internal pull-up/down. Push-pull outputs normally need no bias; a pull-up is not a level shifter.
 - A magnetic pickup normally needs a dedicated zero-crossing/comparator conditioner; do not connect an unbounded pickup waveform directly.
 - Set pulses per revolution from the actual target geometry and verify displayed RPM with an independent tachometer before enabling overspeed protection.
 - N1 and N2 are independent shafts with independent limits. Never copy an N1 limit into N2, or vice versa, unless the engine manufacturer explicitly specifies that value for that measurement point.
@@ -228,7 +228,7 @@ Sensor supply           -> voltage required by sensor
 
 Thermocouples connect to a supported converter module, not directly to the ESP32. On the Hardware card, choose the actual **Sensor interface**: analog temperature transmitter, MAX6675, MAX31855, or MAX31856. A turbine-gas TOT/EGT or TIT card intentionally does not offer low-temperature NTC or DS18B20 interfaces.
 
-In development-board mode, enable **Shared SPI bus** near the top of Hardware and select SCK, MISO, and optional MOSI once. Each thermocouple card then asks only for its own CS pin. In PCB-profile mode those common pins come from the flashed board profile and are read-only.
+In development-board mode, open **Hardware → Shared sensor buses → Edit buses**, near the end of the page, enable **shared SPI bus** and select SCK, MISO, and optional MOSI once. Each thermocouple card then asks only for its own CS pin. In PCB-profile mode those common pins come from the flashed board profile and are read-only.
 
 ```text
 Thermocouple -> converter module
@@ -326,12 +326,12 @@ This is the literal path from an unopened board to a dry-tested ECU.
 
 Open **Hardware** and describe the actual installation. Do not enable a sensor or actuator merely because it appears in the list.
 
-- Use **Installed Channel Inventory** for channels that controllers, sequences, and bindings need to reference by ID. The stable ID is the machine key; keep it short, unique, and unchanged after other features reference it. The display name is safe to edit.
-- Inventory inputs can be digital, analog, pulse/frequency, or RC PWM. Digital switch roles can feed existing DI behaviors such as inhibit-start, E-stop, AB arm/fire, limp mode, sequence gate, and fault inputs. Registry-driven DI behavior currently uses the existing active-low/pull-up default unless a legacy DI channel supplies richer switch metadata.
+- Add devices under **Inputs** or **Outputs** and give each a recognizable display name. Controllers and sequences offer those names; their internal references remain stable when you rename a device. You do not need to enter an internal ID.
+- Input cards support digital, analog, pulse/frequency, RC PWM and other interfaces appropriate to their purpose. Switch purposes include inhibit-start, emergency-stop request, afterburner arm/command, reduced-power mode, sequence gate and fault inputs. Set **Active polarity** and **Input bias** on the switch card to match its actual wiring; do not assume every switch is active LOW with a pull-up.
 - Inventory outputs can be relay, PWM, or servo/ESC. Relay outputs quantize at the driver boundary; PWM and servo outputs preserve the full 0-100% demand used by controllers, sequences, and Tools.
 - General valves, bleed valves, purge/start-fuel valves, and air-starter actuators may use relay, PWM, or servo endpoints. The standard air-starter sequence blocks remain deliberately on/off, so a PWM/servo air-starter card moves between its configured 0% and 100% endpoints. Dedicated hard fuel-shutoff and afterburner-shutoff purposes remain relay-only.
 - Repeatable outputs with the same role are allowed. For example, `Oil Pump 1` can be the main bound pump while `Oil Pump 2` is controlled by another oil-pressure controller, a simple control, Sequence, or Tools.
-- The standard `AB igniter` inventory output bridges to the existing Igniter 2 / afterburner ignition path when it uses the standard `ab_igniter` or `igniter2_main` ID.
+- Choose the **AB igniter** output purpose for afterburner ignition; its configured card supplies the corresponding sequence and controller choices.
 - Confirm the correct ESP32 target.
 - With a flashed PCB profile, select the labelled **Connected to** port instead of a GPIO. An unavailable fixed I²C port means its chip is not responding; correct the hardware or remove the dependent channel.
 - Assign each GPIO once; resolve every conflict reported by the page.
@@ -373,7 +373,7 @@ Treat N2 protection as a chain of separate functions, not one interchangeable RP
 3. **Configure gradual N2 pullback if used.** `Begin N2 Throttle Reduction` should be below `Full N2 Throttle Reduction`, and both should normally be below Maximum N2 Speed. Pullback reduces fuel as the shaft approaches the limit; it is not the shutdown itself.
 4. **Configure the governor if used.** The governor target plus its no-correction band must leave operating margin below Maximum N2 Speed. In fuel-control mode the governor adjusts fuel directly. In propeller-pitch mode it changes propeller load while the operator retains fuel authority.
 5. **Check other N2 consumers.** An N2-based automatic-idle target and an external-cluster N2 warning should also remain below the hard trip.
-6. **Enable N2 overspeed in Hardware.** Hardware owns whether the safety is armed; Config owns its RPM limit. START is blocked if the safety is enabled with no fitted N2 source or a zero hard limit.
+6. **Review N2 overspeed enabled in Controllers.** Hardware records the fitted N2 input; Controllers exposes the enable switch and RPM limit together. START is blocked if the safety is enabled with no fitted N2 source or a zero hard limit.
 7. **Prove the shutdown path without fuel.** Drive or simulate N2 first below and then above the configured trip. Verify the ECU enters shutdown/fault and physically removes fuel, ignition, and relevant actuator demand.
 
 The Dashboard N2 gauge uses the configured hard-limit value as its scale, even when N2 overspeed protection is disabled. In that case its colors are a **visual advisory only**: no red shutdown marker is drawn and the ECU does not trip at that value. The gradual governor and pullback settings remain separate. The Event Log records an N2 over-speed fault separately from N1 overspeed only when the N2 protection is enabled.
@@ -381,10 +381,10 @@ The Dashboard N2 gauge uses the configured hard-limit value as its scale, even w
 ### Controller and limiter behavior
 
 - **Throttle slew** limits how quickly effective fuel/throttle demand can rise or fall. Verify both directions with the turbine unfueled. Emergency shutdown bypasses normal gradual movement and commands the safe state immediately.
-- **N1, N2, EGT, P1, P2, and torque protection** is presented as one expandable card per measurement under Controllers → Engine Limits & Protection. Each card keeps gradual fuel reduction beside its independent hard shutdown. The soft point begins intervention. At the full point, strength 1.0 reaches the configured Minimum Fuel During Gradual Protection; lower strength is gentler and greater than 1 reaches the floor sooner. When several are active, the lowest permitted fuel ceiling wins. Gradual reduction lowers the fuel ceiling; it never replaces the hard shutdown.
+- **N1, N2, EGT, P1, P2, and torque protection** is presented as one expandable card per measurement under **Controllers → Shutdown & Protection → Fuel Limiting & Hard Shutdowns**. Each card keeps gradual fuel reduction beside its independent hard shutdown. The soft point begins intervention. At the full point, strength 1.0 reaches the configured Minimum Fuel During Gradual Protection; lower strength is gentler and greater than 1 reaches the floor sooner. When several are active, the lowest permitted fuel ceiling wins. Gradual reduction lowers the fuel ceiling; it never replaces the hard shutdown.
 - **Predictive limit protection** projects N1/N2 speed, P1/P2 pressure, selected TOT/TIT, and torque from their measured rise rates, then begins a gentler approach before the current reading reaches the soft point. Start with reactive/simple behavior unless predictive tuning has been validated on the engine.
 - **Sensor timing** is tied to real samples rather than Dashboard/control-loop refreshes. Shaft pulse inputs average over a longer window at low pulse rates and automatically publish faster as speed rises. Pressure, torque, and temperature rates update only when their driver reports a new measurement, so increasing the web refresh rate does not change controller behavior.
-- **Automatic Idle Control** trims fuel near idle using one selected N1, N2, P1, or P2 source. N1/N2 speed control is the normal proven approach; P1/P2 control is explicitly experimental. RPM and pressure sources have separate target, deadband, and disengagement values. Verify the selected sensor is calibrated and that disconnecting it enters reduced-power mode without a fuel increase.
+- **Automatic Idle Control** trims fuel near idle using one selected N1, N2, P1, or P2 source. N1/N2 speed control is the normal proven approach; P1/P2 control is explicitly experimental. RPM and pressure sources have separate target, deadband, and disengagement values. Switch it off in **Controllers → Fuel-metering support → Idle → Automatic Idle**, then save. An independent Idle Input, a retained startup **Set Main Fuel for Idle** demand, and the normal fuel controller's Output low may still impose a fuel floor. Inspect those separately; the pump's minimum reliable command is not an idle-speed target. Verify the selected sensor is calibrated and that disconnecting it enters reduced-power mode without a fuel increase.
 - **Automatic N2 speed control** uses proportional fuel, proportional propeller pitch, or deliberate fine/coarse relay pitch. Start response gains low, verify correction direction with a simulated speed error, and increase gains only while watching for hunting.
 - **Oil-pressure control** adjusts each explicitly selected pump to its configured fixed, effective-fuel, N1, or N2 pressure target. Its target must remain above the low-pressure shutdown threshold. A relay pump switches fully off/on around its target and deadband; use that only with plumbing designed for two-position pressure control. Sensor failure uses the configured delay and fallback demand; validate that fallback physically.
 - **Reduced-power mode** caps throttle after its configured input, an eligible feedback failure, or an explicit standby/tool request activates it. Treat it as a degraded-operation feature, not a substitute for stopping after a mechanical or lubrication fault.
@@ -418,9 +418,17 @@ The dedicated AB command may be a native analog/RC input or an addressable regis
 
 ### Dashboard, health indications, and logs
 
-Dashboard health dots show whether fitted sensors are currently usable; a plausible retained number with a red/failed health indication must not be trusted. A configured upper-limit value gives its sensor bar a stable scale, even when that safety is switched off. The bar reaches 90% at the configured value, leaving 10% to show overshoot. Its color blends toward yellow by 80% of that value and toward red in the final 5%, becoming fully red at the value. Only an **enabled** protection adds a red shutdown marker. Without that marker, the colors are a **visual advisory only**, not an ECU fault or automatic shutdown. With no configured value, the bar is hidden. A single minimum does not define a useful full-width pressure or voltage scale, so oil pressure, fuel pressure, and battery show the actual reading and configured minimum instead of a fill bar; their reading can use the same advisory colors. Running-only oil and fuel-pressure indications do not warn before RUNNING. EGT uses only the selected primary TOT or TIT source and applies the separate startup value while in STARTUP. Actuator bars show normalized command percentages in a neutral color, not safety warnings. These visual guides are not substitutes for independent instruments or proof of the physical shutdown path. Optional P1, P2, fuel pressure, fuel flow, torque, oil temperature, battery, current, and shaft-power cards appear only when their sources are fitted.
+- **Numbers:** normal text (white in dark themes), or red at a configured critical boundary. Oil/fuel pressure and battery readings no longer use green or yellow numbers. A red advisory is not proof that automatic shutdown is enabled.
+- **Health dots:** show whether a fitted sensor is usable. Do not trust a retained reading with a failed health indication.
+- **Upper-limit bars:** the configured value defines the scale even with protection off. The bar reaches 90% width at that value, leaving room for overshoot; it becomes yellow by 80% of the value and red at the value. Only enabled protection adds a red shutdown marker. With no configured value, the bar is hidden.
+- **Minimum limits:** oil pressure, fuel pressure and battery show the reading and minimum. The number is red at or below the applicable minimum. Oil/fuel-pressure indications apply only in RUNNING.
+- **Sensor bars and trends:** pressure, voltage, current, flow, thrust, torque and additional continuous inputs show a labelled display scale and up to 30 recent valid samples at 1 Hz. Select the scale below a bar to set Low/High in the displayed units, or restore auto scaling. A fixed scale is remembered only in this browser. It is not a calibration, warning or shutdown setting; an off-scale value is labelled **outside view** rather than silently changing the fixed scale. Sensor faults clear the trace. Switches remain On/Off indicators.
+- **Temperature:** only the selected primary TOT or TIT source uses the engine-temperature reference; STARTUP uses its configured startup reference.
+- **Outputs:** bars show commanded percentage, not verified flow, movement or safety status. Optional sensor cards appear only for fitted sources.
 
-Use **Edit cards** to hide unneeded cards or follow a card's limit-setting link. TOT and TIT cards also link to the separate STARTUP EGT limit; both running and startup EGT limits live under Controllers → Turbine temperature, beside the overtemperature safety switch that governs automatic shutdown. P1, P2, and torque limits remain separate protection settings and do not create Dashboard bars. **Arrange cards** switches from the default named groups to one **Your dashboard** section: drag cards by their grip, or focus a grip and use the up/down arrow keys. Start/Stop, engine state, and fault banners stay outside the movable section. **Restore default layout** restores the named groups, their original card order, and all hidden cards. Card layout is saved only in this browser, not in the ECU's engine-file backup; it does not change firmware behavior.
+Dashboard indications do not replace independent instruments or physical shutdown-path verification.
+
+Use **Edit cards** to hide unneeded cards or follow a card's limit-setting link. TOT and TIT cards also link to the separate STARTUP EGT limit; both running and startup EGT limits live under Controllers → Turbine temperature, beside the overtemperature safety switch that governs automatic shutdown. P1, P2, and torque protection remains separate from their display scales. **Arrange cards** switches from the default named groups to one **Your dashboard** section: drag cards by their grip, or focus a grip and use the up/down arrow keys. Start/Stop, engine state, and fault banners stay outside the movable section. **Restore default layout** restores the named groups, their original card order, and all hidden cards. Card layout is saved only in this browser, not in the ECU's engine-file backup; it does not change firmware behavior.
 
 After a run, the summary reports available duration, peaks, and the minimum healthy oil pressure measured while RUNNING. Use **Log** to review Event Log fault/configuration records and configure Session Data. CSV row interval, event-snapshot interval, standby snapshots, and all session channel selection—including P1/P2, torque and calculated shaft power, and starter demand—are owned by this page. During engine operation, the newest 64 session rows are retained in RAM and written to flash only after STANDBY/FAULT; if that buffer fills, older rows are dropped so the shutdown/fault tail is preserved. Choose an interval that covers the part of the run you need, and export important evidence before factory reset or a clean installation.
 
@@ -432,7 +440,10 @@ NTC thermistors normally use their dedicated resistance/beta model. If an automo
 
 Calibrate only while the engine is in STANDBY/FAULT and the installation is made safe.
 
-- **Fuel pump minimum:** run the slow sweep, stop when the pump first turns, fine-adjust, and verify several reliable restarts before saving.
+- **Fuel pump minimum:** on a safe rig, run the slow sweep, stop at repeatable metering, fine-adjust, and verify three reliable restarts before saving. Follow the pump's priming/lubrication requirements; do not run dry unless permitted. This records a usable actuator command, not engine idle RPM. Outside STANDBY, nonzero demands below it become off; a zero command stays off.
+- **Running idle:** Controllers → Fuel-metering support → Idle → Running Idle Mode offers Off, Fixed fuel percentage, Input channel and Automatic Idle. Input channel defaults to **Automatic: configured Idle Input**. Alternatively choose any fitted **Idle Input Channel**, and map **Idle Input Low/High** in its engineering units to pump minimum through Maximum Normal Idle Fuel Output. Operator inputs display %, generic inputs use their calibrated numeric value. Reverse endpoints to invert; equal endpoints are rejected. The selection is saved by exact input ID, not list position. An unhealthy input retains the bounded startup-idle fallback; a missing saved input blocks saving without silently switching sensors. This channel choice applies only to Running: startup idle actions still use the Hardware Idle Input. Fixed replaces the retained startup floor only in RUNNING. Off permits zero with Main Fuel Output low = 0%. Older files retain their behavior; Startup-retained idle requires a mode choice before changing Idle settings. STOP, fault and shutdown remain authoritative.
+- **Automatic Idle:** source, target, no-correction band and cutoff appear directly below the mode choice, with RPM or pressure fields matching the selected feedback. Response tuning holds rates, long-term correction and the fuel-range multiplier; predictive tuning appears only for its selected method. The summary shows the effective fuel ceiling (base idle maximum × multiplier, capped at 100%). Missing hardware blocks saving an enabled setup without hiding its settings. Zero target/cutoff disables correction; above the cutoff or with unhealthy feedback, the automatic added floor is released. Independent protections still apply.
+- **Controller units:** throttle and idle ranges display 0–100% but store 0–1; fractional input/output percentages are supported. Input low shows its Running idle-floor note only when a source supplies a floor. Off and fixed zero show no idle-floor note.
 - **Oil pressure:** capture the correct ambient zero reference, then use physical gauge points, automatic fitting, an explicit straight/curved fit, or sensor sensitivity in mV/bar.
 - **Oil pump minimum:** sweep upward slowly and stop when the pump or pressure response begins.
 - **Throttle and idle inputs:** hold each endpoint during the one-second capture. The ECU adds a small endpoint margin.
@@ -470,7 +481,7 @@ The editor also supports entry conditions, per-step enter/exit side actions, aft
 
 ### 5. Custom controllers
 
-Open **Controllers → Custom controllers** when a fitted output needs behavior not covered by a common turbine controller. Any fitted sensor, switch, or operator input can switch an unowned compatible output at a threshold with hysteresis, map an input range to a variable output, or hold a feedback target. Feedback targets may be fixed, selected by a switch, or mapped from another variable input.
+Open **Controllers → Output controllers → + Create controller** when a fitted output needs behavior not covered by a common turbine controller. Any fitted sensor, switch, or operator input can switch an unowned compatible output at a threshold with hysteresis, map an input range to a variable output, or hold a feedback target. Feedback targets may be fixed, selected by a switch, or mapped from another variable input.
 
 - RUNNING is the default. Advanced builds may select STANDBY, STARTUP, RUNNING, and/or SHUTDOWN for each custom controller. Outside the selected states, Sequence or the previous ordinary owner resumes control. Custom controllers are always released in FAULT.
 - Hysteresis prevents rapid switching near a threshold. For “above 100 °C” with 5 °C hysteresis, the output turns on above 100 °C and stays on until the input falls to 95 °C.
@@ -493,7 +504,7 @@ that option.
 
 ### 6. Bench-test outputs
 
-Open **Tools** in STANDBY. The page shows only tests whose hardware is fitted. Use **Test settings** or the gear button on a test card to edit duration and proportional output.
+Open **Tools** in STANDBY. The page shows only tests whose hardware is fitted. Use **Tool settings** or the gear button on a test card to edit duration and proportional output.
 
 Test outputs individually:
 
@@ -515,7 +526,7 @@ Before every first fueled run or major configuration change:
 - Back up the full engine file from System.
 - Confirm Hardware has no pin or dependency errors.
 - Confirm every safety-critical sensor is healthy and calibrated.
-- Compare Config limits against authoritative engine and sensor information.
+- Compare Controllers limits against authoritative engine and sensor information.
 - On two-shaft engines, confirm N2 pullback, governor band, N2-based idle, and display warning all leave margin below the hard N2 trip.
 - Run the startup sequence dry.
 - Confirm STOP cuts every fuel path from web, physical input, and any external controller.
@@ -529,7 +540,9 @@ For a first light, use conservative fuel, short attempts, immediate abort criter
 
 ### Back up
 
-In **System → Backup, diagnostics & reset**, download the full engine file before an update. It contains hardware, settings, sequences, calibration, and the ECU Wi-Fi AP password. Treat it as sensitive. This System section also shows live ECU loop timing and owns factory reset; Tools remains focused on commissioning and physical tests.
+In **System → Maintenance → Backup & restore**, select **Download backup** before an update. Confirm the `.json` file appears in Downloads. It contains hardware, settings, sequences, calibration, and the ECU Wi-Fi AP password; treat it as sensitive. Live ECU timing is under **Connections & runtime**; factory reset is a separate Maintenance card. Tools remains focused on commissioning and physical tests.
+
+To restore, isolate load power and stop tests, keep the ECU in STANDBY or FAULT, select **Upload & restore…**, and choose the complete matching engine file. Back up the current setup before confirming **Restore and reboot**. Rejoin the restored Wi-Fi network if necessary, reopen the interface and inspect the saved hardware, calibration, controllers and sequences before dry-testing again. Current event/session logs remain on the ECU; browser-only Dashboard scales/layout are not in the engine file.
 
 ### Update
 
@@ -550,7 +563,7 @@ After an update, reconnect to the ECU, verify the displayed firmware version, op
 - If the ECU Wi-Fi appears but pages fail, reinstall/update the web assets.
 - If the board does not appear over USB, try a data cable, another USB port, the official driver page opened by the setup tool, and the board’s BOOT/RESET procedure.
 - If a configuration error puts the ECU in FAULT, the web interface remains available for repair.
-- If a restored engine file is rejected, verify that it is a complete matching OpenTurbine `ecu_config.json`, not only one section.
+- If a restored engine file is rejected, verify that it is a complete matching OpenTurbine `.json` backup, not only one section. Keep its downloaded filename; it does not need to be renamed.
 - Factory reset erases the turbine setup, hardware assignments, settings, calibration, Wi-Fi password, and logs. It preserves an installed PCB profile because that profile describes the physical board. After reset, only safe assignments explicitly declared as defaults by that profile are restored; other turbine devices remain unassigned until configured. A complete engine setup is a separate engine file, not an implicit property of the PCB. Back up first.
 
 ## Troubleshooting index
@@ -575,8 +588,8 @@ Use Ctrl+F for the symptom or keyword.
 | N2 configuration warning | Put pullback points, governor target/band, N2 idle target, and display warning below the authoritative hard N2 trip with suitable operating margin. |
 | Temperature is wrong | Verify converter chip, thermocouple type/polarity/location, shared SPI wiring, unique CS, and cold-junction/module supply. |
 | Pump/servo moves backward | Remove fuel/load, correct active level or servo/PWM endpoints/direction, then repeat Tools testing. |
-| Engine enters FAULT at boot | Read the visible fault/config warning; Hardware, Config, Calibration, Tools, and restore remain available for repair. |
-| Full engine restore rejected | Use the complete matching `ecu_config.json`; do not cross hardware/settings sections from different profiles. |
+| Engine enters FAULT at boot | Read the visible fault/config warning; Hardware, Controllers, System, Calibration, Tools, and restore remain available for repair. |
+| Full engine restore rejected | Use the complete matching `.json` backup; do not cross hardware/settings sections from different profiles. |
 | Wi-Fi password forgotten | Recover over USB and restore/reset configuration. Factory reset removes all settings and calibration. |
 
 Use exactly one active browser tab for the ECU panel. This applies to both

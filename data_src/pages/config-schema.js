@@ -78,21 +78,26 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'Reduced-Power Mode', id:'reduced-power-section', sectionNote:'This one cap is shared by manual Reduced-Power Mode and the automatic response to losing feedback required by an enabled shaft controller or safety protection. Sensor loss turns Reduced-Power Mode on; it does not create a separate hidden limit.', fields: [
     { key:'lm_mt', path:['limp_mode','max_throttle_pct'], label:'Maximum Fuel Output (%)', desc:'Shared main-fuel cap when Reduced-Power Mode is turned on from Tools or a configured switch, or automatically because feedback used by an enabled protection/controller becomes unhealthy. A high value also permits higher fuel after that safety feedback is lost.', step:5, min:0, max:100, basic:true },
   ]},
-  { title: 'Idle', id:'idle-control-cfg-section', sectionNote:'Idle is the minimum normal-running fuel authority. Its calibrated low end comes from Calibration; Automatic Idle may raise that floor to hold selected shaft-speed or pressure feedback.', fields: [
-    { key:'th_mx', path:['throttle','idle_max_pct'], label:'Maximum Normal Idle Fuel Output (%)', desc:'Highest fuel output available to the idle layer. The low end is the calibrated Minimum Reliable Fuel-Metering Output from Calibration. Shutdown, STOP, and hard safety may still command zero.', step:1, min:0, max:100, basic:true },
-    { key:'di_src', path:['dynamic_idle','source'], label:'Idle Feedback Source', type:'select', options:[{v:0,l:'N1 core speed (normal / proven)'},{v:1,l:'N2 output-shaft speed (normal / proven)'},{v:2,l:'P1 pressure (experimental)'},{v:3,l:'P2 pressure (experimental)'}], desc:'N1/N2 speed feedback is the normal proven approach. Pressure feedback is available for experimental turbine arrangements and requires careful stand validation.', basic:true },
+  { title: 'Idle', id:'idle-control-cfg-section', sectionNote:'Choose the Running fuel floor. Startup fuel commands remain in Sequence.', fields: [
+    { key:'fi_mode', path:['dynamic_idle','fuel_mode'], label:'Running Idle Mode', type:'select', options:[{v:1,l:'Off — no idle floor'},{v:2,l:'Fixed fuel percentage'},{v:3,l:'Input channel'},{v:4,l:'Automatic Idle'}], desc:'Applies after Startup finishes. Off adds no idle floor; Fixed uses a fuel percentage; Input channel follows a fitted input; Automatic Idle adjusts fuel using feedback. Startup commands and Main Fuel Output low remain separate.', basic:true },
+    { key:'fi_fixed', path:['dynamic_idle','fixed_fuel_pct'], label:'Fixed Running Idle Fuel (%)', desc:'Replaces the retained startup idle floor in Running. Throttle may command more. A nonzero value below the calibrated pump minimum is raised to that minimum; zero adds no idle floor.', step:0.01, min:0, max:100, basic:true },
+    { key:'fi_input', path:['dynamic_idle','input_id'], label:'Idle Input Channel', type:'select', string:true, options:()=>idleInputOptions(), desc:'Automatic uses the input assigned the Idle purpose in Hardware. An explicit choice uses that exact fitted input; it never silently changes to another sensor.', basic:true },
+    { key:'fi_low', path:['dynamic_idle','input_low'], label:'Idle Input Low', desc:'Input reading mapped to the calibrated pump minimum. Readings outside the selected endpoints are clamped. Reversed endpoints invert the mapping.', step:0.001, min:-1000000000, max:1000000000, basic:true },
+    { key:'fi_high', path:['dynamic_idle','input_high'], label:'Idle Input High', desc:'Input reading mapped to Maximum Normal Idle Fuel Output. Use the source’s engineering units, not its raw ADC or pulse calibration. Low and high must differ.', step:0.001, min:-1000000000, max:1000000000, basic:true },
+    { key:'th_mx', path:['throttle','idle_max_pct'], label:'Maximum Normal Idle Fuel Output (%)', desc:'Upper endpoint for Input channel mode. Automatic Idle multiplies this base ceiling by Maximum Fuel Range Multiplier, capped at 100%; its summary shows the resulting range. The low end is the calibrated pump minimum. Fixed mode uses its own percentage; Off adds no floor. STOP and hard protection may still cut fuel.', step:1, min:0, max:100, basic:true },
+    { key:'di_src', path:['dynamic_idle','source'], label:'Idle Feedback Source', type:'select', options:[{v:0,l:'N1 core speed'},{v:1,l:'N2 output-shaft speed'},{v:2,l:'P1 pressure (experimental)'},{v:3,l:'P2 pressure (experimental)'}], desc:'Choose the fitted feedback used to regulate idle. Pressure feedback is experimental and requires separate stand validation.', basic:true },
     { key:'di_tr', path:['dynamic_idle','target_rpm'],    label:'Idle Target (N1/N2)', unit:'RPM', desc:'Used when the selected feedback source is N1 or N2.', step:500, min:0, basic:true },
     { key:'di_tp', path:['dynamic_idle','target_pressure_bar'], label:'Idle Target (P1/P2)', unitType:'press', desc:'Used when the selected feedback source is P1 or P2.', step:0.01, min:0, max:1000, basic:true },
     { key:'di_ru', path:['dynamic_idle','ramp_up_ms'],    label:'Fuel Increase Time (ms)', desc:'How quickly automatic idle control may increase fuel.', step:500, min:0 },
     { key:'di_rd', path:['dynamic_idle','ramp_down_ms'],  label:'Fuel Decrease Time (ms)', desc:'How quickly automatic idle control may reduce fuel.', step:500, min:0 },
-    { key:'di_db', path:['dynamic_idle','deadband_rpm'],  label:'No-Correction Band (N1/N2)', unit:'RPM', desc:'Used for an N1/N2 feedback source.', step:100, min:0 },
-    { key:'di_rl', path:['dynamic_idle','rpm_limit'],     label:'Stop Controlling Above (N1/N2)', unit:'RPM', desc:'Used for an N1/N2 feedback source. 0 = Disabled - no automatic idle control.', step:1000, min:0 },
-    { key:'di_pd', path:['dynamic_idle','pressure_deadband_bar'], label:'No-Correction Band (P1/P2)', unitType:'press', desc:'Used for a P1/P2 feedback source.', step:0.01, min:0, max:1000 },
-    { key:'di_pl', path:['dynamic_idle','pressure_limit_bar'], label:'Stop Controlling Above (P1/P2)', unitType:'press', desc:'Used for a P1/P2 feedback source. 0 = Disabled - no automatic idle control.', step:0.1, min:0, max:1000 },
+    { key:'di_db', path:['dynamic_idle','deadband_rpm'],  label:'No-Correction Band (N1/N2)', unit:'RPM', desc:'Used for an N1/N2 feedback source.', step:100, min:0, basic:true },
+    { key:'di_rl', path:['dynamic_idle','rpm_limit'],     label:'Stop Controlling Above (N1/N2)', unit:'RPM', desc:'Used for an N1/N2 feedback source. 0 disables automatic idle correction.', step:1000, min:0, basic:true },
+    { key:'di_pd', path:['dynamic_idle','pressure_deadband_bar'], label:'No-Correction Band (P1/P2)', unitType:'press', desc:'Used for a P1/P2 feedback source.', step:0.01, min:0, max:1000, basic:true },
+    { key:'di_pl', path:['dynamic_idle','pressure_limit_bar'], label:'Stop Controlling Above (P1/P2)', unitType:'press', desc:'Used for a P1/P2 feedback source. 0 disables automatic idle correction.', step:0.1, min:0, max:1000, basic:true },
     { key:'di_mx', path:['dynamic_idle','max_multiplier'],label:'Maximum Fuel Range Multiplier', desc:'Allows the controller extra fuel authority above the configured maximum idle output.', step:0.05, min:1, max:3 },
     { key:'di_ig', path:['dynamic_idle','i_gain'],       label:'Long-Term Correction Strength', desc:'Removes a persistent speed error caused by changing accessory load. 0 disables this correction. Start small: 0.05–0.15. Technical name: integral gain.', step:0.01, min:0, max:2 },
     { key:'di_im', path:['dynamic_idle','i_max'],        label:'Maximum Long-Term Correction', desc:'Limits how much fuel the long-term correction may add or remove. 0.10 means 10% of the available fuel range.', step:0.01, min:0, max:0.5 },
-    { key:'di_mode', path:['dynamic_idle','idle_mode'], label:'Idle-Control Method', type:'select', options:[{v:0,l:'Standard idle control (default)'},{v:1,l:'Predictive fast-deceleration control'}], desc:'Standard control corrects present feedback error and does not apply a predictive fuel drop. Predictive control adds optional learned fast-deceleration behavior.' },
+    { key:'di_mode', path:['dynamic_idle','idle_mode'], label:'Idle-Control Method', type:'select', options:[{v:0,l:'Standard idle control (default)'},{v:1,l:'Predictive fast-deceleration control'}], desc:'Standard control corrects present feedback error and does not apply a predictive fuel drop. Predictive control adds optional learned fast-deceleration behavior.', basic:true },
     { key:'di_de', path:['dynamic_idle','decel_enter_rpm'], label:'Fast-Deceleration Entry Above Target (RPM)', zeroOff:true, desc:'Predictive deceleration catch can begin when RPM is at least this far above idle. 0 disables the fast-deceleration fuel drop.', step:100, min:0 },
     { key:'di_dd', path:['dynamic_idle','decel_drop_pct'], label:'Fast-Deceleration Fuel Reduction (%)', zeroOff:true, desc:'How far below learned steady-idle fuel the controller may drop. 0 disables the fast-deceleration fuel drop.', step:0.5, min:0 },
     { key:'di_lk', path:['dynamic_idle','lookahead_ms'], label:'Idle Speed Prediction Time (ms)', desc:'How far ahead predictive idle control estimates shaft speed.', step:100, min:0 },
@@ -253,8 +258,11 @@ document.addEventListener('click', async event => {
 
 // ── Per-field changed-state tracking (mirrors hardware.html) ──
 let _fieldSnap = {};
+let _idleInputSnap = {};
 
 function _snapshotFields() {
+  _idleInputSnap = JSON.parse(JSON.stringify({input_id:cfg?.dynamic_idle?.input_id || '',
+    input_low:cfg?.dynamic_idle?.input_low ?? 0, input_high:cfg?.dynamic_idle?.input_high ?? 1}));
   _fieldSnap = {};
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
     .forEach(el => {
@@ -414,6 +422,7 @@ function _buildChanges() {
   const changes = [];
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
     .forEach(el => {
+      if (['cf-fi_input','cf-fi_low','cf-fi_high'].includes(el.id)) return;
       if (!(el.id in _fieldSnap)) return;
       const cur  = (el.type === 'checkbox') ? el.checked : el.value;
       const snap = _fieldSnap[el.id];
@@ -429,6 +438,19 @@ function _buildChanges() {
         inactiveReason: inactive ? _fieldInactiveReason(wrap) : '',
       });
     });
+  for (const [key,label] of [['input_id','Idle Input Channel'],['input_low','Idle Input Low'],['input_high','Idle Input High']]) {
+    if (!Number(cfg?.dynamic_idle?.fuel_mode || 0)) continue;
+    const fieldKey = {input_id:'fi_input',input_low:'fi_low',input_high:'fi_high'}[key];
+    const el = document.getElementById('cf-'+fieldKey);
+    const current = el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
+    if (String(current) === String(_idleInputSnap[key])) continue;
+    const display = (value,id) => {
+      if (key === 'input_id') return value ? controllerChannelName(simpleControlInputs().find(row=>row.id===value)) || `Missing input: ${value}` : 'Automatic: configured Idle Input';
+      const meta = controllerInputDisplay(id);
+      return `${Number((value*meta.scale).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
+    };
+    changes.push({key:'fi_'+key,label:'Idle / '+label,was:display(_idleInputSnap[key],_idleInputSnap.input_id),now:display(current,cfg?.dynamic_idle?.input_id),inactive:false});
+  }
   if (_controllerRulesDirty) changes.push(..._controllerRuleChanges());
   if (_controllerHardwareDirty) changes.push(..._controllerHardwareChanges());
   if (_systemHardwareDirty) {
@@ -469,6 +491,15 @@ function _refreshChangedBorders() {
       }
     });
   changedGroups.forEach(group => group.classList.add('group-changed'));
+  for (const [key,name] of [['fi_input','input_id'],['fi_low','input_low'],['fi_high','input_high']]) {
+    const el = document.getElementById('cf-'+key);
+    if (!el) continue;
+    if (!Number(cfg?.dynamic_idle?.fuel_mode || 0)) { el.classList.remove('field-changed'); continue; }
+    const current = name === 'input_id' ? el.value : _fieldFromDisplay({key},Number(el.value));
+    const changed = String(current) !== String(_idleInputSnap[name]);
+    el.classList.toggle('field-changed',changed);
+    if (changed) el.closest('.config-group')?.classList.add('group-changed');
+  }
   _updateWorkspaceState();
   if (_workspaceFilter === 'changed') _scheduleWorkspaceRefresh();
 }

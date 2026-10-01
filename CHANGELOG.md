@@ -10,6 +10,34 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-01
+
+### Added
+
+- Explicit Running idle choices: Off, Fixed fuel percentage, Input channel, and Automatic Idle. Input channel defaults to the configured Idle Input and can map any other fitted input by stable ID and engineering-unit endpoints. Existing configurations retain their previous behavior. Startup sequence, STOP, shutdown, and fault control remain authoritative.
+- Sensor-history sparklines and green display-range bars for continuous dashboard measurements, including oil pressure and battery voltage. Optional fixed ranges are browser-local display settings, not calibration or protection limits.
+
+### Changed
+
+- Show normalized throttle and idle controller inputs as percentages, preserve fractional values, and explain the selected idle floor only when it applies.
+- Keep four clear Running Idle modes, put Automatic Idle settings directly under its selection, and explain missing hardware without hiding those settings. Preserve older files internally instead of exposing a legacy mode or duplicate enable switch.
+- Replace the documentation with task-oriented navigation, complete guided builds, configured hardware and sequencer screenshots, and focused calibration, backup, and troubleshooting instructions.
+- Refresh ECU web-asset and documentation cache identifiers so returning browsers receive the updated interface and search index.
+- Mark unsaved fields with the edit accent rather than warning-yellow glows across whole configuration sections; keep warnings and errors visually distinct.
+
+### Fixed
+
+- Keep ordinary dashboard readings white and critical readings red; green sensor bars remain distinct from blue output bars.
+- Remove duplicated accent strips and inset borders in System maintenance cards. Preserve restore errors after a backup download, and explain rejected engine descriptions.
+- Clarify Hardware ownership, idle calibration units, startup-versus-Running idle help, and temporary runtime overrides. Display readable log events and measurement units without changing exported raw records.
+- Preserve long built-in output-binding keys through save/restore, repair their unambiguous previously truncated forms, and reject overlong binding/channel identifiers rather than silently truncating them.
+- Preserve oil-controller IDs and registry strings across unrelated configuration saves by making JSON snapshots own their runtime text rather than alias mutable buffers.
+- Recover dashboard metadata automatically after an ECU reboot or failed/deferred full snapshot. Do not render numbered placeholder outputs or a missing-input layout; START stays locked while loading and STOP remains available.
+- Explain the Automatic Idle ceiling calculation directly in its summary and show oil-pressure controller enable state on its owning card, including an individual enable control.
+- Reuse the idle Classic ESP32 receive workspace during Hardware saves to avoid settings-serialization memory failures.
+- Preserve unsaved controller edits while changing idle mode, and allow an explicit Off idle mode to reach zero fuel demand.
+- Include new idle settings in generated documentation and search, enforce generated-index freshness, and correct incomplete setup examples and calibration screenshots.
+
 ## [2.4.3] — 2026-09-24
 
 - Extend active dashboard shutdown markers above and below sensor bars for clearer visibility.

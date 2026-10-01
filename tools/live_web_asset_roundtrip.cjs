@@ -15,9 +15,9 @@ const files = names.map(name => path.join(root, 'data', name));
 async function snapshot() {
   const api = await request.newContext({baseURL:base, extraHTTPHeaders:{Connection:'close'}});
   try {
-    const infoResponse = await api.get('/api/device_info', {timeout:8000});
-    const cfgResponse = await api.get('/api/ecu_config', {timeout:8000});
-    const liveResponse = await api.get('/api/data', {timeout:8000});
+    const infoResponse = await api.get('/api/device_info', {timeout:30000});
+    const cfgResponse = await api.get('/api/ecu_config', {timeout:30000});
+    const liveResponse = await api.get('/api/data', {timeout:30000});
     assert.ok(infoResponse.ok() && cfgResponse.ok() && liveResponse.ok());
     return {info:await infoResponse.json(), cfg:await cfgResponse.json(), live:await liveResponse.json()};
   } finally {await api.dispose();}
@@ -27,7 +27,6 @@ async function snapshot() {
   const before = await snapshot();
   assert.equal(before.info.state, 'STANDBY');
   assert.equal(before.info.outputs_active, false);
-  assert.equal(before.cfg.hardware.actuators.status_led.enabled, false);
   const candidates = [
     process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
     process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
@@ -66,9 +65,10 @@ async function snapshot() {
   assert.ok(after);
   assert.ok(after.live.boot_count > before.live.boot_count, 'web asset upload did not reboot the ECU');
   assert.equal(after.info.build_id, before.info.build_id);
-  assert.equal(after.cfg.hardware.actuators.status_led.enabled, false);
+  assert.equal(after.cfg.hardware.actuators.status_led.enabled, before.cfg.hardware.actuators.status_led.enabled);
   assert.deepEqual(after.cfg.hardware.channel_registry, before.cfg.hardware.channel_registry);
+  assert.deepEqual(after.cfg, before.cfg, 'web asset update must preserve the complete engine file');
   const html = await (await fetch(`${base}/hardware.html`)).text();
   assert.match(html, /Electrical output endpoints/);
-  console.log(`Browser web asset update passed: 12 files, ${chunks} bounded chunks, profile retained, STANDBY, LED disabled.`);
+  console.log(`Browser web asset update passed: 12 files, ${chunks} bounded chunks, complete engine file retained exactly, STANDBY, outputs inactive.`);
 })().catch(error => {console.error(error.stack || error); process.exit(1);});

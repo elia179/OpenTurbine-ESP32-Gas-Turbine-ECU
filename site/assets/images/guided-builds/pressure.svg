@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Analog sensor signal conditioning</title><desc id="desc">Example calculation: 0.5–4.5 V signal, 15 kΩ top and 10 kΩ bottom → 0.2–1.8 V.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Analog sensor signal conditioning</text>
+<text x="30" y="76" class="small" text-anchor="start">Example calculation: 0.5–4.5 V signal, 15 kΩ top and 10 kΩ bottom → 0.2–1.8 V.</text>
+<rect x="30" y="165" width="240" height="270" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="150.0" y="197" class="" text-anchor="middle">Pressure sensor</text>
+<rect x="730" y="165" width="240" height="270" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="850.0" y="197" class="" text-anchor="middle">ESP32 ECU</text>
+<text x="50" y="225" class="" text-anchor="start">OUT</text>
+<polyline points="270,235 470,235 470,280" class="net" stroke="#74dcb7"/>
+<rect x="461" y="280" width="18" height="42" fill="#101922" stroke="#b6c4d2" stroke-width="2"/>
+<text x="488" y="308" class="small" text-anchor="start">15 kΩ</text>
+<polyline points="470,322 470,355 730,355" class="net" stroke="#74dcb7"/>
+<text x="750" y="342" class="" text-anchor="start">ADC GPIO</text>
+<circle cx="470" cy="355" r="5" fill="#74dcb7"/>
+<polyline points="470,355 470,390" class="net" stroke="#74dcb7"/>
+<rect x="461" y="390" width="18" height="42" fill="#101922" stroke="#b6c4d2" stroke-width="2"/>
+<text x="488" y="418" class="small" text-anchor="start">10 kΩ</text>
+<polyline points="470,432 470,480" class="net" stroke="#b6c4d2"/>
+<polyline points="150,435 150,480 850,480 850,435" class="net" stroke="#b6c4d2"/>
+<circle cx="470" cy="480" r="5" fill="#b6c4d2"/>
+<text x="50" y="125" class="" text-anchor="start">Sensor VCC ← manufacturer-specified regulated supply</text>
+<polyline points="150,135 150,165" class="net" stroke="#ff9276"/>
+<text x="550" y="390" class="small" text-anchor="start">Add filtering /</text>
+<text x="550" y="415" class="small" text-anchor="start">protection for</text>
+<text x="550" y="440" class="small" text-anchor="start">fault voltages.</text>
+<text x="30" y="517" class="small" text-anchor="start">Divider ratio = 10 / (15 + 10) = 0.4. A divider alone is not transient protection.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

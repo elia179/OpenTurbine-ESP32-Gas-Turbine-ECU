@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Thrust through an I²C bridge amplifier</title><desc id="desc">Activate the shared I²C bus, detect NAU7802, then assign and calibrate Thrust.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Thrust through an I²C bridge amplifier</text>
+<text x="30" y="76" class="small" text-anchor="start">Activate the shared I²C bus, detect NAU7802, then assign and calibrate Thrust.</text>
+<rect x="25" y="135" width="235" height="330" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="142.5" y="167" class="" text-anchor="middle">ESP32 ECU</text>
+<rect x="375" y="135" width="250" height="330" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="500.0" y="167" class="" text-anchor="middle">NAU7802 module</text>
+<rect x="760" y="135" width="215" height="330" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="867.5" y="167" class="" text-anchor="middle">Load cell</text>
+<text x="242" y="205" class="" text-anchor="end">3.3 V</text>
+<text x="390" y="205" class="" text-anchor="start">VCC</text>
+<polyline points="260,215 375,215" class="net" stroke="#ff9276"/>
+<text x="242" y="260" class="" text-anchor="end">GND</text>
+<text x="390" y="260" class="" text-anchor="start">GND</text>
+<polyline points="260,270 375,270" class="net" stroke="#b6c4d2"/>
+<text x="242" y="315" class="" text-anchor="end">SDA GPIO</text>
+<text x="390" y="315" class="" text-anchor="start">SDA</text>
+<polyline points="260,325 375,325" class="net" stroke="#74dcb7"/>
+<text x="242" y="370" class="" text-anchor="end">SCL GPIO</text>
+<text x="390" y="370" class="" text-anchor="start">SCL</text>
+<polyline points="260,380 375,380" class="net" stroke="#74dcb7"/>
+<text x="610" y="205" class="" text-anchor="end">E+</text>
+<text x="775" y="205" class="" text-anchor="start">E+</text>
+<polyline points="625,215 760,215" class="net" stroke="#ff9276"/>
+<text x="610" y="260" class="" text-anchor="end">E−</text>
+<text x="775" y="260" class="" text-anchor="start">E−</text>
+<polyline points="625,270 760,270" class="net" stroke="#b6c4d2"/>
+<text x="610" y="315" class="" text-anchor="end">A+</text>
+<text x="775" y="315" class="" text-anchor="start">A+</text>
+<polyline points="625,325 760,325" class="net" stroke="#74dcb7"/>
+<text x="610" y="370" class="" text-anchor="end">A−</text>
+<text x="775" y="370" class="" text-anchor="start">A−</text>
+<polyline points="625,380 760,380" class="net" stroke="#74dcb7"/>
+<text x="30" y="502" class="small" text-anchor="start">SDA/SCL need pull-ups to 3.3 V; check whether the breakout already includes them.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

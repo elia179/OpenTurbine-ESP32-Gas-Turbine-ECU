@@ -7,9 +7,11 @@ lede: Build a safe interface around the ESP32; a GPIO pin is a logic signal, nev
 
 {% include safety-note.html %}
 
+For illustrated wiring, configuration and tests, use [Guided Builds]({{ '/guided-builds/' | relative_url }}). This page lists electrical requirements and compatible interfaces.
+
 This guide covers the physical interface for an OpenTurbine ESP32 turbine ECU. It is not a universal turbine wiring diagram. Keep fuel, ignition, starter, and other load power disconnected while checking the installation.
 
-New to electronics or microcontrollers? Start with the [basic single-shaft example]({{ '/example-system/' | relative_url }}) to see how an ordinary system fits together, then use the [complete beginner user guide]({{ '/user-guide/' | relative_url }}). It contains the enlarged wiring diagram, wire-by-wire connection patterns, every supported input/output purpose, controller and safety behavior, calibration, sequencing, dry testing, and a source-generated Controllers/System field reference.
+Use the [User Guide]({{ '/user-guide/' | relative_url }}) for controller settings, calibration and sequences.
 
 ## Supported ESP32 targets
 
@@ -17,7 +19,7 @@ Use a Classic ESP32 with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatibl
 
 ## Installed Channel Inventory
 
-The Hardware page is the source of truth for what is physically connected. Add each fitted input and output once, give it a short unique stable ID, select its electrical driver, assign a valid GPIO, and set the real engineering range. Display names can change later; stable IDs should not change after sequences, controllers, or telemetry refer to them.
+In Hardware, add each fitted input and output once. Give it a readable display name, select its electrical signal type, assign a valid connection and set its range. The interface maintains stable channel IDs for saved controller and sequence references; these are not names to enter in the Add input/output menus.
 
 Inputs can represent digital switches, analog measurements, pulse/frequency sensors, or RC PWM commands. Outputs can represent relays, proportional PWM loads, or servo/ESC commands. Set boot-safe and fault-safe output demand deliberately. Resolve every missing requirement, invalid-channel message, and GPIO conflict before saving; the firmware blocks unsafe or ambiguous hardware configurations rather than guessing.
 
@@ -54,6 +56,20 @@ The Hardware page only offers a detected shared-I²C device for a new assignment
 Previously saved assignments remain visible but unhealthy if that chip or bus is
 lost, allowing the installation to be diagnosed or deliberately cleaned up.
 
+## Connection patterns
+
+Choose the electrical pattern first, then assign the actual board pin. Each link opens a small diagram with software steps and a connection table; module terminals are labelled by function, not assumed physical pin order.
+
+| Connection | Diagram and setup |
+| --- | --- |
+| ECU and load power | [Separate supply paths and physical controls]({{ '/guided-builds/basic/#power' | relative_url }}) |
+| Shaft speed | [Hall pulse input and pull-up]({{ '/guided-builds/basic/#n1' | relative_url }}) |
+| Gas temperature | [MAX31855 and K-type probe]({{ '/guided-builds/basic/#temperature' | relative_url }}) |
+| Analog pressure | [Conditioning and calibration]({{ '/guided-builds/control/#pressure' | relative_url }}) |
+| Operator demand | [Potentiometer input]({{ '/guided-builds/basic/#throttle' | relative_url }}) |
+| Actuator command | [Servo / ESC]({{ '/guided-builds/basic/#starter' | relative_url }}) · [PWM driver]({{ '/guided-builds/basic/#fuel' | relative_url }}) · [Relay module]({{ '/guided-builds/basic/#ignition' | relative_url }}) |
+| Auxiliary sensing | [DS18B20]({{ '/guided-builds/extend/#fan' | relative_url }}) · [Dry contact]({{ '/guided-builds/extend/#switch' | relative_url }}) · [Voltage]({{ '/guided-builds/extend/#voltage' | relative_url }}) · [Current]({{ '/guided-builds/extend/#current' | relative_url }}) |
+
 ## Power supply
 
 Power the controller from a clean regulated supply within the board manufacturer's limits. Fuse the ECU supply and each load supply appropriately. Keep starter, pump, motor, and ignition current away from sensor wiring and the ESP32 ground return. Use connectors, wire sizes, strain relief, and enclosure protection appropriate for vibration, heat, and current.
@@ -80,7 +96,7 @@ Join logic grounds only where an interface is not intentionally isolated. Use a 
 
 ## RPM sensors
 
-N1/N2 inputs require a clean, conditioned 3.3 V-compatible pulse signal and the correct pulses-per-revolution value. Open-collector sensors normally need a pull-up to 3.3 V. Magnetic pickups need a dedicated conditioner or comparator; do not connect an unbounded pickup waveform directly to a GPIO. Verify displayed RPM with an independent tachometer before enabling overspeed protection.
+N1/N2 inputs require a clean, conditioned 3.3 V-compatible pulse signal and the correct pulses-per-revolution value. Open-collector/open-drain sensors need a pull-up to 3.3 V. On a GPIO supporting internal bias, **Input bias → Pull-up** can replace the external resistor for suitable short bench wiring. Internal pull-ups are weak: verify pulse edges at the required rate; long/noisy wiring may need an external resistor and conditioning. Classic ESP32 GPIO 34–39 have no internal bias. Push-pull conditioners normally need no pull-up. Magnetic pickups need a dedicated conditioner or comparator; do not connect an unbounded pickup waveform directly to a GPIO. Verify displayed RPM with an independent tachometer before enabling overspeed protection.
 
 ## Thermocouple interfaces
 

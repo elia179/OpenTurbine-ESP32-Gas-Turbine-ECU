@@ -4,11 +4,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {chromium, request} = require('playwright');
+const {execFileSync} = require('node:child_process');
 
 if (!process.argv.includes('--allow-write'))
   throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(arg => /^http/.test(arg)) || 'http://192.168.4.1';
 const firmware = process.argv.find(arg => /firmware\.bin$/i.test(arg));
+const expectedVersion = process.argv.find(arg => arg.startsWith('--expected-version='))?.split('=')[1];
 assert.ok(firmware && fs.statSync(firmware).size > 100000, 'Pass a valid firmware.bin');
 
 function installedBrowser() {
@@ -24,6 +26,7 @@ function installedBrowser() {
   const beforeResponse = await beforeApi.get('/api/device_info');
   assert.ok(beforeResponse.ok(), 'ECU is not reachable');
   const before = await beforeResponse.json();
+  const beforeConfig = await (await beforeApi.get('/api/ecu_config')).json();
   await beforeApi.dispose();
   assert.equal(before.state, 'STANDBY', 'ECU must be in STANDBY');
   assert.equal(before.ota_allowed, true, 'ECU reports OTA is not allowed');
@@ -62,16 +65,36 @@ function installedBrowser() {
   const recovery = await request.newContext({baseURL:base, extraHTTPHeaders:{Connection:'close'}});
   let after;
   for (let attempt=0; attempt<40; attempt++) {
+    if (process.platform === 'win32' && attempt % 5 === 0)
+      execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'});
     try {
       const response = await recovery.get('/api/device_info', {timeout:3000});
       if (response.ok()) { after = await response.json(); break; }
     } catch (_) {}
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  await recovery.dispose();
   assert.ok(after, 'ECU did not return after browser OTA');
-  assert.equal(after.build_id, before.build_id,
-    'bench proof expected the same known firmware image to be reflashed');
+  assert.equal(after.state, 'STANDBY');
+  assert.equal(after.outputs_active, false);
+  if (expectedVersion) {
+    assert.equal(after.firmware_version, expectedVersion, 'updated firmware version did not return');
+    if (expectedVersion !== before.firmware_version)
+      assert.notEqual(after.build_id, before.build_id, 'upgrade retained the old firmware build');
+  } else {
+    assert.equal(after.build_id, before.build_id,
+      'bench proof expected the same known firmware image to be reflashed');
+  }
+  const afterConfig = await (await recovery.get('/api/ecu_config')).json();
+  // The additive 2.5.0 channel selector serializes neutral defaults when an
+  // older image/file had no selector fields. All pre-existing values still
+  // have to match exactly; do not ignore the whole idle section.
+  if (after.firmware_version === '2.5.0' && beforeConfig.settings.dynamic_idle) {
+    for (const [key,value] of Object.entries({input_id:'',input_low:0,input_high:1}))
+      if (!(key in beforeConfig.settings.dynamic_idle)) beforeConfig.settings.dynamic_idle[key]=value;
+  }
+  assert.deepEqual(afterConfig.hardware, beforeConfig.hardware, 'OTA changed hardware configuration');
+  assert.deepEqual(afterConfig.settings, beforeConfig.settings, 'OTA changed controller/system settings');
+  await recovery.dispose();
   console.log(`Browser firmware OTA passed: ${chunks} bounded chunks, build ${after.build_id} returned in STANDBY.`);
 })().catch(error => {
   console.error(error.stack || error);

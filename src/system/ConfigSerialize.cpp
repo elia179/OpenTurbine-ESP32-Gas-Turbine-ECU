@@ -98,6 +98,7 @@ const ConfigField<bool> THROTTLE_BOOL_FIELDS[] = {
 };
 
 const ConfigField<float> IDLE_FLOAT_FIELDS[] = {
+    CONFIG_FIELD(fuelIdleFixedPct, "fixed_fuel_pct"),
     CONFIG_FIELD(idleTargetRpm, "target_rpm"), CONFIG_FIELD(idleRampUpMs, "ramp_up_ms"),
     CONFIG_FIELD(idleRampDownMs, "ramp_down_ms"), CONFIG_FIELD(idleDeadbandRpm, "deadband_rpm"),
     CONFIG_FIELD(idleRpmLimit, "rpm_limit"),
@@ -115,7 +116,14 @@ const ConfigField<float> IDLE_FLOAT_FIELDS[] = {
     CONFIG_FIELD(idlePressureLearnRateMax, "pressure_learn_rate_max_bar_s"),
 };
 const ConfigField<int> IDLE_INT_FIELDS[] = {
+    CONFIG_FIELD(fuelIdleMode, "fuel_mode"),
     CONFIG_FIELD(idleSource, "source"), CONFIG_FIELD(idleMode, "idle_mode"),
+};
+// Input mapping is not live tuning: changing a fuel command source/range
+// requires Standby, unlike the existing feedback response parameters.
+const ConfigField<float> IDLE_INPUT_FIELDS[] = {
+    CONFIG_FIELD(fuelIdleInputLow, "input_low"),
+    CONFIG_FIELD(fuelIdleInputHigh, "input_high"),
 };
 const ConfigField<bool> IDLE_BOOL_FIELDS[] = {CONFIG_FIELD(idleUseN2, "use_n2")};
 
@@ -546,6 +554,8 @@ void Config::_applyDefaults() {
     idleDeadbandRpm = 300; idleRpmLimit = 60000; idleMaxMultiplier = 1.50f;
     idleUseN2 = ConfigInternal::idleUseN2Default; idleIGain = 0.0f; idleIMax = 0.10f;
     idleSource = ConfigInternal::idleUseN2Default ? 1 : 0;
+    fuelIdleMode = 0; fuelIdleFixedPct = 0.0f;
+    fuelIdleInputId[0] = 0; fuelIdleInputLow = 0.0f; fuelIdleInputHigh = 1.0f;
     idleTargetPressure = 1.0f; idlePressureDeadband = 0.03f; idlePressureLimit = 2.0f;
     idleMode = 0; idleDecelEnterRpm = 0.0f; idleDecelDropPct = 0.0f; idleLookaheadMs = 2500.0f;
     idleSettleBandRpm = 1500.0f; idleFullResponseRpm = 12000.0f; idleTrimUpPctPerSec = 4.0f;
@@ -700,6 +710,10 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     readConfigFields(th, THROTTLE_BOOL_FIELDS);
 
     auto di = doc["dynamic_idle"];
+    // Old files have no override. Do not inherit a previous file's source.
+    strlcpy(fuelIdleInputId, di["input_id"] | "", sizeof(fuelIdleInputId));
+    fuelIdleInputLow = di["input_low"] | 0.0f;
+    fuelIdleInputHigh = di["input_high"] | 1.0f;
     const bool hasPressureDecelEnter = !di["pressure_decel_enter_bar"].isNull();
     const bool hasPressureSettleBand = !di["pressure_settle_band_bar"].isNull();
     const bool hasPressureFullResponse = !di["pressure_full_response_bar"].isNull();
@@ -1117,6 +1131,8 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (idleDeadbandRpm < 0.0f) idleDeadbandRpm = 0.0f;
     if (idleRpmLimit < 0.0f) idleRpmLimit = 0.0f;
     idleSource = constrain(idleSource, 0, 3);
+    fuelIdleMode = constrain(fuelIdleMode, 0, 4);
+    fuelIdleFixedPct = constrain(fuelIdleFixedPct, 0.0f, 100.0f);
     idleTargetPressure = constrain(idleTargetPressure, 0.0f, 1000.0f);
     idlePressureDeadband = constrain(idlePressureDeadband, 0.0f, 1000.0f);
     idlePressureLimit = constrain(idlePressureLimit, 0.0f, 1000.0f);
@@ -1280,6 +1296,8 @@ void Config::_writeDoc(JsonObject doc) {
     writeConfigFields(th, THROTTLE_BOOL_FIELDS);
 
     auto di = doc["dynamic_idle"].to<JsonObject>();
+    di["input_id"] = fuelIdleInputId;
+    writeConfigFields(di, IDLE_INPUT_FIELDS);
     writeConfigFields(di, IDLE_FLOAT_FIELDS);
     writeConfigFields(di, IDLE_INT_FIELDS);
     writeConfigFields(di, IDLE_BOOL_FIELDS);

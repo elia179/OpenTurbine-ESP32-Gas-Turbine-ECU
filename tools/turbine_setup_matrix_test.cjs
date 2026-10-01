@@ -542,7 +542,8 @@ const setups = [
           return card ? card.innerText : '';
         });
         assert.match(mainFuelUsage, /Controller: fuel response & limit protection/, 'main fuel should name its automatic protection user');
-        assert.match(mainFuelUsage, /Core firmware: controller binding/, 'main fuel should name its controller binding');
+        assert.match(mainFuelUsage, /fuel response & limit protection/, 'main fuel should name its protection use');
+        assert.doesNotMatch(mainFuelUsage, /Core firmware|registry binding|custom controller reference/, 'usage summary should not leak internal bindings');
         const removeDialogText = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
           const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));
@@ -570,7 +571,7 @@ const setups = [
         assert.match(hwText, /Throttle Input/, 'internal throttle ID should render as plain label');
         assert.match(hwText, /PWM Duty Input/, 'generic PWM input should render as plain label');
         assert.match(hwText, /Telemetry Fan/, 'generic output should render its user-facing name');
-        assert.match(hwText, /Used by: .*Simple control|Monitoring only|Available to controllers and sequences/, 'registry cards should show actual current use or a truthful available/monitoring state');
+        assert.match(hwText, /Used by: .*Controller:|Monitoring only|Available to controllers and sequences/, 'registry cards should show actual named use or a truthful available/monitoring state');
         assert.doesNotMatch(hwText, /Not used yet/, 'fitted channels must not be described as unused when they remain observable or addressable');
         assert.doesNotMatch(hwText, /Available to:/, 'hardware cards should not imply availability is actual usage');
         assert.doesNotMatch(hwText, /Used by \/ available to/, 'hardware cards should not use mixed dependency wording');
@@ -613,7 +614,9 @@ const setups = [
         assert.equal(await controller.count(), 1);
         assert.equal(await controller.locator('.cfg-label', {hasText:'Control method'}).locator('..').locator('select').inputValue(), '2');
         assert.match(await controller.locator('.cfg-label', {hasText:'Feedback signal'}).locator('..').locator('option:checked').textContent(), /Generator Speed/);
-        assert.equal(await controller.locator('.cfg-label', {hasText:'Target'}).filter({hasText:/^Target$/}).locator('..').locator('input').inputValue(), '28000');
+        // The controller starts collapsed; assert its labelled field without
+        // requiring the user to open it merely to inspect a saved setup.
+        assert.equal(await controller.locator('input[aria-label="Target (RPM)"]').inputValue(), '28000');
         assert.equal(await page.locator('#governor-cfg-section').count(), 0,
           'the unified output controller must replace the second legacy governor panel');
       }

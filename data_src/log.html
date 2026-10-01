@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20260924c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20260924c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261001j',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261001j');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -34,11 +34,12 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <button onclick="askClear('eventlog')" class="danger" title="Permanently delete the event history after confirmation. Session CSV files are kept.">Clear</button>
     </div>
   </div>
-  <div style="font-size:.74rem;color:var(--dim);padding:.55rem .75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);margin-bottom:.8rem;line-height:1.55">
-    <strong style="color:var(--text)">How logging works:</strong>
-    Event Log records events and compact periodic snapshots for diagnosis. Session Data records selected values in a detailed CSV only for an engine run. Standby snapshots are disabled by default so an idle ECU does not fill the event log with uneventful readings.
-    Viewing, downloading, and clearing the Event Log require STANDBY (or FAULT) with Standby Snapshot Logging turned off — the ECU refuses flash-heavy reads that would contend with active logging.
-  </div>
+  <p style="font-size:.74rem;color:var(--dim)">Event history is available in STANDBY or FAULT with Standby Snapshot Logging off.</p>
+  <details style="font-size:.74rem;color:var(--dim);padding:.55rem .75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);margin-bottom:.8rem;line-height:1.55">
+    <summary style="color:var(--text);cursor:pointer">About event and session logs</summary>
+    <p>Event Log records events and compact diagnostic snapshots. Session Data records selected values in a detailed CSV for each engine run. Standby snapshots are off by default to avoid filling the event log with uneventful readings.</p>
+    <p>The ECU blocks event-history reads and clearing while logging is active to avoid competing for flash access. Raw identifiers remain available in event tooltips and downloads.</p>
+  </details>
 
   <div class="tab-strip">
     <button class="tab-btn active" id="tab-summary" onclick="showTab('summary')" title="Completed engine runs and their outcomes.">Summary</button>
@@ -274,7 +275,25 @@ function evClass(ev) {
 
 function evBadge(ev) {
   const cls = evClass(ev);
-  return `<span class="ev-badge ${cls}">${escapeHtmlText(ev || '?')}</span>`;
+  const labels = {BLOCK_ENTER:'Step started', BLOCK_EXIT:'Step completed', SNAP:'Sensor snapshot',
+    START_ATTEMPT:'Start requested', RUNNING_ENTRY:'Running', RUN_SUMMARY:'Run summary',
+    NORMAL_SHUTDOWN:'Normal shutdown', FAULT_SHUTDOWN:'Fault shutdown', ABORT:'Startup aborted',
+    CONFIG_CHANGE:'Configuration change', BOOT:'ECU started'};
+  return `<span class="ev-badge ${cls}" title="${escapeHtmlText(ev || '')}">${escapeHtmlText(labels[ev] || readableLogName(ev || '?'))}</span>`;
+}
+
+function readableLogName(value) {
+  return String(value).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    .toLowerCase().replace(/^./, c => c.toUpperCase());
+}
+function logBlockName(value) {
+  const labels = {FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle',
+    Spool:'Accelerate to Idle', TimedDelay:'Timed Delay', OilPrime:'Build Oil Pressure',
+    StarterSpin:'Set Starter', ThrottleSet:'Set Main Fuel Demand', SetOutput:'Set Output',
+    TempConfirm:'Confirm Combustion by Temperature', FlameConfirm:'Confirm Combustion by Flame Sensor',
+    SafetyHold:'Final Startup Checks', ImmediateCut:'Immediate Fuel and Ignition Cut',
+    RPMDrop:'Wait for Rotor to Slow', CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop'};
+  return labels[value] || readableLogName(value);
 }
 
 // escapeHtmlText() is shared from app.js (loaded above this inline script).
@@ -291,7 +310,13 @@ function formatDetails(entry) {
   }
   return Object.entries(entry)
     .filter(([k]) => k !== 't' && k !== 'ev')
-    .map(([k, v]) => `<span style="color:var(--dim)">${escapeHtmlText(k)}:</span> ${escapeHtmlText(v)}`)
+    .map(([k, v]) => {
+      const labels = {block:'Step', res:'Result', n1:'N1 (RPM)', n1Rpm:'N1 (RPM)', n2:'N2 (RPM)', n2Rpm:'N2 (RPM)',
+        thr:'Fuel demand (%)', runS:'Running time (s)', maxN1:'Peak N1 (RPM)', maxN2:'Peak N2 (RPM)',
+        tot:'TOT (°C)', totDegC:'TOT (°C)', tit:'TIT (°C)', titDegC:'TIT (°C)', oil:'Oil pressure (bar)', oilBar:'Oil pressure (bar)'};
+      const shown = k === 'block' ? logBlockName(v) : k === 'res' && v === 'ok' ? 'Completed' : v;
+      return `<span style="color:var(--dim)" title="${escapeHtmlText(k)}">${escapeHtmlText(labels[k] || readableLogName(k))}:</span> <span title="${escapeHtmlText(v)}">${escapeHtmlText(shown)}</span>`;
+    })
     .join('&ensp;');
 }
 
@@ -424,13 +449,13 @@ function renderSummary(runs, eventCount = 0) {
         outLabel = '✗ Fault: ' + faultDetail;
         break;
       }
-      case 'ABORT':           outClass = 'abort';   outLabel = '⚠ Abort: ' + (r.outCode || '?'); break;
+      case 'ABORT':           outClass = 'abort';   outLabel = '⚠ Abort: ' + logBlockName(r.outCode || '?'); break;
       default:                outClass = 'running'; outLabel = '▶ In progress'; break;
     }
 
     const evRows = r.events.map(e => {
       const faultBlock = (e.ev === 'FAULT_SHUTDOWN' || e.ev === 'ABORT') && e.block
-        ? `<span style="font-size:.67rem;color:var(--dim);margin-left:.35rem">${escapeHtmlText(e.block)}</span>` : '';
+        ? `<span style="font-size:.67rem;color:var(--dim);margin-left:.35rem" title="${escapeHtmlText(e.block)}">${escapeHtmlText(logBlockName(e.block))}</span>` : '';
       return `<tr>
         <td style="color:var(--dim);padding:.3rem .6rem">${e.t !== undefined ? e.t : '—'}</td>
         <td style="padding:.3rem .6rem">${evBadge(e.ev)}${faultBlock}</td>
@@ -505,7 +530,7 @@ function renderEvents(events) {
   }
   tbody.innerHTML = [...events].reverse().map(e => {
     const faultBlock = (e.ev === 'FAULT_SHUTDOWN' || e.ev === 'ABORT') && e.block
-      ? `<span style="font-size:.67rem;color:var(--dim);margin-left:.35rem">${escapeHtmlText(e.block)}</span>` : '';
+      ? `<span style="font-size:.67rem;color:var(--dim);margin-left:.35rem" title="${escapeHtmlText(e.block)}">${escapeHtmlText(logBlockName(e.block))}</span>` : '';
     return `<tr>
       <td style="color:var(--dim)">${e.t !== undefined ? e.t : '—'}</td>
       <td>${evBadge(e.ev)}${faultBlock}</td>

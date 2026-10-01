@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">ECU and load power are separate paths</title><desc id="desc">Functional power diagram: use USB alone for the first bench session; follow board supply limits.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">ECU and load power are separate paths</text>
+<text x="30" y="76" class="small" text-anchor="start">Functional power diagram: use USB alone for the first bench session; follow board supply limits.</text>
+<rect x="30" y="140" width="260" height="260" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="160.0" y="172" class="" text-anchor="middle">Installation supply</text>
+<rect x="370" y="130" width="260" height="110" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="500.0" y="162" class="" text-anchor="middle">Fuse + regulator</text>
+<rect x="720" y="130" width="250" height="110" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="845.0" y="162" class="" text-anchor="middle">ECU power input</text>
+<text x="50" y="210" class="" text-anchor="start">Positive</text>
+<polyline points="290,220 330,220 330,185 370,185" class="net" stroke="#ff9276"/>
+<polyline points="630,185 720,185" class="net" stroke="#ff9276"/>
+<text x="640" y="164" class="small" text-anchor="start">Board-rated</text>
+<rect x="370" y="320" width="260" height="110" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="500.0" y="352" class="" text-anchor="middle">Fuse + physical stop</text>
+<rect x="720" y="320" width="250" height="110" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="845.0" y="352" class="" text-anchor="middle">Driver / load</text>
+<polyline points="330,220 330,375 370,375" class="net heavy" stroke="#ff9276"/>
+<circle cx="330" cy="220" r="5" fill="#ff9276"/>
+<polyline points="630,375 720,375" class="net heavy" stroke="#ff9276"/>
+<text x="50" y="365" class="" text-anchor="start">Negative / return</text>
+<polyline points="160,400 160,480 845,480 845,430" class="net heavy" stroke="#b6c4d2"/>
+<polyline points="675,480 675,255 845,255 845,240" class="net" stroke="#b6c4d2"/>
+<circle cx="675" cy="480" r="5" fill="#b6c4d2"/>
+<text x="370" y="507" class="small" text-anchor="start">Keep load return current out of the ECU sensor-ground path.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

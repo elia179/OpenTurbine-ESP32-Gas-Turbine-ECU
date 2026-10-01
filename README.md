@@ -2,7 +2,7 @@
 
 <h1 align="center">OpenTurbine</h1>
 
-<p align="center">OpenTurbine 2.4.3 — open-source ESP32 turbine ECU with guided Windows setup and a browser-based dashboard.</p>
+<p align="center">OpenTurbine 2.5.0 — open-source ESP32 turbine ECU with guided Windows setup and a browser-based dashboard.</p>
 
 <p align="center">
   <a href="https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbineSetupTool.exe"><strong>Download for Windows</strong></a>
@@ -15,25 +15,19 @@
 
 ## What is OpenTurbine?
 
-OpenTurbine is experimental open-source turbine engine controller software for turbojets, APUs, generators, turboshafts, turboprops, and other small turbine systems. It runs on supported ESP32 boards and provides configurable startup and shutdown sequences, output-oriented controllers, fuel and oil control, monitoring, fault handling, calibration, logging, and a browser-based interface.
+OpenTurbine runs on supported ESP32 boards and hosts a browser interface for turbine configuration, monitoring and control. It is experimental, not certified.
 
 The normal Windows installation does not require Git, PlatformIO, or source-code compilation.
 
 ### Current interface highlights
 
-- Installed-channel inventory for fitted sensors, switches, relays, PWM outputs, and servo/ESC outputs
-- Automatic shared-I²C discovery for TCA9554 digital I/O, TLA2528 analog inputs, and NAU7802 torque/thrust load cells
-- One shared SPI setup for MAX6675/MAX31855/MAX31856 thermocouple interfaces, plus native OneWire DS18B20 support
-- Optional flash-time PCB profiles that replace raw GPIO setup with board-labelled, capability-filtered connections
-- Per-pump oil-flow monitoring, electric drain-valve sequencing/controllers, and calibrated torque/thrust measurement
-- Simple and rate-predictive gradual fuel limiting for N1, N2, TOT/TIT, P1, P2, and torque, backed by independent hard trips
-- A consistent, theme-aware interface across Hardware, Controllers, System, Calibration, Sequence, Log, and Tools, while the live Dashboard stays compact
-- Dedicated Controllers and System workspaces that open on the configured system, with Explore all features and Changed views
-- Startup, shutdown, afterburner, and custom sequence blocks with final-state previews
-- Simple threshold/hysteresis and direct input-to-variable-output controls on Controllers
-- Guided calibration, standby-only actuator tests, stable live ECU loop diagnostics, complete engine-file backup/restore, event logs, and per-run session data
+- Configure fitted sensors, switches and relay/PWM/servo outputs; optional PCB profiles use labelled ports instead of raw GPIOs.
+- Use native inputs, SPI thermocouples, OneWire DS18B20 and discovered I²C devices, including NAU7802 load cells. See the [hardware guide](https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/hardware/) for supported interfaces.
+- Configure fuel and oil control, idle/governing, threshold controls and input-to-output mapping. Gradual limiting and hard shutdowns have separate settings.
+- Build startup/shutdown sequences, calibrate signals and run bounded output tests before operating.
+- Monitor readings, inspect event/run logs and back up the complete engine configuration.
 
-The setup flow is **Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard**. Hardware says what physically exists; Controllers shows what owns each output; System contains ECU-wide runtime and communications settings; Sequence owns ordered transitions.
+Setup order: **Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard**. The [guided builds](https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/guided-builds/) show wiring, configured cards and checks for each addition.
 
 ## What you need
 

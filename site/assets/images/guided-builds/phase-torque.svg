@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Torque from shaft twist</title><desc id="desc">Two matching conditioned pulse trains from separate points on one shaft; no shared bus.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Torque from shaft twist</text>
+<text x="30" y="76" class="small" text-anchor="start">Two matching conditioned pulse trains from separate points on one shaft; no shared bus.</text>
+<rect x="35" y="135" width="280" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="175.0" y="167" class="" text-anchor="middle">Reference pickup</text>
+<rect x="35" y="330" width="280" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="175.0" y="362" class="" text-anchor="middle">Phase pickup</text>
+<rect x="685" y="135" width="280" height="335" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="825.0" y="167" class="" text-anchor="middle">ESP32 Torque input</text>
+<text x="55" y="213" class="small" text-anchor="start">3.3 V square wave</text>
+<text x="55" y="408" class="small" text-anchor="start">3.3 V square wave</text>
+<polyline points="315,235 685,235" class="net" stroke="#74dcb7"/>
+<text x="705" y="225" class="" text-anchor="start">Reference GPIO</text>
+<polyline points="315,430 685,430" class="net" stroke="#74dcb7"/>
+<text x="705" y="420" class="" text-anchor="start">Phase GPIO</text>
+<text x="355" y="285" class="small" text-anchor="start">Same torque-carrying shaft</text>
+<text x="355" y="320" class="small" text-anchor="start">Matching pulses / revolution</text>
+<text x="355" y="355" class="small" text-anchor="start">Running zero + known torque</text>
+<text x="35" y="510" class="small" text-anchor="start">Conditioner supply and ground follow the exact sensor interface. Never feed raw VR into GPIO.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

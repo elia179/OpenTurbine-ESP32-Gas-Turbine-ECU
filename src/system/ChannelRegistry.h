@@ -314,7 +314,19 @@ public:
             return c.i2cAddress == 0x2A && c.deviceChannel < 2;
         return c.pin >= 0 || (c.physicalPortId[0] && c.physicalModeId[0]);
     }
-    struct Binding { char key[20] = {}; char channelId[20] = {}; };
+    // Built-in keys include primary_secondary_igniter (25 bytes including NUL).
+    // They are not channel IDs and must not use the shorter channel-ID buffer.
+    struct Binding { char key[32] = {}; char channelId[20] = {}; };
+    static const char* canonicalBindingKey(const char* key) {
+        // Repair only the unambiguous 19-character prefixes saved by the old
+        // buffer. Keep arbitrary custom keys intact; never truncate new keys.
+        if (strlen(key) == 19) {
+            for (const char* full : {"starter_enable_output", "primary_scavenge_pump",
+                                     "primary_aux_fuel_pump", "primary_secondary_igniter"})
+                if (!strncmp(key, full, 19)) return full;
+        }
+        return key;
+    }
 
     Channel inputs[MAX_INPUT_CHANNELS] = {};
     Channel outputs[MAX_OUTPUT_CHANNELS] = {};
@@ -584,11 +596,23 @@ public:
         root["output_capacity"] = MAX_OUTPUT_CHANNELS;
         JsonArray in = root["inputs"].to<JsonArray>(), out = root["outputs"].to<JsonArray>(), bind = root["bindings"].to<JsonArray>();
         write(in, inputs, inputCount); write(out, outputs, outputCount);
-        for (uint8_t i=0;i<bindingCount;i++) { JsonObject b=bind.add<JsonObject>(); b["key"]=bindings[i].key; b["channel"]=bindings[i].channelId; }
+        for (uint8_t i=0;i<bindingCount;i++) { JsonObject b=bind.add<JsonObject>(); b["key"]=JsonString(bindings[i].key); b["channel"]=JsonString(bindings[i].channelId); }
     }
     bool fromJson(JsonObjectConst root) {
         clear(); if (!read(root["inputs"], Input) || !read(root["outputs"], Output)) return false;
-        for (JsonObjectConst b : root["bindings"].as<JsonArrayConst>()) { if (bindingCount >= MAX_BINDINGS) return false; Binding& x=bindings[bindingCount++]; strlcpy(x.key,b["key"]|"",sizeof(x.key)); strlcpy(x.channelId,b["channel"]|"",sizeof(x.channelId)); }
+        for (JsonObjectConst b : root["bindings"].as<JsonArrayConst>()) {
+            if (bindingCount >= MAX_BINDINGS) return false;
+            Binding& x = bindings[bindingCount];
+            const char* key = canonicalBindingKey(b["key"] | "");
+            const char* channel = b["channel"] | "";
+            if (!key[0] || strlen(key) >= sizeof(x.key) || !validId(channel)) {
+                strlcpy(_validationError, "Binding key or channel ID is invalid or too long", sizeof(_validationError));
+                return false;
+            }
+            strlcpy(x.key, key, sizeof(x.key));
+            strlcpy(x.channelId, channel, sizeof(x.channelId));
+            ++bindingCount;
+        }
         return validate();
     }
     bool boundToCoreOutput(const Channel& c) const {
@@ -1001,7 +1025,9 @@ private:
                rangeValid(c);
     }
     bool bindingValid(const Binding& b) const {
-        if (!validId(b.key)) return false;
+        if (!b.key[0] || strlen(b.key) >= sizeof(b.key)) return false;
+        for (const char* p = b.key; *p; ++p)
+            if (!(isalnum(*p) || *p == '_' || *p == '-')) return false;
         Direction expected = Input;
         bool known = false;
         if (!strcmp(b.key, "primary_n1") || !strcmp(b.key, "primary_n2") ||
@@ -1121,10 +1147,12 @@ private:
     static void write(JsonArray a, const Channel* list, uint8_t n) {
         for (uint8_t i = 0; i < n; i++) {
             const Channel& c = list[i]; JsonObject o = a.add<JsonObject>();
-            o["id"] = c.id; o["name"] = c.name; o["role"] = c.role; o["purpose"] = c.purpose; o["driver"] = (uint8_t)c.driver; o["pin"] = c.pin;
+            // Fixed const arrays are not string literals. Own the snapshot's
+            // identity bytes so validating/applying it cannot mutate its input.
+            o["id"] = JsonString(c.id); o["name"] = JsonString(c.name); o["role"] = JsonString(c.role); o["purpose"] = JsonString(c.purpose); o["driver"] = (uint8_t)c.driver; o["pin"] = c.pin;
             if (c.physicalPortId[0]) {
-                o["physical_port"] = c.physicalPortId;
-                o["physical_mode"] = c.physicalModeId;
+                o["physical_port"] = JsonString(c.physicalPortId);
+                o["physical_mode"] = JsonString(c.physicalModeId);
             }
             if (c.driver >= I2cDigital) {
                 o["i2c_address"] = c.i2cAddress; o["device_channel"] = c.deviceChannel;
@@ -1183,7 +1211,7 @@ private:
                 o["temp_interface"] = c.temperatureInterface;
                 o["spi_clk"] = c.spiClk; o["spi_cs"] = c.spiCs;
                 o["spi_miso"] = c.spiMiso; o["spi_mosi"] = c.spiMosi;
-                o["tc_type"] = c.tcType;
+                o["tc_type"] = JsonString(c.tcType);
                 o["temp_resolution"] = c.temperatureResolution;
                 o["ntc_beta"] = c.thermistorBeta;
                 o["ntc_r0"] = c.thermistorR0;
@@ -1195,7 +1223,7 @@ private:
             // not equivalent to omission and must survive save/reboot.
             if (c.safeDemand != 0.0f || !strcmp(c.purpose, "prop_pitch"))
                 o["safe_demand"] = c.safeDemand;
-            if (c.mirrorOf[0]) o["mirror_of"] = c.mirrorOf;
+            if (c.mirrorOf[0]) o["mirror_of"] = JsonString(c.mirrorOf);
             if (c.forceSafeOnFault) o["force_safe_on_fault"] = true;
             if (c.minimumRunDemand != 0.0f) o["min_run_demand"] = c.minimumRunDemand;
             if (c.pwmTimingConfigured) { o["pwm_freq_hz"] = c.pwmFrequency; o["pwm_res_bits"] = c.pwmResolution; }
@@ -1226,7 +1254,7 @@ private:
             if (c.hasFlowMonitor) {
                 o["has_flow_monitor"] = true;
                 o["minimum_flow_l_min"] = c.minimumFlow;
-                if (c.flowInputId[0]) o["flow_input"] = c.flowInputId;
+                if (c.flowInputId[0]) o["flow_input"] = JsonString(c.flowInputId);
             }
         }
     }

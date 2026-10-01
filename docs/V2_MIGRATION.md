@@ -54,7 +54,7 @@ assume an older setup remains valid.
 
 Run the full v2 dry commissioning path:
 
-**Hardware → Config → Calibration → Sequence/Rules → Tools → Dashboard/Log**
+**Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard/Log**
 
 Verify physical direction and safe state for every output, sensor-loss behavior,
 hard safety trips, overlapping limiters/controllers, shutdown order, reboot

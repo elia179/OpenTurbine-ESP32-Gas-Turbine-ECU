@@ -198,6 +198,11 @@ float Config::idleRpmLimit          = 60000;
 float Config::idleMaxMultiplier     = 1.50f;
 bool  Config::idleUseN2             = ConfigInternal::idleUseN2Default;
 int   Config::idleSource            = ConfigInternal::idleUseN2Default ? 1 : 0;
+int   Config::fuelIdleMode          = 0;
+float Config::fuelIdleFixedPct      = 0.0f;
+char  Config::fuelIdleInputId[20]    = {};
+float Config::fuelIdleInputLow      = 0.0f;
+float Config::fuelIdleInputHigh     = 1.0f;
 float Config::idleTargetPressure    = 1.0f;
 float Config::idlePressureDeadband  = 0.03f;
 float Config::idlePressureLimit     = 2.0f;
@@ -903,6 +908,17 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(poly["x_max"], 0.0f, 4095.0f))) return false;
 
     JsonVariantConst di = doc["dynamic_idle"];
+    if (!validInt(di["fuel_mode"], 0, 4) ||
+        !validNumber(di["fixed_fuel_pct"], 0.0f, 100.0f) ||
+        !validOptionalStableId(di["input_id"], sizeof(Config::fuelIdleInputId)) ||
+        !validNumber(di["input_low"], -1000000000.0f, 1000000000.0f) ||
+        !validNumber(di["input_high"], -1000000000.0f, 1000000000.0f)) return false;
+    if ((di["fuel_mode"] | 0) == 3 && (di["input_id"] | "")[0]) {
+        if ((di["input_low"] | 0.0f) == (di["input_high"] | 1.0f)) return false;
+        if (validateHardwareDependencies &&
+            !validRuleId(di["input_id"], sizeof(Config::fuelIdleInputId),
+                         ConfigInternal::ruleSourceHandle, ruleSensorAvailable)) return false;
+    }
     if (present(di) && (!di.is<JsonObjectConst>() ||
         !validNumber(di["target_rpm"], 0.0f, 1000000000.0f) ||
         !validNumber(di["ramp_up_ms"], 0.0f, 3600000.0f) ||
@@ -1480,7 +1496,10 @@ bool Config::sanitizeForHardware() {
         if (r.actuator == RulesEngine::THROTTLE) {
             const float calibratedMinimum = constrain(fuelPumpMinPct / 100.0f, 0.0f, 1.0f);
             if (r.onValue > 0.0f) r.onValue = max(r.onValue, calibratedMinimum);
-            r.outputMin = max(r.outputMin, calibratedMinimum);
+            // Explicit Idle Off permits an intentional zero at throttle low.
+            // Keep legacy mapping and all nonzero pump minima unchanged.
+            if (fuelIdleMode != 1 || r.outputMin > 0.0f)
+                r.outputMin = max(r.outputMin, calibratedMinimum);
             r.outputMax = max(r.outputMax, r.outputMin);
         }
         if (r.actuator != 13 && r.actuator != 14)
@@ -1986,6 +2005,10 @@ void Config::toJson(JsonDocument& doc) {
 
 bool Config::validateJson(const JsonDocument& doc) {
     if (!validateSettingsDoc(doc, true)) return false;
+    const int fuelMode = doc["dynamic_idle"]["fuel_mode"] | 0;
+    if (fuelMode == 3 && !(doc["dynamic_idle"]["input_id"] | "")[0] &&
+        !HardwareConfig::hasIdleInput) return false;
+    if (fuelMode == 4 && !HardwareConfig::hasDynamicIdle) return false;
     if (HardwareConfig::hasDynamicIdle) {
         const int source = doc["dynamic_idle"]["source"] | 0;
         if ((source == 0 && !HardwareConfig::hasN1Rpm) ||
@@ -2009,6 +2032,12 @@ bool Config::validateJsonValues(const JsonDocument& doc) {
 }
 
 bool Config::validateRuntimeHardwareDependencies() {
+    if (fuelIdleMode == 3) {
+        if (fuelIdleInputId[0]) {
+            const int8_t sensor = ConfigInternal::ruleSourceHandle(fuelIdleInputId);
+            if (sensor < 0 || !ruleSensorAvailable((uint8_t)sensor)) return false;
+        } else if (!HardwareConfig::hasIdleInput) return false;
+    }
     auto sequenceContains = [](char sequence[][24], int count, const char* name) {
         for (int i = 0; i < count; ++i) if (!strcmp(sequence[i], name)) return true;
         return false;

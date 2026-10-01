@@ -1,11 +1,25 @@
 ---
 layout: default
 ---
-<article class="document shell">
-  <header class="document-header">
-    <p class="eyebrow">OpenTurbine guide</p>
-    <h1>{{ page.title }}</h1>
-    {% if page.lede %}<p class="lede">{{ page.lede }}</p>{% endif %}
-  </header>
-  {{ content }}
-</article>
+<div class="doc-layout shell">
+  {% assign outline = site.data.documentation.pages[page.url] %}
+  <aside class="doc-sidebar" aria-label="Documentation navigation">
+    <a class="doc-find" href="{{ '/reference/' | relative_url }}">Find a topic or setting →</a>
+    {% if outline.sections.size > 1 %}
+    <details class="doc-outline" open>
+      <summary>On this page</summary>
+      <nav aria-label="On this page"><ol>{% for section in outline.sections %}<li><a href="#{{ section.id }}">{{ section.title }}</a></li>{% endfor %}</ol></nav>
+    </details>
+    {% endif %}
+    <div class="doc-paths"><a href="{{ '/guided-builds/' | relative_url }}">Learn step by step</a><a href="{{ '/hardware/' | relative_url }}">Wiring reference</a><a href="{{ '/troubleshooting/' | relative_url }}">Fix a problem</a></div>
+  </aside>
+  <article class="document">
+    <header class="document-header">
+      <h1>{{ page.title }}</h1>
+      {% if page.lede %}<p class="lede">{{ page.lede }}</p>{% endif %}
+      <button class="reading-toggle" data-reading-toggle hidden aria-pressed="false">Hide walkthrough screenshots</button>
+    </header>
+    {{ content }}
+    <p class="doc-top"><a href="#content">Back to page top ↑</a></p>
+  </article>
+</div>

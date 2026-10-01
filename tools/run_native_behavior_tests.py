@@ -45,7 +45,37 @@ def compiler_command() -> list[str]:
         # Zig 0.16's bundled libc++ headers are intentionally annotated only
         # partially on Windows; suppress their otherwise very noisy advisory.
         return [zig, "c++", "-Wno-nullability-completeness"]
+    # Run from a Visual Studio developer environment so SDK headers/libs and
+    # the linker are available. Do not silently install or substitute a compiler.
+    msvc = shutil.which("cl")
+    if msvc:
+        return [msvc]
     raise SystemExit("A C++17 host compiler is required for native behavior tests")
+
+
+def compile_command(compiler: list[str], flags: list[str]) -> list[str]:
+    """Use the same host-test inputs with either GCC-compatible tools or MSVC."""
+    if Path(compiler[0]).name.lower() not in ("cl", "cl.exe"):
+        return compiler + flags
+    converted = ["/nologo", "/EHsc", "/MD", "/utf-8"]
+    iterator = iter(flags)
+    for flag in iterator:
+        if flag == "-std=c++17":
+            converted.append("/std:c++17")
+        elif flag == "-pthread":
+            continue  # MSVC's multithreaded runtime is selected by /MD.
+        elif flag == "-I":
+            converted.append("/I" + next(iterator))
+        elif flag.startswith("-D"):
+            converted.append("/D" + flag[2:])
+        elif flag == "-o":
+            output = Path(next(iterator))
+            converted.extend(["/Fe" + str(output), "/Fo" + str(output.parent) + os.sep])
+        elif flag.startswith("-"):
+            raise ValueError(f"Unsupported MSVC host-test flag: {flag}")
+        else:
+            converted.append(flag)
+    return compiler + converted
 
 
 def arduino_json_include() -> Path:
@@ -110,7 +140,7 @@ def main() -> int:
                 "feedback_control": "feedback_control_behavior",
             }.get(name, name)
             exe = Path(tmp) / (exe_name + (".exe" if os.name == "nt" else ""))
-            subprocess.run(compiler + [
+            subprocess.run(compile_command(compiler, [
                 "-std=c++17", "-pthread",
                 "-I", str(ROOT / "dev" / "host" / "fakes"),
                 "-I", str(ROOT),
@@ -118,7 +148,7 @@ def main() -> int:
                 *extra_flags,
                 *sources,
                 "-o", str(exe),
-            ], check=True)
+            ]), check=True)
             run_fresh_executable([str(exe)], label=name)
     return 0
 

@@ -1581,6 +1581,8 @@ expect('factory auxiliary-output bindings use the fitted registry IDs',
   !hwConfig.includes('"primary_scavenge_pump", "oil_scavenge_main"') &&
   !hwConfig.includes('"primary_cooling_fan", "cooling_fan_main"') &&
   !hwConfig.includes('"primary_bleed_valve", "bleed_valve_main"'));
+expect('oil controller JSON snapshots own IDs before runtime arrays are reset',
+  read('src/system/HardwareConfigSerialize.cpp').includes('o["id"] = JsonString(l.id);'));
 expect('fresh factory sequences expose simple device commands as editable Set Output blocks',
   hwConfig.includes('auto modernizeDefaultActions =') &&
   hwConfig.includes('strlcpy(names[i], "SetOutput"') &&

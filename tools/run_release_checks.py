@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 
-from run_native_behavior_tests import compiler_command, run_fresh_executable
+from run_native_behavior_tests import compiler_command, compile_command, run_fresh_executable
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,7 +85,7 @@ def main() -> int:
     with tmp_context as tmp:
         compiler = compiler_command()
         sensor_exe = str(Path(tmp) / ("sensor_vectors.exe" if os.name == "nt" else "sensor_vectors"))
-        run("extended real sensor protocol vectors", compiler + ["-std=c++17", "tools/sensor_protocol_vectors.cpp", "-o", sensor_exe])
+        run("extended real sensor protocol vectors", compile_command(compiler, ["-std=c++17", "tools/sensor_protocol_vectors.cpp", "-o", sensor_exe]))
         print("\n=== execute extended sensor protocol vectors ===", flush=True)
         run_fresh_executable([sensor_exe], cwd=ROOT, label="sensor vectors")
     run(

@@ -14,6 +14,22 @@ def policy_block():
 
 
 class FreshExecutableTests(unittest.TestCase):
+    def test_gcc_compile_inputs_are_unchanged(self):
+        flags = ["-std=c++17", "-pthread", "-I", "fakes", "-DTEST", "probe.cpp", "-o", "probe"]
+        self.assertEqual(["g++", *flags], native.compile_command(["g++"], flags))
+
+    def test_msvc_preserves_sources_includes_definitions_and_output(self):
+        result = native.compile_command(["cl.exe"], ["-std=c++17", "-pthread", "-I", "fakes",
+                                       "-DTEST", "probe.cpp", "-o", "artifacts/probe.exe"])
+        for flag in ("/std:c++17", "/EHsc", "/MD", "/Ifakes", "/DTEST", "probe.cpp"):
+            self.assertIn(flag, result)
+        self.assertIn("/Fe" + str(Path("artifacts/probe.exe")), result)
+        self.assertIn("/Fo" + str(Path("artifacts")) + native.os.sep, result)
+
+    def test_msvc_does_not_silently_drop_unknown_flags(self):
+        with self.assertRaises(ValueError):
+            native.compile_command(["cl.exe"], ["-unknown"])
+
     @mock.patch.object(native.subprocess, "run")
     def test_clean_checkout_installs_declared_arduinojson_dependency(self, run):
         with tempfile.TemporaryDirectory() as tmp:

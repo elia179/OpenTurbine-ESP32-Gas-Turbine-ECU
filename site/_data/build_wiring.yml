@@ -1,0 +1,65 @@
+power:
+  - [ECU supply, Regulated board-rated supply, ECU power input, Use USB alone for the initial bench session; avoid unapproved dual powering.]
+  - [Load power, Load supply through fuse and independent stop, Rated driver or load, Load current must not flow through ECU traces.]
+  - [Return, Sensor and logic grounds, Deliberate supply return point, Join only nonisolated interfaces; keep load current away from sensor returns.]
+rpm:
+  - [Power, ECU 3.3 V, DRV5033 VCC, Match the actual package pinout; fit 100 nF from VCC to GND nearby.]
+  - [Return, ECU GND, Sensor GND, This bench example is not isolated.]
+  - [Pulse, Sensor OUT, N1 pulse GPIO, Open-drain output sinks the signal when the magnet is detected.]
+  - [Pull-up, ECU 3.3 V through 10 kΩ as drawn, OUT and pulse GPIO junction, "Alternatively enable Input bias → Pull-up on a suitable GPIO for short bench wiring. Classic GPIO34–39 have no internal bias; use an external resistor there. Check pulse quality at maximum speed."]
+thermocouple:
+  - [Probe, K-type thermocouple + and −, Module thermocouple + and −, Observe polarity and the correct thermocouple connector materials.]
+  - [Power, ECU 3.3 V, 3.3 V-compatible module VCC, Check breakout circuitry; a module VIN label is not necessarily the chip VCC.]
+  - [Return, ECU GND, Module GND, Use the module and probe grounding arrangement specified by their manufacturer.]
+  - [Clock, Shared SPI clock GPIO, Module CLK or SCK, This is the shared clock selected in Hardware.]
+  - [Data, Module DO or MISO, Shared SPI input GPIO, MAX31855 sends temperature data to the ECU.]
+  - [Select, Module CS, Unique chip-select GPIO, Each converter has its own CS; MAX31855 does not need MOSI.]
+throttle:
+  - [High end, ECU 3.3 V, One end of 10 kΩ linear potentiometer, Do not substitute the 5 V board pin.]
+  - [Low end, ECU GND, Other end of potentiometer, Use Invert input on Hardware if the command moves backwards.]
+  - [Demand, Potentiometer wiper, Suitable ADC GPIO, Identify the wiper with a meter and calibrate both endpoints.]
+servo:
+  - [Command, Servo or ESC GPIO, Device signal input, Use a controller documented to accept 3.3 V pulses or a suitable buffer.]
+  - [Reference, ECU GND, Device signal ground and external supply −, For this nonisolated example the pulse needs a common reference.]
+  - [Power, Separate device-rated regulated supply +, Servo power +, GPIO and ECU 3.3 V do not power the servo.]
+  - [ESC power, Fused motor supply, ESC power terminals, Follow the ESC instructions; avoid feeding an unknown BEC voltage into ECU rails.]
+pwm:
+  - [Command, PWM GPIO, Driver IN, The driver must accept 3.3 V logic and the selected PWM frequency.]
+  - [Reference, ECU GND, Driver logic GND, This figure assumes a nonisolated low-side driver.]
+  - [Load +, Fused supply through independent stop, Load positive terminal, Use the load and driver rated supply and wiring.]
+  - [Load −, Load negative terminal, Driver switched LOAD − terminal, Module terminal names differ; check the module schematic.]
+  - [Power return, Driver power GND, Load supply − at the return point, Keep this current out of the ECU ground path.]
+  - [Logic supply, Module-rated supply if the driver needs one, Driver VCC if fitted, The simplified figure omits a separate VCC for drivers that do not require it.]
+relay:
+  - [Command, On/off GPIO, Relay module IN, Confirm active-high or active-low behavior with switched load power disconnected.]
+  - [Coil power, Module-rated regulated supply +, Module VCC, The GPIO does not energize the coil directly.]
+  - [Reference, ECU GND and module supply −, Module GND, This is a nonisolated example; follow different wiring for isolated modules.]
+  - [Switched supply, Fused load supply +, Relay COM, COM is the contact common; it is not module VCC.]
+  - [Switched output, Relay NO, Lamp or load +, NO means normally open; confirm contact ratings for the actual load.]
+  - [Load return, Lamp or load −, Load supply −, NC is unused in this lamp example; actual valve logic may differ.]
+pressure:
+  - [Sensor power, Manufacturer-specified regulated supply, Sensor VCC, Verify the sensor model and supply requirements before wiring.]
+  - [Ground, Sensor GND, ECU GND and supply reference, The example is nonisolated.]
+  - [Divider top, Sensor OUT through 15 kΩ, ADC node, The example assumes a known 0.5–4.5 V output; scale factor is 0.4.]
+  - [Divider bottom, ADC node through 10 kΩ, GND, Normal ADC voltage is 0.2–1.8 V; verify with a meter first.]
+  - [ADC, Divider junction, Chosen ADC GPIO, Add protection and filtering appropriate to actual fault voltages and noise.]
+voltage:
+  - [Source, Isolated 12 V nominal battery + through fused lead and 68 kΩ, ADC node, Source must stay at or below 16 V; no charger or inductive loads attached.]
+  - [Divider return, ADC node through 12 kΩ, Source − and ECU GND, ADC voltage is 0.15 times the source; Hardware divider ratio is 6.6667.]
+  - [ADC, Divider junction, Chosen ADC GPIO, Add 100 nF from the junction to GND for this slow bench measurement.]
+current:
+  - [Power path, Fused 5 V bench source +, 0.1 Ω shunt then low-power load +, Limit the exercise to 0–1 A; use a shunt rated at least 0.5 W.]
+  - [Sense +, Supply side of shunt, INA180A1 IN+, Use a separate sense connection at the resistor terminal.]
+  - [Sense −, Load side of shunt, INA180A1 IN−, Reversed sense polarity cannot measure positive current correctly.]
+  - [Amplifier supply, ECU 3.3 V, Amplifier VS, Fit 100 nF between VS and GND close to the amplifier.]
+  - [Ground, Amplifier GND and load supply −, ECU reference GND at return point, The high-current path does not go through the ECU board.]
+  - [Measurement, Amplifier OUT, Current sensor ADC GPIO, Gain 20 times 0.1 Ω gives nominal 2 V/A; calibrate actual zero and sensitivity.]
+switch:
+  - [Signal, Chosen input GPIO, One dry-contact terminal, A dry contact supplies no voltage of its own.]
+  - [Bias, Internal pull-up enabled in Hardware, Chosen input GPIO, Open contact reads high; closed contact reads low. Use an external pull-up on pins without internal bias.]
+  - [Return, Other dry-contact terminal, ECU GND, Configure active-low if closed should mean active.]
+temperature:
+  - [Supply, ECU 3.3 V, DS18B20 VDD, Use externally powered three-wire mode for this example.]
+  - [Data, OneWire GPIO, DS18B20 DQ, This is separate from the SPI thermocouple bus.]
+  - [Pull-up, ECU 3.3 V through 4.7 kΩ, DQ junction, Fit the external resistor.]
+  - [Return, ECU GND, DS18B20 GND, Confirm probe lead colors from its supplier; colors are not a pinout standard.]

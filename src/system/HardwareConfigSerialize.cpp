@@ -270,7 +270,10 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     for (uint8_t i = 0; i < oilLoopCount; i++) {
         const auto& l = oilLoops[i];
         auto o = loops.add<JsonObject>();
-        o["id"] = l.id;
+        // l is const: ArduinoJson treats its fixed char array like a literal
+        // and otherwise borrows it. Applying this snapshot clears oilLoops
+        // before reading IDs back, so the document must own these bytes.
+        o["id"] = JsonString(l.id);
         o["enabled"] = l.enabled;
         o["pressure_input"] = l.pressureInputIndex < channelRegistry.inputCount
             ? channelRegistry.inputs[l.pressureInputIndex].id : "";

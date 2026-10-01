@@ -39,7 +39,7 @@ public:
 
     void tick() override {
         auto& ed = EngineData::instance();
-        if (!ed.dynamicIdleEnabled) {
+        if (!ed.dynamicIdleEnabled || (Config::fuelIdleMode != 0 && Config::fuelIdleMode != 4)) {
             ed.dynamicIdleFloorDemand = 0.0f;
             setState(ed, "Off"); reset(); return;
         }

@@ -30,8 +30,9 @@ def check_ecu(base, verify_hardware=True):
     info = read('/api/device_info')
     data = read('/api/data')
     hardware = read('/api/hardware') if verify_hardware else None
-    if info.get('target') != 'esp32dev' or info.get('firmware_version') not in ('2.4.3-dev', '2.4.3'):
-        raise RuntimeError('the connected ECU is not the expected Classic 2.4.3 bench target')
+    expected_version = (pathlib.Path(__file__).resolve().parents[1] / 'src/system/version.h').read_text(encoding='utf-8').split('OT_VERSION')[1].split('"')[1]
+    if info.get('target') != 'esp32dev' or info.get('firmware_version') not in (expected_version + '-dev', expected_version):
+        raise RuntimeError(f'the connected ECU is not the expected Classic {expected_version} bench target')
     if info.get('state') != 'STANDBY' or info.get('outputs_active'):
         raise RuntimeError('ECU is not in STANDBY with all outputs inactive')
     if data.get('rpm_limit_active') or data.get('n2_limit_active'):

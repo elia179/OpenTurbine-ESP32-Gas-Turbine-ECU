@@ -153,6 +153,7 @@ class DUT:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
+                errors="replace",
                 timeout=5,
                 check=False,
             ).stdout
@@ -161,6 +162,7 @@ class DUT:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
+                errors="replace",
                 timeout=5,
                 check=False,
             ).stdout
@@ -193,8 +195,7 @@ class DUT:
             subprocess.run(
                 ["netsh", "wlan", "connect",
                  "name=" + self.wifi_profile,
-                 "ssid=" + self.wifi_profile,
-                 "interface=Wi-Fi"],
+                 "ssid=" + self.wifi_profile],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=8,

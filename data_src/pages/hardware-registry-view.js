@@ -344,9 +344,9 @@ function registryReferenceSummary(direction, id) {
 }
 function registryImpactDisplay(text) {
   const s = String(text || '');
-  if (/registry binding/i.test(s)) return 'Core firmware: controller binding';
+  if (/registry binding|custom controller reference/i.test(s)) return '';
   if (/oil loop/i.test(s)) return 'Controller: oil pressure loop';
-  if (/sequence side action/i.test(s)) return 'Sequencer: side action';
+  if (/sequence side action/i.test(s)) return 'Sequence actions';
   if (/custom block/i.test(s)) return 'Sequencer: custom block';
   if (/control rule/i.test(s)) return `Simple controls: ${s}`;
   return s;
@@ -354,11 +354,15 @@ function registryImpactDisplay(text) {
 function registryCurrentUsers(direction, id) {
   const rows = registryRoot()[direction + 's'] || [];
   const channel = rows.find(c => String(c?.id || '') === String(id || ''));
+  const controllers = (settingsCfg?.rules || [])
+    .filter(rule => registryRuleReferencesChannel(rule, direction, channel))
+    .map(rule => `Controller: ${rule.name || 'Custom controller'}`);
   const mirrors = direction === 'output' ? (registryRoot().outputs || [])
     .filter(row => String(row?.mirror_of || '') === String(id || ''))
     .map(row => `Mirrored output: ${registryDisplayName('output', row, row.id)}`) : [];
   return [...new Set([
     ...registryRoleUsage(direction, channel),
+    ...controllers,
     ...registryRemovalImpact(direction, id).map(registryImpactDisplay),
     ...mirrors
   ].filter(Boolean))];
@@ -423,8 +427,6 @@ function registryRoleUsage(direction, c) {
   const uses = new Set();
   const purpose = registryDerivedPurpose(direction, c);
   const role = String(c.role || '');
-  const hasSettingRule = Array.isArray(settingsCfg?.rules) && settingsCfg.rules.some(rule => registryRuleReferencesChannel(rule, direction, c));
-  if (hasSettingRule) uses.add('Simple control: input or output');
   if (direction === 'input') {
     const seq = registrySequenceUsers(registryInputSequenceBlocksForPurpose(purpose));
     if (seq.length) uses.add(`Sequencer: ${seq.join(', ')}`);
@@ -461,9 +463,9 @@ function registryRoleUsage(direction, c) {
     } else if (purpose === 'idle') {
       uses.add('Controller: idle input mapping');
     } else if (purpose === 'start_switch') {
-      uses.add('Core firmware: START command');
+      uses.add('START command');
     } else if (purpose === 'stop_switch') {
-      uses.add('Core firmware: hard stop and shutdown command');
+      uses.add('STOP and shutdown command');
     }
   } else {
     const actKey = registryCoreActuatorKey(c);
@@ -911,7 +913,7 @@ function controllerInlineEditor() {
     ${cb('oil_loop', 'Oil pressure loop', 'Closed-loop oil pressure control. Requires oil pressure input and oil pump output.', !!c.oil_loop, "setController('oil_loop',this.checked)")}
     ${c.oil_loop ? oilLoopInlineEditor() : ''}
     ${hasThrottle ? `<div class="hw-item-card" style="grid-column:1/-1"><div class="registry-card-summary"><div><strong>Fuel response &amp; limit protection</strong><div class="hw-desc">Automatic with Main Fuel. Configure normal opening/closing response and N1, N2, temperature, P1, P2 or torque protection in <a href="/controllers.html#engine-limits">Controllers → Engine Limits &amp; Protection</a>.</div></div><span class="registry-status registry-status-ok">Ready</span></div></div>` : ''}
-    ${cb('dynamic_idle', 'Automatic idle control', 'Commands the main fuel output to hold N1 or N2 speed (normal proven methods), or experimental P1/P2 pressure. Choose the feedback source and tune it under Controllers -> Automatic Idle.', !!c.dynamic_idle, "setController('dynamic_idle',this.checked)")}
+    ${cb('dynamic_idle', 'Automatic idle control', 'Regulates the Running fuel floor using shaft speed or experimental pressure feedback. Configure it under Controllers > Fuel-metering support > Idle.', !!c.dynamic_idle, "setController('dynamic_idle',this.checked)")}
     ${cb('governor', 'Automatic N2 speed control', 'Generator/turboshaft: proportional main fuel controls N2. Prop Pitch uses proportional control or deliberate relay fine/coarse control. Set its target and response under Controllers -> Automatic N2 Speed Control.', !!c.governor, "setController('governor',this.checked)")}
   </div>`;
 }

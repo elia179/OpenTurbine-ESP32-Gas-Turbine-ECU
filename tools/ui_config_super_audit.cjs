@@ -411,6 +411,12 @@ async function sectionVisible(page, title) {
     await oilCard.getByLabel('Pressure target set by').selectOption('0');
     assert.equal(await oilCard.getByLabel('High pressure target (bar)').count(), 0);
     assert.equal(await oilCard.getByLabel('Pressure target (bar)').count(), 1);
+    assert.equal(await oilCard.locator(':scope > summary .controller-summary-status').textContent(), 'Enabled');
+    await page.evaluate(() => updateControllerOilLoop(0,'enabled',false));
+    assert.equal(await oilCard.locator(':scope > summary .controller-summary-status').textContent(), 'Disabled');
+    assert.equal(await oilCard.getByText('Oil Pressure Control', {exact:true}).count() > 0, true,
+      'a disabled pressure controller remains visible for review');
+    await page.evaluate(() => updateControllerOilLoop(0,'enabled',true));
     results.push('per-pump oil-pressure controller settings live inside the owning Oil Pump card and follow the selected target source');
 
     await reset(page);

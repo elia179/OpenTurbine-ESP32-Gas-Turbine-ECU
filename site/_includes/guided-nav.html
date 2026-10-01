@@ -1,0 +1,7 @@
+<nav class="build-level-nav" aria-label="Guided build levels">
+  <a href="{{ '/guided-builds/' | relative_url }}">Choose a level</a>
+  <a href="{{ '/guided-builds/basic/' | relative_url }}"{% if page.build_level == 1 %} aria-current="page"{% endif %}>1 · Basic system</a>
+  <a href="{{ '/guided-builds/control/' | relative_url }}"{% if page.build_level == 2 %} aria-current="page"{% endif %}>2 · Control and protection</a>
+  <a href="{{ '/guided-builds/extend/' | relative_url }}"{% if page.build_level == 3 %} aria-current="page"{% endif %}>3 · Extend your system</a>
+</nav>
+{% if page.build_level %}<p class="build-screen-note">Select an image to enlarge; close with <strong>Close</strong> or <strong>Escape</strong>. Diagrams show connections, not physical pin order. Screenshots use simulated hardware, not verified engine settings. <strong>Hide walkthrough screenshots</strong> gives a compact read.</p>{% endif %}

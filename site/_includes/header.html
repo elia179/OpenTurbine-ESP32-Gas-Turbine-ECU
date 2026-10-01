@@ -4,7 +4,7 @@
     <button class="menu-button" aria-expanded="false" aria-controls="site-nav">Menu</button>
     <nav id="site-nav" aria-label="Main navigation">
       {% for item in site.data.navigation %}
-        <a{% if item.primary %} class="button small"{% endif %}{% unless item.url contains '://' %}{% if page.url == item.url %} aria-current="page"{% endif %}{% endunless %} href="{% if item.url contains '://' %}{{ item.url }}{% else %}{{ item.url | relative_url }}{% endif %}">{{ item.label }}{% if item.url contains '://' and item.label == 'GitHub' %}<span class="sr-only"> (external)</span>{% endif %}</a>
+        <a{% if item.primary %} class="button small"{% endif %}{% unless item.url contains '://' %}{% if page.url == item.url or item.url == '/guided-builds/' and page.build_level %} aria-current="page"{% endif %}{% endunless %} href="{% if item.url contains '://' %}{{ item.url }}{% else %}{{ item.url | relative_url }}{% endif %}">{{ item.label }}{% if item.url contains '://' and item.label == 'GitHub' %}<span class="sr-only"> (external)</span>{% endif %}</a>
       {% endfor %}
     </nav>
   </div>

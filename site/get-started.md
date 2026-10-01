@@ -7,6 +7,8 @@ lede: The normal installation does not require Git, PlatformIO or source-code co
 
 {% include safety-note.html %}
 
+After installation, choose a level in [Guided Builds]({{ '/guided-builds/' | relative_url }}) to connect and configure one item at a time. Start with the basic level if electronics or the Hardware page is new to you.
+
 ## 1. Prepare the board
 
 You need:
@@ -60,8 +62,8 @@ OpenTurbine does not require one fixed engine layout. Describe only the sensors 
 
 **Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard**
 
-The [basic single-shaft example]({{ '/example-system/' | relative_url }}) is a compact way to explore how those pages fit together. The [complete User Guide]({{ '/user-guide/' | relative_url }}) explains every stage, including sensor wiring, actuator drivers, output ownership, safety functions, ECU-wide settings, calibration and sequences.
+Start with [Level 1: build a basic system]({{ '/guided-builds/basic/' | relative_url }}) for wiring, configured cards and checks in order. The [complete User Guide]({{ '/user-guide/' | relative_url }}) is the detailed reference; the [single-shaft overview]({{ '/example-system/' | relative_url }}) shows the overall relationships.
 
 Do not connect fuel or ignition energy until the independent stop and every configured shutdown path have been dry-tested.
 
-<p class="document-nav"><a href="{{ '/example-system/' | relative_url }}">Explore the example system</a><a href="{{ '/user-guide/' | relative_url }}">Open the User Guide</a><a href="{{ '/hardware/' | relative_url }}">Hardware requirements</a><a href="{{ '/troubleshooting/' | relative_url }}">Troubleshooting</a></p>
+<p class="document-nav"><a href="{{ '/guided-builds/basic/' | relative_url }}">Begin Level 1</a><a href="{{ '/user-guide/' | relative_url }}">Open the User Guide</a><a href="{{ '/hardware/' | relative_url }}">Hardware requirements</a><a href="{{ '/troubleshooting/' | relative_url }}">Troubleshooting</a></p>

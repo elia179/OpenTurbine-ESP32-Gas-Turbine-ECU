@@ -33,6 +33,8 @@ configuration.
 
 ## Integrations
 
+- [`GUIDED_BUILDS_MAINTENANCE.md`](GUIDED_BUILDS_MAINTENANCE.md) — maintaining the three-level public learning path, wiring diagrams, screenshot fixtures and Pages browser checks.
+
 - [`OTC_CLUSTER_PROTOCOL.md`](OTC_CLUSTER_PROTOCOL.md) — complete OpenTurbine Cluster wire protocol
 - [`../examples/cluster/README.md`](../examples/cluster/README.md) — practical cluster/companion-device implementation guide
 - [`../examples/OTCClusterClient.h`](../examples/OTCClusterClient.h) — reusable Arduino/ESP32 OTC client
@@ -78,3 +80,7 @@ Before publishing a release:
 8. Perform the physical ECU bench campaign required by the changed control paths.
 9. Confirm the firmware, package manifest, changelog, release title, and website all identify `2.4.3`.
 10. Publish `OpenTurbineSetupTool.exe`, `OpenTurbine_Recommended.zip`, and their SHA-256 files under the exact stable asset names required by the release workflow and Setup Tool.
+
+## Website documentation maintenance
+
+See [GUIDED_BUILDS_MAINTENANCE.md](GUIDED_BUILDS_MAINTENANCE.md) for regeneration, screenshots, shared navigation, and Pages checks; [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md) records the latest review.

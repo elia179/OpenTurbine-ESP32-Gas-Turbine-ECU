@@ -13,6 +13,7 @@
 //  invalid; fixed-output rules need no input. Deletion releases ownership.
 // ============================================================
 #include "Config.h"
+#include "ConfigInternal.h"
 #include "FeedbackControlMath.h"
 #include "HardwareConfig.h"
 #include "../engine/EngineData.h"
@@ -167,22 +168,22 @@ public:
             // can contain yesterday's idle floor and prevent an idle source
             // from backing down.
             if (r.actuator == THROTTLE && ed.mode == SysMode::RUNNING) {
-                float idleFloor = 0.0f;
-                if (HardwareConfig::hasDynamicIdle) {
-                    idleFloor = ed.dynamicIdleFloorDemand;
-                } else if (_sensorUsable(IDLE_INPUT, ed)) {
-                    idleFloor = IdleFuelFloor::fromOperator(
-                        _readSensor(IDLE_INPUT, ed),
-                        Config::fuelPumpMinPct / 100.0f,
-                        Config::throttleIdleMaxPct / 100.0f);
-                } else {
-                    // With no automatic or physical idle source, carry the
-                    // fixed value selected by the startup FuelPumpIdle block.
-                    idleFloor = IdleFuelFloor::boundedNonzero(
-                        ed.sequencerIdleDemand,
-                        Config::fuelPumpMinPct / 100.0f,
-                        Config::throttleIdleMaxPct / 100.0f);
-                }
+                int8_t idleSensor = IDLE_INPUT;
+                const bool explicitInput = Config::fuelIdleMode == 3 && Config::fuelIdleInputId[0];
+                if (explicitInput)
+                    idleSensor = ConfigInternal::ruleSourceHandle(Config::fuelIdleInputId);
+                const bool idleHealthy = idleSensor >= 0 && _sensorUsable((uint8_t)idleSensor, ed);
+                float idleValue = idleHealthy ? _readSensor((uint8_t)idleSensor, ed) : 0.0f;
+                if (explicitInput)
+                    idleValue = IdleFuelFloor::normalizedInput(idleValue,
+                        Config::fuelIdleInputLow, Config::fuelIdleInputHigh);
+                const float idleFloor = IdleFuelFloor::select(
+                    Config::fuelIdleMode, HardwareConfig::hasDynamicIdle,
+                    idleHealthy, ed.dynamicIdleFloorDemand,
+                    idleValue, ed.sequencerIdleDemand,
+                    Config::fuelIdleFixedPct / 100.0f,
+                    Config::fuelPumpMinPct / 100.0f,
+                    Config::throttleIdleMaxPct / 100.0f);
                 demand = IdleFuelFloor::apply(demand, idleFloor);
             }
 

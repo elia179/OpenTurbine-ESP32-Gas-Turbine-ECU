@@ -4320,6 +4320,13 @@ void WebServer::_setupRoutes() {
                 req->send(400, "application/json", g_webRxBuf);
                 return;
             }
+            // fromJson has copied all retained hardware strings and released
+            // its zero-copy parse tree. Lend the now-unused RX workspace while
+            // serializing Settings, just as bounded settings PATCH already does.
+            // Ownership remains claimed until the existing guarded reboot.
+#if defined(OT_PLATFORM_ESP32)
+            ClassicRxWorkspaceLoan hardwareSaveRxLoan;
+#endif
             Config::sanitizeForHardware();
             // Auto-fill a sane threshold for any safety just enabled (and still
             // active after sanitize) whose threshold is 0, so it isn't silently off.

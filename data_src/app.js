@@ -519,7 +519,7 @@ function pushSparkline(arr, val) {
   while (arr.length > SPARK_LEN) arr.shift();
 }
 
-function drawSparkline(canvasId, data, color) {
+function drawSparkline(canvasId, data, color, scale = null) {
   const c = document.getElementById(canvasId);
   if (!c) return;
   const ctx = c.getContext('2d');
@@ -527,18 +527,189 @@ function drawSparkline(canvasId, data, color) {
   const h = c.height = 36;
   ctx.clearRect(0, 0, w, h);
   if (!data.length) return;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
+  const max = scale ? scale.max : Math.max(...data, 1);
+  const min = scale ? scale.min : Math.min(...data, 0);
   const range = max - min || 1;
   ctx.strokeStyle = resolveCssColor(color);
   ctx.lineWidth = 2.2;
   ctx.beginPath();
   data.forEach((v, i) => {
     const x = (i / Math.max(1, data.length - 1)) * w;
-    const y = h - ((v - min) / range) * h;
+    const y = h - Math.max(0, Math.min(1, (v - min) / range)) * (h - 4) - 2;
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+}
+
+// Display-only sensor scales. They never write ECU configuration or commands.
+// Raw ADC validity endpoints are not engineering-unit ranges: do not use them
+// as a pressure/voltage scale. Auto follows recent valid readings; a reader
+// can pin a labelled engineering-unit range in this browser instead.
+const _sensorViews = new Map();
+let _sensorRanges = null;
+function sensorRangeStore() {
+  return (_sparkStorageKey || `ot_dashboard:${location.host}`) + ':display-ranges-v1';
+}
+function sensorRanges() {
+  if (_sensorRanges === null) {
+    try { _sensorRanges = JSON.parse(localStorage.getItem(sensorRangeStore()) || '{}'); }
+    catch { _sensorRanges = {}; }
+    if (!_sensorRanges || typeof _sensorRanges !== 'object' || Array.isArray(_sensorRanges)) _sensorRanges = {};
+  }
+  return _sensorRanges;
+}
+function sensorDisplayValue(value, kind) {
+  return kind === 'pressure' ? toDispPress(value) : kind === 'temperature' ? toDispTemp(value) : value;
+}
+function sensorBaseValue(value, kind) {
+  return kind === 'pressure' ? value / toDispPress(1)
+    : kind === 'temperature' ? (value - toDispTemp(0)) / (toDispTemp(1) - toDispTemp(0)) : value;
+}
+function sensorDisplayUnit(kind) {
+  return kind === 'pressure' ? dispPressUnit() : kind === 'temperature' ? dispTempUnit()
+    : ({voltage:'V',current:'A',flow:'L/min',torque:'Nm',thrust:'N',speed:'RPM',generic:'0–1'})[kind] || '';
+}
+function niceSensorCeiling(value) {
+  if (!(value > 0)) return 1;
+  const power = Math.pow(10, Math.floor(Math.log10(value)));
+  const ratio = value / power;
+  return power * (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10);
+}
+function sensorViewRange(key, values, reference = 0, normalized = false) {
+  const saved = sensorRanges()[key];
+  if (saved && Number.isFinite(saved.min) && Number.isFinite(saved.max) && saved.max > saved.min)
+    return {min:saved.min,max:saved.max,manual:true};
+  if (normalized) return {min:0,max:1,manual:false};
+  const valid = values.filter(Number.isFinite);
+  if (Number.isFinite(reference)) valid.push(reference);
+  const lo = Math.min(0,...valid), hi = Math.max(0,...valid);
+  return {min:lo < 0 ? -niceSensorCeiling(-lo * 1.1) : 0,
+    max:hi > 0 ? niceSensorCeiling(hi * 1.1) : lo < 0 ? 0 : 1,manual:false};
+}
+function openSensorRange(key, trigger) {
+  const view = _sensorViews.get(key);
+  if (!view) return;
+  let dialog = document.getElementById('sensor-range-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'sensor-range-dialog';
+    dialog.className = 'sensor-range-dialog';
+    dialog.setAttribute('aria-labelledby','sensor-range-title');
+    dialog.innerHTML = `<form><h2 id="sensor-range-title">Display range</h2>
+      <p>Changes this browser's bar and trend view only—not sensor calibration, warnings or shutdown limits.</p>
+      <div class="sensor-range-fields"><label>Low <input name="low" type="number" step="any" required></label>
+      <label>High <input name="high" type="number" step="any" required></label></div>
+      <p class="sensor-range-error" role="status"></p><div class="sensor-range-actions">
+      <button type="button" data-range-auto>Use auto range</button><button type="button" data-range-cancel>Cancel</button>
+      <button class="primary" type="submit">Save display range</button></div></form>`;
+    document.body.appendChild(dialog);
+    dialog.querySelector('[data-range-cancel]').onclick = () => dialog.close();
+    dialog.addEventListener('close', () => {
+      if (dialog._trigger?.isConnected) dialog._trigger.focus();
+      else document.querySelector(`[data-sensor-range-key="${CSS.escape(dialog._key)}"]`)?.focus();
+    });
+    dialog.querySelector('[data-range-auto]').onclick = () => {
+      delete sensorRanges()[dialog._key];
+      try { localStorage.setItem(sensorRangeStore(),JSON.stringify(sensorRanges())); } catch {}
+      dialog.close(); refreshSensorViews();
+    };
+    dialog.querySelector('form').onsubmit = event => {
+      event.preventDefault();
+      const current = _sensorViews.get(dialog._key);
+      const low = sensorBaseValue(Number(dialog.querySelector('[name="low"]').value),current.kind);
+      const high = sensorBaseValue(Number(dialog.querySelector('[name="high"]').value),current.kind);
+      if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+        dialog.querySelector('.sensor-range-error').textContent = 'High must be greater than Low.';
+        return;
+      }
+      sensorRanges()[dialog._key] = {min:low,max:high};
+      try { localStorage.setItem(sensorRangeStore(),JSON.stringify(sensorRanges())); } catch {}
+      dialog.close(); refreshSensorViews();
+    };
+  }
+  dialog._key = key; dialog._trigger = trigger;
+  const unit = sensorDisplayUnit(view.kind);
+  dialog.querySelector('h2').textContent = `${view.name} display range (${unit})`;
+  dialog.querySelector('[name="low"]').value = Number(sensorDisplayValue(view.range.min,view.kind).toPrecision(6));
+  dialog.querySelector('[name="high"]').value = Number(sensorDisplayValue(view.range.max,view.kind).toPrecision(6));
+  dialog.querySelector('.sensor-range-error').textContent = '';
+  dialog.showModal();
+}
+function renderSensorView(card, key, name, value, healthy, kind, sample, reference = 0, canvasId = '') {
+  if (!card) return;
+  const arr = registryInputSparkSeries('view:' + key);
+  const valid = healthy !== false && value !== null && value !== undefined && Number.isFinite(Number(value));
+  if (!valid) arr.length = 0; // Never carry a plausible line through a sensor fault.
+  else if (sample) pushSparkline(arr,Number(value));
+  const values = valid ? [...arr,Number(value)] : arr;
+  const range = sensorViewRange(key,values,reference,kind === 'generic');
+  _sensorViews.set(key,{name,kind,range});
+  let wrap = card.querySelector('.sensor-view');
+  if (!wrap) {
+    wrap = document.createElement('div'); wrap.className = 'sensor-view';
+    wrap.innerHTML = `<div class="gauge-bar-wrap sensor-view-track"><div class="gauge-bar"></div></div>
+      <button type="button" class="sensor-view-scale"></button>`;
+    const canvas = canvasId && document.getElementById(canvasId);
+    if (canvas) card.insertBefore(wrap,canvas); else card.appendChild(wrap);
+    if (!canvas) {
+      const created = document.createElement('canvas'); created.className = 'sparkline';
+      created.id = 'sensor-view-' + key.replace(/[^a-zA-Z0-9_-]/g,'_');
+      wrap.appendChild(created);
+    }
+  }
+  const track = wrap.querySelector('.sensor-view-track');
+  track.classList.toggle('sensor-view-unavailable',!valid);
+  track.setAttribute('role','meter'); track.setAttribute('aria-label',`${name} display range`);
+  track.setAttribute('aria-valuemin',sensorDisplayValue(range.min,kind));
+  track.setAttribute('aria-valuemax',sensorDisplayValue(range.max,kind));
+  if (valid) track.setAttribute('aria-valuenow',sensorDisplayValue(Number(value),kind));
+  else track.removeAttribute('aria-valuenow');
+  track.querySelector('.gauge-bar').style.width = valid
+    ? Math.max(0,Math.min(100,(Number(value)-range.min)/(range.max-range.min)*100))+'%' : '0%';
+  const outside = valid && (Number(value) < range.min || Number(value) > range.max);
+  const format = val => Number(sensorDisplayValue(val,kind).toPrecision(4));
+  const scaleButton = wrap.querySelector('button');
+  scaleButton.textContent = `${format(range.min)}–${format(range.max)} ${sensorDisplayUnit(kind)} · ${range.manual?'fixed':'auto'}${outside?' · outside view':''}`;
+  scaleButton.title = 'Display scale only—not a safe operating range. Select to set a fixed range or restore automatic scaling.';
+  scaleButton.setAttribute('aria-label',`Set ${name} display range`);
+  scaleButton.dataset.sensorRangeKey = key;
+  scaleButton.onclick = () => openSensorRange(key,scaleButton);
+  const canvas = canvasId ? document.getElementById(canvasId) : wrap.querySelector('canvas');
+  canvas.setAttribute('role','img');
+  canvas.setAttribute('aria-label',`${name}: up to 30 recent valid samples, sampled once per second`);
+  canvas.title = 'Recent trend, about 30 seconds while connected. Sensor faults clear the trace.';
+  drawSparkline(canvas.id,arr,'var(--accent)',range);
+}
+function renderAdditionalSensorViews(d,sample) {
+  if (!isDashboardPage()) return;
+  const rows = [
+    ['oil','oil-card','oil','has_oil_press','oil_healthy','pressure','Oil pressure','oil_demand'],
+    ['p1','p1-card','p1','has_p1','p1_healthy','pressure',lbl('p1')],
+    ['p2','p2-card','p2','has_p2','p2_healthy','pressure',lbl('p2')],
+    ['fuel-press','fuel-press-card','fuel_press','has_fuel_press','fuel_press_healthy','pressure','Fuel pressure'],
+    ['batt','batt-card','batt_voltage','has_batt_voltage','batt_healthy','voltage','Battery voltage',null,'batt-sparkline'],
+    ['torque','torque-card','torque','has_torque','torque_healthy','torque','Torque',null,'torque-sparkline'],
+    ['thrust','thrust-card','thrust','has_thrust','thrust_healthy','thrust','Thrust'],
+    ['glow-current','glow-current-card','glow_current_amps','has_glow_current','glow_current_healthy','current','Glow plug current'],
+    ['igniter-current','igniter-current-card','igniter_current_amps','has_igniter_current','igniter_current_healthy','current','Igniter current'],
+    ['igniter2-current','igniter2-current-card','igniter2_current_amps','has_igniter2_current','igniter2_current_healthy','current','Secondary igniter current'],
+    ['oilpump-current','oilpump-current-card','oil_pump_current_amps','has_oil_pump_current','oil_pump_current_healthy','current','Oil pump current'],
+    ['fuel-flow','fuel-flow-card','fuel_flow','has_fuel_flow','fuel_flow_healthy','flow','Fuel flow']
+  ];
+  rows.forEach(([key,id,field,fitted,health,kind,name,reference,canvas]) => {
+    const card = document.getElementById(id);
+    if (!card || !d[fitted]) return;
+    renderSensorView(card,key,name,d[field],d[health],kind,sample,reference?Number(d[reference]):0,canvas);
+    if (d[health] === false) {
+      const value = card.querySelector('.value');
+      if (value) { value.textContent = '—'; value.style.color = ''; }
+    }
+  });
+}
+function refreshSensorViews() {
+  if (!_lastData) return;
+  renderAdditionalSensorViews(_lastData,false);
+  renderRegistryInputCards(_lastData,false);
 }
 
 // ── Compact live telemetry ────────────────────────────────────
@@ -562,6 +733,8 @@ let _staleTimer = null;
 let _telemetryStale = false;
 let _dashboardBootstrapTimer = null;
 let _dashboardBootstrapRetryTimer = null;
+let _dashboardSnapshotRequest = null;
+let _dashboardSnapshotReady = false;
 
 function isLiveTelemetryPage() {
   if (document.body?.dataset?.page === 'dashboard') return true;
@@ -864,6 +1037,19 @@ function applyData(d) {
       return null;
     }
   }
+  if (isDashboardPage()) {
+    if (bootChanged) _dashboardSnapshotReady = false;
+    const complete = !d?._snapshot_deferred && d?.rpm_limit !== undefined &&
+      d?.labels && Array.isArray(d.registry_inputs) && Array.isArray(d.registry_outputs);
+    if (complete) _dashboardSnapshotReady = true;
+    setDashboardSnapshotLoading(!_dashboardSnapshotReady);
+    if (!_dashboardSnapshotReady) {
+      // Compact arrays contain values, not identities or fitted-device flags.
+      // Never invent numbered cards or erase the input layout after reboot.
+      loadDashboardSnapshot();
+      return null;
+    }
+  }
   // Merge into _lastData rather than replace — fast frames only carry live
   // fields; slow fields (has_*, limits, max_oil_temp, etc.) must persist so
   // that applyData(_lastData) called by the unit-toggle buttons still has them.
@@ -888,7 +1074,7 @@ function applyData(d) {
   if (d.uptime_s !== undefined && Number.isFinite(Number(d.uptime_s))) {
     _lastUptimeS = Number(d.uptime_s);
   }
-  if (bootChanged && usesGlobalTelemetry()) {
+  if (bootChanged && usesGlobalTelemetry() && !isDashboardPage()) {
     fetch('/api/data', { cache: 'no-store' })
       .then(r => r.json())
       .then(full => { try { applyData(full); } catch(e) {} })
@@ -1267,7 +1453,7 @@ function applyData(d) {
       sbr.textContent = '⚠ START unavailable: ' + startBlock;
       if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20260924c';
+        link.href = '/sequence.html?v=20261001j';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1715,6 +1901,7 @@ function applyData(d) {
   }
 
   // ── General-purpose DI channel states ─────────────────────
+  renderAdditionalSensorViews(d,sampleSparklines);
   if (d.di_channels) {
     const wrap = document.getElementById('di-states-wrap');
     if (wrap) {
@@ -2298,18 +2485,15 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
 }
 
 // A minimum alone cannot define a truthful full-width pressure/voltage bar.
-// Keep the measured number and color it as an advisory; distinguish safety OFF.
+// Numbers use normal text or red only. Bars/dots retain their status colors.
+// The existing critical boundary is unchanged; distinguish safety OFF in text.
 function setLowLimitStatus(id, value, minimum, advisoryEnabled, safetyActive) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.add('low-limit-status');
   const ratio = Number(value) / Number(minimum);
-  el.style.color = !advisoryEnabled || !Number.isFinite(ratio) ? ''
-    : ratio <= 1 ? 'var(--red)'
-    : ratio < 1.05 ? gaugeColor('red', 'yellow', (ratio - 1) / .05)
-    : ratio < 1.1 ? 'var(--yellow)'
-    : ratio < 1.2 ? gaugeColor('yellow', 'green', (ratio - 1.1) / .1)
-    : 'var(--green)';
+  el.style.color = advisoryEnabled && Number.isFinite(ratio) && ratio <= 1
+    ? 'var(--red)' : '';
   el.title = !advisoryEnabled ? '' : safetyActive
     ? 'Enabled minimum shutdown limit' : 'Visual advisory only — automatic shutdown is off';
 }
@@ -2437,8 +2621,30 @@ window.addEventListener('beforeunload', stopGlobalTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareGlobalTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopGlobalTelemetry);
 
+function setDashboardSnapshotLoading(loading) {
+  document.body?.classList.toggle('dashboard-awaiting-snapshot', loading);
+  let banner = document.getElementById('dashboard-loading-banner');
+  if (!banner && loading) {
+    banner = document.createElement('div');
+    banner.id = 'dashboard-loading-banner';
+    banner.className = 'control-empty';
+    banner.setAttribute('role','status');
+    banner.textContent = 'Loading dashboard configuration… Retrying automatically. STOP remains available.';
+    document.querySelector('main')?.prepend(banner);
+  }
+  if (banner) banner.hidden = !loading;
+  if (loading) {
+    const start = document.getElementById('btn-start');
+    const stop = document.getElementById('btn-stop');
+    if (start) start.disabled = true;
+    if (stop) stop.disabled = false;
+  }
+}
 async function loadDashboardSnapshot(attempt = 0) {
   if (!isDashboardPage() || document.hidden) return false;
+  if (_dashboardSnapshotRequest) return _dashboardSnapshotRequest;
+  if (_dashboardBootstrapRetryTimer) return false;
+  setDashboardSnapshotLoading(!_dashboardSnapshotReady);
   const retry = () => {
     if (!isDashboardPage() || document.hidden || _dashboardBootstrapRetryTimer) return;
     // The first full snapshot carries fitted hardware and limit scales, which
@@ -2449,17 +2655,26 @@ async function loadDashboardSnapshot(attempt = 0) {
       loadDashboardSnapshot(attempt + 1);
     }, attempt < 5 ? 350 + attempt * 200 : 10000);
   };
+  _dashboardSnapshotRequest = (async () => {
   try {
-    const response = await fetch('/api/data', { cache: 'no-store' });
+    const response = await fetch('/api/data', { cache: 'no-store', signal:AbortSignal.timeout(10000) });
     if (!response.ok) { retry(); return false; }
     const data = await response.json();
     if (data?._snapshot_deferred) { retry(); return false; }
+    if (data?.rpm_limit === undefined || !data?.labels ||
+        !Array.isArray(data.registry_inputs) || !Array.isArray(data.registry_outputs)) {
+      retry(); return false;
+    }
     applyData(data);
     return true;
   } catch (_) {
     retry();
     return false;
+  } finally {
+    _dashboardSnapshotRequest = null;
   }
+  })();
+  return _dashboardSnapshotRequest;
 }
 
 async function startTelemetryBoot() {
@@ -2727,14 +2942,10 @@ function renderRegistryInputCards(d, sampleSparklines = false) {
   cardRows.forEach((ch, i) => {
     const safeId = String(ch.id || `input_${i}`).replace(/[^a-zA-Z0-9_-]/g, '_');
     const display = registryInputDisplay(ch);
-    if (display.numeric !== null) {
-      const arr = registryInputSparkSeries(ch.id);
-      if (sampleSparklines) pushSparkline(arr, display.numeric);
-      // The registry-card markup is rebuilt on every 3 Hz telemetry frame.
-      // Redraw the replacement canvas every frame even though new samples are
-      // intentionally collected only at 1 Hz, otherwise it appears to blink.
-      drawSparkline('regin-spark-' + safeId, arr, 'var(--accent)');
-    }
+    const card = host.querySelector(`[data-registry-input-id="${safeId}"]`);
+    renderSensorView(card,'registry:'+String(ch.id),registryDisplayName(ch,'Input'),
+      display.numeric,ch.healthy,String(ch.role || 'generic'),sampleSparklines,0,'regin-spark-'+safeId);
+    if (ch.healthy === false) card.querySelector('.value').textContent = '—';
   });
   return cardRows.length;
 }

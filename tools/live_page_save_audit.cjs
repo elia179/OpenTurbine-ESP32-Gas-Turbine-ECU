@@ -11,15 +11,27 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const temporaryDescription = `Development save audit ${Date.now()}`;
 
 async function fetchJson(route, options = {}) {
-  const response = await fetch(base + route, {
-    signal: AbortSignal.timeout(8000),
-    ...options,
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
-    throw new Error(data.detail || data.error || `${route} returned HTTP ${response.status}`);
+  const attempts = options.method ? 1 : 5;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(base + route, {
+        signal: AbortSignal.timeout(8000),
+        headers: {Connection:'close'},
+        ...options,
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false || data.error) {
+        throw new Error(data.detail || data.error || `${route} returned HTTP ${response.status}`);
+      }
+      if (route === '/api/ecu_config' && (!data.hardware || !data.settings))
+        throw new Error('Incomplete engine-file response after reboot');
+      return data;
+    } catch (error) {
+      if (attempt === attempts - 1) throw error;
+      console.log(`Read retry ${attempt + 1}: ${route}: ${error.message}`);
+      await delay(1000);
+    }
   }
-  return data;
 }
 
 async function reconnect() {
@@ -32,10 +44,16 @@ async function reconnect() {
     }
   }
   for (let i=0; i<25; i++) {
+    let fault = '';
     try {
-      const r = await fetch(base+'/api/status', {signal:AbortSignal.timeout(2000)});
-      if(r.ok && (await r.json()).mode === 'STANDBY') return;
+      const r = await fetch(base+'/api/status', {signal:AbortSignal.timeout(2000),headers:{Connection:'close'}});
+      if (r.ok) {
+        const status = await r.json();
+        if (status.mode === 'STANDBY') return;
+        if (status.mode === 'FAULT') fault = status.fault_description || 'ECU entered FAULT after the save';
+      }
     } catch (_) {}
+    if (fault) throw new Error(fault);
     await delay(1000);
   }
   throw new Error('ECU did not reconnect');
@@ -96,6 +114,8 @@ async function restoreDescription(value) {
     await reconnect();
     let saved = await fetchJson('/api/ecu_config');
     assert.equal(saved.hardware.profile_desc,temporaryDescription);
+    assert.deepEqual({...saved.hardware,profile_desc:originalDescription},original.hardware,
+      'System save changed unrelated Hardware, including oil-loop IDs or registry bindings');
     assert.deepEqual(saved.settings,original.settings);
     // Exercise the combined page-save function with unchanged cosmetic settings:
     // the first reboot must finish before the second PATCH is transmitted.
@@ -111,6 +131,7 @@ async function restoreDescription(value) {
     await reconnect();
     saved = await fetchJson('/api/ecu_config');
     assert.equal(saved.hardware.profile_desc,value);
+    assert.deepEqual(saved.hardware,original.hardware,'Combined save changed unrelated Hardware');
     assert.deepEqual(saved.settings,original.settings);
     restoreNeeded = false;
     console.log('PASS: System recap, unsaved navigation, page-only save, combined save across reboot, exact Settings preservation, and description restoration');

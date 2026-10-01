@@ -1,0 +1,6 @@
+---
+layout: null
+permalink: /docs-search.json
+sitemap: false
+---
+{{ site.data.documentation.search | concat: site.data.config_search | jsonify }}

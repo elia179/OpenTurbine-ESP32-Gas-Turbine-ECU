@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Turbine temperature through MAX31855</title><desc id="desc">Use a 3.3 V-compatible breakout. Connect probe + / − to its thermocouple terminals.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Turbine temperature through MAX31855</text>
+<text x="30" y="76" class="small" text-anchor="start">Use a 3.3 V-compatible breakout. Connect probe + / − to its thermocouple terminals.</text>
+<rect x="35" y="115" width="280" height="350" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="175.0" y="147" class="" text-anchor="middle">ESP32 ECU</text>
+<rect x="685" y="115" width="280" height="350" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="825.0" y="147" class="" text-anchor="middle">MAX31855 module</text>
+<text x="295" y="181" class="" text-anchor="end">3.3 V</text>
+<text x="705" y="181" class="" text-anchor="start">VCC</text>
+<polyline points="315,190 685,190" class="net" stroke="#ff9276"/>
+<text x="295" y="233" class="" text-anchor="end">GND</text>
+<text x="705" y="233" class="" text-anchor="start">GND</text>
+<polyline points="315,242 685,242" class="net" stroke="#b6c4d2"/>
+<text x="295" y="285" class="" text-anchor="end">SPI clock GPIO</text>
+<text x="705" y="285" class="" text-anchor="start">CLK / SCK</text>
+<polyline points="315,294 685,294" class="net" stroke="#74dcb7"/>
+<text x="295" y="337" class="" text-anchor="end">SPI input GPIO</text>
+<text x="705" y="337" class="" text-anchor="start">DO / MISO</text>
+<polyline points="315,346 685,346" class="net" stroke="#74dcb7"/>
+<text x="295" y="389" class="" text-anchor="end">Chip-select GPIO</text>
+<text x="705" y="389" class="" text-anchor="start">CS</text>
+<polyline points="315,398 685,398" class="net" stroke="#74dcb7"/>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text><text x="750" y="447" class="small">TC +</text><text x="850" y="447" class="small">TC −</text><path d="M 775,455 V 485 M 875,455 V 485" class="net" stroke="#74dcb7"/><rect x="690" y="485" width="270" height="45" rx="8" fill="#1c2b38" stroke="#566a7c"/><text x="825" y="514" text-anchor="middle">K-type probe</text></svg>

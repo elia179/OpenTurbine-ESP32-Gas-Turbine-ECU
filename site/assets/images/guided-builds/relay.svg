@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Relay control and switched power</title><desc id="desc">Nonisolated module: its IN must accept 3.3 V. Module VCC is its rated supply.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Relay control and switched power</text>
+<text x="30" y="76" class="small" text-anchor="start">Nonisolated module: its IN must accept 3.3 V. Module VCC is its rated supply.</text>
+<rect x="30" y="170" width="245" height="310" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="152.5" y="202" class="" text-anchor="middle">ESP32 ECU</text>
+<rect x="440" y="170" width="285" height="310" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="582.5" y="202" class="" text-anchor="middle">Relay module</text>
+<rect x="795" y="280" width="180" height="160" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="885.0" y="312" class="" text-anchor="middle">Lamp / load</text>
+<text x="255" y="250" class="" text-anchor="end">On/off GPIO</text>
+<text x="460" y="250" class="" text-anchor="start">IN</text>
+<polyline points="275,260 440,260" class="net" stroke="#74dcb7"/>
+<text x="255" y="410" class="" text-anchor="end">GND</text>
+<text x="460" y="410" class="" text-anchor="start">GND</text>
+<polyline points="275,420 440,420" class="net" stroke="#b6c4d2"/>
+<text x="30" y="120" class="" text-anchor="start">Module-rated regulated supply + → VCC</text>
+<polyline points="550,130 550,170" class="net" stroke="#ff9276"/>
+<text x="545" y="220" class="small" text-anchor="start">Coil driver</text>
+<text x="545" y="248" class="small" text-anchor="start">inside module</text>
+<text x="755" y="144" class="small" text-anchor="start">Fused load +</text>
+<polyline points="850,155 750,155 750,285 725,285" class="net heavy" stroke="#ff9276"/>
+<text x="695" y="278" class="" text-anchor="end">COM</text>
+<text x="695" y="334" class="" text-anchor="end">NO</text>
+<text x="695" y="385" class="small" text-anchor="end">NC unused</text>
+<polyline points="725,345 795,345" class="net heavy" stroke="#ff9276"/>
+<polyline points="885,440 885,495 350,495" class="net heavy" stroke="#b6c4d2"/>
+<polyline points="350,495 350,420" class="net" stroke="#b6c4d2"/>
+<circle cx="350" cy="420" r="5" fill="#b6c4d2"/>
+<text x="30" y="517" class="small" text-anchor="start">Load − and module supply − join the supply return. Contacts do not power the coil.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

@@ -149,6 +149,7 @@ async function capture(page, route, file, selector, scrollToSelector = false) {
   // Dashboard gauges animate from zero. Capture only after their displayed
   // width has caught up with the already-updated numeric value.
   await page.waitForTimeout(450);
+  if (route === 'index.html') await page.waitForTimeout(2100);
   if (scrollToSelector) {
     await page.locator(selector).scrollIntoViewIfNeeded();
     await page.evaluate(() => window.scrollBy(0, -72));
@@ -165,7 +166,11 @@ async function capture(page, route, file, selector, scrollToSelector = false) {
   try {
     const page = await browser.newPage({ viewport: { width: 1800, height: 1050 }, deviceScaleFactor: 1 });
     await prepare(page);
+    // The dashboard itself is 920 px wide; avoid blank margins in its preview.
+    await page.setViewportSize({width:1000,height:936});
     await capture(page, 'index.html', 'hero-dashboard.png', '#n1-card');
+    await page.locator('#oil-card').screenshot({path:path.join(output,'guided-builds','dashboard-oil-trend.png')});
+    await page.setViewportSize({width:1800,height:1050});
     await setRunState(page, { mode: 'STANDBY', last_event: 'STANDBY', uptime_s: 0, n1: 0, tot: 24, oil: 0, oil_raw: 500, oil_temp: 24, throttle_demand: 0, throttle_input_us: 1000, throttle_input_norm: 0, rc_throttle_norm: 0, idle_input_type: 'none', idle_input_us: 0, oil_pct: 0, flame: false });
     await capture(page, 'hardware.html', 'hardware-page.png', '#hardware-inputs-panel', true);
     await capture(page, 'controllers.html', 'controllers-page.png', '.cfg-workspace-card');

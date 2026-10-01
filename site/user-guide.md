@@ -1,18 +1,19 @@
 ---
 layout: document
-title: OpenTurbine 2.4.3 complete beginner user guide
+title: OpenTurbine user guide and reference
 description: A source-matched, step-by-step guide to building, wiring, configuring, calibrating, dry-testing and operating an OpenTurbine ESP32 turbine ECU.
-lede: Start with no electronics experience; finish with a wired, configured and thoroughly dry-tested ECU.
+lede: Follow the complete setup workflow, or jump directly to a wiring, controller, calibration or sequence reference.
 ---
 
 {% include safety-note.html %}
 
-OpenTurbine is an experimental controller for turbine test projects. This guide explains the whole supported path, including what the words mean, what connects where, and what every current Config field does. It does **not** make an unknown turbine, sensor, driver, fuel system or ignition system safe. Obtain the manuals and limits for the exact parts you use, and have a competent person inspect the wiring before any fuel or ignition test.
+For wiring diagrams and configured-card examples, follow [Guided Builds]({{ '/guided-builds/' | relative_url }}). Use this page for the full setup procedure and field reference.
 
-Keep fuel disconnected, ignition energy disabled, starter/load power isolated, and the turbine unable to move while completing Parts 1–10. A browser STOP button is not an emergency stop.
+Use the manuals and limits for your actual turbine, sensors and drivers. Have a competent person inspect the wiring before any fuel or ignition test.
 
-<a id="guide-contents"></a>
-## Contents
+Keep fuel disconnected, ignition energy disabled, starter/load power isolated, and the turbine unable to move throughout setup, calibration and dry testing. Use low-energy bench loads only where the specific exercise calls for them. A browser STOP button is not an emergency stop.
+
+<details class="guide-contents" id="guide-contents" markdown="1"><summary>Full setup order</summary>
 
 1. [Words used in this guide](#part-1-words-used-in-this-guide)
 2. [What you need](#part-2-what-you-need)
@@ -30,6 +31,8 @@ Keep fuel disconnected, ignition energy disabled, starter/load power isolated, a
 14. [Dry-test the complete ECU](#part-14-dry-test-the-complete-ecu)
 15. [Prepare for a first fueled test](#part-15-prepare-for-a-first-fueled-test)
 16. [Operate, back up, update and diagnose](#part-16-operate-back-up-update-and-diagnose)
+
+</details>
 
 ## Part 1: Words used in this guide
 
@@ -73,7 +76,7 @@ Do not use solderless breadboards for a fueled or vibrating turbine installation
 Click or tap the diagram to enlarge it.
 
 <figure>
-  <img class="system-diagram" src="{{ '/assets/images/ecu-wiring-overview.svg' | relative_url }}" width="1400" height="920" alt="OpenTurbine wiring overview showing conditioned sensor inputs, ESP32 ECU, protected output drivers, separate fused load power and independent emergency stop">
+  <img class="system-diagram" src="{{ '/assets/images/ecu-wiring-overview.svg' | relative_url }}" width="1000" height="600" alt="OpenTurbine wiring overview showing conditioned sensor inputs, ESP32 ECU, protected output drivers, separate fused load power and independent emergency stop">
   <figcaption>The Hardware page chooses the GPIO numbers. This diagram shows the electrical pattern: condition inputs, use drivers for outputs, separate load power, and provide a hardwired stop.</figcaption>
 </figure>
 
@@ -131,11 +134,11 @@ Measure the conditioned output before attaching it to the GPIO. ESP32 GPIO uses 
 
 ### 5.2 Typical wiring by electrical type
 
-Click or tap this diagram to enlarge it. These four drawings show the exact meaning of power, ground and signal; replace the generic GPIO label with the pin you saved on the Hardware page.
+Click or tap this diagram to enlarge it. These four patterns cover conditioned pressure, pulse speed, a dry-contact switch and a thermocouple converter. They use the same terminal labels and colors as the Guided Builds; replace each generic GPIO label with the pin saved on Hardware.
 
 <figure>
-  <img class="system-diagram" src="{{ '/assets/images/sensor-switch-wiring.svg' | relative_url }}" width="1400" height="1040" alt="Four basic OpenTurbine wiring diagrams showing a three-wire 3.3 volt sensor, a 5 volt analog sensor through a divider, an open-collector pulse sensor with a pull-up, and an active-low command switch">
-  <figcaption>Basic input wiring. Red is power, grey is ground and blue is signal. Confirm every voltage from the actual component datasheet before connecting the ESP32.</figcaption>
+  <img class="system-diagram" src="{{ '/assets/images/sensor-switch-wiring.svg' | relative_url }}" width="2000" height="1200" alt="Four wiring patterns showing a conditioned pressure input, Hall pulse input, active-low dry contact and MAX31855 thermocouple converter">
+  <figcaption>Input patterns: coral is power, grey is ground and green is signal. Confirm every voltage from the actual component datasheet before connecting the ESP32.</figcaption>
 </figure>
 
 <div class="table-wrap"><table>
@@ -143,10 +146,10 @@ Click or tap this diagram to enlarge it. These four drawings show the exact mean
 <tbody>
 <tr><td>Digital switch</td><td>For the usual active-LOW arrangement: selected GPIO → switch → sensor ground; enable a pull-up. The input reads active when the switch closes.</td><td>GPIO, active polarity, input bias. Use an external resistor and protection for long/noisy wires.</td></tr>
 <tr><td>Analog voltage / ADC</td><td>Sensor output → protection/filter and, if needed, voltage divider → ADC-capable GPIO. Sensor ground returns to the sensor reference point.</td><td>GPIO, minimum/maximum raw ADC counts, mapped engineering range. Calibrate with a trusted reference.</td></tr>
-<tr><td>Pulse/frequency</td><td>Open-collector sensor: pull up to 3.3 V. Magnetic/variable-reluctance pickup: use a proper conditioner/comparator. Conditioner output → GPIO.</td><td>GPIO, pulses per revolution/litre/unit, frequency or engineering endpoints. Shaft-speed PCNT inputs default to a 5 µs glitch filter and derive their plausibility ceiling from twice the applicable hard shutdown speed.</td></tr>
+<tr><td>Pulse/frequency</td><td>Open-collector sensor: pull up to 3.3 V. Input bias → Pull-up can use the onboard resistor on a suitable GPIO for short bench wiring; Classic GPIO 34–39 have no internal bias. Verify pulse edges and use external bias/conditioning when needed. Magnetic/variable-reluctance pickups need a conditioner/comparator.</td><td>GPIO, pulses per revolution/litre/unit, frequency or engineering endpoints. Shaft-speed PCNT inputs default to a 5 µs glitch filter and derive their plausibility ceiling from twice the applicable hard shutdown speed.</td></tr>
 <tr><td>RC PWM</td><td>Receiver signal must be 3.3 V compatible; receiver and ECU need a valid reference unless isolated. Do not power a receiver from an unsuitable pin.</td><td>GPIO, minimum/maximum pulse width, signal-loss timeout, calibrated command endpoints.</td></tr>
 <tr><td>PWM duty input</td><td>Condition the external PWM to 3.3 V logic, then connect to the selected input GPIO.</td><td>GPIO and mapped endpoints. This reads duty/frequency; it is not a servo pulse unless RC PWM is selected.</td></tr>
-<tr><td>MAX31855 / MAX31856 / MAX6675</td><td>Thermocouple → matching converter terminals; converter VCC/GND → permitted supply/reference. Enable the shared SPI bus and choose SCK/MISO once; MAX31856 also needs shared MOSI. Each module needs its own CS GPIO.</td><td>Shared bus pins at the top of Hardware; interface type, unique CS, thermocouple type and polarity on the device card.</td></tr>
+<tr><td>MAX31855 / MAX31856 / MAX6675</td><td>Thermocouple → matching converter terminals; converter VCC/GND → permitted supply/reference. Enable the shared SPI bus and choose SCK/MISO once; MAX31856 also needs shared MOSI. Each module needs its own CS GPIO.</td><td>Hardware → Shared sensor buses → Edit buses, near the end of the page; interface type, unique CS, thermocouple type and polarity on the device card.</td></tr>
 <tr><td>DS18B20</td><td>VDD and GND as specified; DQ → selected GPIO with the required pull-up to the correct logic supply.</td><td>GPIO, discovered sensor/address behavior and resolution. The 10-bit default updates substantially faster than 12-bit. Keep the bus away from ignition noise.</td></tr>
 <tr><td>NTC thermistor</td><td>Thermistor plus a known resistor form a voltage divider; divider midpoint → ADC GPIO.</td><td>GPIO, nominal resistance, beta/coefficient and calibration. Divider values must keep the pin safe.</td></tr>
 <tr><td>HX711</td><td>Load cell/bridge → HX711 inputs; HX711 data and clock → their selected GPIOs; power and grounding follow the module/load-cell specifications.</td><td>Data/clock pins, zero and scale calibration.</td></tr>
@@ -176,7 +179,7 @@ The **Purpose** field tells the firmware how an installed channel may be used. T
 <tr><td>Fuel flow</td><td>Pulse or analog flow measurement for consumption logs and supported controls. Enter the manufacturer's pulses/litre or calibrated mapping.</td></tr>
 <tr><td>Main / scavenge oil flow</td><td>Separate flow feedback for the corresponding pump. Calibrate in L/min, enable monitoring on that pump's Hardware card, and test its minimum-flow threshold. Confirmed underflow warns by default; shutdown is a separate Config choice.</td></tr>
 <tr><td>Main flame / afterburner flame</td><td>Dedicated combustion detectors. Main flame can confirm startup/flameout; AB flame can confirm afterburner light-off.</td></tr>
-<tr><td>Torque</td><td>Analog, HX711, or NAU7802 measurement. NAU7802 calibration captures unloaded zero plus known force and lever arm. With N2 it supports shaft-power calculation; it is also available to controllers.</td></tr>
+<tr><td>Torque</td><td>Analog, HX711, NAU7802, or shaft torsion by phase difference between two pickups on the same shaft. Phase torque needs matching effective pulses per shaft revolution and calibrated zero phase and shaft sensitivity; two unrelated RPM readings cannot measure torque. NAU7802 calibration captures unloaded zero plus known force and lever arm. See the <a href="{{ '/guided-builds/extend/#challenge' | relative_url }}">two-pickup walkthrough</a>. With shaft speed it supports shaft-power calculation; it is also available to controllers.</td></tr>
 <tr><td>Thrust</td><td>Conditioned local/TLA2528 analog transmitter or NAU7802 load-cell measurement. Analog inputs use linear or multi-point calibration; NAU7802 uses unloaded zero plus a known force or mass. Canonical display, telemetry, controllers and logs use newtons.</td></tr>
 <tr><td>Battery / bus voltage</td><td>Scaled ADC measurement for display, logs and undervoltage protection. A battery must never connect directly to an ADC pin.</td></tr>
 <tr><td>Throttle input</td><td>Operator demand from analog, RC PWM, pulse-duty or another supported input. Calibrate low/high endpoints and signal-loss behavior.</td></tr>
@@ -260,6 +263,8 @@ Open **Hardware**, select the exact Classic ESP32 or supported ESP32-S3 target, 
 
 ### 8.2 Add one channel at a time
 
+First configure the required physical **Start** and **Stop** inputs. These are ECU commands and remain separate from the independent stop that removes hazardous energy. The [Level 1 power and control step]({{ '/guided-builds/basic/#power' | relative_url }}) shows the bench arrangement. A development board uses saved GPIOs; an installed PCB profile uses its labelled compatible ports.
+
 1. In **Inputs**, choose **Add input** and pick the preset matching the physical sensor or switch.
 2. In **Outputs**, choose **Add output** and pick the matching actuator.
 3. Complete the card fields described below.
@@ -272,10 +277,9 @@ Open **Hardware**, select the exact Classic ESP32 or supported ESP32-S3 target, 
 <thead><tr><th>Field</th><th>What to enter</th></tr></thead>
 <tbody>
 <tr><td>Display name / label</td><td>A short human-readable name shown in the dashboard and logs, such as “Main oil pressure”. Renaming it does not break stable references.</td></tr>
-<tr><td>Stable ID</td><td>A short unique machine name such as <code>oil_pressure_main</code>. Set it once; controllers, sequences and telemetry may refer to it.</td></tr>
 <tr><td>Purpose</td><td>The built-in ECU meaning listed in Parts 5 and 6. This determines which safety, controller and sequence options can use the channel.</td></tr>
 <tr><td>Controller use / binding</td><td>Assigns the installed device to a core job such as primary N1 or main fuel output. Do not bind two devices to one exclusive role.</td></tr>
-<tr><td>Electrical driver</td><td>The real signal type: digital, ADC, pulse, RC, PWM duty, thermocouple interface, relay, PWM or servo/ESC. It must match the wiring.</td></tr>
+<tr><td>Signal type / sensor interface</td><td>The real signal type: digital, ADC, pulse, RC, PWM duty, thermocouple interface, relay, PWM or servo/ESC. It must match the wiring.</td></tr>
 <tr><td>GPIO / CS / CLK / MISO / MOSI / data</td><td>The physical board pins used by that interface. Choose only offered pins and use each exclusive pin once. Shared SPI clock/data lines are allowed only where the UI explicitly accepts the shared bus.</td></tr>
 <tr><td>Active polarity</td><td>Whether HIGH or LOW means active. For an active-LOW switch to ground, select active LOW and a pull-up.</td></tr>
 <tr><td>Input bias</td><td>Internal pull-up, pull-down or none. Use only when electrically appropriate; never enable both.</td></tr>
@@ -330,6 +334,8 @@ Enabling a checkbox does not prove the protection. You must force a safe simulat
 
 Controllers disables protections whose required input is not fitted. Each expandable safety card keeps its enable, source, thresholds and confirmation timing together. A value of zero disables several thresholds; read each field explanation carefully.
 
+**Choose Running idle explicitly:** open **Controllers → Fuel-metering support → Idle → Running Idle Mode**. Choose **Off**, **Fixed fuel percentage**, **Input channel**, or **Automatic Idle**. Input channel defaults to the configured Idle Input; **Idle Input Channel** also lets you choose another fitted input and map its Low/High endpoints in the source's units. Automatic Idle shows its feedback source, target, cutoff and tuning directly below the choice; missing hardware is explained rather than hiding the controls. Fixed replaces retained startup idle only after Startup finishes. Startup actions stay unchanged, including their use of the Hardware Idle Input. Off permits zero with Main Fuel **Output low = 0%**, and hides the note beside Input low. Older files retain their behavior; a Startup-retained floor requires an explicit mode choice before Idle settings change. Operator input ranges display 0–100%, with decimals supported; storage remains 0–1. Follow the [illustrated idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}). Pump minimum calibration remains separate from stable engine idle.
+
 ## Part 10: Configure Controllers and System
 
 ### 10.1 Safe order
@@ -345,13 +351,16 @@ Never copy “typical”, example or preset values into a fueled turbine without
 
 ### 10.2 Complete source-matched field reference
 
-The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
+For an illustrated example, follow [creating a controller]({{ '/guided-builds/control/#custom' | relative_url }}). The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
 
+<div class="field-filter" data-field-filter hidden><label for="field-query">Find a Controllers or System field</label><input id="field-query" type="search" placeholder="Type the field name or a keyword"><p class="quiet" data-field-status role="status" aria-live="polite"></p></div>
 {% include generated-config-fields.html %}
 
 ## Part 11: Calibrate inputs and outputs
 
 Calibration makes a displayed number match reality. Do it in **STANDBY** or **FAULT**, with hazardous energy isolated.
+
+If a throttle potentiometer moves the command backwards, open **Hardware → Throttle Input → Input direction**, choose **Invert input**, and save. Recheck the calibrated idle and full-command ends and the middle position before enabling an output.
 
 Direct digital flame detectors and switches need only the correct active electrical state. ADC-backed flame detectors and switches use one common condition model: active above/below, threshold, and hysteresis. For an ADC switch, capture its inactive and active states on Calibration; OpenTurbine calculates polarity, a midpoint threshold, and a noise-aware deadband. Hysteresis prevents vibration or electrical noise near the threshold from making the state chatter.
 
@@ -373,6 +382,7 @@ Specific checks:
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
 - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
 - **Main fuel/oil/starter proportional outputs:** test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig.
+- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#fuel' | relative_url }}).
 
 ## Part 12: Build startup and shutdown sequences
 
@@ -384,11 +394,13 @@ Do not copy this blindly; make it match the engine. A common logic pattern is:
 
 1. **Build Oil Pressure (OilPrime):** runs the oil pump and waits for pressure, or uses a timed fixed output if no pressure sensor exists.
 2. **Starter Spin to Light-Off Speed (StarterSpin):** enables/ramps the starter and waits for the configured light-off N1.
-3. **Set Output / Pre-Heat:** energizes the selected ignition or glow output. A Set Output card always names the exact fitted device and can be changed between ON/OFF or a proportional demand where its Hardware driver allows that.
-4. **Set Output / Fuel Pulse:** opens the selected fuel-shutoff device or applies a bounded priming pulse where that is deliberately required.
+3. **Set Output for ignition or glow:** energizes the selected ignition or glow output. A Set Output card always names the exact fitted device and can be changed between ON/OFF or a proportional demand where its Hardware driver allows that.
+4. **Set Output for fuel admission:** commands the selected fitted fuel device. If the engine deliberately requires a bounded priming pulse, construct it from explicit output and delay actions; Fuel Pulse is not a separate picker entry.
 5. **Confirm Combustion:** uses FlameConfirm or TempConfirm; never leave light-off unverified merely because a timer expired.
 6. **Spool / Modified Idle / Fuel Pump Idle:** increases fuel toward the idle-entry condition.
 7. **Verify Stable Idle (SafetyHold):** confirms RPM/oil conditions before RUNNING.
+
+See the [block picker and expanded action/wait screenshots]({{ '/guided-builds/basic/#sequence' | relative_url }}) before building your first path. The picker uses friendly names such as Set Starter or Set Igniter; read the ACTION/UNTIL explanation when labels are similar.
 
 Use **Timed Delay** only when time itself is the correct requirement. **Wait For Input** is for an installed permission switch. Use **Set Output** for ordinary device commands; the add list presents one professionally named action for each fitted output and the card remains editable afterward. Purpose-specific blocks remain only where the ECU must perform real turbine logic rather than merely command an output.
 
@@ -420,29 +432,20 @@ Run the full startup and shutdown sequence repeatedly with no fuel and ignition 
 
 ## Part 13: Use custom controllers
 
-Open **Controllers → Custom controllers** for behavior that is not covered by a common turbine controller. Any fitted sensor, switch, or operator input can control an unowned compatible output. Each output may have one enabled normal owner.
+Open **Controllers → Output controllers**. Expand **+ Create controller**, choose the unowned fitted output, select **Create controller**, then open its card. A generic new controller starts with **Fixed output in selected states**, a zero command and Running selected; choose the intended method and states deliberately. The [illustrated controller walkthrough]({{ '/guided-builds/control/#custom' | relative_url }}) shows each screen, validation message and save step.
 
-### Threshold control
+<span id="threshold-control"></span><span id="mapping-control"></span><span id="feedback-control"></span><span id="fields-common-to-both"></span>
 
-Choose an input, **above** or **below**, a threshold, hysteresis, on value and off value. Example: a fan turns on above 100 °C with 5 °C hysteresis; it stays on until temperature falls to 95 °C. Hysteresis prevents rapid chatter near the threshold.
+| Control method | Use it for | Check first |
+| --- | --- | --- |
+| **On / Off with hysteresis** | A measured value switching an output above or below a boundary | Direction, threshold, deadband and on/off commands. The [bench fan example]({{ '/guided-builds/extend/#fan' | relative_url }}) demonstrates the fields. |
+| **Map input to output** | A verified proportional relationship | Calibrated input range and bounded output range. Values outside the source range are clamped. |
+| **Hold a feedback target** | Adjusting an output to reach a measured target | Feedback direction, fixed/switched/mapped target, authority, response and feedback-loss command. Verify on a suitable safe rig. |
+| **Fixed output in selected states** | A defined command without feedback | Fixed demand and the selected modes; no input is required. |
 
-### Mapping control
+**Ownership and failure behavior:** each output has one enabled normal owner. Running is the default, but Standby, Startup and Shutdown can also be selected where appropriate. Outside selected states the controller releases ownership and supported ordinary/sequence behavior resumes; this is not a universal zero command. The threshold method's Off output is the inactive side of its condition. Feedback-loss behavior is method-specific. Custom controllers are always released in FAULT and cannot override fault-safe behavior. Afterburner fuel remains state-machine-owned.
 
-Choose an input minimum/maximum and an output minimum/maximum. The ECU maps linearly between them and clamps outside the range. Use it for a verified proportional relationship, not a safety shutdown.
-
-### Feedback control
-
-Choose the measured feedback signal, then choose whether its target is fixed, selected by a switch, or mapped from another variable input. The controller inherits the existing output at RUNNING handover, applies the configured output limits, and uses the feedback-loss output if either required input becomes unhealthy. Start with gentle response values and tune on a safe bench setup.
-
-### Fields common to both
-
-- **Enabled** makes the control active.
-- **Input / feedback** is a fitted registry channel.
-- **Output** is the fitted actuator this controller owns. Outputs already owned by an enabled dedicated turbine controller are not offered.
-- The control owns that output only while the ECU is RUNNING. Sequence and safe-state logic own it in other modes.
-- **Off value** is commanded when RUNNING ends or its input becomes unavailable.
-
-Common turbine controllers remain the simplest route, but a custom controller may replace an ordinary direct owner when no dedicated controller is enabled for that output. RUNNING is the default; advanced builds may select any combination of STANDBY, STARTUP, RUNNING, and SHUTDOWN. Afterburner fuel remains state-machine-owned. Fault handling returns every output to its hardware-safe state; custom controllers never run in FAULT or override fault safety.
+Save and reopen the card, then verify source movement, output direction, limits, selected states, mode exit, sensor loss, STOP and reboot persistence. Test the physical output rather than assuming a demand shown on screen proves the device responded.
 
 ## Part 14: Dry-test the complete ECU
 
@@ -450,7 +453,7 @@ Common turbine controllers remain the simplest route, but a custom controller ma
 
 1. Compare every Hardware GPIO with a physical wire-by-wire checklist.
 2. On the dashboard, move or stimulate each input and verify direction, units, range and plausible failure behavior.
-3. Open **Tools → Test settings** and reduce test duration/demand to a conservative value.
+3. Open **Tools → Tool settings** and reduce test duration/demand to a conservative value.
 4. Test one output at a time: logic pin first, then driver with no load, then a safe dummy load, then the real isolated actuator where appropriate.
 5. Confirm active-high/low behavior, power-on state, end-of-test state and fault-safe state.
 6. Run a complete dry startup. Confirm every condition and timeout.
@@ -484,9 +487,22 @@ Stop for any unexpected temperature, RPM, oil, vibration, fuel, wiring, actuator
 
 Observe the engine itself, independent instruments and dashboard. Do not rely on Wi-Fi or a browser remaining connected. After a run, inspect the event log and session CSV for maximums, faults and sensor dropouts.
 
+### Dashboard readings and display scales
+
+Numeric readings use normal text (white in dark themes) or red at the configured critical boundary. Sensor bars are green and output bars blue; N1 and engine-temperature gauges also show approach zones. Health dots show sensor usability. A red number can be advisory only when its protection is disabled—it does not prove automatic shutdown is enabled. See [Dashboard warning setup]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}).
+
+Continuous sensor cards also show a labelled display bar and up to 30 recent valid samples at 1 Hz. Select the scale below a pressure, voltage, current, flow, thrust, torque or additional-input bar to set a fixed Low/High range or restore auto scaling. This browser-only view does not change calibration or protection. Sensor faults clear the trace; switches stay as On/Off indicators. See the [oil-pressure example]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}).
+
 ### Backups
 
-In **Tools**, download the complete engine file before major changes and before every update. It contains hardware, calibration, sequences, controllers and Wi-Fi credentials. Store it securely and remove credentials before sharing. Logs are separate downloads.
+Download a complete engine file before major changes and every update. It contains hardware, calibration, sequences, controllers and Wi-Fi credentials. Store it securely and remove credentials before sharing. Logs are separate downloads.
+
+1. Open **System → Maintenance → Backup & restore**, then select **Download backup**. Confirm the `.json` file appears in your browser's Downloads; a download-started message alone is not a saved backup.
+2. To restore, isolate load power, stop all tests and keep the ECU in **STANDBY or FAULT**. Download the current setup first if you may need it again.
+3. Select **Upload & restore…**, choose the complete engine file for this board/profile and review what will be replaced. **Restore and reboot** replaces the setup and restarts the ECU; current event/session logs remain separate on the ECU.
+4. Rejoin the restored Wi-Fi network if its name or password changed. Reopen `http://192.168.4.1`, inspect Hardware, Controllers, Calibration and Sequence, and repeat dry checks before using outputs.
+
+{% include build-screen.html file="engine-backup-restore" step="Find the complete engine-file controls" alt="System Backup and restore card with Download backup and Upload and restore buttons, including the standby or fault requirement." caption="This card restores the whole setup, not only the page you are viewing. A browser-only Dashboard scale is not part of the engine file." %}
 
 ### Updates
 

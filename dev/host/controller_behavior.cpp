@@ -25,6 +25,26 @@ static void resetData() {
 }
 
 int main() {
+    assert(std::fabs(IdleFuelFloor::normalizedInput(12,10,14)-.5f)<.0001f);
+    assert(std::fabs(IdleFuelFloor::normalizedInput(12,14,10)-.5f)<.0001f);
+    assert(IdleFuelFloor::normalizedInput(9,10,14)==0);
+    assert(IdleFuelFloor::normalizedInput(15,10,14)==1);
+    assert(IdleFuelFloor::normalizedInput(9,14,10)==1);
+    assert(IdleFuelFloor::normalizedInput(15,14,10)==0);
+    assert(IdleFuelFloor::normalizedInput(12,12,12)==0);
+    // Signal loss preserves the explicit retained-startup fallback.
+    assert(std::fabs(IdleFuelFloor::select(3,false,false,0,.8f,.2f,0,.1f,.5f)-.2f)<.0001f);
+    // Explicit Running modes must not inherit a previous startup floor.
+    assert(IdleFuelFloor::select(1,true,true,.6f,.9f,.8f,.3f,.1f,.5f) == 0);
+    assert(std::fabs(IdleFuelFloor::select(2,true,true,.6f,.9f,.8f,.325f,.1f,.5f)-.325f)<.0001f);
+    assert(IdleFuelFloor::select(2,true,true,.6f,.9f,.8f,0,.1f,.5f) == 0);
+    assert(std::fabs(IdleFuelFloor::select(2,false,false,0,0,.8f,.05f,.1f,.5f)-.1f)<.0001f);
+    assert(std::fabs(IdleFuelFloor::select(3,true,true,.6f,.5f,.8f,.3f,.1f,.5f)-.3f)<.0001f);
+    assert(std::fabs(IdleFuelFloor::select(4,false,true,.6f,.9f,.8f,.3f,.1f,.5f)-.6f)<.0001f);
+    // Legacy migration: preserve the old automatic/input/sequence precedence.
+    assert(std::fabs(IdleFuelFloor::select(0,true,true,.6f,.9f,.8f,.3f,.1f,.5f)-.6f)<.0001f);
+    assert(std::fabs(IdleFuelFloor::select(0,false,true,.6f,.5f,.8f,.3f,.1f,.5f)-.3f)<.0001f);
+    assert(std::fabs(IdleFuelFloor::select(0,false,false,.6f,.5f,.4f,.3f,.1f,.5f)-.4f)<.0001f);
     // A physical idle potentiometer selects a live absolute floor between the
     // pump's calibrated minimum and configured maximum idle output. Main
     // throttle authority remains unchanged above that floor.

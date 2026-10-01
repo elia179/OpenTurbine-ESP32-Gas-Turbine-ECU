@@ -3,7 +3,8 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true,
+    ...(process.env.OT_BROWSER_EXECUTABLE ? {executablePath:process.env.OT_BROWSER_EXECUTABLE} : {}) });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.setContent(`<!doctype html><html><body><main class="document">
     <figure><img alt="OpenTurbine system page with a deliberately long mobile caption" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='900'%3E%3Crect width='1600' height='900' fill='%2325323d'/%3E%3C/svg%3E"><figcaption>OpenTurbine system page with a deliberately long mobile caption that must not move the close button outside the screen</figcaption></figure>

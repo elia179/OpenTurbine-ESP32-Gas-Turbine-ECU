@@ -7,9 +7,11 @@ lede: A small, understandable example for learning how the pieces fit together�
 
 {% include safety-note.html %}
 
-This example is for someone who wants to explore OpenTurbine before designing a complete installation. It represents an ordinary electrically started, single-shaft experimental turbine with oil pressure and turbine-temperature monitoring.
+Want to add each part step by step, electrically and in software? Follow the [three Guided Builds]({{ '/guided-builds/' | relative_url }}). This page remains a compact overview of a single-shaft installation.
 
-It is intentionally not special, complete, or optimized for one engine. It does **not** provide engine-specific RPM limits, fuel demand, startup timing, temperature limits, pin assignments, wire sizes, driver ratings, or plumbing decisions. Those must come from measurements and the actual hardware.
+This example uses electric starting, one shaft, oil-pressure feedback and turbine-temperature monitoring.
+
+Choose RPM/temperature limits, fuel demand, timings, pins, wiring and driver ratings from your actual hardware and measurements; this overview does not supply an engine tune.
 
 ## What this example contains
 
@@ -54,7 +56,9 @@ Do not copy pin numbers from another board or installation. Classic ESP32 and ES
 
 ### 2. Controllers
 
-Open the configured Main Fuel Metering controller. A straightforward starting point is operator demand commanding the fuel output, with engine-specific limits and automatic idle left for later commissioning.
+Open the existing Main Fuel Metering controller. If none owns that output yet, create it under **Controllers → Output controllers → + Create controller**; use the [illustrated steps]({{ '/guided-builds/basic/#ownership' | relative_url }}). A straightforward starting point is operator demand commanding the fuel output, with engine-specific limits and automatic idle left for later commissioning.
+
+Choose **Running Idle Mode** deliberately. **Off** adds no Running floor; Fixed, Input channel and Automatic Idle each provide one differently. Older files needing an explicit mode choice retain their behavior until you change Idle settings. See the [idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}) before setting the mapped minimum.
 
 If the oil pump is proportional and oil pressure is fitted, it may use an oil-pressure controller. A relay oil pump remains simple On/Off sequence hardware. Leave optional behavior disabled until its feedback and purpose are understood.
 

@@ -1,0 +1,254 @@
+{
+  "automatic-idle-configured": {
+    "width": 838,
+    "height": 860
+  },
+  "automatic-idle-off": {
+    "width": 838,
+    "height": 343
+  },
+  "battery-configured": {
+    "width": 832,
+    "height": 595
+  },
+  "bench-fuel-zero-configured": {
+    "width": 872,
+    "height": 882
+  },
+  "brightness-configured": {
+    "width": 832,
+    "height": 583
+  },
+  "controller-create": {
+    "width": 872,
+    "height": 222
+  },
+  "controller-mapping": {
+    "width": 872,
+    "height": 905
+  },
+  "controller-new": {
+    "width": 872,
+    "height": 678
+  },
+  "controller-save": {
+    "width": 1440,
+    "height": 1250
+  },
+  "controller-states": {
+    "width": 838,
+    "height": 224
+  },
+  "controller-warnings": {
+    "width": 1440,
+    "height": 1250
+  },
+  "controllers-overview": {
+    "width": 1440,
+    "height": 1250
+  },
+  "cover-configured": {
+    "width": 832,
+    "height": 377
+  },
+  "current-configured": {
+    "width": 798,
+    "height": 299
+  },
+  "dashboard-n1-advisory": {
+    "width": 430,
+    "height": 217
+  },
+  "dashboard-oil-trend": {
+    "width": 282,
+    "height": 218
+  },
+  "dashboard-temperature-advisory": {
+    "width": 430,
+    "height": 217
+  },
+  "engine-backup-restore": {
+    "width": 798,
+    "height": 270
+  },
+  "fan-configured": {
+    "width": 832,
+    "height": 957
+  },
+  "fan-hysteresis": {
+    "width": 872,
+    "height": 906
+  },
+  "fixed-running-idle": {
+    "width": 838,
+    "height": 343
+  },
+  "fuel-configured": {
+    "width": 832,
+    "height": 856
+  },
+  "fuel-minimum-calibration": {
+    "width": 872,
+    "height": 304
+  },
+  "i2c-configured": {
+    "width": 832,
+    "height": 386
+  },
+  "idle-input-auto": {
+    "width": 838,
+    "height": 521
+  },
+  "idle-input-selected": {
+    "width": 838,
+    "height": 652
+  },
+  "igniter-configured": {
+    "width": 832,
+    "height": 942
+  },
+  "level-1-hardware": {
+    "width": 1600,
+    "height": 1100
+  },
+  "level-2-hardware": {
+    "width": 1600,
+    "height": 1100
+  },
+  "level-3-hardware": {
+    "width": 1600,
+    "height": 1100
+  },
+  "light-configured": {
+    "width": 832,
+    "height": 784
+  },
+  "main-fuel-controller": {
+    "width": 872,
+    "height": 950
+  },
+  "manual-tests": {
+    "width": 1440,
+    "height": 1250
+  },
+  "n1-configured": {
+    "width": 832,
+    "height": 437
+  },
+  "n1-warnings-configured": {
+    "width": 826,
+    "height": 440
+  },
+  "n2-configured": {
+    "width": 832,
+    "height": 437
+  },
+  "oil-feedback-settings": {
+    "width": 838,
+    "height": 1112
+  },
+  "oil-feedback": {
+    "width": 872,
+    "height": 203
+  },
+  "oil-pump-configured": {
+    "width": 832,
+    "height": 1135
+  },
+  "oil-temperature-configured": {
+    "width": 832,
+    "height": 517
+  },
+  "phase-torque-calibration": {
+    "width": 832,
+    "height": 238
+  },
+  "pressure-calibration": {
+    "width": 872,
+    "height": 334
+  },
+  "pressure-configured": {
+    "width": 832,
+    "height": 611
+  },
+  "protection-overview": {
+    "width": 1440,
+    "height": 1250
+  },
+  "sequence-bench-fuel-action": {
+    "width": 872,
+    "height": 381
+  },
+  "sequence-bench-shutdown": {
+    "width": 872,
+    "height": 541
+  },
+  "sequence-bench-startup": {
+    "width": 872,
+    "height": 812
+  },
+  "sequence-feedback-wait": {
+    "width": 1440,
+    "height": 1250
+  },
+  "sequence-output": {
+    "width": 1440,
+    "height": 1250
+  },
+  "sequence-picker": {
+    "width": 1440,
+    "height": 1250
+  },
+  "shutoff-configured": {
+    "width": 832,
+    "height": 686
+  },
+  "spi-configured": {
+    "width": 832,
+    "height": 173
+  },
+  "start-configured": {
+    "width": 832,
+    "height": 315
+  },
+  "starter-configured": {
+    "width": 832,
+    "height": 797
+  },
+  "stop-configured": {
+    "width": 832,
+    "height": 316
+  },
+  "temperature-warnings-configured": {
+    "width": 826,
+    "height": 571
+  },
+  "throttle-calibration": {
+    "width": 872,
+    "height": 305
+  },
+  "throttle-configured": {
+    "width": 832,
+    "height": 604
+  },
+  "thrust-calibration": {
+    "width": 872,
+    "height": 330
+  },
+  "thrust-configured": {
+    "width": 832,
+    "height": 699
+  },
+  "tool-settings": {
+    "width": 1440,
+    "height": 1250
+  },
+  "torque-configured": {
+    "width": 832,
+    "height": 1076
+  },
+  "tot-configured": {
+    "width": 832,
+    "height": 447
+  }
+}

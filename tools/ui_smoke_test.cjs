@@ -425,7 +425,7 @@ function installedBrowser() {
     assert.equal(startBlockVisibility.disabled, true);
     assert.equal(startBlockVisibility.visible, true);
     assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
-    assert.equal(startBlockVisibility.link, '/sequence.html?v=20260924c');
+    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261001j');
     assert.equal(startBlockVisibility.stopVisible, true);
     assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
@@ -737,7 +737,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20260924c"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261001j"]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');
@@ -805,7 +805,7 @@ function installedBrowser() {
     await page.locator('#cf-oil_rm').fill('29.008');
     assert.equal(await page.locator('#cf-tot_limit').evaluate(el =>
       el.closest('.config-group').classList.contains('group-changed')), true,
-      'A configuration group containing an edited field should have a yellow changed border');
+      'A configuration group containing an edited field should report unsaved changes');
     await page.locator('#btn-save').click();
     await page.locator('#ot-dialog-confirm').click();
     await page.locator('#save-recap-confirm-btn').click();
@@ -831,8 +831,12 @@ function installedBrowser() {
     await page.waitForFunction(() => document.querySelector('#cal-th-raw').textContent.includes('1880'));
     await page.locator('#throttle-cal-row button', { hasText: 'Capture Max' }).click();
     await page.waitForFunction(() => document.querySelector('#th-status')?.textContent.includes('Max: 1880'));
+    const throttleSaveResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/config' && response.request().method() === 'PATCH');
     await page.locator('#btn-th-save').click();
-    await page.waitForTimeout(100);
+    const throttleSaved = await throttleSaveResponse;
+    assert.equal(throttleSaved.ok(), true, 'throttle calibration PATCH must succeed');
+    assert.equal((await throttleSaved.json()).ok, true);
     saved = await state(page);
     assert.equal(saved.settings.calibration.throttle_min_raw, 1135); // +2% of 760 span
     assert.equal(saved.settings.calibration.throttle_max_raw, 1872); // -1% of 760 span
@@ -1115,7 +1119,11 @@ function installedBrowser() {
       ab_trigger: { source: 3, input_pin: 32, input_rc_pwm: true, input_threshold: 2500, requires_arm: true, arm_pin: 33 }
     } });
     await page.goto(`${base}/sequence.html`);
-    await page.waitForFunction(() => document.body.textContent.includes('Oil Pump On'));
+    // Inline script text contains the block labels before Hardware loads.
+    // Wait for the real fitted-device state, not a string in the script.
+    await page.waitForFunction(() => typeof hwCfg !== 'undefined' &&
+      hwCfg.channel_registry?.outputs?.some(channel => channel.installed !== false) &&
+      document.querySelector('#tab-startup .add-btn'));
     await page.evaluate(() => { window.__blockPickerSnapshot = JSON.parse(JSON.stringify(hwCfg)); });
     await page.locator('#tab-startup .add-btn', {hasText:'Add block'}).click();
     assert.equal(await page.locator('#block-picker-dlg').isVisible(), true);

@@ -39,6 +39,34 @@ Wait for a successful firmware boot, confirm stable ECU power, and look for the 
 
 Join the board Wi-Fi and browse directly to `http://192.168.4.1`. Keep only one OpenTurbine tab or browser client open; this limit applies to both Classic ESP32 and ESP32-S3 ECUs. Close duplicate tabs or dashboards on other devices before retrying. Mobile data, VPN, captive-portal behavior, and automatic network switching can send the browser elsewhere; temporarily disable them if needed. If Wi-Fi is visible but pages still fail, reinstall or update the web assets without interrupting power.
 
+## A fitted output is missing from Create controller
+
+Check that the output was saved in Hardware, has the intended electrical driver and is not already claimed by a controller or dedicated subsystem. A display-name change does not change its stable ID or release ownership. Review the existing owner before deleting or disabling anything. See the [controller creation screenshots]({{ '/guided-builds/control/#custom' | relative_url }}).
+
+## A setting is unavailable or a save is blocked
+
+Read the displayed prerequisite or validation message. **Configured system** focuses on fitted features; **Explore all features** exposes other settings but does not supply missing hardware. Open the warning's link to the relevant field, correct conflicts, then review the change recap. An amber future-hardware value is different from a blocked enable switch. Use the [field reference]({{ '/user-guide/#part-10-configure-controllers-and-system' | relative_url }}) to check its meaning.
+
+## A reading is stuck, wrong or moves backward
+
+Start with raw signal voltage/counts and input health, then check the selected electrical type, polarity, range and calibration. A plausible engineering value can still be incorrectly scaled. Verify the wiring with power isolated and use a trusted reference before changing a protection. See [calibration checks]({{ '/user-guide/#part-11-calibrate-inputs-and-outputs' | relative_url }}).
+
+## A sequence waits or times out
+
+Open the active card and read its completion condition, input health and timeout result. An ACTION command and an UNTIL wait can have similar names but different behavior. Resolve the missing evidence; do not bypass a condition just to advance the sequence. The [picker and card examples]({{ '/guided-builds/basic/#sequence' | relative_url }}) show where to look.
+
+## Fuel does not fall to zero at low throttle
+
+With hazardous loads isolated, check **Controllers → Fuel-metering support → Idle → Running Idle Mode**, then the Main Fuel owner's **Output low (%)**. Idle **Off** removes the Running floor but does not change Output low; both must permit zero for a full-range bench mapping. Fixed, input and automatic idle can hold a floor in Running. Startup has its own Sequence commands. Do not erase a measured pump minimum to disable idle. Follow the [illustrated idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}).
+
+## The fuel calibration Stop button is grey
+
+**Metering started — stop** becomes available after **Start 1%/s sweep**. Before a sweep it is intentionally disabled, not evidence of a missing pump. If the sweep or another calibration action is unavailable, check the displayed prerequisite, ECU state and active tests. See the [pump calibration card]({{ '/guided-builds/basic/#fuel' | relative_url }}).
+
+## A sensor bar changes its scale
+
+Auto scaling follows recent valid readings; it is not a changing protection limit. Select the range below the bar and set a fixed **Low/High** span when comparing runs. A fault clears recent history. The scale is a browser preference, not sensor calibration or an engine setting. See [Dashboard scales]({{ '/user-guide/#dashboard-readings-and-display-scales' | relative_url }}).
+
 ## Update fails
 
 Back up the full engine file before an update. Use **Update and keep my setup** for a working controller, and do not interrupt power while it runs. If the board cannot be reached over Wi-Fi, recover over USB. If a restore is rejected, use a complete matching engine file rather than partial configuration sections.

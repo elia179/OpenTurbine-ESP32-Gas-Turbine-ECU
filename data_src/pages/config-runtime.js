@@ -317,6 +317,9 @@ async function backupConfig() {
         msg.style.display = '';
       }
       setTimeout(() => {
+        // A restore may have started or failed after the backup download.
+        // Never clear that newer operation's status or error message.
+        if (state?.textContent !== 'Download started') return;
         if (state) {
           state.textContent = 'Ready';
           state.className   = 'tool-state off';
@@ -390,7 +393,11 @@ async function restoreConfig(input) {
     postRestore()
     .then(async r => {
       const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.ok === false) throw new Error(d.error || d.reason || ('HTTP ' + r.status));
+      if (!r.ok || d.ok === false) {
+        const detail = d.detail === 'profile_desc'
+          ? 'Engine description must fit within 63 UTF-8 bytes.' : d.detail;
+        throw new Error((d.error || d.reason || ('HTTP ' + r.status)) + (detail ? ': ' + detail : ''));
+      }
       return d;
     })
     .then(d => {
@@ -946,7 +953,7 @@ function applyHwConditions() {
     ? 'The afterburner fuel pump is configured as relay/on-off. Pump Test % is ignored; use the test duration instead.'
     : 'Pump-test demand requires an installed afterburner fuel pump.');
   ['di_src','di_tr','di_tp','di_ru','di_rd','di_db','di_rl','di_pd','di_pl','di_mx','di_ig','di_im','di_mode','di_de','di_dd','di_lk','di_sb','di_fr','di_tu','di_td','di_lr','di_la','di_pde','di_psb','di_pfr','di_plr'].forEach(k =>
-    ghostField(k, hasDynamicIdle, 'Automatic Idle must be enabled in Hardware > Controllers and needs a main fuel output plus N1, N2, P1, or P2 feedback.'));
+    ghostField(k, hasDynamicIdle, automaticIdleRequirements() || 'Select Automatic Idle under Running Idle Mode to use these settings.'));
   ghostSelectOption('di_src', 0, hasN1, 'N1 speed input is not configured in Hardware.');
   ghostSelectOption('di_src', 1, hasN2, 'N2 speed input is not configured in Hardware.');
   ghostSelectOption('di_src', 2, hasP1, 'P1 pressure input is not configured in Hardware.');

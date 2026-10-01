@@ -104,6 +104,70 @@ async function text(page, selector) {
     await page.goto(`${base}/tools.html`);
     await page.waitForSelector('#tool-area');
     assert.equal(await page.locator('#manual-update-tools').count(), 0);
+    assert.doesNotMatch(await text(page, 'body'), /normal proven feedback/);
+    await page.goto(`${base}/calibration.html`);
+    await page.waitForSelector('#cal-idle-thr');
+    assert.match(await text(page, 'body'), /Mapped fuel demand \(%\)/);
+    await page.goto(`${base}/sequence.html`);
+    await page.waitForFunction(() => typeof BLOCKS !== 'undefined');
+    assert.match(await page.evaluate(() => BLOCKS.FuelPumpIdle.desc), /Idle determines the Running fuel floor/);
+    await page.goto(`${base}/hardware.html`);
+    await page.waitForSelector('#registry-inputs .registry-card');
+    const usage = await page.evaluate(() => {
+      const input = registryRoot().inputs[0];
+      settingsCfg.rules = [{name:'Bench Fan', source:input.id}];
+      return registryReferenceSummary('input', input.id);
+    });
+    assert.match(usage, /Controller: Bench Fan/);
+    assert.doesNotMatch(usage, /Core firmware|custom controller reference|Simple control: input or output/);
+    await page.goto(`${base}/log.html`);
+    await page.waitForFunction(() => typeof evBadge === 'function');
+    assert.equal(await page.locator('details').filter({hasText:'About event and session logs'}).evaluate(el => el.open), false);
+    const logLabels = await page.evaluate(() => ({
+      badge:evBadge('BLOCK_ENTER'),
+      details:formatDetails({t:1,ev:'BLOCK_ENTER',block:'FuelPumpIdle',res:'ok',n1Rpm:5806}),
+      escaped:formatDetails({block:'<img src=x onerror=alert(1)>',field:'"unsafe"'})
+    }));
+    assert.match(logLabels.badge, /title="BLOCK_ENTER">Step started/);
+    assert.match(logLabels.details, /Set Main Fuel for Idle/);
+    assert.match(logLabels.details, /N1 \(RPM\)/);
+    assert.doesNotMatch(logLabels.escaped, /<img/);
+    assert.match(logLabels.escaped, /&lt;img/);
+    await page.goto(`${base}/system.html`);
+    await page.waitForSelector('#cfg-backup-btn', {state:'attached'});
+    await page.locator('#system-backup-restore').evaluate(el => {
+      el.open = true;
+      for (let parent = el.parentElement; parent; parent = parent.parentElement)
+        if (parent.tagName === 'DETAILS') parent.open = true;
+    });
+    for (const theme of ['carbon','ember','slate','midnight','contrast','daylight']) {
+      await page.evaluate(theme => window.OTTheme.apply(theme), theme);
+      for (const width of [320,390,768,1200]) {
+        await page.setViewportSize({width,height:900});
+        const borders = await page.locator('#system-backup-restore').evaluate(el => ({
+          header:getComputedStyle(el.querySelector('summary')).borderTopWidth,
+          section:getComputedStyle(el.querySelector('.cfg-section')).borderBottomWidth,
+          overflow:document.documentElement.scrollWidth > window.innerWidth
+        }));
+        assert.equal(borders.header, '0px', `${theme}/${width}: duplicate accent strip`);
+        assert.equal(borders.section, '0px', `${theme}/${width}: duplicate bottom border`);
+        assert.equal(borders.overflow, false, `${theme}/${width}: horizontal overflow`);
+      }
+    }
+    await page.setViewportSize({width:1200,height:900});
+    const pendingBackup = page.waitForEvent('download');
+    await page.locator('#cfg-backup-btn').click();
+    const backup = await pendingBackup;
+    await page.route('**/api/ecu_config', route => route.request().method() === 'POST'
+      ? route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'hardware section rejected',detail:'profile_desc'})})
+      : route.continue());
+    await page.locator('#cfg-restore-file').setInputFiles(await backup.path());
+    await page.locator('#ot-dialog-confirm').click();
+    await page.waitForFunction(() => document.querySelector('#cfg-backup-state')?.textContent === 'Error');
+    await page.waitForTimeout(3500);
+    assert.equal(await text(page, '#cfg-backup-state'), 'Error', 'backup timer erased restore failure');
+    assert.match(await text(page, '#cfg-backup-msg'), /63 UTF-8 bytes/);
+    assert.equal(await page.locator('#cfg-backup-msg').isVisible(), true);
     assert.deepEqual(pageErrors, []);
     console.log('Cosmetic follow-up audit passed: cluster visibility, System grouping/update placement, rename warning, atomic identity sync, and full-file mismatch guard.');
   } finally {

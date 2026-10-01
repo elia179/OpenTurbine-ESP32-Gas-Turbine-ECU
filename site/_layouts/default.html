@@ -14,13 +14,14 @@
     <meta name="theme-color" content="#0c1218">
     <link rel="icon" href="{{ '/favicon.ico' | relative_url }}" sizes="any">
     <link rel="apple-touch-icon" href="{{ '/assets/images/openturbine-logo.png' | relative_url }}">
-    <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}?v=20260912c">
+    <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}?v={{ site.time | date: '%s' }}">
+    <noscript><style>.site-header{position:static}.site-header #site-nav{display:flex;position:static;flex-wrap:wrap;flex-direction:row;max-height:none;border:0;box-shadow:none}.nav-wrap{flex-wrap:wrap}.site-header .menu-button{display:none}</style></noscript>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
     {% include header.html %}
     <main id="content">{{ content }}</main>
     {% include footer.html %}
-    <script src="{{ '/assets/js/site.js' | relative_url }}?v=20260912c"></script>
+    <script src="{{ '/assets/js/site.js' | relative_url }}?v={{ site.time | date: '%s' }}"></script>
   </body>
 </html>

@@ -1,0 +1,1539 @@
+{
+  "pages": {
+    "/about/": {
+      "title": "About OpenTurbine",
+      "sections": [
+        {
+          "title": "What the project includes",
+          "id": "what-the-project-includes"
+        }
+      ]
+    },
+    "/developers/": {
+      "title": "OpenTurbine developer documentation and source build",
+      "sections": [
+        {
+          "title": "Useful entry points",
+          "id": "useful-entry-points"
+        }
+      ]
+    },
+    "/example-system/": {
+      "title": "Explore a basic single-shaft turbine system",
+      "sections": [
+        {
+          "title": "What this example contains",
+          "id": "what-this-example-contains"
+        },
+        {
+          "title": "How the signals fit together",
+          "id": "how-the-signals-fit-together"
+        },
+        {
+          "title": "Build the example in the interface",
+          "id": "build-the-example-in-the-interface"
+        },
+        {
+          "title": "What to change for other systems",
+          "id": "what-to-change-for-other-systems"
+        },
+        {
+          "title": "Continue from here",
+          "id": "continue-from-here"
+        }
+      ]
+    },
+    "/faq/": {
+      "title": "OpenTurbine FAQ: boards, installation and updates",
+      "sections": [
+        {
+          "title": "Do I need programming experience? Do I download the source ZIP?",
+          "id": "do-i-need-programming-experience-do-i-download-the-source-zip"
+        },
+        {
+          "title": "Which boards are supported?",
+          "id": "which-boards-are-supported"
+        },
+        {
+          "title": "Does driver installation require a restart?",
+          "id": "does-driver-installation-require-a-restart"
+        },
+        {
+          "title": "What does Clean install erase? How does Update keep my setup?",
+          "id": "what-does-clean-install-erase-how-does-update-keep-my-setup"
+        },
+        {
+          "title": "Can I reuse a pre-2.0 engine file?",
+          "id": "can-i-reuse-a-pre-20-engine-file"
+        },
+        {
+          "title": "Can I explore without a turbine? Can GPIO power a pump or igniter?",
+          "id": "can-i-explore-without-a-turbine-can-gpio-power-a-pump-or-igniter"
+        },
+        {
+          "title": "Can I add a sensor or output that is not one of the built-in names?",
+          "id": "can-i-add-a-sensor-or-output-that-is-not-one-of-the-built-in-names"
+        },
+        {
+          "title": "What can simple controls do?",
+          "id": "what-can-simple-controls-do"
+        },
+        {
+          "title": "Why does Windows warn about the Setup Tool?",
+          "id": "why-does-windows-warn-about-the-setup-tool"
+        },
+        {
+          "title": "Where are logs and complete instructions?",
+          "id": "where-are-logs-and-complete-instructions"
+        },
+        {
+          "title": "Is OpenTurbine certified or inherently safe? Does it work on macOS/Linux?",
+          "id": "is-openturbine-certified-or-inherently-safe-does-it-work-on-macoslinux"
+        }
+      ]
+    },
+    "/get-started/": {
+      "title": "Install OpenTurbine from Windows",
+      "sections": [
+        {
+          "title": "1. Prepare the board",
+          "id": "1-prepare-the-board"
+        },
+        {
+          "title": "2. Download the Setup Tool",
+          "id": "2-download-the-setup-tool"
+        },
+        {
+          "title": "3. Connect and identify the board",
+          "id": "3-connect-and-identify-the-board"
+        },
+        {
+          "title": "4. Choose install or update",
+          "id": "4-choose-install-or-update"
+        },
+        {
+          "title": "5. Open the dashboard",
+          "id": "5-open-the-dashboard"
+        },
+        {
+          "title": "6. Continue with your own hardware",
+          "id": "6-continue-with-your-own-hardware"
+        }
+      ]
+    },
+    "/guided-builds/basic/": {
+      "title": "Level 1 Build a basic OpenTurbine system",
+      "sections": [
+        {
+          "title": "Before you begin",
+          "id": "before-you-begin"
+        },
+        {
+          "title": "1 · Power and understand the ECU",
+          "id": "power"
+        },
+        {
+          "title": "2 · Add N1 speed",
+          "id": "n1"
+        },
+        {
+          "title": "3 · Add turbine temperature",
+          "id": "temperature"
+        },
+        {
+          "title": "4 · Add throttle demand",
+          "id": "throttle"
+        },
+        {
+          "title": "5 · Add a servo or ESC command",
+          "id": "starter"
+        },
+        {
+          "title": "6 · Add PWM fuel-command hardware",
+          "id": "fuel"
+        },
+        {
+          "title": "7 · Add an on/off ignition command",
+          "id": "ignition"
+        },
+        {
+          "title": "8 · Output ownership and Dashboard warnings",
+          "id": "ownership"
+        },
+        {
+          "title": "9 · Build a sequence",
+          "id": "sequence"
+        },
+        {
+          "title": "10 · Verify and save the system",
+          "id": "verify"
+        }
+      ]
+    },
+    "/guided-builds/control/": {
+      "title": "Level 2 Understand control and protection",
+      "sections": [
+        {
+          "title": "Your starting point",
+          "id": "your-starting-point"
+        },
+        {
+          "title": "1 · Verify fuel isolation",
+          "id": "isolation"
+        },
+        {
+          "title": "2 · Add pressure feedback",
+          "id": "pressure"
+        },
+        {
+          "title": "3 · Make a feedback loop",
+          "id": "feedback"
+        },
+        {
+          "title": "4 · Build a light-dimming controller",
+          "id": "custom"
+        },
+        {
+          "title": "5 · Separate limits and hard trips",
+          "id": "limits"
+        },
+        {
+          "title": "6 · Review sequence handover",
+          "id": "handover"
+        },
+        {
+          "title": "7 · Test the relationships",
+          "id": "verify"
+        }
+      ]
+    },
+    "/guided-builds/extend/": {
+      "title": "Level 3 Extend your OpenTurbine system",
+      "sections": [
+        {
+          "title": "Your starting point",
+          "id": "your-starting-point"
+        },
+        {
+          "title": "1 · Add a second shaft",
+          "id": "n2"
+        },
+        {
+          "title": "2 · Choose the feedback relationship",
+          "id": "governor"
+        },
+        {
+          "title": "3 · Measure a 12 V battery",
+          "id": "voltage"
+        },
+        {
+          "title": "4 · Measure current",
+          "id": "current"
+        },
+        {
+          "title": "5 · Add temperature and a cooling fan",
+          "id": "fan"
+        },
+        {
+          "title": "6 · Add a cover switch",
+          "id": "switch"
+        },
+        {
+          "title": "7 · Measure shaft torque with two pickups",
+          "id": "challenge"
+        },
+        {
+          "title": "8 · Measure thrust with an I²C load cell",
+          "id": "thrust"
+        },
+        {
+          "title": "9 · Review the complete system",
+          "id": "finish"
+        }
+      ]
+    },
+    "/guided-builds/": {
+      "title": "Learn OpenTurbine with three guided builds",
+      "sections": [
+        {
+          "title": "One installation that grows",
+          "id": "one-installation-that-grows"
+        },
+        {
+          "title": "Learn on a bench first",
+          "id": "learn-on-a-bench-first"
+        },
+        {
+          "title": "What each step gives you",
+          "id": "what-each-step-gives-you"
+        },
+        {
+          "title": "Keep these references nearby",
+          "id": "keep-these-references-nearby"
+        }
+      ]
+    },
+    "/guided-builds/parts/": {
+      "title": "Choose parts for the guided builds",
+      "sections": [
+        {
+          "title": "A small teaching kit",
+          "id": "a-small-teaching-kit"
+        },
+        {
+          "title": "An optional cumulative pin plan",
+          "id": "an-optional-cumulative-pin-plan"
+        },
+        {
+          "title": "Before connecting a real engine",
+          "id": "before-connecting-a-real-engine"
+        }
+      ]
+    },
+    "/hardware/": {
+      "title": "OpenTurbine hardware and wiring guide",
+      "sections": [
+        {
+          "title": "Supported ESP32 targets",
+          "id": "supported-esp32-targets"
+        },
+        {
+          "title": "Installed Channel Inventory",
+          "id": "installed-channel-inventory"
+        },
+        {
+          "title": "Supported sensor and expansion devices",
+          "id": "supported-sensor-and-expansion-devices"
+        },
+        {
+          "title": "Connection patterns",
+          "id": "connection-patterns"
+        },
+        {
+          "title": "Power supply",
+          "id": "power-supply"
+        },
+        {
+          "title": "3.3 V GPIO limits",
+          "id": "33-v-gpio-limits"
+        },
+        {
+          "title": "ADC restrictions",
+          "id": "adc-restrictions"
+        },
+        {
+          "title": "Driver electronics",
+          "id": "driver-electronics"
+        },
+        {
+          "title": "Flyback protection",
+          "id": "flyback-protection"
+        },
+        {
+          "title": "Grounding",
+          "id": "grounding"
+        },
+        {
+          "title": "RPM sensors",
+          "id": "rpm-sensors"
+        },
+        {
+          "title": "Thermocouple interfaces",
+          "id": "thermocouple-interfaces"
+        },
+        {
+          "title": "Pressure sensors",
+          "id": "pressure-sensors"
+        },
+        {
+          "title": "Pump control",
+          "id": "pump-control"
+        },
+        {
+          "title": "Starter control",
+          "id": "starter-control"
+        },
+        {
+          "title": "Ignition control",
+          "id": "ignition-control"
+        },
+        {
+          "title": "Independent emergency stop",
+          "id": "independent-emergency-stop"
+        },
+        {
+          "title": "Dry wiring checklist",
+          "id": "dry-wiring-checklist"
+        }
+      ]
+    },
+    "/reference/": {
+      "title": "Find a topic or setting",
+      "sections": [
+        {
+          "title": "Learn or look something up",
+          "id": "learn-or-look-something-up"
+        },
+        {
+          "title": "Common tasks",
+          "id": "common-tasks"
+        },
+        {
+          "title": "Reading shortcuts",
+          "id": "reading-shortcuts"
+        }
+      ]
+    },
+    "/safety/": {
+      "title": "OpenTurbine experimental safety requirements",
+      "sections": [
+        {
+          "title": "Before applying power",
+          "id": "before-applying-power"
+        },
+        {
+          "title": "Test in stages",
+          "id": "test-in-stages"
+        }
+      ]
+    },
+    "/troubleshooting/": {
+      "title": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "sections": [
+        {
+          "title": "Windows blocks the Setup Tool",
+          "id": "windows-blocks-the-setup-tool"
+        },
+        {
+          "title": "CP210x driver installation fails",
+          "id": "cp210x-driver-installation-fails"
+        },
+        {
+          "title": "CH340/WCH driver installation fails",
+          "id": "ch340wch-driver-installation-fails"
+        },
+        {
+          "title": "Board does not appear as a COM port",
+          "id": "board-does-not-appear-as-a-com-port"
+        },
+        {
+          "title": "COM port exists but the ESP32 does not answer",
+          "id": "com-port-exists-but-the-esp32-does-not-answer"
+        },
+        {
+          "title": "Flashing fails",
+          "id": "flashing-fails"
+        },
+        {
+          "title": "OpenTurbine Wi-Fi is missing",
+          "id": "openturbine-wi-fi-is-missing"
+        },
+        {
+          "title": "Dashboard does not open",
+          "id": "dashboard-does-not-open"
+        },
+        {
+          "title": "A fitted output is missing from Create controller",
+          "id": "a-fitted-output-is-missing-from-create-controller"
+        },
+        {
+          "title": "A setting is unavailable or a save is blocked",
+          "id": "a-setting-is-unavailable-or-a-save-is-blocked"
+        },
+        {
+          "title": "A reading is stuck, wrong or moves backward",
+          "id": "a-reading-is-stuck-wrong-or-moves-backward"
+        },
+        {
+          "title": "A sequence waits or times out",
+          "id": "a-sequence-waits-or-times-out"
+        },
+        {
+          "title": "Fuel does not fall to zero at low throttle",
+          "id": "fuel-does-not-fall-to-zero-at-low-throttle"
+        },
+        {
+          "title": "The fuel calibration Stop button is grey",
+          "id": "the-fuel-calibration-stop-button-is-grey"
+        },
+        {
+          "title": "A sensor bar changes its scale",
+          "id": "a-sensor-bar-changes-its-scale"
+        },
+        {
+          "title": "Update fails",
+          "id": "update-fails"
+        },
+        {
+          "title": "Where diagnostic logs are stored",
+          "id": "where-diagnostic-logs-are-stored"
+        },
+        {
+          "title": "Before reporting a bug",
+          "id": "before-reporting-a-bug"
+        }
+      ]
+    },
+    "/user-guide/": {
+      "title": "OpenTurbine user guide and reference",
+      "sections": [
+        {
+          "title": "Part 1: Words used in this guide",
+          "id": "part-1-words-used-in-this-guide"
+        },
+        {
+          "title": "Part 2: What you need",
+          "id": "part-2-what-you-need"
+        },
+        {
+          "title": "Part 3: How the system is connected",
+          "id": "part-3-how-the-system-is-connected"
+        },
+        {
+          "title": "Part 4: Wire the ECU power and emergency stop",
+          "id": "part-4-wire-the-ecu-power-and-emergency-stop"
+        },
+        {
+          "title": "Part 5: Wire inputs and sensors",
+          "id": "part-5-wire-inputs-and-sensors"
+        },
+        {
+          "title": "Part 6: Wire outputs and actuators",
+          "id": "part-6-wire-outputs-and-actuators"
+        },
+        {
+          "title": "Part 7: Install OpenTurbine and connect",
+          "id": "part-7-install-openturbine-and-connect"
+        },
+        {
+          "title": "Part 8: Describe the hardware in the dashboard",
+          "id": "part-8-describe-the-hardware-in-the-dashboard"
+        },
+        {
+          "title": "Part 9: Understand controllers and safety functions",
+          "id": "part-9-understand-controllers-and-safety-functions"
+        },
+        {
+          "title": "Part 10: Configure Controllers and System",
+          "id": "part-10-configure-controllers-and-system"
+        },
+        {
+          "title": "Part 11: Calibrate inputs and outputs",
+          "id": "part-11-calibrate-inputs-and-outputs"
+        },
+        {
+          "title": "Part 12: Build startup and shutdown sequences",
+          "id": "part-12-build-startup-and-shutdown-sequences"
+        },
+        {
+          "title": "Part 13: Use custom controllers",
+          "id": "part-13-use-custom-controllers"
+        },
+        {
+          "title": "Part 14: Dry-test the complete ECU",
+          "id": "part-14-dry-test-the-complete-ecu"
+        },
+        {
+          "title": "Part 15: Prepare for a first fueled test",
+          "id": "part-15-prepare-for-a-first-fueled-test"
+        },
+        {
+          "title": "Part 16: Operate, back up, update and diagnose",
+          "id": "part-16-operate-back-up-update-and-diagnose"
+        }
+      ]
+    }
+  },
+  "search": [
+    {
+      "title": "About OpenTurbine",
+      "context": "Documentation",
+      "url": "/about/",
+      "text": "Learn what OpenTurbine provides for supported ESP32 turbine-controller projects, including open-source firmware, browser setup, documentation, and Windows installation."
+    },
+    {
+      "title": "What the project includes",
+      "context": "About OpenTurbine",
+      "url": "/about/#what-the-project-includes",
+      "text": "The project includes firmware, a browser interface, configuration/calibration tools and the Windows installer. Check supported hardware and electrical requirements before choosing parts. OpenTurbine is developed in the open. Releases, issue templates, and source history are available on GitHub. Read the safety notice before powering or connecting any real hardware."
+    },
+    {
+      "title": "OpenTurbine developer documentation and source build",
+      "context": "Documentation",
+      "url": "/developers/",
+      "text": "Build OpenTurbine from source, validate firmware and web changes, package the Windows Setup Tool, or integrate the OpenTurbine Cluster protocol."
+    },
+    {
+      "title": "Useful entry points",
+      "context": "OpenTurbine developer documentation and source build",
+      "url": "/developers/#useful-entry-points",
+      "text": "- Build and development documentation covers the firmware and web workflows. - Setup Tool packaging describes the Windows release artifact. - OTC Cluster protocol is the integration reference. Record verification results and signing status before publishing a release."
+    },
+    {
+      "title": "Explore a basic single-shaft turbine system",
+      "context": "Documentation",
+      "url": "/example-system/",
+      "text": "Walk through an ordinary OpenTurbine single-shaft example to understand the hardware, controllers, calibration, sequence, and safety decisions without copying engine-specific limits."
+    },
+    {
+      "title": "What this example contains",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#what-this-example-contains",
+      "text": "Part of the system Example choice Why it is present ECU Supported Classic ESP32 or ESP32-S3 board Runs OpenTurbine and hosts the local browser interface. Shaft feedback One conditioned N1 speed signal Shows core speed and supports acceleration checks, idle control, pullback, and independent overspeed shutdown. Gas temperature K-type thermocouple through a supported converter Shows turbine temperature and supports hot-start and overtemperature protection. Lubrication feedback Conditioned oil-pressure sensor Confirms pressure during startup and allows running oil-pressure protection or regulation. Operator demand Potentiometer or RC PWM throttle input Provides the requested running demand after calibration. A logging-only or externally controlled system can omit it. Main fuel metering Rated pump driver, ESC, or metering-valve interface Receives the protected proportional fuel command. The ESP32 pin is only a control signal. Fuel isolation Normally closed shutoff valve through a rated driver Provides a separate physical fuel-isolation command during stop and fault handling. Starting Electric starter and, where required, a separate starter-enable output Cranks the engine while the startup sequence checks time, speed, and temperature progress. Ignition Igniter through its specified isolated driver Provides ignition energy only during the configured startup stages. Oil delivery Relay or proportional oil-pump driver Primes before rotation, supports the run, and can continue through cooldown. Independent stop Hard-wired emergency-stop circuit Removes fuel or relevant load power without relying on the ESP32, Wi-Fi, browser, or software. The hardware compatibility table lists the converter and expansion chips currently supported. A compatible interface still needs suitable voltage levels, signal conditioning, load drivers, fusing, grounding, and transient protection."
+    },
+    {
+      "title": "How the signals fit together",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#how-the-signals-fit-together",
+      "text": "1. N1, turbine temperature, and oil pressure enter the ECU through suitable conditioners or supported converter modules. 2. Throttle demand asks for fuel; it does not bypass controller limits or shutdown logic. 3. Main Fuel Metering receives the final protected proportional demand. 4. Fuel Shutoff, Starter, Igniter, and Oil Pump are operated by the startup/shutdown sequence and applicable built-in subsystems. 5. The independent emergency stop removes energy outside the software path. The browser is used to configure and observe the ECU. Losing the browser or Wi-Fi does not become a new engine command, but an operating installation must never depend on the browser as its only stop method."
+    },
+    {
+      "title": "Build the example in the interface",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#build-the-example-in-the-interface",
+      "text": "You can explore this layout on a spare supported board with every load supply disconnected."
+    },
+    {
+      "title": "1. Hardware",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#1-hardware",
+      "text": "Add only the devices in the example inventory. For every channel, choose the real electrical signal type and a valid pin for the selected board. A relay is binary; PWM and servo/ESC signals are proportional. Resolve every pin conflict and missing electrical requirement before saving. Do not copy pin numbers from another board or installation. Classic ESP32 and ESP32-S3 have different usable pins, and a PCB profile may own its connections."
+    },
+    {
+      "title": "2. Controllers",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#2-controllers",
+      "text": "Open the existing Main Fuel Metering controller. If none owns that output yet, create it under Controllers → Output controllers → + Create controller; use the illustrated steps. A straightforward starting point is operator demand commanding the fuel output, with engine-specific limits and automatic idle left for later commissioning. Choose Running Idle Mode deliberately. Off adds no Running floor; Fixed, Input channel and Automatic Idle each provide one differently. Older files needing an explicit mode choice retain their behavior until you change Idle settings. See the idle choices before setting the mapped minimum. If the oil pump is proportional and oil pressure is fitted, it may use an oil-pressure controller. A relay oil pump remains simple On/Off sequence hardware. Leave optional behavior disabled until its feedback and purpose are understood."
+    },
+    {
+      "title": "3. Calibration",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#3-calibration",
+      "text": "Calibrate the throttle endpoints, verify N1 against an independent tachometer, compare turbine temperature with a trusted reference, and calibrate oil pressure at zero and against a gauge. Calibration makes a reading meaningful; it does not prove that a chosen safety limit is suitable."
+    },
+    {
+      "title": "4. Sequence",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#4-sequence",
+      "text": "A typical startup concept is: Standby → pre-oil → crank → ignition → introduce fuel → confirm light-off → accelerate → final checks → running A typical shutdown concept is: Remove fuel and ignition → allow speed/temperature to fall → continue required oil or cooldown actions → stop all outputs The exact order can vary with the engine and starting system. Every wait needs a finite timeout and safe failure result. Do not copy example delays or demands from an unrelated turbine."
+    },
+    {
+      "title": "5. Protection",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#5-protection",
+      "text": "Enable a protection only after its input is fitted, calibrated, and proven healthy. Keep these ideas separate: - Pullback gradually reduces fuel as a measured value approaches a configured boundary. - Hard shutdown removes combustion authority when its independently configured trip condition is confirmed. - Reduced-Power operation is a deliberate degraded option for eligible feedback failures; it is not a replacement for a working stop path."
+    },
+    {
+      "title": "6. Dry test",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#6-dry-test",
+      "text": "With fuel, ignition energy, starter power, and other load power isolated, verify: - every input moves in the expected direction and reports believable units; - each output uses the expected pin, polarity, signal type, and parked state; - START advances only through conditions that are intentionally satisfied; - sensor loss produces the expected warning, Reduced-Power choice, or lock; - STOP, overspeed, overtemperature, and other configured trips remove the intended commands; and - the independent emergency stop removes energy even if the ECU is unavailable."
+    },
+    {
+      "title": "What to change for other systems",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#what-to-change-for-other-systems",
+      "text": "- A logging-only installation can omit fuel metering and every actuator; fit only the measurements that should be recorded. - An air-start system replaces the electric starter path with its valve and interlocks. - A free-turbine or turboprop system adds N2 and may assign a governor to fuel or propeller pitch. - An afterburning system adds separate fuel and ignition hardware plus explicit arm, light-off evidence, and shutdown sequencing. - A sensor-light manual system can retain external fuel control while using OpenTurbine for sequencing, selected protection, or logging. These remain the same product: Hardware describes what exists, Controllers describe normal ownership, Sequence describes state changes, and System contains ECU-wide behavior."
+    },
+    {
+      "title": "Continue from here",
+      "context": "Explore a basic single-shaft turbine system",
+      "url": "/example-system/#continue-from-here",
+      "text": "Use this example to understand the shape of a system, then design around the actual turbine and electronics: Install on a spare board Plan compatible hardware Open the complete User Guide Read the safety requirements"
+    },
+    {
+      "title": "OpenTurbine FAQ: boards, installation and updates",
+      "context": "Documentation",
+      "url": "/faq/",
+      "text": "Answers about supported ESP32 boards, Windows installation, hardware channels, controllers, updates, backups, wiring, logs, and experimental-use limits for OpenTurbine."
+    },
+    {
+      "title": "Do I need programming experience? Do I download the source ZIP?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#do-i-need-programming-experience-do-i-download-the-source-zip",
+      "text": "No. Download OpenTurbineSetupTool.exe from the official release. Do not use GitHub’s Download ZIP source-code button for normal Windows setup."
+    },
+    {
+      "title": "Which boards are supported?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#which-boards-are-supported",
+      "text": "Use a Classic ESP32 with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatible board with at least 8 MB flash. The same universal S3 image runs on 8 MB and 16 MB modules and does not require PSRAM. ESP32-C3 and other unlisted ESP32 families are not supported by the current normal setup path."
+    },
+    {
+      "title": "Does driver installation require a restart?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#does-driver-installation-require-a-restart",
+      "text": "Usually not. The Setup Tool rescans after installing a driver and shows when Windows specifically requires a restart. If the connected CP210x/WCH bridge has no COM port, it offers the matching driver even when an unrelated COM port exists."
+    },
+    {
+      "title": "What does Clean install erase? How does Update keep my setup?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#what-does-clean-install-erase-how-does-update-keep-my-setup",
+      "text": "Clean install/reinstall erases the selected board. Update and keep my setup is the normal Wi-Fi update path for a working controller; it backs up the engine file first. Keep backups private because they can contain Wi-Fi credentials."
+    },
+    {
+      "title": "Can I reuse a pre-2.0 engine file?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#can-i-reuse-a-pre-20-engine-file",
+      "text": "OpenTurbine 2.0 intentionally replaces older hardware and startup-safety behavior. Keep the old file as a reference, but use a clean installation and rebuild/review Hardware, Controllers, System, Calibration, Sequence, and every dry shutdown test. Read the v2 migration guide before moving an engine installation."
+    },
+    {
+      "title": "Can I explore without a turbine? Can GPIO power a pump or igniter?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#can-i-explore-without-a-turbine-can-gpio-power-a-pump-or-igniter",
+      "text": "You can explore and configure the dashboard with loads physically disconnected. GPIO pins are 3.3 V logic only: they do not power pumps, valves, starters, or ignition. Use suitable protected driver electronics."
+    },
+    {
+      "title": "Can I add a sensor or output that is not one of the built-in names?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#can-i-add-a-sensor-or-output-that-is-not-one-of-the-built-in-names",
+      "text": "Yes. In Hardware, add a generic input or output with a readable name, the correct signal type, connection, range and safe states. Use that displayed device name when selecting it in Controllers, Sequence or Tools. Its electrical interface still needs suitable conditioning or a rated driver."
+    },
+    {
+      "title": "What can simple controls do?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#what-can-simple-controls-do",
+      "text": "Simple controls live with the other output owners on Controllers. A control can switch an output at a sensor threshold with hysteresis or map an input range directly to a variable PWM/servo output range. Each output has one normal owner; Sequence owns ordered startup/shutdown actions and safety can always override normal demand."
+    },
+    {
+      "title": "Why does Windows warn about the Setup Tool?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#why-does-windows-warn-about-the-setup-tool",
+      "text": "Use the official OpenTurbine download link and choose More info → Run anyway when Windows offers it. Do not disable Windows security or use an installer from another website. Normal installation does not require understanding checksums; the Setup Tool automatically verifies the firmware package it downloads."
+    },
+    {
+      "title": "Where are logs and complete instructions?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#where-are-logs-and-complete-instructions",
+      "text": "Setup Tool diagnostics are under %LOCALAPPDATA%\\OpenTurbine\\SetupTool\\logs. The User Guide and reference covers operating and wiring details. Use Setup Help for installation problems."
+    },
+    {
+      "title": "Is OpenTurbine certified or inherently safe? Does it work on macOS/Linux?",
+      "context": "OpenTurbine FAQ: boards, installation and updates",
+      "url": "/faq/#is-openturbine-certified-or-inherently-safe-does-it-work-on-macoslinux",
+      "text": "No. It is experimental and requires independently verified limits, drivers, and physical shutdown protection. There is no graphical macOS/Linux installer; manual PlatformIO builds are an advanced/developer path."
+    },
+    {
+      "title": "Install OpenTurbine from Windows",
+      "context": "Documentation",
+      "url": "/get-started/",
+      "text": "Install OpenTurbine on a supported ESP32 using the Windows Setup Tool, then connect to its Wi-Fi dashboard."
+    },
+    {
+      "title": "1. Prepare the board",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#1-prepare-the-board",
+      "text": "You need: - A Classic ESP32 board with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatible board with at least 8 MB flash. The universal S3 image runs on 8 MB and 16 MB modules and does not require PSRAM. - A Windows computer. - A USB data cable. A charge-only cable can power the board but cannot install firmware. Keep fuel, ignition energy, starter power and actuator/load power physically disconnected during installation."
+    },
+    {
+      "title": "2. Download the Setup Tool",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#2-download-the-setup-tool",
+      "text": "Download OpenTurbineSetupTool.exe for Windows. Use the executable above, not GitHub's Download ZIP source-code button. If Windows displays a warning, confirm that the file came from the official OpenTurbine Releases page before using More info → Run anyway. Do not disable Windows protection globally. Expected: Windows opens the OpenTurbine Setup Tool."
+    },
+    {
+      "title": "3. Connect and identify the board",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#3-connect-and-identify-the-board",
+      "text": "Connect the ESP32 directly to the computer and open the Setup Tool. It will show a detected board or identify a missing CP210x/WCH USB driver. If a driver is required, use the matching option offered by the Setup Tool. If Windows already shows a COM port but the board does not answer, close other serial programs, hold BOOT, tap EN/RESET, and try again. Expected: the Setup Tool shows the connected board and a usable COM port. No board or COM port? Use the board-detection troubleshooting steps."
+    },
+    {
+      "title": "4. Choose install or update",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#4-choose-install-or-update",
+      "text": "- For a new board, select Clean install / reinstall. This erases the selected board. - For a working OpenTurbine ECU, select Update and keep my setup. Back up the engine file first; this path is designed to preserve the setup. Check the selected board and operation before starting. Do not disconnect USB power while the Setup Tool is writing firmware. Expected: installation completes without an error and the board restarts. Installation stopped or failed? Go directly to flashing help."
+    },
+    {
+      "title": "5. Open the dashboard",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#5-open-the-dashboard",
+      "text": "Join the Wi-Fi network created by the board, remain connected even if Windows says the network has no internet, and open http://192.168.4.1 in a browser. Expected: the OpenTurbine dashboard loads and shows the ECU state. Wi-Fi missing or dashboard not loading? See Wi-Fi help or dashboard help ."
+    },
+    {
+      "title": "6. Continue with your own hardware",
+      "context": "Install OpenTurbine from Windows",
+      "url": "/get-started/#6-continue-with-your-own-hardware",
+      "text": "OpenTurbine does not require one fixed engine layout. Describe only the sensors and actuators your system actually has, then configure and test them in this order: Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard Start with Level 1: build a basic system for wiring, configured cards and checks in order. The complete User Guide is the detailed reference; the single-shaft overview shows the overall relationships. Do not connect fuel or ignition energy until the independent stop and every configured shutdown path have been dry-tested. Begin Level 1 Open the User Guide Hardware requirements Troubleshooting"
+    },
+    {
+      "title": "Level 1 Build a basic OpenTurbine system",
+      "context": "Documentation",
+      "url": "/guided-builds/basic/",
+      "text": "Add a small set of OpenTurbine inputs and outputs one at a time, pair simple wiring with actual software configuration, and verify a start and stop sequence dry."
+    },
+    {
+      "title": "Before you begin",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#before-you-begin",
+      "text": "Already wired? Jump to output ownership and Dashboard warnings or the complete dummy-load sequence. Install OpenTurbine and open its interface using Get Started. Have a meter and the Level 1 teaching parts available. This guide starts with a supported development board; PCB profiles show board-labelled connections instead of editable raw GPIOs. This is a minimal learning topology: N1, turbine temperature, throttle, starter command, ignition command and fuel command, plus the required physical Start and Stop inputs. Begin with a handheld magnet, an unloaded servo and low-power dummy loads. Fuel, ignition energy and starter power stay disconnected. Your actual engine may require oil delivery, a shutoff valve and further feedback from the outset; fit those requirements before any operating attempt. An independent physical fuel/power stop applies at every level."
+    },
+    {
+      "title": "1 · Power and understand the ECU",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#power",
+      "text": "What we are adding: the controller itself. An input reports something to the ECU. An output sends a command. The driver between an output and a motor, valve or igniter handles load power. Connect it. For the first session, use the board's USB power alone. Confirm your board's permitted power arrangement before adding an external regulator or another source; do not join supplies casually. In a real installation, fuse the regulated ECU supply and each load supply separately. Route heavy load returns to a deliberate supply return, not through the ECU's sensor ground wiring. Join logic grounds only for interfaces that are not intentionally isolated. In OpenTurbine: open Hardware, select the correct ESP32 target if using an editable development-board profile, and inspect the installed inventory. A fresh/default configuration can already contain example channels. Remove or adapt defaults you have not fitted before building this inventory; do not add duplicates on the same pin. An installer update is different from a clean install, so back up any existing configuration first. Add the required Start and Stop buttons. Use two momentary dry contacts, each on its own GPIO. In Hardware, edit the existing Start and Stop control cards and assign the physical pins. For the short bench connections shown below, connect each contact between its GPIO and GND, select active-low and enable its internal pull-up. No external pull-up resistor is needed on a pin that supports internal bias. These ECU inputs are separate from the independent physical stop that removes energy. Choose the bias to match the wiring. A switch to GND uses Pull-up and active-low; a switch to 3.3 V uses Pull-down and active-high. Select one bias only. Classic ESP32 GPIO 34–39 have neither internal pull-up nor pull-down: use a suitable external resistor there. Longer or noisy wiring may also need an external resistor and conditioning. Start and Stop use their own control-card bias options; the generic switch card exposes Input bias. Hardware says what exists. Controllers says who normally commands an output. System holds ECU-wide settings. Calibration gives readings and output ranges meaning. Sequence handles ordered transitions. Tools tests the result; Dashboard shows live operation. Verify: confirm the selected board matches reality and the UI can save/reload. With all load power isolated, measure the ECU supply and reference ground. If a board resets when a motor starts later, investigate supply/return/transient wiring before changing software. Next: add N1 →"
+    },
+    {
+      "title": "2 · Add N1 speed",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#n1",
+      "text": "What we are adding: a pulse signal measuring the gas-generator shaft's speed. For learning, a DRV5033 Hall sensor and handheld magnet make the electrical pattern visible. This sensor demonstration does not qualify a magnet or mounting arrangement for a high-speed turbine. Parts: the documented 3.3 V Hall sensor, 100 nF bypass capacitor and leads; add a 10 kΩ resistor if using the external pull-up shown below. Confirm the actual package terminal order before applying power. An open-drain output pulls the signal low; a pull-up brings it high again. Internal pull-up is also an option for N1 and N2. For a compatible open-drain/open-collector RPM sensor on short bench wiring, you can omit the external resistor and select Hardware → N1 Speed → Input bias → Pull-up (or the N2 card). Leave Pull-down off. The card below leaves internal bias off because its diagram uses the external resistor. Internal pull-ups are weak: check clean pulse edges at the highest required pulse rate; longer/noisy wires or excessive capacitance may need a suitable external pull-up and conditioning. Classic ESP32 GPIO 34–39 have no internal pull-up/down. A push-pull conditioner normally needs no bias; neither kind of pull-up makes a 5 V signal GPIO-safe. See Espressif's GPIO restrictions and the DRV5033 datasheet. In OpenTurbine: on Hardware, choose Add input → N1 speed, open the new card and choose Pulse / frequency input. Name it N1 speed, then choose the actual connected GPIO. Set pulses per revolution from the pickup/target geometry; one magnet producing one counted pulse each revolution means 1 PPR. Resolve validation warnings, then save. Readable names identify the devices throughout these lessons; stable channel IDs are maintained by the interface and are not names to search for in the Add input menu. Verify: pass the magnet repeatedly while watching the live N1 reading in Tools/Dashboard. A single slow pass may not produce a sustained RPM display because the measurement is time-based. For a meaningful speed check, use a bounded repetitive signal or safely driven test wheel and an independent tachometer. Never spin the real turbine just to prove this connection. If it stays at zero: check VCC and GND, observe OUT switching high/low with the magnet, check the selected internal or external pull-up and GPIO, then check the saved N1 purpose/PPR. A magnet held stationary gives a state, not continuing pulses. A reading that changes still needs calibration against a known speed before overspeed protection can be trusted. Next: add turbine temperature →"
+    },
+    {
+      "title": "3 · Add turbine temperature",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#temperature",
+      "text": "What we are adding: a K-type thermocouple and converter. The probe generates a small signal; the MAX31855 module converts it to digital data. The thermocouple never connects directly to ESP32 GPIO. OpenTurbine calls the outlet-temperature purpose Turbine outlet temperature (TOT / EGT). Parts: K-type probe and a breakout documented for 3.3 V power/logic. Check its actual terminal labels and grounding requirements. Use the correct thermocouple connector/extension materials and polarity. Set up the shared bus first: open Hardware → Shared sensor buses → Edit buses. Turn on Enable shared SPI bus, select SCK / clock GPIO and MISO / data from device GPIO, then save. The example S3 pin plan uses SCK 12 and MISO 13. MAX31855 does not need MOSI. Confirm these match your wires before continuing. Add the sensor: choose Add input → TOT / EGT, name the card Main TOT, and open it. Its purpose is Turbine outlet temperature (TOT / EGT). Select MAX31855 under Sensor interface and assign CS GPIO to the converter's actual chip-select wire (14 in this example). MAX31855 uses a converter matched to the thermocouple alloy; a selectable Thermocouple type field applies to MAX31856. Save and reopen the card. Verify: the probe should report a plausible room temperature and a healthy input. Warm the probe gently with a suitable safe heat source, then let it cool. Compare against a reference where practical. A fault or implausible negative reading calls for a probe/polarity/converter check, not a changed safety threshold. Room-temperature plausibility does not validate high-temperature accuracy or probe placement. Next: add throttle demand →"
+    },
+    {
+      "title": "4 · Add throttle demand",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#throttle",
+      "text": "What we are adding: an operator input. Use a 10 kΩ linear potentiometer for the bench; its wiper supplies an analog voltage. An RC receiver can supply an alternative pulse input later, but its output must also be 3.3 V-compatible or conditioned. In OpenTurbine: add Throttle Input, purpose Throttle input, driver Analog voltage input (ADC). Choose a valid ADC pin. On Classic ESP32, use ADC1 while Wi-Fi is active; the optional ESP32-S3 pin plan uses GPIO 1. Save, then use Calibration to capture both throttle endpoints. Follow the wizard's prompts and save its result. Find the wizard: open Calibration, choose Throttle Input in Jump to fitted calibration, then find Capture Min, Capture Max and Save. Hold the physical knob at each endpoint while capturing; save after both captures. The screenshot shows the starting screen, before this lesson's endpoints have been measured. If the knob works backwards: open Hardware → Throttle Input → Input direction, switch Invert input on or off, then save. You can reverse the command in software without moving the wires. Return to Calibration and verify minimum, middle and maximum again; the intended minimum must read 0% and maximum 100%. Verify: turn the knob through minimum, middle and maximum. The calibrated demand should move smoothly in the intended direction. A jumpy input suggests a poor wiper/ground connection or noise. Confirm minimum again before every output test. Next: learn a servo or ESC command →"
+    },
+    {
+      "title": "5 · Add a servo or ESC command",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#starter",
+      "text": "What we are adding: the starter's command interface. A servo-style signal is a train of timed pulses; it is different from high-frequency duty PWM. Start by observing it on an unloaded compatible hobby servo. An actual starter ESC needs its own arming, power and stop arrangement. In OpenTurbine: add output Starter, purpose Starter, driver RC servo / ESC pulse output. Choose its GPIO and the endpoints required by your device. The driver's displayed 1000–2000 µs family describes a common pulse convention; it does not establish correct endpoints or arming for every ESC. Set inversion/parked behavior deliberately and save. Verify: in Tools, with the ECU in STANDBY, open the fitted starter test and its test settings. Use a short bounded test on the unloaded servo or observe the signal without starter power. Check both endpoints and the state after the test expires. Do not attach a servo arm that can strike something. If the servo does not respond, verify separate power, common reference, pulse compatibility and GPIO before changing its endpoints. Find the test controls: open Tools and locate Starter Test. Open Tool settings first to review duration, demand and the confirmation preference, then save/close the dialog. Return to the fitted test card and choose Run only when the unloaded bench arrangement is ready. Opening settings does not run the actuator. Next: learn a PWM driver →"
+    },
+    {
+      "title": "6 · Add PWM fuel-command hardware",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#fuel",
+      "text": "What we are adding: a proportional output through a power driver. For learning, the driver feeds a small suitable DC dummy load. In the actual installation, it commands the correctly rated fuel pump or other metering hardware. In OpenTurbine: add Main Fuel Metering, purpose Main fuel metering, driver High-frequency duty PWM output. Choose GPIO, frequency and resolution compatible with the driver, then define inversion and safe demand. A logical 0% must produce the intended physical off state; a driver advertised as active-low may need different polarity. Save the channel. Verify: first check logic-level polarity without load power. Then test only the benign dummy load with a bounded output test in Tools. Confirm low/middle/high commands and parked state afterward. A percentage on screen means commanded output, not verified fuel flow or motor speed. Real pumps need calibration and a separately verified shutoff path; do not use this lesson's dummy-load demands as a fuel schedule. For a real metering pump: after checking its driver, use Calibration → Minimum Reliable Fuel-Metering Output on a suitable safe rig, with ignition disabled and fuel routed away from the engine. Select Start 1%/s sweep, then Metering started — stop at the first reliable metering. Fine-adjust, run Test restart, then save only if all three starts are repeatable. Follow the pump manufacturer's priming/lubrication requirements; do not run a pump dry unless permitted. This calibrates the pump's usable command, not engine idle speed. Leave 0% for this dummy-load lesson; it is not a measured pump calibration. Next: learn on/off switching →"
+    },
+    {
+      "title": "7 · Add an on/off ignition command",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#ignition",
+      "text": "What we are adding: a binary output. A relay interface lets a small logic signal control a separate low-power lamp circuit. The lamp stands in for the ignition command during learning. A real igniter requires its specified driver/isolation; this figure is not an ignition-coil design. In OpenTurbine: add Igniter, purpose Igniter, driver On/off relay output. Assign GPIO, active polarity and safe/parked state. Save. Keep the switched load supply disconnected while confirming that the control behaves as intended. Verify: run the igniter's short test in Tools with the lamp circuit only. Confirm the lamp is off in STANDBY, turns on only during the test and turns off afterward. Check what happens during reboot with load power isolated. A relay's click does not prove that its correct contact or load is connected. If it remains on, check active-low behavior, NO versus NC, and the parked command. Next: connect the software relationships →"
+    },
+    {
+      "title": "8 · Output ownership and Dashboard warnings",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#ownership",
+      "text": "Your Hardware inventory now describes three sensor/operator inputs, the required Start/Stop controls, and three outputs. It has not yet said when each output should operate. The current Hardware interface with the completed Level 1 inputs. This is a simulated inventory, not an engine tune; output cards continue below it. Select the image to enlarge. Open Controllers. Under Output controllers, inspect any existing controller for Main Fuel Metering. If no controller owns it, expand + Create controller, choose your fuel output in What do you want to control? (it appears under its configured display name), then select Create controller. Open the resulting card and inspect Controlled output, Control method and Controlled by. The default for a fitted main-fuel output with a throttle input is a mapped input; verify the source, calibrated range, output authority and operating states for your actual fuel system before saving. Understand the configured normal owner before enabling optional idle or governor features. A throttle request passes through the applicable controller and protections; it does not bypass STOP or limits."
+    },
+    {
+      "title": "Fuel pump control with or without idle",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#fuel-without-idle",
+      "text": "Adding Main Fuel Metering does not require idle control. For this bench lesson, set Controllers → Fuel-metering support → Idle → Running Idle Mode = Off, then use the mapped throttle owner with Input low = 0%, Input high = 100%, Output low = 0%, Output high = 100%, and RUNNING only. Save and reopen. A new fuel controller normally seeds Output low from the saved pump minimum, so inspect it rather than assuming zero. | Running Idle Mode | What it does after Startup finishes | | --- | --- | | Off | Adds no idle floor, even if an Idle Input is fitted or Startup retained an idle value. Throttle can reach zero when Output low = 0%. | | Fixed fuel percentage | Uses Fixed Running Idle Fuel (%) instead of retained startup idle. Throttle can command more. A nonzero fixed value below pump minimum is raised to that minimum. | | Input channel | Defaults to the configured Idle Input. You can choose any other fitted input and map its endpoints to pump minimum through Maximum Normal Idle Fuel Output. An unhealthy input keeps the retained-startup fallback. | | Automatic Idle | Regulates the Running fuel floor using N1, N2, P1 or P2 feedback. Its source, target, cutoff and tuning settings appear directly below the mode. | Output low (%) remains a separate mapped minimum. Input low shows a short Running-only note when an idle source supplies a floor; Off and fixed zero show no idle-floor note. Input percentages are display units: 50% is stored as 0.5, with decimal percentages supported. To regulate idle automatically: select Automatic Idle, then choose a fitted Idle Feedback Source and set its Idle Target, No-Correction Band and Stop Controlling Above. Only RPM or pressure fields relevant to that source are shown. Zero target or cutoff disables correction. A missing proportional fuel output or feedback input is explained on the card and blocks saving an enabled setup; settings do not disappear. Response tuning contains fuel increase/decrease times, long-term correction and the fuel-range multiplier. The effective fuel ceiling is Maximum Normal Idle Fuel Output × Maximum Fuel Range Multiplier, capped at 100%. For example, 35% × 1.5 = 52.5%: 35% is the base ceiling; 52.5% is Automatic Idle's extended authority, not a fixed fuel command. The summary shows both the calculation and the resulting range. Predictive tuning appears only when its method is selected. Above the cutoff or with unhealthy feedback, Automatic Idle releases its added floor; separate input-loss and engine protections still apply. It does not override Startup, STOP or hard shutdown. Opening an older engine file: an existing automatic or input-based setup appears under the corresponding mode without rewriting the file. If it instead retains a Startup idle value, the card asks you to choose a mode before changing Idle settings. Unrelated settings can still be saved without changing its current behavior. No fixed fuel percentage is guessed from Startup. To use an idle knob: configure and calibrate its input in Hardware, then select Input channel. Idle Input Channel = Automatic: configured Idle Input uses the channel assigned the Idle purpose, with its calibrated 0–100% travel. You do not need to select it again. To use another input: choose it under Idle Input Channel, then set Idle Input Low and Idle Input High. Low maps to pump minimum; high maps to Maximum Normal Idle Fuel Output. Operator inputs use %, other sensors use their engineering units (V, bar, RPM, etc.); generic inputs use their calibrated numeric value. Values outside the endpoints are clamped; reverse the endpoints to invert the mapping. An explicit choice stays tied to that input if the Hardware list is reordered. A missing selection blocks saving instead of choosing another sensor. This selection controls the Running floor only. Set Main Fuel for Idle and Set Modified Idle in Startup still use the Hardware Idle Input; changing the Running channel does not rewrite those actions. If a selected input becomes unhealthy, its Running floor falls back to retained startup idle within the configured idle fuel range; prove that behavior on a safe bench before operation. The pump-minimum calibration remains separate: outside STANDBY, a nonzero command below that minimum becomes off; it does not create an RPM-holding controller or force a zero command on. Do not erase a measured pump minimum merely to disable idle. Real engines may require a stable minimum fuel schedule—this no-idle dummy-load example is not an engine operating recommendation. STOP and hard shutdown remain fuel-cut paths. The starter and igniter operate during startup transitions. Main fuel receives explicit sequence commands during the necessary stages, then hands over to its running controller. Hardware contains physical polarity/endpoints and safe states. System is not the place to add another physical pump channel. Configure and verify the engine's N1/temperature protections before any real operation. Use measured/manufacturer limits and healthy calibrated inputs. A displayed warning zone is not evidence that a hard trip is enabled. Level 2 explains the distinction more fully; the underlying safety requirement already applies here."
+    },
+    {
+      "title": "Set up Dashboard references and warnings now",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#set-up-dashboard-references-and-warnings-now",
+      "text": "Do this in Level 1, immediately after the sensors work. N1 and engine-temperature references come from Controllers. Open Shutdown & Protection → Fuel Limiting & Hard Shutdowns: 1. Open N1 core speed and enter your verified Maximum N1 Speed. The web Dashboard displays its approach advisory from 85% of this reference. There is no separate web-Dashboard N1 warning-RPM field. 2. Open Turbine temperature. Select Primary Engine Temperature to match the fitted probe, enter the correct outlet or inlet limit, and configure Maximum EGT During Startup deliberately. Zero for the startup setting inherits the normal reference. The web Dashboard approach advisory also starts at 85% of its applicable temperature reference. 3. Review Temperature Warning Margin separately. It supports the default temperature pullback start and the external cluster's automatic temperature warning; it does not replace the web Dashboard's 85% approach advisory. 4. Decide and test the separate N1 overspeed enabled and Engine overtemperature enabled switches. A limit with the protection off is advisory only; entering a number does not enable the hard shutdown. Save, reload Controllers, then compare Dashboard units and references. Check the result: units and sensor source are correct, references agree with the saved settings, unhealthy inputs are not treated as valid readings, and the displayed advisory/active status agrees with the intended protection. Test actual shutdown response with hazardous loads isolated. System → External Display Thresholds controls an optional external cluster, not these web-Dashboard warnings. Continue in Level 2 for gradual limiting and hard-trip verification. Other sensor scales: pressure, voltage, current, flow, thrust, torque and additional continuous inputs have a bar and recent trend. Select the scale below a bar to set a fixed Low/High range in the displayed units, or use auto scaling. Choose a useful instrument span, not an invented safety limit. This view preference stays in this browser and does not change calibration or protection. Switches remain On/Off indicators. Verify: you should be able to point to the physical fuel output and identify the ordinary controller, any sequence commands and the shutdown behavior. If two enabled normal controllers claim the same output, resolve the ownership rather than hoping the last one wins."
+    },
+    {
+      "title": "9 · Build a sequence",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#sequence",
+      "text": "What we are adding: ordered transitions. On Sequence, review any default blocks before using them. They are not automatically a suitable tune for your engine. Select the current fitted output by its displayed name; ordinary device actions appear as Set Output cards, while supported specialized blocks provide feedback checks. Find the block picker: open Sequence, select Startup (or Shutdown for the other path), then choose + Add block. Read both the title and explanation. In this inventory there are two Set Starter entries: the UNTIL block waits for N1 evidence, while the ACTION entry simply commands the fitted output. They are different operations. After adding a block, click its card header to expand its settings. Ordinary device cards expose the selected output and its demand/state. For a feedback wait, inspect the completion condition and finite timeout. Use the grip to reorder steps. The examples below are isolated editor demonstrations, not a complete startup sequence. Build and inspect a dry conceptual path: | Stage | Meaning | What must be decided for the real engine | | --- | --- | --- | | Prepare | Verify required readiness and lubrication | Required evidence and safe entry conditions | | Crank | Command the starter | Demand, speed evidence and finite timeout | | Ignite and admit fuel | Explicit igniter/fuel/shutoff actions | Actual order and calibrated demands | | Confirm combustion | Require appropriate temperature/flame/RPM evidence | Valid indication, confirmation and failure timeout | | Accelerate and hand over | Reach verified conditions before RUNNING | Target, starter release and final checks | | Stop | Remove fuel/ignition commands, perform required cooldown | Fuel isolation, oil/cooldown needs and final states | Every wait must have a finite timeout and defined safe failure outcome. When a required shutoff or oil system exists, include it; do not leave it out to keep the teaching picture small. The sequence editor's structural errors block START, while warnings require review. Do not use Bench Mode to hide a structural problem in an operating setup."
+    },
+    {
+      "title": "A complete, very basic dummy-load sequence",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#a-complete-very-basic-dummy-load-sequence",
+      "text": "This example makes the unloaded starter servo move and the two dummy loads light briefly, then leaves every output off. It teaches a finished sequence without pretending to light a turbine. Keep real fuel, ignition and starter energy physically disconnected. In Controllers, use Fixed output in selected states, 0%, Running for the bench Main Fuel Metering owner so handover cannot reapply a nonzero knob demand. Do not use this fixed-zero controller for engine operation. On Startup, add the following eight blocks in this order. For the ordinary commands choose the ACTION entry, expand it, select Output device, and set its percentage or ON/OFF value. Keep any transition time at zero for this exercise. | Order | Block | Configured value | | --- | --- | --- | | 1 | Set Starter — ACTION | Starter, 20% on the unloaded servo | | 2 | Timed Delay | 1 s | | 3 | Set Igniter — ACTION | Igniter, ON for the dummy lamp | | 4 | Set Main Fuel Metering — ACTION | Main Fuel Metering, 20% for the dummy PWM load | | 5 | Timed Delay | 2 s | | 6 | Set Main Fuel Metering — ACTION | Main Fuel Metering, 0% | | 7 | Set Igniter — ACTION | Igniter, OFF | | 8 | Set Starter — ACTION | Starter, 0% | On Shutdown, add Immediate Fuel and Ignition Cut, then explicit ACTION commands for Main Fuel Metering 0%, Igniter OFF and Starter 0%. The extra off actions make this learning path easy to inspect; the immediate-cut action comes first. What this does not prove: timer-only actions do not confirm rotation, combustion, lubrication or stable idle. The editor may correctly warn about those missing engine checks. Review them; do not dismiss them to operate a turbine. If structural validation refuses a test, correct it or keep this as a simulator exercise. Before any engine operation replace this lesson with the actual starter feedback, combustion confirmation, oil requirements, shutoff actions and finite fault timeouts described above. The screenshots are a fully configured editor example, not a physically verified engine startup. Verify: keep hazardous power physically disconnected. Run the intended dry path using only legitimate safe test evidence. Also leave a required condition unsatisfied and confirm the bounded failure outcome. If you cannot exercise sensor evidence on the bench, inspect it in the simulator or postpone physical START testing; do not defeat the actual protection. Use the full Sequence guidance for the complete block procedure."
+    },
+    {
+      "title": "10 · Verify and save the system",
+      "context": "Level 1 Build a basic OpenTurbine system",
+      "url": "/guided-builds/basic/#verify",
+      "text": "Work through this checklist before introducing another feature: - Each input has its actual pin/interface, readable name, correct purpose and plausible healthy reading. - Throttle endpoints, N1 PPR and temperature response have been checked; real protection needs independent calibration evidence. - Servo, PWM and relay commands reach the expected interface and return to the intended state after tests. - STOP, timeout and sensor-loss behavior produce the expected commands with fuel, ignition and starter energy isolated. - The independent physical stop removes relevant energy without the browser, Wi-Fi or ESP32 functioning. - The configuration saves and reappears after reload/reboot; there are no unresolved pin conflicts or missing dependencies. Use the configuration backup/engine-file function in System and give the file a meaningful name before expanding it. A completed reading checklist is not a hardware certification or permission to start an engine. Operating commissioning still needs the actual engine's limits, plumbing, load ratings and controlled test plan. You can now: add and test an input, tell servo pulses from duty PWM, separate a control signal from load power, identify an output's software owner, and explain a sequence's purpose. Those same patterns will cover most additions in the next two levels. Continue to Level 2 → Choose another level Detailed reference"
+    },
+    {
+      "title": "Level 2 Understand control and protection",
+      "context": "Documentation",
+      "url": "/guided-builds/control/",
+      "text": "Extend the basic OpenTurbine system with isolation, pressure feedback, a custom controller, soft limits, hard trips and verified sequence handover."
+    },
+    {
+      "title": "Your starting point",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#your-starting-point",
+      "text": "You have N1 Speed, Main TOT, Throttle Input, Starter, Main Fuel Metering and Igniter, with tested inputs, known output polarity and a reviewed dry sequence. If entering here directly, use the Level 1 verification checklist first. Back up the engine file in System before editing. This level adds fuel isolation, an oil-pressure measurement and proportional oil-pump interface, plus a separate brightness knob and low-power dimmable light to teach a useful custom controller. If your engine already required an item in Level 1, reuse its existing channel. You are not postponing required safety or lubrication until this lesson. Simulated Level 2 input inventory. The previously fitted channels remain; oil pressure is the new measurement. Output hardware is configured in the steps below."
+    },
+    {
+      "title": "1 · Verify fuel isolation",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#isolation",
+      "text": "Add: a fuel shutoff interface if it is not already fitted. A zero fuel-pump command is a software request; a shutoff valve is a separate physical device. Neither replaces the independent physical stop that removes fuel or relevant energy even if the ECU fails. Wire: use the already learned relay/driver pattern with a suitably rated valve driver and load suppression. Decide the physical safe valve state from the actual fuel system. Do not choose a relay contact just because it made a lamp turn on in Level 1. Test without fuel pressure or fuel flow. Configure: on Hardware, add output Fuel Shutoff, purpose Fuel shutoff, with its actual on/off driver, GPIO, polarity and fault-safe demand. Save. Include explicit valve actions in startup and shutdown where required. Select the exact displayed device in each action rather than an unspecified relay. Verify: confirm open/closed direction using a benign test, then verify that STOP, timeout and fault commands produce the intended valve state. Independently test the physical stop without relying on an ECU command. A fail-closed valve still needs a suitable installation; the display cannot prove that it physically closed. Next: add a pressure reading →"
+    },
+    {
+      "title": "2 · Add pressure feedback",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#pressure",
+      "text": "Add: an oil-pressure transducer with a known supply and output specification. This introduces a useful analog measurement: voltage must become an engineering value such as bar. Check transducer pressure range, materials and plumbing suitability separately from its electrical output. For a documented 0.5–4.5 V sensor, the illustrated divider uses 15 kΩ above the ADC node and 10 kΩ below it. Its ratio is 0.4, so the normal ADC signal is 0.2–1.8 V. This calculation teaches scaling. It does not provide transient, short-to-battery or reverse-polarity protection; add conditioning appropriate to the actual installation before connecting GPIO. Configure: add Oil Pressure, purpose Oil pressure, driver Analog voltage input (ADC). Choose the actual ADC pin and engineering range. Save. In Calibration, use the pressure wizard/two-point method with the real plumbing depressurized for zero, then a trusted gauge at a suitable known pressure. The ECU sees the divided voltage, so use the voltage measured at the ADC pin, not the original sensor voltage, when entering a manual scale. Find the calibration: open Calibration and jump to Oil Pressure. The first wizard page asks for the pump-off reference. Choose gauge or absolute pressure correctly, make the physical circuit safe and depressurized, then follow the wizard. Do not press Start calibration just to dismiss the page: later steps can operate the fitted pump. Verify: compare zero and at least one reference point; use more points when practical. Readings should rise in the expected direction. An apparently plausible number can still have the wrong scale. A reading stuck at maximum suggests saturation, wiring or calibration trouble. Do not enable pressure-dependent protection until the input is healthy and the scale is proven. Next: let a measurement control an output →"
+    },
+    {
+      "title": "3 · Make a feedback loop",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#feedback",
+      "text": "Add: proportional oil delivery where appropriate for the engine. Use the same rated PWM driver wiring as before, with a separate fused supply and correct pump/load protection. A relay pump only supports on/off operation. The dedicated loop can use hysteresis with an appropriate accumulator system, but this lesson uses a proportional pump to teach continuously variable delivery. On Hardware, create Oil Pump, purpose Oil pump, with its real proportional driver and safe behavior. On Controllers, open the fitted oil-pressure controller and review its feedback source, target behavior and permitted output authority. Use the verified pressure input. Required startup/run pressure, minimum reliable pump demand and response settings must come from the actual oil circuit. Find the feedback controller: in Controllers → Output controllers, expand + Create controller. If no dedicated loop already owns the pump, choose Oil Pump and Oil Pressure in the dedicated selectors, then choose Create oil-pressure controller. Open the Oil Pump card, then its nested Oil Pressure Control card. If a loop already exists, inspect it instead of creating another. The relationship is target pressure → controller, with measured pressure → controller → pump driver → pressure closing the loop. If pressure is below target, the normal correction should increase delivery. If a pump or valve has the opposite effect, a copied controller setting can drive it further from the target. Verify in stages: first confirm the pressure input and output direction separately. Then test an appropriate restrained, nonhazardous fluid circuit if available. Observe a small target change, settling and output limits. Confirm sensor-loss behavior and recovery. A simulator can illustrate the setting screens; it does not prove pump response, priming or stable control. Do not tune a real process merely by moving sliders until the display looks smooth. Ownership check: this output has one normal owner—the dedicated oil controller where enabled. Sequence can still command startup/shutdown transitions as supported. Do not add an enabled custom controller on the same pump and leave both competing. If no appropriate physical oil-loop rig is available, keep this as a reviewed configuration exercise and record the physical test as pending. Next: make a custom controller →"
+    },
+    {
+      "title": "4 · Build a light-dimming controller",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#custom",
+      "text": "Useful result: a separate brightness knob adjusts a low-power bench light. Turning the knob from minimum through midpoint to maximum changes the PWM demand from 0% through 50% to 100%. It uses a general-purpose input and output; it does not commandeer fuel, starter or oil hardware. Wire the knob: reuse the potentiometer pattern with a second 10 kΩ potentiometer. Its outer terminals go to 3.3 V and GND; the wiper goes to a spare ADC1 input, GPIO 8 in this cumulative S3 plan. Add Generic automation input, name it Brightness knob, and choose Analog / ADC. Leave internal pull-up/down off. Calibrate the actual endpoints; the example normalized source range is 0–1. Use Invert input if clockwise movement reduces the intended brightness. For this generic input, inspect its measured endpoints and the Minimum valid signal / Maximum valid signal fields on the Hardware card. Set the electrical range to the verified endpoint readings so the normalized value spans 0–1; test the middle as well. Do not assume the dedicated Throttle calibration wizard edits this separate generic input. Wire the light: reuse the PWM-driver pattern with a documented 3.3 V-compatible MOSFET driver and separately supplied low-power dimmable LED module or suitable small lamp. Use the lamp/module's specified current limiting—do not connect a bare LED directly to a power supply or GPIO. This is low-voltage DC only, not a mains dimmer. Add Generic automation output, name it Bench light, choose PWM and the spare output GPIO 38. The fixture uses 1000 Hz, 10 bits, normal direction and 0–100% electrical duty endpoints. Set Power-on demand to 0%. Verify physical off at logical zero before permitting the controller to own it. A · Create the controller. Open Controllers → Output controllers → + Create controller. Choose Bench light in What do you want to control?, then select Create controller. An absent output may be unfitted, incompatible or already owned; resolve that instead of duplicating it. B · Open its card. A new generic controller starts with Fixed output in selected states and zero command. Change the method to Map input to output before looking for the source and range fields. C · Configure the complete mapping: | Field | This bench example | | --- | --- | | Controller name | Knob to bench light | | Controlled output | Bench light | | Control method | Map input to output | | Controlled by | Brightness knob | | Input low / Input high | 0 / 1, after verified endpoint calibration | | Output low / Output high | 0% / 100% | | When this controller is active | Standby only | D · Choose the operating state. Expand When this controller is active, select Standby, and clear Startup, Running and Shutdown. A newly created controller defaults to Running, so change this deliberately. E · Save and reopen. Select Save to device, resolve any validation errors and review warnings rather than using Save anyway to get past them. Confirm the change recap, save, then reopen the card and compare output, source, range and states. Verify: low knob gives a physically off light, midpoint gives about 50% duty, and high gives full permitted duty. Check clamping beyond calibrated endpoints, smooth movement, direction, mode exit, input loss and reboot behavior. Confirm the light's power-on state and that no controller accidentally claims an engine output. A failed potentiometer may leave a plausible ADC voltage; an unsupervised knob is not a safety input. Adapt the lesson: an external noncritical fan can use the same mapping, but use its own driver and permitted PWM frequency. A fan may need a nonzero minimum reliable command and separate start behavior; do not assume the light's 0–100% duty range will start or safely stop every fan. Feedback regulation is a different method: Hold a feedback target needs a verified measured result and failure response."
+    },
+    {
+      "title": "5 · Separate limits and hard trips",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#limits",
+      "text": "Reuse the healthy N1 and turbine-temperature inputs. You do not need another sensor to learn the distinction. | Behavior | What it does | What it does not establish | | --- | --- | --- | | Display warning | Draws attention to a value | Does not necessarily change an output. | | Gradual fuel limiting / pullback | Reduces fuel as a configured boundary is approached | Is not the independent hard shutdown threshold. | | Enabled hard protection | Takes the specified shutdown/fault action when its confirmed condition applies | Does not physically remove energy if the driver/valve/stop circuit fails. | | Independent physical stop | Removes fuel/relevant energy without software | Does not replace the need to monitor the engine. | On Controllers, inspect the protections available for the fitted system. Set engine-specific N1/EGT hard limits and the intended confirmation/failure behavior only after calibration. A gradual boundary must leave appropriate margin below the hard trip. Startup temperature limits and running limits can differ; use the real engine requirements. Do not copy an N1 trip to a future N2 shaft. Find the protection cards: on Controllers, expand Shutdown & Protection. Open the relevant nested protection card to inspect its enable setting, source, limit and response. Keep Configured system selected to focus on fitted features; Explore all features also shows unavailable features and their prerequisites. Verify: use safe simulated/test evidence with hazardous power isolated to exercise both ordinary limiting and the hard action. Check the actual output commands and event information, not only gauge color. A display scale or warning color can exist without an enabled hard trip. Also test disconnected/unhealthy inputs—the last displayed plausible number is not evidence of a healthy sensor. Custom automation can request supported actions, but a custom rule is not automatically a separately implemented hard protection. In particular, a normal shutdown request is not the same thing as a latched FAULT. Use the documented action and recovery behavior for your intended purpose."
+    },
+    {
+      "title": "6 · Review sequence handover",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#handover",
+      "text": "Reopen Sequence with the expanded inventory. Add required pre-oil, pressure confirmation and shutoff actions at the places the engine requires them. Choose the displayed device in ordinary Set Output actions. Add finite timeouts to feedback waits. Inspect the final-state preview and verify when starter and ignition are released and normal fuel/oil ownership begins. Build a small ownership table for your actual configuration: | Output | Ordinary ownership | Startup / shutdown role | Verify | | --- | --- | --- | --- | | Main Fuel Metering | Configured Main Fuel Metering path | Explicit admission/cut and supported handover | No surprise jump on handover; stop removes intended command. | | Oil Pump | Dedicated oil control if enabled | Required prime/run/cooldown behavior | Oil behavior remains appropriate while rotation continues. | | Fuel Shutoff | Defined fitted shutoff behavior | Explicit admit/isolate actions | Physical state agrees with command. | | Bench light | Brightness knob mapping in Standby | No engine-critical role | Physical off, dimming, mode exit and fault-safe state are understood. | This table describes the intended roles; confirm the detailed implementation from the current preview, diagnostics and dry tests. Software ownership is not a guarantee that the physical load obeyed."
+    },
+    {
+      "title": "7 · Test the relationships",
+      "context": "Level 2 Understand control and protection",
+      "url": "/guided-builds/control/#verify",
+      "text": "Keep hazardous supplies physically disconnected. Save and run the checks that apply to your bench hardware: - Pressure input zero/reference and normal direction. - Proportional output minimum, midpoint, maximum and safe state. - Feedback direction, limited authority, loss response and physical settling where a suitable rig exists. - Custom mapping, clamping, selected modes, mode exit and reboot persistence. - Startup wait success, timeout and safe failure result. - STOP, hard protection and sensor health behavior, plus the independent physical stop. Save another engine-file backup. Record which checks used actual hardware and which were simulator/configuration review only. Explain it before moving on: which object describes the oil sensor? Which controls the pump? Who can command that output during shutdown? What is the difference between a soft limit, a hard trip and the physical stop? If you can answer those questions, you understand enough to extend the system. Continue to Level 3 → Review Level 1 Custom-controller reference"
+    },
+    {
+      "title": "Level 3 Extend your OpenTurbine system",
+      "context": "Documentation",
+      "url": "/guided-builds/extend/",
+      "text": "Extend an OpenTurbine system with N2, voltage, current, cooling, shaft-torsion torque and I2C load-cell thrust measurement, with wiring and calibration steps."
+    },
+    {
+      "title": "Your starting point",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#your-starting-point",
+      "text": "Keep the Level 1 channels and the Level 2 pressure, oil-pump, shutoff and demonstration output. You should know how to add Hardware, calibrate a measurement, identify normal ownership and verify a transition. If entering directly, check Level 2's final tests. Save a backup before expanding. N2 introduces a second physical shaft. Voltage, current, a cover switch and a cooling fan demonstrate optional instrumentation and auxiliaries. Optional does not mean every item is harmless in every engine: a real free turbine needs appropriate N2 protection, and an engine depending on active cooling needs an independently considered cooling-failure response."
+    },
+    {
+      "title": "1 · Add a second shaft",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#n2",
+      "text": "Recognize the pattern: N2 is another pulse measurement, electrically like N1. Reuse that wiring pattern with an independent conditioned input. The actual sensor needs the bandwidth, mounting and environmental rating for this shaft. The same internal/external pull-up choice applies: a compatible open-drain pickup can use N2 Speed → Input bias → Pull-up on a suitable GPIO. Verify pulse edges at the real rate; do not enable Pull-down as well. Add N2 Speed, purpose N2 speed, with the actual pulse interface, GPIO and PPR. N1 is the gas generator; N2 is a separate power turbine in this example. Two pickups measuring the same shaft do not make it a two-shaft engine. Verify N2 against an independent reference before relying on it. Configure protection: use the actual N2 hard limit and appropriate governor/limiting margins. N1 and N2 can have very different speeds and target-wheel counts. Check startup/run applicability and input-loss behavior. A real power turbine's overspeed response is important even if the other instrumentation in this level is optional. Verify: exercise N1 and N2 independently. Changing the N2 test signal should not change the displayed N1 measurement. Check missing N2, implausible pulses and the configured N2 trip with hazardous power isolated. Record which output action occurs and how recovery works."
+    },
+    {
+      "title": "2 · Choose the feedback relationship",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#governor",
+      "text": "On Controllers, review the fitted power-turbine governor and select the supported actuator relationship appropriate to the installation. A governor using main fuel and a governor using propeller pitch are different arrangements; adding N2 does not automatically choose between them. For this teaching topology, inspect a main-fuel governor relationship without adding a physical propeller system. The requested N2 target is compared with N2 feedback, but N1, temperature and the configured fuel limits remain relevant. Do not add a second custom feedback controller that competes for the same fuel output. Review the existing dedicated controller's supported handover and authority instead. Check before enabling: target and feedback units, correction direction, output authority, mode applicability, sensor-loss response, N1/N2 hard limits and sequence handover. Test configuration and simulated transitions with hazardous loads disconnected. Stable real two-shaft control requires a suitable restrained physical test and engine-specific tuning; the simulator cannot demonstrate it. Transfer the pattern: a feedback target, a measurement and one compatible owned output form the same relationship you learned with oil pressure. The new difficulty is how that loop interacts with other constraints, not a completely new Hardware page."
+    },
+    {
+      "title": "3 · Measure a 12 V battery",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#voltage",
+      "text": "Recognize the pattern: a divider reduces battery voltage to an ADC-safe measurement. This example measures a 12 V nominal battery, disconnected from its charger, starter and all inductive loads, with the measured source bounded to 0–16 V. Start with a current-limited adjustable supply to check the circuit, then use the isolated battery with a fused sensing lead. Nominal 12 V does not mean the battery always measures exactly 12 V. Use 68 kΩ above the ADC node, 12 kΩ from the node to GND, both 1%, and 100 nF from the node to GND. Source negative and ECU reference ground join deliberately. The fuse belongs close to battery positive; a battery can deliver dangerous fault current even when the sensing circuit draws very little. | Source voltage | Nominal ADC-node voltage | | --- | --- | | 12.0 V | 1.80 V | | 14.4 V | 2.16 V | | 16.0 V maximum for this exercise | 2.40 V | The hardware ratio is 12 / (68 + 12) = 0.15. The UI asks for the reciprocal: Voltage divider ratio = (68 + 12) / 12 = 6.6667. The card may display 6.67. Battery volts = measured ADC-pin volts × this ratio. The ADC's measurable range depends on target and attenuation; it is not simply the GPIO's maximum electrical voltage. Check the Espressif ADC documentation for the selected target and verify the node with a meter before connecting GPIO. Configure: add Battery / bus voltage, name it Battery Voltage, choose Analog / ADC, and use GPIO 4 in the cumulative S3 plan. Enter 6.6667 for Voltage divider ratio, leave analog input bias off, and keep the measured-signal validity window consistent with this 0–2.4 V circuit. Save and reopen. Verify: compare the source with a trusted meter at two or more known voltages and compare the node with the table. Correct scale using the actual resistor ratio and measured calibration; do not hide a wiring or saturation problem with a multiplier. Disconnect the sensing lead with the circuit safe and inspect the reading/health. A disconnected divider may read zero rather than identify an open wire; this is not a supervised battery sensor. An enabled ADC input with no sensor or divider attached floats: its value and trend can jump even though the channel appears healthy. Disable unfitted devices in Hardware. If readings fluctuate with the circuit connected, check ground, wiring, supply noise and calibration; do not assume it is normal or conceal it with averaging. For a live engine bus: do not carry this bare divider into starter, alternator, ignition or switched-pump wiring. Load dump, inductive spikes, reverse polarity, ground offset and pin back-power require a properly rated protected measurement front end. Size that interface for maximum voltage and credible faults, not the battery label. Reuse the software steps and verified scale only after checking that interface. Decide whether this is monitoring only or an enabled low-supply protection. On Controllers → Shutdown & Protection → Auxiliary Protection → Low supply voltage, choose the actual threshold, confirmation time and enable state only after measurement is proven. There is no universal low-voltage trip suitable for every battery chemistry and oil/cooling arrangement."
+    },
+    {
+      "title": "4 · Measure current",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#current",
+      "text": "Recognize the pattern: an analog voltage can represent amps. This exercise uses an INA180A1 shunt amplifier on a small fused 5 V load, limited to 0–1 A. Use a 0.1 Ω shunt rated at least 0.5 W, gain 20, 3.3 V amplifier supply and 100 nF local bypass. Nominal output sensitivity is 20 × 0.1 = 2 V/A, so 1 A gives about 2 V. Actual offset and sensitivity need calibration. For the cumulative example, open Oil Pump on Hardware and its Current sensing subcard. Enable sensing and choose the separate current ADC pin. Enter the sensor's zero voltage and sensitivity at the ECU pin: the nominal sensitivity of this exact bounded circuit is 2000 mV/A, not the value shown for a different Hall sensor. Save and use the available Calibration wizard to capture zero and a known reference where offered. When learning, measure a separate benign load through the shunt while the real pump power is disconnected; label this as a demonstration reading. It does not measure or validate the real oil pump until installed in that actual path. You can instead add a General current analog channel for a separate instrument, but do not assign the same physical ADC pin twice. Verify: compare with a trusted current meter at zero and a known load. Near-zero offsets and noise are normal measurement considerations. A negative/reversed sense connection or the wrong amplifier gain invalidates the calculation. Decide whether overcurrent protection is enabled; a zero shutdown threshold disables that output's overcurrent trip in the current UI. Do not choose a trip from the dummy load's rating and carry it into a real pump. The shunt circuit is not isolated and does not size high-power pump/starter conductors or transient protection. A different module can have a 5 V analog output even when its listing says “current sensor”; condition it before GPIO."
+    },
+    {
+      "title": "5 · Add temperature and a cooling fan",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#fan",
+      "text": "Add temperature: use a three-wire DS18B20 for an oil/enclosure temperature lesson. It uses a separate OneWire data GPIO and external 4.7 kΩ pull-up. It is not a turbine-gas temperature sensor. Confirm the probe pinout and physical temperature rating. Add Oil Temp, purpose Oil / gearbox temperature, with the DS18B20 interface and actual GPIO. Save. Check a plausible room reading, gentle warming and input health before using it as control feedback. Add the fan: use a suitably rated PWM fan driver or on/off interface, reusing the PWM or relay pattern. Add Cooling Fan, purpose Cooling fan, with the real driver, pin and safe demand. Keep the output unowned before creating its custom controller. A four-wire fan with a dedicated PWM input has different wiring from a two-wire fan whose supply is switched—follow its documentation. On Controllers → Output controllers, expand + Create controller, choose Cooling Fan, create it and open its card. Choose method On / Off with hysteresis, source Oil Temp, and the required above-threshold relationship. The output command values must suit the chosen driver. Select only the operating states in which this controller should own the fan. For a benign warming exercise, you might demonstrate on above 30 °C, off again below 28 °C, using 2 °C hysteresis. These are observation values for the bench probe, not oil/cooling limits for an engine. Hysteresis prevents chatter around one threshold. Find the threshold fields: choose On / Off with hysteresis to expose Controlled by, Direction, Switch point and Hysteresis. Select Oil Temp, then Turn on above. Review the on/off commands for the fitted fan driver. Expand When this controller is active and deliberately choose the states for the bench lesson; save using the same change recap as Level 2. Verify: raise and lower the measured temperature around both boundaries, then check STANDBY, STARTUP, RUNNING and SHUTDOWN as applicable. Check mode exit, unplugged sensor and FAULT behavior too. Custom controllers are released in FAULT; the output then follows the relevant fault/ordinary behavior. Do not assume cooling continues through a fault. If cooling is essential, design the complete physical and software loss response for that requirement."
+    },
+    {
+      "title": "6 · Add a cover switch",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#switch",
+      "text": "Recognize the pattern: a dry contact becomes a digital state. Connect a maintenance-cover switch between its GPIO and GND. On a pin with internal bias, choose Pull-up and active-low in Hardware; this short bench circuit needs no external resistor. Alternatively, wire the contact to 3.3 V and choose Pull-down and active-high. Use an external bias resistor where the pin lacks internal bias or the wiring needs stronger conditioning. Add Cover closed, purpose Digital interlock, driver On/off switch input. Use the actual pin and active polarity. For closed-is-active in the shown wiring, select active-low. Verify the displayed input state while opening and closing the switch. Choose whether “active” means cover closed or cover open and name it accordingly; do not rely on the word interlock alone to create an action. For the lesson, use it as a visible status/custom-controller source. If the actual purpose is to block startup, review the separate Inhibit-start switch role and the current documented DI behavior rather than assuming any generic switch automatically prevents START. Use only one saved assignment for each physical input. Verify both states and disconnect a wire. A simple single-contact circuit may confuse an open wire with one ordinary state; it is not a supervised safety circuit. An ECU-connected emergency-stop input is also not the independent physical stop. Keep that distinction when adapting the switch pattern to other functions."
+    },
+    {
+      "title": "7 · Measure shaft torque with two pickups",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#challenge",
+      "text": "What this measures: the angular twist between two points on the same torque-carrying shaft. OpenTurbine measures the phase difference between matching conditioned pulse trains, removes the calibrated running zero and converts shaft degrees to Nm. These are two pickups on one shaft, not the N1 and N2 speeds of different shafts. Two RPM values alone cannot supply torque. Wire it: use two conditioned 3.3 V square-wave pickups at mechanically defined points along the shaft. Connect their reference grounds as their conditioners require; reference output goes to one spare input GPIO and phase output to another. The cumulative S3 example reserves GPIO 41 and 42. Both wheels must produce the same effective pulses per shaft revolution, including gearing. Unmatched, unindexed tooth counts are rejected; a static tooth offset cannot correct them. This interface uses native capture inputs and needs no SPI or I²C bus. Configure Hardware: 1. Choose Add input → Torque, open the Torque card, then select Sensor interface → Shaft torsion by phase difference (two pickups). 2. In Reference shaft pickup, choose Reference GPIO and set Reference pulses per shaft revolution to the actual target count. 3. In Torque phase pickup, choose Phase GPIO and set Torque pickup pulses per shaft revolution to the matching effective count. 4. In this cumulative example leave Use reference as shaft speed (optional) unchecked: N1 and N2 already have their own fitted speed sensors. If you need another speed role in a different installation, confirm it saves without a conflict rather than duplicating a primary shaft assignment. 5. Use a trusted previously measured Zero-torque phase (shaft degrees) and Sensitivity (shaft degrees / Nm), or complete the calibration below. A placeholder sensitivity is not a calibrated torque reading. Save and reopen the card. Calibrate: use a suitable rotating test rig with independent torque reference. Open Calibration → Torque, spin at verified zero load and select Capture zero phase. Keep the shaft rotating, apply known torque, enter Known torque (Nm) and select Capture known torque. Static alignment is not a running zero. Captures made while RUNNING are staged in that browser tab: stop and choose Save captured calibration in STANDBY to apply them. The ECU does not change calibration mid-run. A working result: zero-load torque stays near zero at several speeds; known loads produce the expected sign and Nm across the usable range. If calculating shaft power, the selected speed must belong to the same measured torque-carrying shaft; verify it independently. Loss of the phase pickup must invalidate torque; a healthy reference may still provide configured speed telemetry. Loss of the reference invalidates the phase calculation. Keep torque trips and fuel limiting off until the measurement is proven."
+    },
+    {
+      "title": "8 · Measure thrust with an I²C load cell",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#thrust",
+      "text": "What we are adding: a mechanically mounted thrust load cell and NAU7802 bridge amplifier. The amplifier reads the small bridge signal and sends data over I²C. Thrust uses force in newtons, while torque uses Nm. Select a load cell with the required range and mounting arrangement; the wiring does not define the mechanical test stand. Wire it: with power removed, connect the bridge excitation to E+ / E− and its differential signal to A+ / A− on the module. Connect the documented 3.3 V-compatible module supply and reference ground to the ECU. Connect SDA and SCL to separate spare bus GPIOs (GPIO 11 / 47 in the cumulative S3 plan). Use SDA/SCL pull-ups to 3.3 V appropriate for the bus; many breakouts already include them. Check the module circuit before adding more resistors. The dry-contact internal-bias lesson does not replace I²C bus pull-ups. Activate the bus before adding the sensor: 1. Open Hardware → Shared sensor buses → Edit buses and turn on Enable shared I2C bus. 2. Select SDA GPIO and SCL GPIO to match the wires; start with 100 kHz bus speed. Save and let the ECU restart. 3. Return to the bus section and confirm NAU7802 appears as a detected, connected device. The typical address is 0x2A. If it is missing, check power, SDA/SCL, pull-ups and address before adding an assignment. 4. Choose Add input → Thrust, open the card and choose NAU7802 load cell. Select the detected device and the bridge channel actually wired. Save. Only a detected chip can receive a new assignment. Calibrate: open Calibration → Thrust. With the complete stand unloaded, select Capture zero. Apply a known force or mass in the measurement direction, enter Known load, and choose the matching Unit: for example N for force or kg mass for mass. Select Capture known load & save. Remove the reference load and check the return to zero, then test a second known load. If the sign is wrong, correct the signal polarity or signed calibration as offered by the interface and repeat the check. A working result: the dashboard reports near-zero N unloaded, the known test forces agree with the reference, and the reading returns to zero after unloading. Disconnect the amplifier with loads made safe and confirm the input becomes unhealthy rather than retaining a believable live force. This addition is measurement only until you deliberately configure another relationship. Using both measurements: the phase pickups and I²C load cell use different interfaces and can coexist with the earlier N1/N2 sensors. The example reserves their pins separately. A fixed-address NAU7802 cannot share one unmodified bus with a second device at the same address; check address compatibility before adding another bridge amplifier."
+    },
+    {
+      "title": "9 · Review the complete system",
+      "context": "Level 3 Extend your OpenTurbine system",
+      "url": "/guided-builds/extend/#finish",
+      "text": "By now, the installation contains familiar patterns: | Addition | Pattern reused | New decision | | --- | --- | --- | | N2 | N1 pulse input | Separate shaft identity, PPR, governor and hard limit | | Bus voltage | Analog pressure/throttle input | Divider, protection, scale and warning/trip intent | | Current | Analog engineering measurement | Shunt/amplifier path, zero, sensitivity and trip intent | | Cooling fan | Relay/PWM output plus custom controller | Hysteresis, modes and loss/fault cooling behavior | | Cover switch | Digital input | Active meaning, intended action and broken-wire ambiguity | | Shaft torque | Two conditioned pulse inputs | Matching tooth counts, running zero, signed shaft sensitivity and optional shaft speed | | Thrust | I²C bridge amplifier | Bus activation, detected device, mechanical zero and force calibration | Check the complete inventory, identify every channel by its displayed name and make an ownership table. Exercise each input, output, normal relationship, mode transition and failure path with hazardous energy isolated. Verify the independent physical stop again. Save and label the engine-file backup, and distinguish physical tests from simulated ones in your notes. For the next device: identify the physical signal → check electrical limits → plan a conflict-free connection → add Hardware → calibrate → choose the controller/sequence/protection relationship → test normal and failed states → back up. That is the method these guides are meant to teach. You do not need a tutorial for every new sensor. Use the Hardware reference and User Guide for device-specific details, while keeping that method. Choose a level Review control and protection Continue with the reference"
+    },
+    {
+      "title": "Learn OpenTurbine with three guided builds",
+      "context": "Documentation",
+      "url": "/guided-builds/",
+      "text": "Build one OpenTurbine system through three clear levels, learning wiring, hardware configuration, feedback, protection and independent extensions."
+    },
+    {
+      "title": "One installation that grows",
+      "context": "Learn OpenTurbine with three guided builds",
+      "url": "/guided-builds/#one-installation-that-grows",
+      "text": "These are three stages of the same teaching system. Level 2 keeps the Level 1 channels; Level 3 keeps both. You can choose a level directly, but check its starting inventory before you begin. The levels measure how much guidance you want, not whether your actual engine needs safety equipment. Each device follows the same order: wire → configure in Hardware → calibrate → assign control → verify."
+    },
+    {
+      "title": "Learn on a bench first",
+      "context": "Learn OpenTurbine with three guided builds",
+      "url": "/guided-builds/#learn-on-a-bench-first",
+      "text": "Install on a supported spare board using Get Started. Use a potentiometer, a handheld magnet, a temperature probe, an unloaded servo and low-power dummy loads while learning. A bench demonstration lets you check the interface without introducing fuel, ignition energy or starter power. The basic topology is a learning model, not a complete specification for operating an engine. Fit the lubrication, isolation, sensing and protections your real engine requires from the beginning. Keep an independent physical fuel/power stop. The complete Safety guide and the engine's requirements apply at every level. You will see placeholders such as your verified N1 limit where values must come from the actual engine. There is no ready-to-run fuel schedule here. Fixed resistor values are for explicitly bounded bench exercises; they do not size real load wiring or protection."
+    },
+    {
+      "title": "What each step gives you",
+      "context": "Learn OpenTurbine with three guided builds",
+      "url": "/guided-builds/#what-each-step-gives-you",
+      "text": "Each addition has a wiring diagram, configured-card screenshot and expected test result. Check the result before adding the next device. Screenshots use simulated hardware; select any image to enlarge it. Keep only one browser tab connected to the ECU at a time. You can read these public guides in another tab; the restriction concerns multiple live ECU interface sessions."
+    },
+    {
+      "title": "Keep these references nearby",
+      "context": "Learn OpenTurbine with three guided builds",
+      "url": "/guided-builds/#keep-these-references-nearby",
+      "text": "- Example parts and a cumulative pin plan — how to choose compatible teaching hardware. - Hardware guide — electrical requirements and supported interfaces. - User Guide — the detailed procedure and field reference. - Existing single-shaft overview — another view of the conceptual installation. Begin with Level 1"
+    },
+    {
+      "title": "Choose parts for the guided builds",
+      "context": "Documentation",
+      "url": "/guided-builds/parts/",
+      "text": "Select compatible beginner OpenTurbine sensors, driver interfaces and bench loads, with a cumulative example pin plan for an ESP32-S3 development board."
+    },
+    {
+      "title": "A small teaching kit",
+      "context": "Choose parts for the guided builds",
+      "url": "/guided-builds/parts/#a-small-teaching-kit",
+      "text": "You do not need to buy all three levels at once. Start with the Level 1 items. These are selection examples and documented circuit patterns, not a claim that a particular marketplace kit has been physically tested with OpenTurbine. | Level | Part or interface | What to look for | | --- | --- | --- | | 1 | Supported ESP32 development board and data USB cable | Classic ESP32 with at least 4 MB flash, or supported ESP32-S3 with at least 8 MB; select the actual target in Hardware. | | 1 | DRV5033 Hall sensor or equivalent documented open-drain sensor | Operation at 3.3 V, a documented pinout, a 10 kΩ signal pull-up and 100 nF local bypass capacitor for the shown bench circuit. A small handheld magnet demonstrates pulses. | | 1 | K-type thermocouple and MAX31855 K-type breakout | A board documented for 3.3 V supply and logic, thermocouple terminals, and CLK/DO/CS connections. MAX6675 and MAX31856 are alternatives with their own wiring. | | 1 | 10 kΩ linear potentiometer | Three accessible terminals; connect its ends to 3.3 V and GND, not 5 V. | | 1 | Two momentary Start/Stop buttons | Dry contacts on separate input pins with internal pull-ups enabled; these are required ECU commands, separate from the independent physical stop. | | 1 | Unloaded hobby servo and separate regulated supply | Correct servo supply voltage; documented compatibility with a 3.3 V command pulse or a suitable signal buffer. Do not power it from GPIO. | | 1 | PWM power-driver module and low-power lamp or DC load | Documented 3.3 V-compatible IN, the needed PWM frequency, correct load voltage/current, and defined off behavior. Include module-specified suppression. | | 1 | Relay interface module and low-power DC lamp | A documented 3.3 V-compatible control input, rated coil supply, and contact ratings for the lamp. Avoid mains loads for this exercise. | | 2 | Pressure transducer and signal conditioner | Known pressure range, supply, output range and fault behavior. The worked divider illustrates a 0.5–4.5 V signal; the sensor's plumbing and pressure rating still matter. | | 2 | Fuel shutoff interface and oil-pump driver | Required valve/driver voltage and current, a verified safe physical state, and the same relay/PWM signal patterns already learned. Use dummy loads while learning. | | 2 | Second 10 kΩ potentiometer, dimmable low-power light and PWM driver | Separate brightness input and light output; LED module needs its specified current limiting. Low-voltage DC only; no mains dimming. | | 3 | Second conditioned RPM signal | Separate N2 pickup, appropriate pulse bandwidth and PPR; the handheld Hall exercise is not qualification for a turbine shaft. | | 3 | DS18B20 and 4.7 kΩ resistor | Three-wire externally powered probe with documented lead functions; use for oil/enclosure temperature, not turbine gas. | | 3 | INA180A1 breakout, 0.1 Ω shunt and bench load | Gain 20; shunt rated at least 0.5 W for the bounded 0–1 A exercise. Other gains require a different sensitivity calculation. | | 3 | 68 kΩ and 12 kΩ 1% resistors, 100 nF capacitor and fused sensing lead | Isolated 12 V nominal battery measurement bounded to 16 V; no charger, starter or inductive load attached. Live engine/vehicle buses need a protected interface. | | 3 | Dry-contact switch | A contact with no external voltage; use as a cover-status input. | | 3 | Two conditioned shaft-twist pickups | Matching effective tooth counts on one torque-carrying shaft; 3.3 V-compatible square waves and a known rotating torque reference for calibration. | | 3 | Thrust load cell and NAU7802 breakout | Correct bridge range and mounting; documented 3.3 V-compatible I²C interface, excitation and differential bridge terminals. | | All | Meter, reliable leads, connectors and fused/current-limited supplies | Check signal voltages before connecting GPIO. Real load wiring, fuses and protection depend on the installation. | Read the DRV5033 manufacturer datasheet, MAX31855 product documentation, DS18B20 documentation, and INA180 manufacturer datasheet. Use terminal names from the exact package/module you buy. A bare chip, a regulated breakout and a board with hidden 5 V pull-ups can require different wiring."
+    },
+    {
+      "title": "An optional cumulative pin plan",
+      "context": "Choose parts for the guided builds",
+      "url": "/guided-builds/parts/#an-optional-cumulative-pin-plan",
+      "text": "The main diagrams use named GPIO functions so they work with different boards. If you want a concrete example, this plan is for an ESP32-S3 DevKitC-1-compatible board with an 8 MB ESP32-S3-WROOM-1 module without PSRAM, with the listed pins exposed. It reserves the whole three-level inventory, including required Start/Stop controls, before you begin. It avoids native USB, flash and boot-strapping pins. It is not a Classic ESP32 or universal PCB pinout. | First used | Device name or bus | Example connection | Why | | --- | --- | --- | --- | | 1 | Required Start / Stop controls | GPIO 9 / 10 | Separate active-low inputs with internal pull-ups enabled. | | 1 | N1 Speed | GPIO 6 | Pulse input with the shown external Hall pull-up. | | 1 | Shared SPI clock / MISO | GPIO 12 / 13 | Used by the thermocouple bus. | | 1 | Main TOT CS | GPIO 14 | Unique output-capable select; MAX31855 needs no MOSI. | | 1 | Throttle Input | GPIO 1 | ADC1. | | 1 | Starter servo signal | GPIO 15 | Output-capable. | | 1 | Main Fuel Metering PWM | GPIO 16 | Output-capable; goes to the rated driver. | | 1 | Igniter relay command | GPIO 17 | Output-capable; dummy lamp for learning. | | 2 | Oil Pressure | GPIO 2 | ADC1, with appropriate signal conditioning. | | 2 | Fuel Shutoff | GPIO 18 | Output-capable. | | 2 | Oil Pump PWM | GPIO 21 | Output-capable. | | 2 | Brightness knob | GPIO 8 | Separate ADC1 input; no internal bias. | | 2 | Bench light | GPIO 38 | PWM command to a suitable light driver. | | 3 | N2 Speed | GPIO 40 | Separate pulse input. | | 3 | Battery Voltage | GPIO 4 | ADC1; conditioned measurement only. | | 3 | Oil-pump current subcard | GPIO 5 | ADC1; dedicated current input, not a second assignment of this pin. | | 3 | Oil Temp OneWire | GPIO 7 | Digital bus with external 4.7 kΩ pull-up. | | 3 | Cooling Fan | GPIO 39 | Output-capable. | | 3 | Cover closed | GPIO 35 | Internal pull-up, active-low; this no-PSRAM module must expose the pin. | | 3 | Torque reference / phase pickups | GPIO 41 / 42 | Separate native capture inputs; matching pulses per shaft revolution. | | 3 | Shared I²C SDA / SCL | GPIO 11 / 47 | Enable the bus before assigning the detected NAU7802 thrust channel. | Confirm the board/module schematic and every Hardware conflict warning before using this plan. Other S3, Classic ESP32 and PCB-profile arrangements differ. Classic ESP32 GPIO 34–39 have no internal pull-ups and its ADC2 is unsuitable with Wi-Fi. For a PCB profile, use its board-labelled ports rather than forcing raw GPIO values. Check the target restrictions and your manufacturer's board documentation. Use the displayed device names when following the guides. Add each physical channel once. The interface keeps stable references behind those names; you do not need to enter an internal identifier to follow these lessons."
+    },
+    {
+      "title": "Before connecting a real engine",
+      "context": "Choose parts for the guided builds",
+      "url": "/guided-builds/parts/#before-connecting-a-real-engine",
+      "text": "Replace dummy loads with correctly rated equipment only after the command direction, parked state, wiring and stop path are verified. Hall bandwidth, probe temperature rating, connector metals, ESC arming, motor stall current, transient protection and physical fuel isolation all require installation-specific checks. The learning kit proves a pattern; it does not commission an engine. Return to Level 1 Hardware reference"
+    },
+    {
+      "title": "OpenTurbine hardware and wiring guide",
+      "context": "Documentation",
+      "url": "/hardware/",
+      "text": "Hardware and wiring guidance for an ESP32 turbine ECU, including sensors, driver electronics, grounding, power protection, and independent emergency shutdown."
+    },
+    {
+      "title": "Supported ESP32 targets",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#supported-esp32-targets",
+      "text": "Use a Classic ESP32 with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatible board with at least 8 MB flash. The universal S3 image runs on 8 MB and 16 MB modules and does not require PSRAM. ESP32-C3 and other unlisted families are not supported by the normal Windows setup path. Select the exact target in Hardware before assigning pins, and never copy a classic-ESP32 pin assignment to an S3 without rechecking it."
+    },
+    {
+      "title": "Installed Channel Inventory",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#installed-channel-inventory",
+      "text": "In Hardware, add each fitted input and output once. Give it a readable display name, select its electrical signal type, assign a valid connection and set its range. The interface maintains stable channel IDs for saved controller and sequence references; these are not names to enter in the Add input/output menus. Inputs can represent digital switches, analog measurements, pulse/frequency sensors, or RC PWM commands. Outputs can represent relays, proportional PWM loads, or servo/ESC commands. Set boot-safe and fault-safe output demand deliberately. Resolve every missing requirement, invalid-channel message, and GPIO conflict before saving; the firmware blocks unsafe or ambiguous hardware configurations rather than guessing. On development boards, configure shared I²C and SPI wiring once under Shared sensor buses. Its normal collapsed view reports Enabled/Disabled; Edit buses opens the pins and supported-device help. Current I²C devices are TCA9554, TLA2528, and NAU7802. Current shared-SPI thermocouple interfaces are MAX6675, MAX31855, and MAX31856. DS18B20 uses a separate OneWire GPIO. A flashed PCB profile owns these physical connections and shows board-labelled ports instead of editable raw topology."
+    },
+    {
+      "title": "Supported sensor and expansion devices",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#supported-sensor-and-expansion-devices",
+      "text": "This is the current firmware compatibility list for planning a build. A module using a different chip is not automatically compatible just because its listing uses a similar description. Breakout-board voltage levels, reference voltage, input protection and load-driving capability still need to suit the installation. | Interface or chip | Supported use | Planning notes | | --- | --- | --- | | MAX6675 | K-type thermocouple for TOT, TIT or oil temperature | Shared SPI clock/data with one unique CS per module. Read-only interface; no MOSI required. | | MAX31855 | K-type thermocouple for TOT, TIT or oil temperature | Shared SPI clock/data with one unique CS per module. Read-only interface; no MOSI required. | | MAX31856 | K, J, N, T, E, R, S or B thermocouple for TOT, TIT or oil temperature | Shared SPI plus MOSI so the ECU can configure and verify the converter; one unique CS per module. | | NTC thermistor | Oil, coolant, intake or ambient temperature | Native ADC divider with beta/resistance model or calibrated nonlinear curve. Not offered for turbine-gas temperature. | | DS18B20 | Oil, coolant, intake or ambient temperature | Dedicated OneWire GPIO, external 4.7 kΩ pull-up to 3.3 V, selectable 9–12-bit resolution. Not offered for turbine-gas temperature. | | TCA9554 | Eight I²C on/off inputs or low-current logic outputs per chip | Addresses 0x20–0x27; optional shared open-drain interrupt for inputs. Use external rated drivers for real loads. A disconnected expander cannot be forced to change its retained output latch. | | TLA2528 | Eight I²C analog inputs or analog-threshold switches per chip | Addresses 0x10–0x17; configurable reference/supply scaling, valid-voltage window, engineering range and filtering. | | NAU7802 | Two I²C bridge/load-cell channels for torque or thrust | Fixed address 0x2A; both channels share gain and sample rate. One device can measure torque and thrust when each uses a different channel. | | HX711 | Direct two-wire bridge/load-cell input for shaft torque | Uses one DOUT input and one SCK output GPIO. Calibration stores unloaded zero and torque scale. | | Native ESP32 inputs | Digital switches, ADC sensors, pulse/frequency sensors, PWM-duty inputs and RC receiver pulses | Covers N1/N2 speed, pressures, voltage, flow, flame, operator commands and generic fitted channels when the signal is conditioned to the selected ESP32 input limits. | | Native ESP32 outputs | On/off relay commands, proportional PWM and servo/ESC pulse commands | Covers fuel/oil pumps, starters, valves, ignition, propeller pitch and auxiliaries through suitable external driver electronics. GPIO never supplies load power. | The Hardware page only offers a detected shared-I²C device for a new assignment. Previously saved assignments remain visible but unhealthy if that chip or bus is lost, allowing the installation to be diagnosed or deliberately cleaned up."
+    },
+    {
+      "title": "Connection patterns",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#connection-patterns",
+      "text": "Choose the electrical pattern first, then assign the actual board pin. Each link opens a small diagram with software steps and a connection table; module terminals are labelled by function, not assumed physical pin order. | Connection | Diagram and setup | | --- | --- | | ECU and load power | Separate supply paths and physical controls | | Shaft speed | Hall pulse input and pull-up | | Gas temperature | MAX31855 and K-type probe | | Analog pressure | Conditioning and calibration | | Operator demand | Potentiometer input | | Actuator command | Servo / ESC · PWM driver · Relay module | | Auxiliary sensing | DS18B20 · Dry contact · Voltage · Current |"
+    },
+    {
+      "title": "Power supply",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#power-supply",
+      "text": "Power the controller from a clean regulated supply within the board manufacturer's limits. Fuse the ECU supply and each load supply appropriately. Keep starter, pump, motor, and ignition current away from sensor wiring and the ESP32 ground return. Use connectors, wire sizes, strain relief, and enclosure protection appropriate for vibration, heat, and current."
+    },
+    {
+      "title": "3.3 V GPIO limits",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#33-v-gpio-limits",
+      "text": "ESP32 GPIO is 3.3 V logic and is not 5 V tolerant. Measure every external signal at the ECU pin under normal and fault conditions. A 5 V sensor, relay module, magnetic pickup, or actuator must use a divider, level shifter, isolator, or suitable driver/conditioner before it reaches a GPIO."
+    },
+    {
+      "title": "ADC restrictions",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#adc-restrictions",
+      "text": "On a Classic ESP32, use ADC1 GPIO 32-39 while Wi-Fi is active. GPIO 34-39 are input-only, and ADC2 is unreliable with Wi-Fi. On the supported ESP32-S3 target, use the input choices provided by the Hardware page; native USB and flash/PSRAM pins are not general-purpose replacements. Resolve the Hardware page's conflict warnings rather than forcing a pin choice."
+    },
+    {
+      "title": "Driver electronics",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#driver-electronics",
+      "text": "An ESP32 output does not power a pump, valve, starter, relay coil, glow plug, or igniter. Use a suitable logic-level MOSFET driver, protected automotive driver, relay module with a valid 3.3 V input, ESC input, or dedicated ignition stage between the GPIO and the load. Test active-high/active-low behavior with the load supply disconnected first."
+    },
+    {
+      "title": "Flyback protection",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#flyback-protection",
+      "text": "DC relay and solenoid coils need suitable flyback suppression unless the selected driver already includes it. Use the protection method specified for the driver and load; a generic diode is not appropriate for every switching speed or shutdown requirement. Keep suppression physically near the inductive load or driver as its documentation requires."
+    },
+    {
+      "title": "Grounding",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#grounding",
+      "text": "Join logic grounds only where an interface is not intentionally isolated. Use a deliberate return path so starter, pump, and ignition current cannot lift the sensor reference. Keep thermocouple, RPM, analog-sensor, and communication wiring separated from high-current and high-voltage wiring. Shield and filter long/noisy sensor runs as the sensor and interface documentation requires."
+    },
+    {
+      "title": "RPM sensors",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#rpm-sensors",
+      "text": "N1/N2 inputs require a clean, conditioned 3.3 V-compatible pulse signal and the correct pulses-per-revolution value. Open-collector/open-drain sensors need a pull-up to 3.3 V. On a GPIO supporting internal bias, Input bias → Pull-up can replace the external resistor for suitable short bench wiring. Internal pull-ups are weak: verify pulse edges at the required rate; long/noisy wiring may need an external resistor and conditioning. Classic ESP32 GPIO 34–39 have no internal bias. Push-pull conditioners normally need no pull-up. Magnetic pickups need a dedicated conditioner or comparator; do not connect an unbounded pickup waveform directly to a GPIO. Verify displayed RPM with an independent tachometer before enabling overspeed protection."
+    },
+    {
+      "title": "Thermocouple interfaces",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#thermocouple-interfaces",
+      "text": "TOT/EGT and TIT thermocouples connect through supported converter modules, not directly to the ESP32. Select the actual converter type and connect its SPI lines and chip-select as required. Several SPI modules may share the bus but need individual chip-select pins. Verify thermocouple type, polarity, connector metals, cold-junction behavior, and probe location before using a temperature limit."
+    },
+    {
+      "title": "Pressure sensors",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#pressure-sensors",
+      "text": "Most pressure transducers need a regulated supply, a common sensor ground, and a conditioned output that remains within the ADC range. A typical 0.5-4.5 V automotive sensor cannot connect directly to a 3.3 V ADC. Use correctly calculated scaling and protection, then calibrate at zero and against a trusted gauge with the real plumbing depressurized."
+    },
+    {
+      "title": "Pump control",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#pump-control",
+      "text": "Drive fuel, oil, or scavenge pumps through a rated driver or ESC, with a separately fused load supply. Confirm the command direction and minimum reliable output without fuel pressure. Do not treat a GPIO, breadboard trace, or undersized relay as a pump power path. Test physical fuel shutoff independently from any software command."
+    },
+    {
+      "title": "Starter control",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#starter-control",
+      "text": "Use a rated starter contactor, motor controller, or air-start valve driver for the starting system. Keep high starting current out of the ECU supply and ground reference. Test direction, interlocks, and timeout behavior with the engine made safe. The controller must not be the only means to stop starter energy."
+    },
+    {
+      "title": "Ignition control",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#ignition-control",
+      "text": "Use the ignition system's specified driver and isolation method. Never connect an ignition coil directly to an ESP32 output. Keep high-voltage ignition wiring away from sensor and communication wires, verify that vapors are cleared before a test, and retain an independent means to remove ignition and fuel energy."
+    },
+    {
+      "title": "Independent emergency stop",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#independent-emergency-stop",
+      "text": "Install a physical, independent emergency stop that removes fuel or relevant load power even if the ESP32, browser, Wi-Fi, or firmware is unavailable. Test it from a safe position before every fueled attempt. A dashboard STOP button is useful but is not an independent emergency stop."
+    },
+    {
+      "title": "Dry wiring checklist",
+      "context": "OpenTurbine hardware and wiring guide",
+      "url": "/hardware/#dry-wiring-checklist",
+      "text": "Before applying load power, confirm: - the selected ESP32 target and every GPIO assignment match the actual board; - all external inputs are conditioned to safe 3.3 V logic or ADC ranges; - each pump, valve, starter, relay, and igniter has a rated driver and fuse; - flyback and transient protection are fitted where required; - sensor grounds, load returns, and high-current paths are deliberately routed; - no pin conflict or hardware dependency warning remains; - output polarity is verified at logic level; and - the physical emergency stop removes energy independently. For the setup order and calibration workflow, continue to the OpenTurbine user guide."
+    },
+    {
+      "title": "Find a topic or setting",
+      "context": "Documentation",
+      "url": "/reference/",
+      "text": "Search OpenTurbine documentation, look up Controllers and System fields, or jump directly to wiring, calibration, sequence, backup and troubleshooting instructions."
+    },
+    {
+      "title": "Learn or look something up",
+      "context": "Find a topic or setting",
+      "url": "/reference/#learn-or-look-something-up",
+      "text": "| Your goal | Start here | | --- | --- | | I am new to the board or wiring | Install and connect, then Level 1 | | I want to add one input or output | Wiring patterns and the illustrated builds | | I need a field definition | Controllers and System field reference | | I want the full setup procedure | User Guide | | Something is not working | Troubleshooting by symptom |"
+    },
+    {
+      "title": "Common tasks",
+      "context": "Find a topic or setting",
+      "url": "/reference/#common-tasks",
+      "text": "| Task | Direct instructions | | --- | --- | | Choose a supported board or sensor | Boards · Compatible interfaces | | Name a device and assign its connection | Channel fields · Example S3 pin plan | | Set up Dashboard warnings | References and enable switches | | Choose fixed, input or automatic idle—or turn idle off | Running idle choices and screenshots | | Calibrate the fuel pump minimum | Pump calibration and button states | | Change a sensor bar's display range | Dashboard scales and recent trends | | Create a controller | Illustrated input-to-output mapping · Controller methods and ownership | | Calibrate an input | Calibration checklist · Throttle wizard · Pressure wizard | | Test an output | Tools and settings screenshots · Dry-test checklist | | Add a sequence block | Block picker and expanded cards · Sequence reference | | Check a limit or shutdown response | Limits and hard trips · Safety-function reference | | Back up or restore a complete setup | Engine-file backup and restore | | Update firmware and web pages | Updates |"
+    },
+    {
+      "title": "Reading shortcuts",
+      "context": "Find a topic or setting",
+      "url": "/reference/#reading-shortcuts",
+      "text": "Every guide has an On this page outline. On a phone, expand it to jump to a section. Pages with illustrated walkthroughs also offer Hide walkthrough screenshots; the wiring diagrams and written instructions remain visible. Select any diagram or screenshot to enlarge it. A setting link opens the relevant collapsed field-reference section. Use the field filter there for another lookup. Without JavaScript, the task links, outlines and expandable reference tables remain available; browser Find also works on visible text."
+    },
+    {
+      "title": "OpenTurbine experimental safety requirements",
+      "context": "Documentation",
+      "url": "/safety/",
+      "text": "\"Experimental turbine ECU safety requirements for OpenTurbine: independent shutdown, power protection, dry testing, controlled setup, and physical test-stand precautions.\""
+    },
+    {
+      "title": "Before applying power",
+      "context": "OpenTurbine experimental safety requirements",
+      "url": "/safety/#before-applying-power",
+      "text": "- Read the complete safety and operating guidance. - Confirm the wiring against the board pin map and check output polarity with the engine disconnected. - Use appropriately rated fuses, a common ground plan, and independent means to remove energy from actuators. - Make sure a second person can operate the physical stop and that everyone is outside the test area."
+    },
+    {
+      "title": "Test in stages",
+      "context": "OpenTurbine experimental safety requirements",
+      "url": "/safety/#test-in-stages",
+      "text": "Start with a dry test: no fuel, no ignition, and no attached engine load. Check the displayed values, sensor-fault behavior, output states, and shutdown sequence. Add only one energy source at a time, and stop immediately if telemetry, wiring, or actuator behavior is not understood. OpenTurbine does not replace local rules, competent supervision, or the safety information for the hardware being controlled."
+    },
+    {
+      "title": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "context": "Documentation",
+      "url": "/troubleshooting/",
+      "text": "Diagnose OpenTurbine USB-driver, board-detection, flashing, Wi-Fi, dashboard, and update problems for supported ESP32 turbine ECU boards."
+    },
+    {
+      "title": "Windows blocks the Setup Tool",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#windows-blocks-the-setup-tool",
+      "text": "Use the official OpenTurbine download link. Windows can warn about a new or unsigned application; choose More info → Run anyway when Windows offers it. Do not disable Windows protection globally or use a copy from another website. Normal installation does not require understanding checksums, and the Setup Tool automatically verifies the firmware package it downloads."
+    },
+    {
+      "title": "CP210x driver installation fails",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#cp210x-driver-installation-fails",
+      "text": "Disconnect and reconnect the intended board, then let the Setup Tool identify the connected CP210x bridge before installing a driver. Use a direct port, close serial monitors, and avoid installing a CP210x driver for an unrelated COM device. If Windows reports a specific installation error, restart only when Windows asks, then reconnect the board and rescan."
+    },
+    {
+      "title": "CH340/WCH driver installation fails",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#ch340wch-driver-installation-fails",
+      "text": "The Setup Tool offers a WCH driver only for a matching connected WCH bridge. Check the data cable and direct USB connection first. Do not install a WCH driver merely because an unrelated serial device exists. After a successful driver install, reconnect or rescan as the tool instructs."
+    },
+    {
+      "title": "Board does not appear as a COM port",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#board-does-not-appear-as-a-com-port",
+      "text": "Try a known data cable, another direct USB port, and no USB hub. Check whether the connected bridge has a missing driver; the tool should offer the matching CP210x or WCH driver. Remove power only if the board documentation permits it, then reconnect. An unrelated existing COM port does not prove the intended board has one."
+    },
+    {
+      "title": "COM port exists but the ESP32 does not answer",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#com-port-exists-but-the-esp32-does-not-answer",
+      "text": "Close PlatformIO, terminal programs, and any serial monitor using that port. Use the board's BOOT/RESET sequence: commonly hold BOOT, tap EN/RESET, start the connection, and release BOOT when the uploader begins. Follow the Setup Tool's device-specific boot-mode guidance instead of reinstalling a driver that is already working."
+    },
+    {
+      "title": "Flashing fails",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#flashing-fails",
+      "text": "Keep the cable short and directly connected. Confirm the selected board is a supported Classic ESP32 or supported ESP32-S3 target. Retry with the BOOT/RESET procedure, no other application holding the COM port, and stable board power. A Clean install/reinstall erases the selected board; use it only when that is intended."
+    },
+    {
+      "title": "OpenTurbine Wi-Fi is missing",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#openturbine-wi-fi-is-missing",
+      "text": "Wait for a successful firmware boot, confirm stable ECU power, and look for the configured board network name. If the board was just installed or reset, reconnect after it finishes booting. If no network appears after a confirmed USB install, retry the installation with the correct target and inspect the diagnostic logs before reporting a problem."
+    },
+    {
+      "title": "Dashboard does not open",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#dashboard-does-not-open",
+      "text": "Join the board Wi-Fi and browse directly to http://192.168.4.1. Keep only one OpenTurbine tab or browser client open; this limit applies to both Classic ESP32 and ESP32-S3 ECUs. Close duplicate tabs or dashboards on other devices before retrying. Mobile data, VPN, captive-portal behavior, and automatic network switching can send the browser elsewhere; temporarily disable them if needed. If Wi-Fi is visible but pages still fail, reinstall or update the web assets without interrupting power."
+    },
+    {
+      "title": "A fitted output is missing from Create controller",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#a-fitted-output-is-missing-from-create-controller",
+      "text": "Check that the output was saved in Hardware, has the intended electrical driver and is not already claimed by a controller or dedicated subsystem. A display-name change does not change its stable ID or release ownership. Review the existing owner before deleting or disabling anything. See the controller creation screenshots."
+    },
+    {
+      "title": "A setting is unavailable or a save is blocked",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#a-setting-is-unavailable-or-a-save-is-blocked",
+      "text": "Read the displayed prerequisite or validation message. Configured system focuses on fitted features; Explore all features exposes other settings but does not supply missing hardware. Open the warning's link to the relevant field, correct conflicts, then review the change recap. An amber future-hardware value is different from a blocked enable switch. Use the field reference to check its meaning."
+    },
+    {
+      "title": "A reading is stuck, wrong or moves backward",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#a-reading-is-stuck-wrong-or-moves-backward",
+      "text": "Start with raw signal voltage/counts and input health, then check the selected electrical type, polarity, range and calibration. A plausible engineering value can still be incorrectly scaled. Verify the wiring with power isolated and use a trusted reference before changing a protection. See calibration checks."
+    },
+    {
+      "title": "A sequence waits or times out",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#a-sequence-waits-or-times-out",
+      "text": "Open the active card and read its completion condition, input health and timeout result. An ACTION command and an UNTIL wait can have similar names but different behavior. Resolve the missing evidence; do not bypass a condition just to advance the sequence. The picker and card examples show where to look."
+    },
+    {
+      "title": "Fuel does not fall to zero at low throttle",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#fuel-does-not-fall-to-zero-at-low-throttle",
+      "text": "With hazardous loads isolated, check Controllers → Fuel-metering support → Idle → Running Idle Mode, then the Main Fuel owner's Output low (%). Idle Off removes the Running floor but does not change Output low; both must permit zero for a full-range bench mapping. Fixed, input and automatic idle can hold a floor in Running. Startup has its own Sequence commands. Do not erase a measured pump minimum to disable idle. Follow the illustrated idle choices."
+    },
+    {
+      "title": "The fuel calibration Stop button is grey",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#the-fuel-calibration-stop-button-is-grey",
+      "text": "Metering started — stop becomes available after Start 1%/s sweep. Before a sweep it is intentionally disabled, not evidence of a missing pump. If the sweep or another calibration action is unavailable, check the displayed prerequisite, ECU state and active tests. See the pump calibration card."
+    },
+    {
+      "title": "A sensor bar changes its scale",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#a-sensor-bar-changes-its-scale",
+      "text": "Auto scaling follows recent valid readings; it is not a changing protection limit. Select the range below the bar and set a fixed Low/High span when comparing runs. A fault clears recent history. The scale is a browser preference, not sensor calibration or an engine setting. See Dashboard scales."
+    },
+    {
+      "title": "Update fails",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#update-fails",
+      "text": "Back up the full engine file before an update. Use Update and keep my setup for a working controller, and do not interrupt power while it runs. If the board cannot be reached over Wi-Fi, recover over USB. If a restore is rejected, use a complete matching engine file rather than partial configuration sections."
+    },
+    {
+      "title": "Where diagnostic logs are stored",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#where-diagnostic-logs-are-stored",
+      "text": "Setup Tool diagnostics are stored in %LOCALAPPDATA%\\OpenTurbine\\SetupTool\\logs. Wi-Fi-update backups are normally stored under Documents\\OpenTurbine\\Backups. Remove Wi-Fi passwords, personal network details, and unreviewed engine configuration before attaching material to Setup Help."
+    },
+    {
+      "title": "Before reporting a bug",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#before-reporting-a-bug",
+      "text": "Include the supported board target, connection method, fitted hardware, exact symptom, expected behavior, observed behavior, and sanitized logs. Use Setup Help for installation, USB, driver, flashing, Wi-Fi, and dashboard questions. Use a bug report only for reproducible software behavior."
+    },
+    {
+      "title": "OpenTurbine user guide and reference",
+      "context": "Documentation",
+      "url": "/user-guide/",
+      "text": "A source-matched, step-by-step guide to building, wiring, configuring, calibrating, dry-testing and operating an OpenTurbine ESP32 turbine ECU."
+    },
+    {
+      "title": "Part 1: Words used in this guide",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-1-words-used-in-this-guide",
+      "text": "You only need these basic ideas to begin: - ECU means electronic control unit. Here it is the ESP32 board running OpenTurbine. - GPIO means a numbered electrical pin on the ESP32. The Hardware page only offers pins valid for the selected board. - Input is information entering the ECU: temperature, RPM, pressure, a switch, or a throttle command. - Output is a low-power command leaving the ECU. It tells a separate driver, relay, ESC or servo what to do. - Sensor measures something. Its raw electrical signal often needs a converter or conditioner before the ESP32 can read it. - Actuator does something physical: a pump, starter, valve, igniter, fan or servo. - Driver has two meanings in this guide. An electrical output driver carries load current; a USB driver lets Windows communicate with the ESP32. - N1 is the gas-generator/core shaft speed. N2 is a separate free power-turbine/output shaft speed where fitted. - TOT/EGT is turbine-outlet/exhaust gas temperature. TIT is turbine-inlet temperature. Use the measurement and limit specified by the engine documentation. - ADC converts a safe analog voltage into a number. The ESP32 ADC pin must never receive more than its permitted voltage. - PWM is rapid on/off switching used to request a proportional output. A servo/ESC signal is a different pulse format and must be selected as such. - Active LOW means the function is active when the signal is connected to ground. Active HIGH means active when voltage is present. - Pull-up gently holds an unconnected digital input HIGH. A switch can then connect it to ground to make it active LOW. - Closed loop means the ECU measures the result and adjusts an output to reach a target. Open loop sends a fixed output without measuring the result. - Fail-safe is the state selected for a missing signal or software fault. Independent emergency stop is separate hardware that removes hazardous energy even if the ECU has failed."
+    },
+    {
+      "title": "Part 2: What you need",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-2-what-you-need",
+      "text": ""
+    },
+    {
+      "title": "Required for the normal supported path",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#required-for-the-normal-supported-path",
+      "text": "- A Classic ESP32 board with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatible board with at least 8 MB flash. The universal S3 image works on 8 MB and 16 MB modules without requiring PSRAM. - A Windows computer and a USB data cable. A charge-only cable will power the board but cannot install firmware. - A clean regulated ECU power supply within the board maker's limits, with a fuse. - A multimeter and the datasheets for the board, every sensor, every converter and every output driver. - Correct connectors, wire sizes, strain relief, enclosure, fuses and transient protection for the environment. - A hardwired emergency-stop circuit that removes fuel or relevant load power independently of the ESP32."
+    },
+    {
+      "title": "Add only what the engine actually needs",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#add-only-what-the-engine-actually-needs",
+      "text": "Common minimum instrumentation is N1 speed plus TOT or TIT. Oil-lubricated systems commonly add oil pressure. The firmware supports many more inputs and outputs, but fitting every possible item does not automatically make a better system. Every added part creates another wiring, calibration and failure path. Do not use solderless breadboards for a fueled or vibrating turbine installation. They are useful only for low-energy bench learning."
+    },
+    {
+      "title": "Part 3: How the system is connected",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-3-how-the-system-is-connected",
+      "text": "Click or tap the diagram to enlarge it. The Hardware page chooses the GPIO numbers. This diagram shows the electrical pattern: condition inputs, use drivers for outputs, separate load power, and provide a hardwired stop. There are four paths to keep separate: 1. ECU power: supply → fuse → regulator → ESP32 VIN and GND. 2. Sensor signals: sensor → required conditioner/converter → selected ESP32 input GPIO. 3. Output signals: selected ESP32 output GPIO → driver/ESC/relay input. The GPIO carries only a command. 4. Load power: separately fused supply → emergency-stop/contact path where required → driver → pump, valve, starter or ignition load. Use a deliberate star-ground or similarly engineered return scheme. Starter, pump and ignition current must not flow through the sensor ground path. If an interface is intentionally isolated, follow its isolation design and do not add a ground that defeats it."
+    },
+    {
+      "title": "Part 4: Wire the ECU power and emergency stop",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-4-wire-the-ecu-power-and-emergency-stop",
+      "text": ""
+    },
+    {
+      "title": "4.1 Build the power path",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#41-build-the-power-path",
+      "text": "1. Read the exact ESP32 board's VIN/5V and 3V3 limits. Do not guess from another board. 2. With power off, connect the regulated supply positive through an appropriately rated fuse to the board input specified by its manufacturer. 3. Connect the supply negative to the planned ECU ground point. 4. Leave every sensor, driver and load disconnected. 5. Set a current-limited bench supply conservatively, power the board, and measure its input and 3.3 V rail. 6. Remove power before adding each new circuit. Never feed external voltage into an unpowered ESP32 GPIO. It can back-power and damage the board."
+    },
+    {
+      "title": "4.2 Build the independent stop",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#42-build-the-independent-stop",
+      "text": "The emergency stop must directly remove the energy that can keep fuel flowing or a hazardous load operating. A common pattern uses a normally closed fuel valve or a power contactor whose coil circuit passes through a latching emergency-stop button. The exact components and ratings depend on the system. Test these cases without fuel: - stop pressed while the ECU is running normally; - ESP32 unplugged or frozen; - Wi-Fi and browser unavailable; - output driver signal wire shorted or disconnected; and - power restored after a stop. The safe result must not depend on code executing. Back to contents"
+    },
+    {
+      "title": "Part 5: Wire inputs and sensors",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-5-wire-inputs-and-sensors",
+      "text": ""
+    },
+    {
+      "title": "5.1 The rule for every input",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#51-the-rule-for-every-input",
+      "text": "Before connecting a signal to the ESP32, answer all five questions from its datasheet: 1. What powers the sensor? 2. What is the lowest and highest possible output, including a fault? 3. Is it digital, analog voltage, pulse/frequency, RC PWM, SPI, 1-Wire, I²C or a load-cell bridge? 4. Does it need a divider, pull-up, filter, comparator, isolator or converter? 5. Which ground/reference must be shared? Measure the conditioned output before attaching it to the GPIO. ESP32 GPIO uses 3.3 V logic and is not 5 V tolerant."
+    },
+    {
+      "title": "5.2 Typical wiring by electrical type",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#52-typical-wiring-by-electrical-type",
+      "text": "Click or tap this diagram to enlarge it. These four patterns cover conditioned pressure, pulse speed, a dry-contact switch and a thermocouple converter. They use the same terminal labels and colors as the Guided Builds; replace each generic GPIO label with the pin saved on Hardware. Input patterns: coral is power, grey is ground and green is signal. Confirm every voltage from the actual component datasheet before connecting the ESP32. Electrical type selected in Hardware Connection pattern Important fields Digital switch For the usual active-LOW arrangement: selected GPIO → switch → sensor ground; enable a pull-up. The input reads active when the switch closes. GPIO, active polarity, input bias. Use an external resistor and protection for long/noisy wires. Analog voltage / ADC Sensor output → protection/filter and, if needed, voltage divider → ADC-capable GPIO. Sensor ground returns to the sensor reference point. GPIO, minimum/maximum raw ADC counts, mapped engineering range. Calibrate with a trusted reference. Pulse/frequency Open-collector sensor: pull up to 3.3 V. Input bias → Pull-up can use the onboard resistor on a suitable GPIO for short bench wiring; Classic GPIO 34–39 have no internal bias. Verify pulse edges and use external bias/conditioning when needed. Magnetic/variable-reluctance pickups need a conditioner/comparator. GPIO, pulses per revolution/litre/unit, frequency or engineering endpoints. Shaft-speed PCNT inputs default to a 5 µs glitch filter and derive their plausibility ceiling from twice the applicable hard shutdown speed. RC PWM Receiver signal must be 3.3 V compatible; receiver and ECU need a valid reference unless isolated. Do not power a receiver from an unsuitable pin. GPIO, minimum/maximum pulse width, signal-loss timeout, calibrated command endpoints. PWM duty input Condition the external PWM to 3.3 V logic, then connect to the selected input GPIO. GPIO and mapped endpoints. This reads duty/frequency; it is not a servo pulse unless RC PWM is selected. MAX31855 / MAX31856 / MAX6675 Thermocouple → matching converter terminals; converter VCC/GND → permitted supply/reference. Enable the shared SPI bus and choose SCK/MISO once; MAX31856 also needs shared MOSI. Each module needs its own CS GPIO. Hardware → Shared sensor buses → Edit buses, near the end of the page; interface type, unique CS, thermocouple type and polarity on the device card. DS18B20 VDD and GND as specified; DQ → selected GPIO with the required pull-up to the correct logic supply. GPIO, discovered sensor/address behavior and resolution. The 10-bit default updates substantially faster than 12-bit. Keep the bus away from ignition noise. NTC thermistor Thermistor plus a known resistor form a voltage divider; divider midpoint → ADC GPIO. GPIO, nominal resistance, beta/coefficient and calibration. Divider values must keep the pin safe. HX711 Load cell/bridge → HX711 inputs; HX711 data and clock → their selected GPIOs; power and grounding follow the module/load-cell specifications. Data/clock pins, zero and scale calibration. TCA9554 / TLA2528 / NAU7802 I²C Connect every device to the configured shared SDA/SCL bus with suitable pull-ups and 3.3 V-compatible levels. The Hardware page discovers responding chips automatically. Only connected devices can receive new assignments. TCA9554 provides binary I/O, TLA2528 analog inputs, and NAU7802 thrust/torque load-cell channels. Classic ESP32 note: use ADC1 GPIO 32–39 while Wi-Fi is active. GPIO 34–39 are input-only. ADC2 readings are unreliable while Wi-Fi is operating. On ESP32-S3, use only choices offered for that selected target; native USB and flash/PSRAM pins are not spare pins. If an I²C chip is unplugged, its channels become unhealthy and its saved assignments are shown as Disconnected. Use Remove device and assignments to clear all channels and dependencies belonging to a permanently removed chip. Native ESP32 GPIO remains strongly recommended for turbine fuel, ignition, starter, and shutdown outputs because a disconnected TCA9554 can physically retain its last output latch."
+    },
+    {
+      "title": "5.3 Every available input purpose",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#53-every-available-input-purpose",
+      "text": "The Purpose field tells the firmware how an installed channel may be used. The current code offers these purposes: Input purpose What it does and how to use it N1 speed Primary core-shaft RPM. Used by startup checks, overspeed, flameout/surge logic, idle control, windmilling protection and logs. Wire only a clean conditioned pulse and set pulses/revolution. N2 speed Free power-turbine/output-shaft RPM. Enables N2 overspeed, N2 idle feedback, shaft power and the N2 governor. Additional shaft speed Extra speed channel for simple controls, custom sequencing and logs. It does not replace the primary N1 or N2 purpose. TOT / EGT Turbine-outlet temperature, normally through a supported thermocouple converter. Can be the primary engine-temperature safety source. TIT Turbine-inlet temperature. Use when the engine documentation specifies a TIT limit; never substitute a TOT limit. Oil pressure Feedback for oil protection and optional closed-loop oil-pump control. Wire and calibrate the exact transducer range. Fuel pressure Fuel-manifold feedback for diagnostics and optional low-pressure shutdown. P1 / P2 / coolant pressure Compressor inlet, compressor discharge and cooling-system measurements used for display, logging, controllers and calculated behavior where supported. Oil, coolant or intake temperature Auxiliary temperature channels. Oil temperature can enable its dedicated shutdown; others are available to logging and automation. Fuel flow Pulse or analog flow measurement for consumption logs and supported controls. Enter the manufacturer's pulses/litre or calibrated mapping. Main / scavenge oil flow Separate flow feedback for the corresponding pump. Calibrate in L/min, enable monitoring on that pump's Hardware card, and test its minimum-flow threshold. Confirmed underflow warns by default; shutdown is a separate Config choice. Main flame / afterburner flame Dedicated combustion detectors. Main flame can confirm startup/flameout; AB flame can confirm afterburner light-off. Torque Analog, HX711, NAU7802, or shaft torsion by phase difference between two pickups on the same shaft. Phase torque needs matching effective pulses per shaft revolution and calibrated zero phase and shaft sensitivity; two unrelated RPM readings cannot measure torque. NAU7802 calibration captures unloaded zero plus known force and lever arm. See the two-pickup walkthrough . With shaft speed it supports shaft-power calculation; it is also available to controllers. Thrust Conditioned local/TLA2528 analog transmitter or NAU7802 load-cell measurement. Analog inputs use linear or multi-point calibration; NAU7802 uses unloaded zero plus a known force or mass. Canonical display, telemetry, controllers and logs use newtons. Battery / bus voltage Scaled ADC measurement for display, logs and undervoltage protection. A battery must never connect directly to an ADC pin. Throttle input Operator demand from analog, RC PWM, pulse-duty or another supported input. Calibrate low/high endpoints and signal-loss behavior. Idle input Separate idle/startup demand, usable as digital, analog, RC PWM, pulse or duty depending on the installation. Digital interlock General switch for simple controls and sequence conditions. Inhibit-start Prevents a start while the external inhibit is active. Emergency-stop request Requests ECU shutdown. Useful in addition to, never instead of, the hardwired energy-removing stop. Fault switch External equipment can request fault shutdown. Low-oil / zero-oil switch Discrete alternatives or supplements to an analog oil-pressure transducer for their corresponding protections. Sequence gate Physical permission/condition used by a Wait For Input sequence block. Afterburner arm / command Separate permission and fire-request switches for afterburner installations. Reduced-power mode Requests the configured output cap. Generic automation input Normalized digital, analog, pulse, RC or duty input for custom rules/sequence logic; it has no built-in engine meaning."
+    },
+    {
+      "title": "Part 6: Wire outputs and actuators",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-6-wire-outputs-and-actuators",
+      "text": ""
+    },
+    {
+      "title": "6.1 Never power a load from a GPIO",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#61-never-power-a-load-from-a-gpio",
+      "text": "An ESP32 GPIO can provide only a logic command. Use an interface rated for the real voltage, continuous current, starting/stall current, inductive energy, switching rate and fault conditions. Output driver selected in Hardware Signal connection Typical use Relay / on-off GPIO → 3.3 V-compatible protected relay/MOSFET driver input. Driver output switches the load supply. Fit appropriate coil/load suppression. Normally closed fuel valve, contactor enable, solenoid, simple igniter enable. PWM GPIO PWM → protected motor/power driver command. The driver, not the ESP32, carries load current. DC pump, fan, glow driver or proportional power stage. Servo / ESC GPIO signal → servo/ESC control input; reference grounds only as the interface requires. Load power comes from its separately rated supply. Fuel-pump ESC, starter ESC, propeller pitch or nozzle actuator."
+    },
+    {
+      "title": "6.2 Every available output purpose",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#62-every-available-output-purpose",
+      "text": "Output purpose What OpenTurbine commands Main fuel metering output Primary proportional engine-power command, whether the hardware is a pump, valve, metering unit or ESC. Used by sequences, throttle slew, idle control, governor and protections. Calibrate its minimum reliable command with fuel isolated. Fuel shutoff Normally closed main-fuel safety valve. It opens for fuel admission and closes on shutdown. Its de-energized state should be safe. Starter Relay, PWM driver or ESC demand used to spool the engine. Starter enable Separate contactor/enable for starter electronics that require enable plus proportional demand. Oil pump Fixed or pressure-controlled oil delivery, startup priming and windmilling protection. Coolant pump / scavenge pump / cooling fan Auxiliary pumping and cooling outputs usable from Sequence and Controllers. Scavenge can continue into shutdown where configured. Secondary / auxiliary fuel pump Independent second fuel output for Sequence or Controller use. It does not automatically mirror main throttle. Igniter / afterburner igniter / glow plug Commands the appropriate external ignition or glow driver. The ESP32 never drives a coil or glow element directly. Valve / solenoid Bleed or other on/off valve through a rated driver. Afterburner valve / pump Dedicated afterburner fuel shutoff and delivery outputs used by AB sequences. Air starter Air-start valve through an on/off driver. Pilot fuel Independent pilot-fuel pump or valve available to sequencing and controllers, including wet-glow pairing. Air / fuel purge valve Valve that can be placed in a custom safe sequence. Electric drain valve Open/close output available to startup/shutdown sequences, simple Controllers and standby Tools tests. Configure its physical polarity or endpoints in Hardware. Variable nozzle / propeller pitch Proportional servo/ESC output, or deliberate fine/coarse relay pitch; propeller pitch can be the N2 governor's controlled output. Generic automation output Relay, PWM or servo output controlled by a simple Controller or sequence step, with no built-in engine role. For every output, set a Power-on state / Boot safe demand and a Fault safe demand that are electrically safe. Verify actual polarity at the driver input and load terminals; a label in software cannot correct a wrongly wired active-low module."
+    },
+    {
+      "title": "Part 7: Install OpenTurbine and connect",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-7-install-openturbine-and-connect",
+      "text": "If this ECU previously ran a pre-2.0 build, keep its engine file only as a reference and follow the v2 migration guide. Version 2.0 intentionally changed the hardware model and several startup/safety settings; recommission it instead of assuming an old file is safe. 1. Download the guided Windows Setup Tool. 2. Disconnect all load power. Connect exactly one intended ESP32 by USB. 3. For a blank board choose Clean install / reinstall. It erases that board. For an existing working ECU, make a backup and choose Update and keep my setup. 4. If the tool identifies a CP210x or WCH USB bridge without a COM port, accept only the matching driver it offers. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions. 5. After installation, join the Wi-Fi network created by the ECU and browse to http://192.168.4.1. 6. Complete the safety acknowledgement and first-run prompts. Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer. If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See Troubleshooting if needed."
+    },
+    {
+      "title": "Part 8: Describe the hardware in the dashboard",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-8-describe-the-hardware-in-the-dashboard",
+      "text": "The dashboard cannot discover ordinary wired sensors and actuators. You must describe exactly what you fitted."
+    },
+    {
+      "title": "8.1 Choose the board first",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#81-choose-the-board-first",
+      "text": "Open Hardware, select the exact Classic ESP32 or supported ESP32-S3 target, and save/reboot if requested. A GPIO number on one board is not automatically safe on another."
+    },
+    {
+      "title": "8.2 Add one channel at a time",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#82-add-one-channel-at-a-time",
+      "text": "First configure the required physical Start and Stop inputs. These are ECU commands and remain separate from the independent stop that removes hazardous energy. The Level 1 power and control step shows the bench arrangement. A development board uses saved GPIOs; an installed PCB profile uses its labelled compatible ports. 1. In Inputs, choose Add input and pick the preset matching the physical sensor or switch. 2. In Outputs, choose Add output and pick the matching actuator. 3. Complete the card fields described below. 4. Resolve every red requirement, pin conflict or invalid-channel message. 5. Save, let the ECU reboot, reopen Hardware, and compare the saved page with the physical wire list."
+    },
+    {
+      "title": "8.3 What every channel-card field means",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#83-what-every-channel-card-field-means",
+      "text": "Field What to enter Display name / label A short human-readable name shown in the dashboard and logs, such as “Main oil pressure”. Renaming it does not break stable references. Purpose The built-in ECU meaning listed in Parts 5 and 6. This determines which safety, controller and sequence options can use the channel. Controller use / binding Assigns the installed device to a core job such as primary N1 or main fuel output. Do not bind two devices to one exclusive role. Signal type / sensor interface The real signal type: digital, ADC, pulse, RC, PWM duty, thermocouple interface, relay, PWM or servo/ESC. It must match the wiring. GPIO / CS / CLK / MISO / MOSI / data The physical board pins used by that interface. Choose only offered pins and use each exclusive pin once. Shared SPI clock/data lines are allowed only where the UI explicitly accepts the shared bus. Active polarity Whether HIGH or LOW means active. For an active-LOW switch to ground, select active LOW and a pull-up. Input bias Internal pull-up, pull-down or none. Use only when electrically appropriate; never enable both. Minimum/maximum raw value The measured electrical endpoints: ADC counts, frequency or pulse width. Minimum must be below maximum. Minimum/maximum mapped value The engineering quantity those raw endpoints represent, such as 0–10 bar or 0–100%. Pulses per revolution/litre/unit The sensor's real pulse count from its datasheet or calibration. A wrong value produces a proportionally wrong reading. PWM frequency and resolution Must match the receiving driver. Higher resolution can limit available carrier frequency. Duty/pulse at 0% and 100% The actual PWM duty or servo pulse produced at the two command endpoints. These are electrical endpoints, not the pump's minimum-running calibration. Minimum non-zero / reliable command Smallest nonzero command that reliably keeps an applicable motor/driver moving. Find it cautiously in Calibration/Tools. Output polarity / reverse Reverses the electrical interpretation. Verify with a meter before connecting a load. Power-on / boot-safe demand Command applied during initialization and after some tests. Choose the physically safe state. Fault-safe demand Command used when the ECU enters fault handling. This is not a replacement for a de-energized safe design. Current-sensor fields ADC GPIO, sensor mV/A, zero-current voltage and overcurrent limit for an attached current sensor. Calibrate zero with the load off. Back to contents"
+    },
+    {
+      "title": "Part 9: Understand controllers and safety functions",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-9-understand-controllers-and-safety-functions",
+      "text": ""
+    },
+    {
+      "title": "9.1 Controllers",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#91-controllers",
+      "text": "A controller continuously changes an output based on a measurement. Enable it only after its sensor and output work independently. Controller How it works When to enable it Oil pressure loop Compares measured oil pressure with a fixed, effective-fuel, N1, or N2 target and changes its explicitly selected pump. Proportional pumps modulate; relay pumps use full off/on hysteresis for accumulator systems. Fallback handles a failed sensor. After the pressure input, selected pump, plumbing and safe fallback demand are proven. Smooth fuel/throttle movement Limits how quickly the main fuel output opens or closes. It also supports gradual limit protection behavior. Normally enabled for a proportional main-fuel output. Set opening/closing times from controlled tests, not examples. Automatic idle control Measures one selected N1, N2, P1, or P2 source and adjusts fuel within configured bounds to hold idle. N1/N2 is the normal proven method; pressure control is experimental and has separate target, deadband, and disengagement settings. Only after manual/fixed idle behavior is stable, the selected feedback is calibrated, and fuel limits are safe. Automatic N2 speed control Compares N2 with its target and changes proportional main fuel, proportional propeller pitch, or deliberate fine/coarse relay pitch. Coarser pitch increases load to restrain speed. Only on an appropriate two-shaft system with verified N2, output direction, travel limits and conservative gains."
+    },
+    {
+      "title": "9.2 Safety functions",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#92-safety-functions",
+      "text": "Enabling a checkbox does not prove the protection. You must force a safe simulated fault and confirm the response. Safety Trigger and prerequisite N1 overspeed Hard shutdown above Maximum N1 Speed; requires primary N1. N2 overspeed Independent hard shutdown above Maximum N2 Speed; requires N2. Turbine gas overtemperature Watches the startup-specific selected TOT/TIT limit during STARTUP and the normal hard limit during RUNNING. A zero startup limit inherits the normal limit. Low oil pressure Shutdown after configured low-pressure behavior; requires oil pressure or a low-oil switch. Zero oil pressure Detects effectively absent oil pressure; requires oil pressure or a zero-oil switch. Flameout Declares combustion loss using the selected flame, N1, or EGT evidence after its confirmation time. EGT evidence means temperature is below its threshold and falling, or is falling faster than the configured rate. Hot start Blocks START when selected turbine temperature is already above the pre-start limit. The normal/startup overtemperature guard then protects the active start. Oil temperature high Shutdown above the oil-temperature limit; requires that input. Fuel pressure low Shutdown below the running fuel-pressure threshold; requires fuel-pressure input. Battery undervoltage Fault behavior below the configured bus-voltage threshold; requires a scaled, calibrated voltage input. Surge / compressor instability Uses rolling N1 variance to detect oscillation. It requires a clean N1 signal and engine-specific validation to avoid false trips. Controllers disables protections whose required input is not fitted. Each expandable safety card keeps its enable, source, thresholds and confirmation timing together. A value of zero disables several thresholds; read each field explanation carefully. Choose Running idle explicitly: open Controllers → Fuel-metering support → Idle → Running Idle Mode. Choose Off, Fixed fuel percentage, Input channel, or Automatic Idle. Input channel defaults to the configured Idle Input; Idle Input Channel also lets you choose another fitted input and map its Low/High endpoints in the source's units. Automatic Idle shows its feedback source, target, cutoff and tuning directly below the choice; missing hardware is explained rather than hiding the controls. Fixed replaces retained startup idle only after Startup finishes. Startup actions stay unchanged, including their use of the Hardware Idle Input. Off permits zero with Main Fuel Output low = 0%, and hides the note beside Input low. Older files retain their behavior; a Startup-retained floor requires an explicit mode choice before Idle settings change. Operator input ranges display 0–100%, with decimals supported; storage remains 0–1. Follow the illustrated idle choices. Pump minimum calibration remains separate from stable engine idle."
+    },
+    {
+      "title": "Part 10: Configure Controllers and System",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-10-configure-controllers-and-system",
+      "text": ""
+    },
+    {
+      "title": "10.1 Safe order",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#101-safe-order",
+      "text": "1. Open Controllers only after Hardware saves without errors; use System for ECU-wide behavior and communications. 2. Start in Configured system, which opens by default and shows the controls supported by the fitted hardware. Enter limits from the exact engine, sensor and actuator documentation. 3. Use Changed to review every edit. Yellow fields are not saved yet. 4. Use Explore all features to inspect or preconfigure features whose required hardware/controller is absent. Amber-bordered tuning values save normally but remain inactive until Hardware satisfies the displayed prerequisite. Enable switches and choices for missing hardware remain locked, so Explore cannot arm a feature unexpectedly. Search also reveals unavailable settings; neither Explore nor Developer Mode bypasses a missing physical prerequisite. 5. Save one related group at a time and read the save recap. 6. Reopen the page and confirm values survived the reboot/save. Never copy “typical”, example or preset values into a fueled turbine without verifying them. Units matter: RPM, milliseconds, percent, pressure and °C/°F are not interchangeable."
+    },
+    {
+      "title": "10.2 Complete source-matched field reference",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#102-complete-source-matched-field-reference",
+      "text": "For an illustrated example, follow creating a controller. The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite. Find a Controllers or System field"
+    },
+    {
+      "title": "Part 11: Calibrate inputs and outputs",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-11-calibrate-inputs-and-outputs",
+      "text": "Calibration makes a displayed number match reality. Do it in STANDBY or FAULT, with hazardous energy isolated. If a throttle potentiometer moves the command backwards, open Hardware → Throttle Input → Input direction, choose Invert input, and save. Recheck the calibrated idle and full-command ends and the middle position before enabling an output. Direct digital flame detectors and switches need only the correct active electrical state. ADC-backed flame detectors and switches use one common condition model: active above/below, threshold, and hysteresis. For an ADC switch, capture its inactive and active states on Calibration; OpenTurbine calculates polarity, a midpoint threshold, and a noise-aware deadband. Hysteresis prevents vibration or electrical noise near the threshold from making the state chatter. Most analog voltage/current transmitters need only the normal two-point calibration. For a nonlinear resistive sender, open Advanced sensor curve on its Hardware card and enter 2–6 measured or datasheet points. Raw ADC points must increase; physical values may consistently increase or decrease. The ECU interpolates between points and clamps outside the endpoints. NTC inputs normally use their resistance/beta model, but may use this curve when the manufacturer supplies a temperature table. Thermocouple, pulse/frequency, and load-cell inputs retain their dedicated calibration methods. 1. Open Calibration and confirm it shows only fitted hardware. 2. Start with raw readings. A disconnected sensor should not look like a believable safe value. 3. Apply a known low reference, capture/enter the low point, and record the physical value. 4. Apply a known high reference, capture/enter the high point, and record the physical value. 5. Test one or more points between them. If the middle is wrong, the sensor may be nonlinear or the electrical type may be incorrect. 6. Save, reboot, and repeat the check. Specific checks: - N1/N2: compare several speeds with an independent tachometer. Correct pulses/revolution first. - TOT/TIT: verify thermocouple type, polarity, connector metals, converter and probe location. Compare ambient and a controlled reference. - Pressure: zero only while safely depressurized, then compare with a trusted gauge at multiple pressures. - Voltage/current: compare with a meter at several loads; verify the divider ratio and current-sensor zero. - Throttle/idle/AB input: capture true low and high endpoints, then test signal loss and reversed travel. - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released. - Main fuel/oil/starter proportional outputs: test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig. - Fuel pump minimum: open Minimum Reliable Fuel-Metering Output, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the focused calibration example."
+    },
+    {
+      "title": "Part 12: Build startup and shutdown sequences",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-12-build-startup-and-shutdown-sequences",
+      "text": "A sequence is an ordered list. Each block either performs an action, waits for a condition, waits for time, or checks a condition. The editor hides blocks whose required hardware is absent and explains each block with its ? button."
+    },
+    {
+      "title": "12.1 Beginner startup order",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#121-beginner-startup-order",
+      "text": "Do not copy this blindly; make it match the engine. A common logic pattern is: 1. Build Oil Pressure (OilPrime): runs the oil pump and waits for pressure, or uses a timed fixed output if no pressure sensor exists. 2. Starter Spin to Light-Off Speed (StarterSpin): enables/ramps the starter and waits for the configured light-off N1. 3. Set Output for ignition or glow: energizes the selected ignition or glow output. A Set Output card always names the exact fitted device and can be changed between ON/OFF or a proportional demand where its Hardware driver allows that. 4. Set Output for fuel admission: commands the selected fitted fuel device. If the engine deliberately requires a bounded priming pulse, construct it from explicit output and delay actions; Fuel Pulse is not a separate picker entry. 5. Confirm Combustion: uses FlameConfirm or TempConfirm; never leave light-off unverified merely because a timer expired. 6. Spool / Modified Idle / Fuel Pump Idle: increases fuel toward the idle-entry condition. 7. Verify Stable Idle (SafetyHold): confirms RPM/oil conditions before RUNNING. See the block picker and expanded action/wait screenshots before building your first path. The picker uses friendly names such as Set Starter or Set Igniter; read the ACTION/UNTIL explanation when labels are similar. Use Timed Delay only when time itself is the correct requirement. Wait For Input is for an installed permission switch. Use Set Output for ordinary device commands; the add list presents one professionally named action for each fitted output and the card remains editable afterward. Purpose-specific blocks remain only where the ECU must perform real turbine logic rather than merely command an output. On a fresh generic development-board installation, the safe example profile contains throttle and idle inputs plus Main Fuel Metering, Oil Pump and Igniter outputs. Its example startup builds oil, enables ignition, establishes minimum fuel and uses delays; its shutdown immediately cuts combustion, keeps oil running for the configured delay, then switches the selected oil pump off. It is a commissioning example, not a tune or sequence to copy into an engine. Add the actual sensors, starter, fuel shutoff and feedback checks your installation requires before introducing energy."
+    },
+    {
+      "title": "12.2 Beginner shutdown order",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#122-beginner-shutdown-order",
+      "text": "1. Immediate Cut: zeroes throttle, closes fuel, and disables ignition/starter immediately. 2. RPM Drop: waits for N1 to fall below the configured threshold. 3. Cooldown Spin: uses starter/oil behavior to cool where the engine requires it. 4. Wait TOT Cool: holds until the selected temperature is below its target if appropriate. 5. Final Stop: waits for zero N1, cuts the main oil pump and preserves configured scavenge behavior. Verify that STOP removes fuel immediately. Cooling, purge or scavenge actions may continue only as deliberately required. Test web STOP, loss of throttle/RC, a simulated sensor fault and the independent hardwired stop separately."
+    },
+    {
+      "title": "12.3 Every block field",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#123-every-block-field",
+      "text": "- Block name/type identifies the behavior. - Condition is what must become true before a “while” block exits. - Demand / duty / percent is the normalized actuator command. - Threshold / target is the sensor value the block is trying to reach or cross. - Timeout is the maximum wait. Read whether expiry causes continue, abort or fault; these are intentionally different outcomes. - Run on entry/exit side actions switch selected actuators when a sequence or block boundary is crossed. - Custom block steps either set a fitted actuator or delay. A custom condition compares a fitted input with a threshold. Keep custom blocks small enough to reason about. Run the full startup and shutdown sequence repeatedly with no fuel and ignition energy disabled. Back to contents"
+    },
+    {
+      "title": "Part 13: Use custom controllers",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-13-use-custom-controllers",
+      "text": "Open Controllers → Output controllers. Expand + Create controller, choose the unowned fitted output, select Create controller, then open its card. A generic new controller starts with Fixed output in selected states, a zero command and Running selected; choose the intended method and states deliberately. The illustrated controller walkthrough shows each screen, validation message and save step. | Control method | Use it for | Check first | | --- | --- | --- | | On / Off with hysteresis | A measured value switching an output above or below a boundary | Direction, threshold, deadband and on/off commands. The bench fan example demonstrates the fields. | | Map input to output | A verified proportional relationship | Calibrated input range and bounded output range. Values outside the source range are clamped. | | Hold a feedback target | Adjusting an output to reach a measured target | Feedback direction, fixed/switched/mapped target, authority, response and feedback-loss command. Verify on a suitable safe rig. | | Fixed output in selected states | A defined command without feedback | Fixed demand and the selected modes; no input is required. | Ownership and failure behavior: each output has one enabled normal owner. Running is the default, but Standby, Startup and Shutdown can also be selected where appropriate. Outside selected states the controller releases ownership and supported ordinary/sequence behavior resumes; this is not a universal zero command. The threshold method's Off output is the inactive side of its condition. Feedback-loss behavior is method-specific. Custom controllers are always released in FAULT and cannot override fault-safe behavior. Afterburner fuel remains state-machine-owned. Save and reopen the card, then verify source movement, output direction, limits, selected states, mode exit, sensor loss, STOP and reboot persistence. Test the physical output rather than assuming a demand shown on screen proves the device responded."
+    },
+    {
+      "title": "Part 14: Dry-test the complete ECU",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-14-dry-test-the-complete-ecu",
+      "text": "“Dry” means no fuel can reach the engine and ignition cannot create hazardous energy. Use a meter, indicator lamp or safe dummy load before a real actuator. 1. Compare every Hardware GPIO with a physical wire-by-wire checklist. 2. On the dashboard, move or stimulate each input and verify direction, units, range and plausible failure behavior. 3. Open Tools → Tool settings and reduce test duration/demand to a conservative value. 4. Test one output at a time: logic pin first, then driver with no load, then a safe dummy load, then the real isolated actuator where appropriate. 5. Confirm active-high/low behavior, power-on state, end-of-test state and fault-safe state. 6. Run a complete dry startup. Confirm every condition and timeout. 7. Run normal STOP, fault shutdown and loss-of-signal tests. 8. Cut Wi-Fi/browser access and prove the independent stop still removes hazardous energy. 9. Power-cycle at unexpected points and confirm no output energizes unexpectedly. 10. Download a backup and the dry-test logs. Do not proceed while any pin conflict, unavailable dependency, implausible reading, unexplained reboot, unexpected output pulse or failed stop test remains."
+    },
+    {
+      "title": "Part 15: Prepare for a first fueled test",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-15-prepare-for-a-first-fueled-test",
+      "text": "A first fueled turbine test is beyond beginner electronics assembly. Have the complete installation reviewed by someone competent in the turbine, fuel, electrical and test-cell hazards. Before fuel is connected, verify all of these: - limits come from authoritative documentation for this exact engine and probe location; - fuel and oil plumbing is restrained, routed safely and leak-tested; - pumps, starter, valves and igniters use rated drivers, wiring and fuses; - every safety input is calibrated and its fault response was forced safely; - the turbine is restrained in a suitable outdoor/test-cell exclusion zone; - fire suppression, hearing/eye protection and remote observation are ready; - another competent person is present where the risk assessment requires it; and - the physical emergency stop was tested immediately before the attempt. Stop for any unexpected temperature, RPM, oil, vibration, fuel, wiring, actuator or controller behavior. Do not continue merely because the ECU has not declared a fault."
+    },
+    {
+      "title": "Part 16: Operate, back up, update and diagnose",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#part-16-operate-back-up-update-and-diagnose",
+      "text": ""
+    },
+    {
+      "title": "Normal operation",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#normal-operation",
+      "text": "Observe the engine itself, independent instruments and dashboard. Do not rely on Wi-Fi or a browser remaining connected. After a run, inspect the event log and session CSV for maximums, faults and sensor dropouts."
+    },
+    {
+      "title": "Dashboard readings and display scales",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#dashboard-readings-and-display-scales",
+      "text": "Numeric readings use normal text (white in dark themes) or red at the configured critical boundary. Sensor bars are green and output bars blue; N1 and engine-temperature gauges also show approach zones. Health dots show sensor usability. A red number can be advisory only when its protection is disabled—it does not prove automatic shutdown is enabled. See Dashboard warning setup. Continuous sensor cards also show a labelled display bar and up to 30 recent valid samples at 1 Hz. Select the scale below a pressure, voltage, current, flow, thrust, torque or additional-input bar to set a fixed Low/High range or restore auto scaling. This browser-only view does not change calibration or protection. Sensor faults clear the trace; switches stay as On/Off indicators. See the oil-pressure example."
+    },
+    {
+      "title": "Backups",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#backups",
+      "text": "Download a complete engine file before major changes and every update. It contains hardware, calibration, sequences, controllers and Wi-Fi credentials. Store it securely and remove credentials before sharing. Logs are separate downloads. 1. Open System → Maintenance → Backup & restore, then select Download backup. Confirm the .json file appears in your browser's Downloads; a download-started message alone is not a saved backup. 2. To restore, isolate load power, stop all tests and keep the ECU in STANDBY or FAULT. Download the current setup first if you may need it again. 3. Select Upload & restore…, choose the complete engine file for this board/profile and review what will be replaced. Restore and reboot replaces the setup and restarts the ECU; current event/session logs remain separate on the ECU. 4. Rejoin the restored Wi-Fi network if its name or password changed. Reopen http://192.168.4.1, inspect Hardware, Controllers, Calibration and Sequence, and repeat dry checks before using outputs."
+    },
+    {
+      "title": "Updates",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#updates",
+      "text": "Use Update and keep my setup for a working controller. Use clean install only for a blank board, deliberate erasure or recovery. Do not interrupt power while firmware or web assets are being installed. Read the release notes first."
+    },
+    {
+      "title": "Useful fault report",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#useful-fault-report",
+      "text": "Record the board target, OpenTurbine version, fitted channel list, engine state, active sequence block, exact expected behavior and exact observed behavior. Include sanitized engine backup and logs where appropriate. Setup Tool diagnostics are under %LOCALAPPDATA%\\OpenTurbine\\SetupTool\\logs. Use symptom-based troubleshooting or open Setup Help. Do not share Wi-Fi credentials or sensitive installation details publicly. Back to contents Get Started Hardware quick reference Troubleshooting"
+    }
+  ]
+}

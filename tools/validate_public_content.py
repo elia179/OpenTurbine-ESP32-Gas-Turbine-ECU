@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
@@ -15,13 +16,17 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 PUBLIC_ORIGIN = "https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/"
 PUBLIC_PAGES = [
-    "index.md", "get-started.md", "example-system.md", "hardware.md", "user-guide.md", "troubleshooting.md",
+    "reference.md", "index.md", "get-started.md", "example-system.md", "hardware.md", "user-guide.md", "troubleshooting.md",
     "safety.md", "faq.md", "developers.md", "about.md", "404.html",
+    "guided-builds/index.md", "guided-builds/basic.md", "guided-builds/control.md",
+    "guided-builds/extend.md", "guided-builds/parts.md",
 ]
 PUBLIC_ROUTES = [
-    "index.html", "get-started/index.html", "example-system/index.html", "hardware/index.html", "user-guide/index.html",
+    "reference/index.html", "index.html", "get-started/index.html", "example-system/index.html", "hardware/index.html", "user-guide/index.html",
     "troubleshooting/index.html", "safety/index.html", "faq/index.html", "developers/index.html",
     "about/index.html", "404.html",
+    "guided-builds/index.html", "guided-builds/basic/index.html", "guided-builds/control/index.html",
+    "guided-builds/extend/index.html", "guided-builds/parts/index.html",
 ]
 MARKDOWN_SOURCES = [
     ROOT / "README.md",
@@ -185,7 +190,8 @@ def check_built_site(built: Path, errors: list[str]) -> None:
         except ET.ParseError as exc:
             fail(errors, f"generated sitemap.xml is invalid XML: {exc}")
             sitemap_urls = []
-        expected = {PUBLIC_ORIGIN, *(PUBLIC_ORIGIN + route + "/" for route in ("get-started", "example-system", "hardware", "user-guide", "troubleshooting", "safety", "faq", "developers", "about"))}
+        expected = {PUBLIC_ORIGIN, *(PUBLIC_ORIGIN + route.removesuffix("index.html")
+                                    for route in PUBLIC_ROUTES if route not in ("index.html", "404.html"))}
         if not expected.issubset(set(sitemap_urls)):
             fail(errors, "generated sitemap.xml is missing one or more public routes")
         for url in sitemap_urls:
@@ -199,7 +205,7 @@ def check_built_site(built: Path, errors: list[str]) -> None:
     if not robots.is_file() or "Sitemap: https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/sitemap.xml" not in robots.read_text(encoding="utf-8"):
         fail(errors, "robots.txt is missing or does not reference the public sitemap")
 
-    for page, parser in pages.items():
+    for page, parser in list(pages.items()):
         for src in parser.images:
             target = output_path(built, src, page)
             if target and not target.is_file():
@@ -221,6 +227,25 @@ def check_built_site(built: Path, errors: list[str]) -> None:
                     fail(errors, f"broken fragment in {page.relative_to(built)}: {href}")
 
 
+    search_file = built / 'docs-search.json'
+    if not search_file.is_file():
+        fail(errors, 'documentation search index is missing')
+    else:
+        records = json.loads(search_file.read_text(encoding="utf-8"))
+        for record in records:
+            href = urlparse(PUBLIC_ORIGIN).path.rstrip('/') + record['url']
+            target = output_path(built, href, search_file)
+            if not target or not target.is_file():
+                fail(errors, f"broken search result: {record['url']}")
+                continue
+            parser = pages.get(target.resolve())
+            if parser is None:
+                parser = PageParser(); parser.feed(target.read_text(encoding="utf-8")); pages[target.resolve()] = parser
+            fragment = urlparse(record['url']).fragment
+            if fragment and fragment not in parser.ids:
+                fail(errors, f"broken search result fragment: {record['url']}")
+
+
 def _valid_source_code(raw: str) -> bool:
     try:
         data = json.loads(raw)
@@ -235,6 +260,15 @@ def main() -> int:
     parser.add_argument("--built", type=Path)
     args = parser.parse_args()
     errors: list[str] = []
+    for command in (["node", "tools/generate_site_config_reference.cjs", "--check"],
+                    [sys.executable, "tools/generate_documentation_index.py", "--check"]):
+        try:
+            result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+        except OSError as exc:
+            fail(errors, f"cannot check generated documentation: {exc}")
+            continue
+        if result.returncode:
+            fail(errors, (result.stderr or result.stdout).strip())
     version_header = (ROOT / "src/system/version.h").read_text(encoding="utf-8")
     version_match = re.search(r'#define\s+OT_VERSION\s+"([^"]+)"', version_header)
     if not version_match:

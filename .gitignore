@@ -32,6 +32,12 @@ xtensa_esp32.so
 # Node dependencies for the tools/ui_*.cjs browser audit scripts
 node_modules/
 
+# Native release-gate probes and generated Jekyll output
+artifacts/
+_site/
+.jekyll-cache/
+.sass-cache/
+
 # Python bytecode (tools/ and the dev/bench harness)
 __pycache__/
 *.pyc

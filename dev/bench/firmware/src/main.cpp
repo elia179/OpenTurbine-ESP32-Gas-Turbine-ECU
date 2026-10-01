@@ -494,8 +494,12 @@ static void emuBegin(EmuMode mode) {
     pinMode(EMU_DATA, OUTPUT);
     emuDataWrite(true);
     g_emuMode = mode;
+    // MAX6675 changes SO after SCK falls (datasheet tDO); the DUT samples
+    // while SCK is high. Advancing on RISING races that sample and corrupts
+    // temperature and open-circuit bits. MAX31855 uses the other read phase.
     attachInterrupt(digitalPinToInterrupt(EMU_CLK), emuClkISR,
-                    (mode == EMU_MAX31856 || mode == EMU_HX711) ? CHANGE : RISING);
+                    (mode == EMU_MAX31856 || mode == EMU_HX711) ? CHANGE :
+                    mode == EMU_MAX6675 ? FALLING : RISING);
     if (mode != EMU_HX711) attachInterrupt(digitalPinToInterrupt(EMU_CS), emuCsISR, CHANGE);
 }
 
@@ -602,6 +606,9 @@ static void safeState(const Signal& s) {
 }
 
 static void initSignals() {
+#if defined(OTBENCH_S3)
+    pinMode(18, INPUT); // Release optional ADC_OIL rail stimulus on RESET.
+#endif
     // Each FREQ_OUT / SERVO_OUT gets its own LEDC timer+channel (timer_num == channel), so
     // N1 and N2 are fully independent — changing one timer's frequency never touches the other.
     for (int i = 0; i < NUM_SIGNALS; i++) {
@@ -828,6 +835,24 @@ static void handleLine(char* line) {
         Serial.printf("OK OTBench %s\n", OTBENCH_VER);
         return;
     }
+#if defined(OTBENCH_S3)
+    // Protected role-reversed jumper: S3 GPIO18 -> Classic GPIO35 (ADC1,
+    // input-only). This is rail stimulus, NOT a precision analogue DAC.
+    if (strcasecmp(cmd, "ADC_OIL") == 0) {
+        char* level = strtok(nullptr, " ");
+        if (!level || (strcasecmp(level,"LOW") && strcasecmp(level,"HIGH") && strcasecmp(level,"HIZ"))) {
+            Serial.println("ERR ADC_OIL <LOW|HIGH|HIZ>");
+        } else {
+            if (!strcasecmp(level,"HIZ")) pinMode(18, INPUT);
+            else {
+                digitalWrite(18, !strcasecmp(level,"HIGH") ? HIGH : LOW);
+                pinMode(18, OUTPUT);
+            }
+            Serial.println("OK");
+        }
+        return;
+    }
+#endif
     if (strcasecmp(cmd, "LIST") == 0) {
         for (int i = 0; i < NUM_SIGNALS; i++)
             Serial.printf("SIG %s %s gpio=%d\n", SIGNALS[i].name,

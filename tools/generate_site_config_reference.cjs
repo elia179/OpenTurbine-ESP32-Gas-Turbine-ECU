@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const sourcePath = path.join(root, 'data_src', 'config.html');
+const sourcePath = path.join(root, 'data_src', 'pages', 'config-schema.js');
 const outputPath = path.join(root, 'site', '_includes', 'generated-config-fields.html');
 const source = fs.readFileSync(sourcePath, 'utf8');
 
@@ -68,11 +68,11 @@ const sections = topLevelObjects(source, schemaOpen, schemaClose).map(sectionTex
 
 const fieldCount = sections.reduce((sum, section) => sum + section.fields.length, 0);
 const body = sections.map(section => `
-<details class="reference-section">
-  <summary>${html(section.title)} <span>${section.fields.length} fields</span></summary>
+<details class="reference-section" id="settings-${html(section.title.toLowerCase().replace(/[^a-z0-9]+/g,'-'))}">
+  <summary>${html(section.title)} <span>${section.fields.length} ${section.fields.length === 1 ? 'field' : 'fields'}</span></summary>
   <div class="table-wrap"><table>
     <thead><tr><th>Dashboard field</th><th>What it controls</th></tr></thead>
-    <tbody>${section.fields.map(field => `<tr><td><strong>${html(field.label)}</strong>${field.unit ? ` <span class="quiet">(${html(field.unit)})</span>` : ''}</td><td>${html(field.description)}</td></tr>`).join('')}</tbody>
+    <tbody>${section.fields.map(field => `<tr id="field-${html(field.key)}"><td><strong>${html(field.label)}</strong>${field.unit ? ` <span class="quiet">(${html(field.unit)})</span>` : ''}</td><td>${html(field.description)}</td></tr>`).join('')}</tbody>
   </table></div>
 </details>`).join('\n');
 
@@ -81,5 +81,18 @@ const output = `<!-- Generated from the shared Controllers/System schema by tool
 ${body}
 `;
 
-fs.writeFileSync(outputPath, output, 'utf8');
-console.log(`Wrote ${fieldCount} fields in ${sections.length} sections to ${path.relative(root, outputPath)}`);
+const searchPath = path.join(root,'site/_data/config_search.json');
+const searchOutput = JSON.stringify(sections.flatMap(section=>section.fields.map(field=>({title:field.label,context:'Setting · '+section.title,url:'/user-guide/#field-'+field.key,text:field.description}))),null,2)+'\n';
+if (process.argv.includes('--check')) {
+  for (const [file, expected] of [[outputPath, output], [searchPath, searchOutput]]) {
+    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== expected) {
+      console.error(`Stale generated reference: ${path.relative(root, file)}. Run node tools/generate_site_config_reference.cjs.`);
+      process.exitCode = 1;
+    }
+  }
+  if (!process.exitCode) console.log(`Configuration reference is current (${fieldCount} fields).`);
+} else {
+  fs.writeFileSync(outputPath, output, 'utf8');
+  fs.writeFileSync(searchPath, searchOutput, 'utf8');
+  console.log(`Wrote ${fieldCount} fields in ${sections.length} sections to ${path.relative(root, outputPath)}`);
+}

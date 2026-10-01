@@ -1,0 +1,5 @@
+<figure class="build-figure build-screen">
+  {% assign dimensions = site.data.screenshot_dimensions[include.file] %}
+  <img src="{{ '/assets/images/guided-builds/' | append: include.file | append: '.png' | relative_url }}" {% if dimensions %}width="{{ dimensions.width }}" height="{{ dimensions.height }}"{% endif %} loading="lazy" alt="{{ include.alt | escape }}">
+  <figcaption><strong>{{ include.step | escape }}</strong> {{ include.caption }}</figcaption>
+</figure>

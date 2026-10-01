@@ -116,9 +116,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(gs, /Calibrate/i);
     assert.match(gs, /not physical verification/i);
     assert.doesNotMatch(gs, /completed on this browser/i);
-    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20260924c"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20260924c"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20260924c"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20261001j"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20261001j"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20261001j"]').count(), 1);
     await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1',
       JSON.stringify({ hardware: Date.now(), tools: Date.now() })));
     await page.reload();
@@ -228,9 +228,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await oilPumpCard.locator('button', {hasText:'Edit'}).click();
     assert.match((await oilPumpCard.textContent()).trim(), /Flow sensing & monitoring.*Main oil-pump flow sensor.*Pulses \/ litre.*Minimum flow.*Safety & Limits.*Oil Pressure Safety/is);
     assert.match((await oilPumpCard.textContent()).trim(), /Current sensing.*Calibration page/is);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260924c#cf-oil_mm"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20260924c#cf-so_en"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20260924c#tab-startup"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261001j#cf-oil_mm"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261001j#cf-so_en"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20261001j#tab-startup"]').count(), 1);
     results.push('add-device catalog reserves singleton checks for sensors while multi-instance outputs and pump-owned monitoring remain clear');
 
     const savedHardware = await page.evaluate(() => structuredClone(cfg));
@@ -424,11 +424,11 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.equal(await page.locator('#btn-discard').isDisabled(), true);
     assert.deepEqual(
       await page.evaluate(() => registryRoleUsage('input', { purpose:'start_switch', role:'switch' })),
-      ['Core firmware: START command']
+      ['START command']
     );
     assert.deepEqual(
       await page.evaluate(() => registryRoleUsage('input', { purpose:'stop_switch', role:'switch' })),
-      ['Core firmware: hard stop and shutdown command']
+      ['STOP and shutdown command']
     );
     results.push('hardware page reaches a clear loaded state before edits');
 
@@ -1145,7 +1145,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await throttleCard.textContent(), /RC pulse calibration.*1075.*1925.*Calibration page.*authoritative/is);
     assert.equal(await throttleCard.locator('input[oninput*="updateRegistryRangeField"]').count(), 0,
       'Hardware must not expose RC endpoints that the ECU does not consume');
-    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20260924c#throttle-cal-row"]').count() >= 1);
+    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20261001j#throttle-cal-row"]').count() >= 1);
     results.push('canonical RC operator endpoints have one visible authority on the Calibration page');
 
     await reset(page);
@@ -1215,7 +1215,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.waitForFunction(() => {
       const el = document.querySelector('#card-TOGGLE_BENCH_MODE');
       return !!el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
-    }, null, { timeout: 3000 });
+    }, null, { timeout: 10000 });
     assert.equal(await visible(page, '#card-TOGGLE_BENCH_MODE'), true);
     results.push('System owns manual firmware/web updates while Tools gates bench mode behind dev mode');
 

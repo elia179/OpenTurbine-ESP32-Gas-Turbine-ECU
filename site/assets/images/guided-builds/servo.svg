@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Servo / ESC command</title><desc id="desc">Separate device-rated supply powers the servo. GPIO sends only the control pulse.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Servo / ESC command</text>
+<text x="30" y="76" class="small" text-anchor="start">Separate device-rated supply powers the servo. GPIO sends only the control pulse.</text>
+<rect x="35" y="120" width="280" height="330" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="175.0" y="152" class="" text-anchor="middle">ESP32 ECU</text>
+<rect x="685" y="120" width="280" height="330" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="825.0" y="152" class="" text-anchor="middle">Servo / ESC input</text>
+<text x="295" y="195" class="" text-anchor="end">Signal GPIO</text>
+<text x="705" y="195" class="" text-anchor="start">Signal</text>
+<polyline points="315,205 685,205" class="net" stroke="#74dcb7"/>
+<text x="295" y="258" class="" text-anchor="end">GND reference</text>
+<text x="705" y="258" class="" text-anchor="start">Signal ground</text>
+<polyline points="315,268 685,268" class="net" stroke="#b6c4d2"/>
+<rect x="350" y="335" width="250" height="150" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="475.0" y="367" class="" text-anchor="middle">External supply</text>
+<text x="370" y="395" class="" text-anchor="start">Device-rated +</text>
+<text x="370" y="458" class="" text-anchor="start">Supply −</text>
+<text x="705" y="395" class="" text-anchor="start">Device power +</text>
+<polyline points="600,405 685,405" class="net" stroke="#ff9276"/>
+<polyline points="600,468 650,468 650,268" class="net" stroke="#b6c4d2"/>
+<circle cx="650" cy="268" r="5" fill="#b6c4d2"/>
+<text x="30" y="519" class="small" text-anchor="start">For an ESC, motor power and any BEC connection follow that controller’s documentation.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>

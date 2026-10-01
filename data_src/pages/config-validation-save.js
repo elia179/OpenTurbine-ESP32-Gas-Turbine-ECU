@@ -291,7 +291,19 @@ async function validateBeforeSave(cfg) {
   if (hwCfg.safety?.n2_overspeed && (!hasN2 || !(Number(n2RpmLimit) > 0)))
     errors.push('N2 overspeed safety requires a fitted N2 RPM input and a Maximum N2 Speed above 0.');
   const idleSourceAvailable = [hasN1, hasN2, hasP1, hasP2][idleSource] === true;
-  if (hwCfg.controllers?.dynamic_idle && !idleSourceAvailable)
+  if (Number(cfg.dynamic_idle?.fuel_mode || 0) === 0 && displayedIdleMode() === 0 &&
+      String(document.getElementById('cf-th_mx')?.value) !== String(_fieldSnap['cf-th_mx']))
+    errors.push('Choose a Running Idle Mode before changing Idle settings. Startup currently supplies the Running idle value; it will not be converted to a guessed percentage.');
+  const automaticIdleError = Number(cfg.dynamic_idle?.fuel_mode || 0) === 4 ? automaticIdleRequirements() : '';
+  if (automaticIdleError) errors.push(automaticIdleError);
+  if (Number(cfg.dynamic_idle?.fuel_mode || 0) === 3) {
+    const inputId = String(cfg.dynamic_idle.input_id || '');
+    if (inputId ? !installedInputs.has(inputId) : !controllerInputs('idle').length)
+      errors.push('Idle: choose a fitted input channel, configure an Idle Input in Hardware, or select another Running Idle Mode.');
+    if (inputId && Number(cfg.dynamic_idle.input_low ?? 0) === Number(cfg.dynamic_idle.input_high ?? 1))
+      errors.push('Idle Input Low and High must differ.');
+  }
+  if (hwCfg.controllers?.dynamic_idle && !idleSourceAvailable && !automaticIdleError)
     errors.push('Automatic Idle feedback source is not configured. Choose an available N1, N2, P1, or P2 source before saving.');
 
   const assistEnabled = !!gv(cfg, 'starter_control', 'pulsed_assist_enabled');
@@ -486,15 +498,14 @@ async function validateBeforeSave(cfg) {
 }
 
 // ── Save ──────────────────────────────────────────────────────
-// Stage 1: collect form values into cfg, validate, then show recap modal.
-async function saveConfig() {
-  if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
-
-  // Read form values into cfg (needed so _buildChanges has current cfg for validation)
+function collectConfigFields() {
   SCHEMA.forEach(sec => {
     sec.fields.forEach(f => {
       const el = document.getElementById('cf-' + f.key);
       if (!el) return;
+      // Old-file choices are interpreted for display only. Only an explicit
+      // mode/channel action may replace their stored behavior.
+      if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
       if (f.type === 'pullback_mode') {
         const mode = Number(el.value || 0);
         setPath(cfg, f.path, mode > 0);
@@ -512,6 +523,13 @@ async function saveConfig() {
       }
     });
   });
+
+}
+
+// Stage 1: collect form values into cfg, validate, then show recap modal.
+async function saveConfig() {
+  if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
+  collectConfigFields();
 
   // Safety/controller cross-checks belong to Controllers. System has only
   // device fields and ordinary HTML range constraints; do not force unrelated

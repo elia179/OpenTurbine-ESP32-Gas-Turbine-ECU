@@ -25,7 +25,7 @@ Clean install/reinstall erases the selected board. **Update and keep my setup** 
 
 OpenTurbine 2.0 intentionally replaces older hardware and startup-safety
 behavior. Keep the old file as a reference, but use a clean installation and
-rebuild/review Hardware, Config, Calibration, Sequence, Rules, and every dry
+rebuild/review Hardware, Controllers, System, Calibration, Sequence, and every dry
 shutdown test. Read the
 [v2 migration guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/V2_MIGRATION.md)
 before moving an engine installation.
@@ -36,7 +36,7 @@ You can explore and configure the dashboard with loads physically disconnected. 
 
 ## Can I add a sensor or output that is not one of the built-in names?
 
-Yes. Add it to the **Hardware** Installed Channel Inventory with a unique stable ID, the correct input/output driver, pin, range, and safe states. Registry-backed analog, pulse, digital, relay, PWM, and servo/ESC channels can be referenced by supported controllers, sequence actions, Tools, and telemetry. The electrical interface still needs suitable conditioning or a rated driver.
+Yes. In **Hardware**, add a generic input or output with a readable name, the correct signal type, connection, range and safe states. Use that displayed device name when selecting it in Controllers, Sequence or Tools. Its electrical interface still needs suitable conditioning or a rated driver.
 
 ## What can simple controls do?
 
@@ -48,7 +48,7 @@ Use the official OpenTurbine download link and choose **More info → Run anyway
 
 ## Where are logs and complete instructions?
 
-Setup Tool diagnostics are under `%LOCALAPPDATA%\OpenTurbine\SetupTool\logs`. The [complete user guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/USER_GUIDE.md) covers operating and wiring details. Use [Setup Help](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/issues/new?template=setup_help.yml) for installation problems.
+Setup Tool diagnostics are under `%LOCALAPPDATA%\OpenTurbine\SetupTool\logs`. The [User Guide and reference]({{ '/user-guide/' | relative_url }}) covers operating and wiring details. Use [Setup Help](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/issues/new?template=setup_help.yml) for installation problems.
 
 ## Is OpenTurbine certified or inherently safe? Does it work on macOS/Linux?
 

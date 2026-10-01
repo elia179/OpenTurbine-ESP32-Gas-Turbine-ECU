@@ -119,6 +119,11 @@ public:
     static float idleMaxMultiplier;      // idle ceiling = throttleIdleMaxPct * this (>=1)
     static bool  idleUseN2;          // false = N1 (default), true = N2
     static int   idleSource;         // 0=N1, 1=N2, 2=P1, 3=P2
+    static int   fuelIdleMode;       // 0=existing setup, 1=off, 2=fixed, 3=input, 4=automatic
+    static float fuelIdleFixedPct;   // Running-only floor; never changes startup commands
+    static char  fuelIdleInputId[20]; // empty = configured Idle Input; exact ID otherwise
+    static float fuelIdleInputLow;
+    static float fuelIdleInputHigh;
     static float idleTargetPressure;
     static float idlePressureDeadband;
     static float idlePressureLimit;

@@ -1,0 +1,980 @@
+[
+  {
+    "title": "Maximum N1 Speed",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-rpm_limit",
+    "text": "Configured N1 reference for the Dashboard bar and visual advisory. It becomes an automatic hard overspeed shutdown only when N1 overspeed safety is enabled above."
+  },
+  {
+    "title": "Maximum N2 Speed",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-n2_rpm_limit",
+    "text": "Configured N2 reference for the Dashboard bar and visual advisory, separate from gradual N2 pullback. It becomes an automatic hard shutdown only when N2 overspeed safety is enabled above."
+  },
+  {
+    "title": "Minimum Running N1 Speed",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-min_rpm",
+    "text": "Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Set 0 to disable this independent underspeed check when N1 is informational only."
+  },
+  {
+    "title": "Primary Engine Temperature",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-eg_src",
+    "text": "Temperature used for over-temperature protection, hot-start prevention, cooldown, throttle reduction, and flame confirmation."
+  },
+  {
+    "title": "Outlet Temperature Limit (TOT)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-tot_limit",
+    "text": "TOT Dashboard reference when TOT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar."
+  },
+  {
+    "title": "Inlet Temperature Limit (TIT)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_tit",
+    "text": "TIT Dashboard reference when TIT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar."
+  },
+  {
+    "title": "Maximum EGT During Startup",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_st",
+    "text": "During STARTUP, this is the selected TOT/TIT Dashboard bar reference instead of the normal temperature limit. It causes automatic shutdown only when engine overtemperature safety is enabled. 0 reuses the normal TOT/TIT limit. Set a separate value only when the engine manufacturer permits a different transient startup limit."
+  },
+  {
+    "title": "P1 High-Pressure Shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p1t",
+    "text": "Stops fuel when P1 rises above this pressure for the configured confirmation time. 0 disables the P1 high-pressure trip."
+  },
+  {
+    "title": "P2 High-Pressure Shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p2t",
+    "text": "Stops fuel when P2 rises above this pressure for the configured confirmation time. 0 disables the P2 high-pressure trip."
+  },
+  {
+    "title": "Shaft-Torque Hard Shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_tqt",
+    "text": "Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. 0 disables the torque hard trip."
+  },
+  {
+    "title": "Pressure 1 Hard-Trip Confirmation (ms)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p1d",
+    "text": "Pressure 1 must remain above its hard limit for this long before shutdown. 0 is immediate."
+  },
+  {
+    "title": "Pressure 2 Hard-Trip Confirmation (ms)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p2d",
+    "text": "Pressure 2 must remain above its hard limit for this long before shutdown. 0 is immediate."
+  },
+  {
+    "title": "Torque Hard-Trip Confirmation (ms)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_tqd",
+    "text": "Measured shaft torque must remain above its hard limit for this long before shutdown. 0 is immediate."
+  },
+  {
+    "title": "Temperature Warning Margin",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-tot_safe_margin",
+    "text": "Distance below the configured primary TOT/TIT limit where temperature warnings begin. It also supplies the default start point for gradual temperature fuel limiting when that limiter is enabled."
+  },
+  {
+    "title": "Increase Oil Pressure with Throttle",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_tm",
+    "text": "Raise the oil-pressure target as throttle increases. Leave disabled for one constant running target."
+  },
+  {
+    "title": "Normal Running Oil Pressure",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_mm",
+    "text": "Target at idle and throughout running when throttle-based pressure is disabled. Keep it above the Running Low-Pressure Limit."
+  },
+  {
+    "title": "Full-Throttle Oil Pressure",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_mx",
+    "text": "Target at full throttle when throttle-based pressure is enabled."
+  },
+  {
+    "title": "Oil Pressure Response Gain",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_as",
+    "text": "How strongly pump output reacts to pressure error. Higher responds faster but can oscillate. Technical name: proportional or P gain."
+  },
+  {
+    "title": "Minimum Automatic Pump Output (%)",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_mp",
+    "text": "Lowest output used by automatic pressure regulation. Startup steps can still command a higher output."
+  },
+  {
+    "title": "No-Correction Pressure Band",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oa_db",
+    "text": "No small pump corrections are made while pressure is within this distance of the target. Technical name: deadband."
+  },
+  {
+    "title": "Pressure-Sensor Fault Delay (ms)",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_fd",
+    "text": "How long invalid oil-pressure feedback is tolerated before automatic pressure regulation stops and the fixed fallback output below takes over."
+  },
+  {
+    "title": "Fixed Pump Output After Pressure-Sensor Failure (%)",
+    "context": "Setting · Oil Pressure Control",
+    "url": "/user-guide/#field-oil_fp",
+    "text": "Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection."
+  },
+  {
+    "title": "Running Low-Pressure Limit",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-oil_rm",
+    "text": "Sets the Dashboard low-pressure advisory while RUNNING. The ECU shuts down below this value only when low-oil safety is enabled and the Low-Oil Confirmation time expires."
+  },
+  {
+    "title": "No-Pressure Shutdown Threshold",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-oil_zb",
+    "text": "A faster catastrophic-loss check for pressure at or near zero, such as a stopped pump or broken line. Set this below the normal low-pressure threshold and use its shorter confirmation time."
+  },
+  {
+    "title": "Low-Oil Confirmation (ms)",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-sf_lo_d",
+    "text": "Oil pressure must remain below the running shutdown value for this long before shutdown. 0 is immediate."
+  },
+  {
+    "title": "Near-Zero Oil Confirmation (ms)",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-sf_oz_d",
+    "text": "Catastrophic near-zero oil pressure must persist for this time. Keep this shorter than the normal low-oil confirmation."
+  },
+  {
+    "title": "Low Oil-Flow Confirmation Delay (ms)",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-oil_ufd",
+    "text": "How long a monitored main or scavenge pump may remain below its own Hardware minimum-flow value before the ECU confirms a flow fault."
+  },
+  {
+    "title": "Shutdown on Confirmed Low Oil Flow",
+    "context": "Setting · Oil Pressure Safety",
+    "url": "/user-guide/#field-oil_ufs",
+    "text": "Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this."
+  },
+  {
+    "title": "Full Opening Time (ms)",
+    "context": "Setting · Throttle Response",
+    "url": "/user-guide/#field-th_ru",
+    "text": "Time for the fuel/throttle output to move from 0 to 100%. A larger value opens more gently."
+  },
+  {
+    "title": "Full Closing Time (ms)",
+    "context": "Setting · Throttle Response",
+    "url": "/user-guide/#field-th_rd",
+    "text": "Time for the fuel/throttle output to move from 100% to 0. A smaller value closes faster."
+  },
+  {
+    "title": "Low-Throttle Sensitivity",
+    "context": "Setting · Throttle Response",
+    "url": "/user-guide/#field-th_ex",
+    "text": "Softens response near idle while preserving full travel. 0 is linear; 1 is maximum softening. Technical name: throttle expo."
+  },
+  {
+    "title": "Minimum Fuel During Gradual Protection (%)",
+    "context": "Setting · Throttle Response",
+    "url": "/user-guide/#field-pb_min",
+    "text": "Common physical fuel floor for non-emergency gradual limiting. It prevents an enabled limiter from pulling the main engine below the user-tested stable minimum; STOP and hard shutdowns still cut fuel."
+  },
+  {
+    "title": "N1 Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n1e",
+    "text": "Off disables gradual fuel limiting; it does not change the separate N1 overspeed safety switch. Simple uses measured N1. Predictive uses N1 acceleration to act earlier. The maximum causes shutdown only when N1 overspeed safety is enabled."
+  },
+  {
+    "title": "Begin N1 Throttle Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n1s",
+    "text": "N1 speed where gradual fuel reduction begins."
+  },
+  {
+    "title": "Full N1 Throttle Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n1h",
+    "text": "N1 speed where the gradual reduction reaches full authority. Hard shutdown protection remains separate."
+  },
+  {
+    "title": "N1 Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n1l",
+    "text": "How far into the future predictive N1 limiting projects the measured shaft acceleration."
+  },
+  {
+    "title": "N1 Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n1str",
+    "text": "1.0 reaches the configured fuel floor at the full-reduction speed. Lower is gentler; higher reaches the floor sooner."
+  },
+  {
+    "title": "N2 Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n2e",
+    "text": "Off disables gradual fuel limiting; it does not change the separate N2 overspeed safety switch. Simple uses measured N2; Predictive uses N2 acceleration to act earlier."
+  },
+  {
+    "title": "Begin N2 Throttle Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n2s",
+    "text": "N2 speed where gradual fuel reduction begins."
+  },
+  {
+    "title": "Full N2 Throttle Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n2h",
+    "text": "N2 speed where gradual reduction reaches full authority."
+  },
+  {
+    "title": "N2 Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n2l",
+    "text": "How far into the future predictive N2 limiting projects measured shaft acceleration."
+  },
+  {
+    "title": "N2 Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_n2str",
+    "text": "Strength of N2 fuel reduction within its configured band."
+  },
+  {
+    "title": "Temperature Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_egte",
+    "text": "Off disables gradual fuel limiting; it does not change the separate engine overtemperature safety switch. Simple uses measured temperature; Predictive also uses its rate of rise."
+  },
+  {
+    "title": "Begin Temperature Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_egts",
+    "text": "Temperature where gradual fuel reduction begins."
+  },
+  {
+    "title": "Full Temperature Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_egth",
+    "text": "Temperature where gradual reduction reaches full authority."
+  },
+  {
+    "title": "Temperature Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_egtl",
+    "text": "How far ahead predictive temperature limiting projects the current rise rate."
+  },
+  {
+    "title": "Temperature Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_egtstr",
+    "text": "Strength of temperature-based fuel reduction within its configured band."
+  },
+  {
+    "title": "Pressure 1 Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p1e",
+    "text": "Off disables anticipatory fuel limiting. Simple uses measured pressure; Predictive also uses its rate of rise. The separate hard-pressure shutdown remains independent."
+  },
+  {
+    "title": "Begin P1 Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p1s",
+    "text": "P1 pressure where gradual fuel reduction begins. Set it below the full-reduction pressure and below any independent P1 hard shutdown."
+  },
+  {
+    "title": "Full P1 Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p1h",
+    "text": "P1 pressure where gradual protection reaches its configured maximum fuel reduction. The independent P1 shutdown limit can still cut fuel completely."
+  },
+  {
+    "title": "Pressure 1 Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p1l",
+    "text": "Look-ahead used only for this pressure input."
+  },
+  {
+    "title": "Pressure 1 Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p1str",
+    "text": "Strength of this pressure input’s fuel reduction."
+  },
+  {
+    "title": "Pressure 2 Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p2e",
+    "text": "Off disables anticipatory fuel limiting. Simple uses measured pressure; Predictive also uses its rate of rise. The separate hard-pressure shutdown remains independent."
+  },
+  {
+    "title": "Begin P2 Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p2s",
+    "text": "P2 pressure where gradual fuel reduction begins. Set it below the full-reduction pressure and below any independent P2 hard shutdown."
+  },
+  {
+    "title": "Full P2 Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p2h",
+    "text": "P2 pressure where gradual protection reaches its configured maximum fuel reduction. The independent P2 shutdown limit can still cut fuel completely."
+  },
+  {
+    "title": "Pressure 2 Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p2l",
+    "text": "Look-ahead used only for this pressure input."
+  },
+  {
+    "title": "Pressure 2 Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_p2str",
+    "text": "Strength of this pressure input’s fuel reduction."
+  },
+  {
+    "title": "Shaft-Torque Fuel-Limiting Mode",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_tqe",
+    "text": "Off disables anticipatory fuel limiting. Simple uses measured torque; Predictive also uses its rate of rise. The separate hard over-torque shutdown remains independent."
+  },
+  {
+    "title": "Begin Torque Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_tqs",
+    "text": "Measured shaft torque where gradual fuel reduction begins. Set it below the full-reduction torque and below any independent torque hard shutdown."
+  },
+  {
+    "title": "Full Torque Fuel Reduction",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_tqh",
+    "text": "Measured shaft torque where gradual protection reaches its configured maximum fuel reduction. The independent torque shutdown can still cut fuel completely."
+  },
+  {
+    "title": "Torque Prediction Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_tql",
+    "text": "Look-ahead used only for measured shaft torque."
+  },
+  {
+    "title": "Torque Reduction Strength",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-pb_tqstr",
+    "text": "Strength of torque-based fuel reduction within its band."
+  },
+  {
+    "title": "Near-Limit Full Opening Time (ms)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-rl_ramp",
+    "text": "Slower full-opening time used near the predicted speed limit. Larger values make the approach gentler."
+  },
+  {
+    "title": "Begin Prediction This Far Below Limit (RPM)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-rl_zone",
+    "text": "Distance below the gradual limit where the ECU starts slowing fuel increases. 0 chooses this distance automatically."
+  },
+  {
+    "title": "Speed-Change Smoothing (0-1)",
+    "context": "Setting · Gradual Fuel Limit Protection",
+    "url": "/user-guide/#field-rl_acc",
+    "text": "Smooths the estimated rate of RPM change. Lower values are steadier but slower; higher values react faster but pass more sensor noise."
+  },
+  {
+    "title": "Maximum Fuel Output (%)",
+    "context": "Setting · Reduced-Power Mode",
+    "url": "/user-guide/#field-lm_mt",
+    "text": "Shared main-fuel cap when Reduced-Power Mode is turned on from Tools or a configured switch, or automatically because feedback used by an enabled protection/controller becomes unhealthy. A high value also permits higher fuel after that safety feedback is lost."
+  },
+  {
+    "title": "Running Idle Mode",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-fi_mode",
+    "text": "Applies after Startup finishes. Off adds no idle floor; Fixed uses a fuel percentage; Input channel follows a fitted input; Automatic Idle adjusts fuel using feedback. Startup commands and Main Fuel Output low remain separate."
+  },
+  {
+    "title": "Fixed Running Idle Fuel (%)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-fi_fixed",
+    "text": "Replaces the retained startup idle floor in Running. Throttle may command more. A nonzero value below the calibrated pump minimum is raised to that minimum; zero adds no idle floor."
+  },
+  {
+    "title": "Idle Input Channel",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-fi_input",
+    "text": "Automatic uses the input assigned the Idle purpose in Hardware. An explicit choice uses that exact fitted input; it never silently changes to another sensor."
+  },
+  {
+    "title": "Idle Input Low",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-fi_low",
+    "text": "Input reading mapped to the calibrated pump minimum. Readings outside the selected endpoints are clamped. Reversed endpoints invert the mapping."
+  },
+  {
+    "title": "Idle Input High",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-fi_high",
+    "text": "Input reading mapped to Maximum Normal Idle Fuel Output. Use the source’s engineering units, not its raw ADC or pulse calibration. Low and high must differ."
+  },
+  {
+    "title": "Maximum Normal Idle Fuel Output (%)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-th_mx",
+    "text": "Upper endpoint for Input channel mode. Automatic Idle multiplies this base ceiling by Maximum Fuel Range Multiplier, capped at 100%; its summary shows the resulting range. The low end is the calibrated pump minimum. Fixed mode uses its own percentage; Off adds no floor. STOP and hard protection may still cut fuel."
+  },
+  {
+    "title": "Idle Feedback Source",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_src",
+    "text": "Choose the fitted feedback used to regulate idle. Pressure feedback is experimental and requires separate stand validation."
+  },
+  {
+    "title": "Idle Target (N1/N2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_tr",
+    "text": "Used when the selected feedback source is N1 or N2."
+  },
+  {
+    "title": "Idle Target (P1/P2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_tp",
+    "text": "Used when the selected feedback source is P1 or P2."
+  },
+  {
+    "title": "Fuel Increase Time (ms)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_ru",
+    "text": "How quickly automatic idle control may increase fuel."
+  },
+  {
+    "title": "Fuel Decrease Time (ms)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_rd",
+    "text": "How quickly automatic idle control may reduce fuel."
+  },
+  {
+    "title": "No-Correction Band (N1/N2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_db",
+    "text": "Used for an N1/N2 feedback source."
+  },
+  {
+    "title": "Stop Controlling Above (N1/N2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_rl",
+    "text": "Used for an N1/N2 feedback source. 0 disables automatic idle correction."
+  },
+  {
+    "title": "No-Correction Band (P1/P2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_pd",
+    "text": "Used for a P1/P2 feedback source."
+  },
+  {
+    "title": "Stop Controlling Above (P1/P2)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_pl",
+    "text": "Used for a P1/P2 feedback source. 0 disables automatic idle correction."
+  },
+  {
+    "title": "Maximum Fuel Range Multiplier",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_mx",
+    "text": "Allows the controller extra fuel authority above the configured maximum idle output."
+  },
+  {
+    "title": "Long-Term Correction Strength",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_ig",
+    "text": "Removes a persistent speed error caused by changing accessory load. 0 disables this correction. Start small: 0.05–0.15. Technical name: integral gain."
+  },
+  {
+    "title": "Maximum Long-Term Correction",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_im",
+    "text": "Limits how much fuel the long-term correction may add or remove. 0.10 means 10% of the available fuel range."
+  },
+  {
+    "title": "Idle-Control Method",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_mode",
+    "text": "Standard control corrects present feedback error and does not apply a predictive fuel drop. Predictive control adds optional learned fast-deceleration behavior."
+  },
+  {
+    "title": "Fast-Deceleration Entry Above Target (RPM)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_de",
+    "text": "Predictive deceleration catch can begin when RPM is at least this far above idle. 0 disables the fast-deceleration fuel drop."
+  },
+  {
+    "title": "Fast-Deceleration Fuel Reduction (%)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_dd",
+    "text": "How far below learned steady-idle fuel the controller may drop. 0 disables the fast-deceleration fuel drop."
+  },
+  {
+    "title": "Idle Speed Prediction Time (ms)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_lk",
+    "text": "How far ahead predictive idle control estimates shaft speed."
+  },
+  {
+    "title": "Settled Speed Band (RPM)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_sb",
+    "text": "The ECU considers idle stable and learns the required fuel output while RPM is within this distance of target."
+  },
+  {
+    "title": "Speed Error for Full Correction (RPM)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_fr",
+    "text": "RPM error where automatic idle control reaches its maximum correction rate."
+  },
+  {
+    "title": "Maximum Fuel Correction Increase (%/s)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_tu",
+    "text": "Fastest rate at which predictive idle control may add fuel."
+  },
+  {
+    "title": "Maximum Fuel Correction Decrease (%/s)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_td",
+    "text": "Fastest rate at which predictive idle control may remove fuel."
+  },
+  {
+    "title": "Steady-Idle Learning Speed (0-1)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_lr",
+    "text": "How quickly the learned steady-idle fuel output adapts after speed settles. Smaller values are steadier."
+  },
+  {
+    "title": "Maximum Speed Change While Learning (RPM/s)",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_la",
+    "text": "The ECU learns steady-idle fuel only while RPM is changing more slowly than this value."
+  },
+  {
+    "title": "Catch Entry Above Target",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_pde",
+    "text": "Predictive pressure deceleration catch can begin this far above target. 0 disables the fast-deceleration fuel drop."
+  },
+  {
+    "title": "Settled Pressure Band",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_psb",
+    "text": "Pressure band in which the ECU may learn the steady-idle fuel demand."
+  },
+  {
+    "title": "Pressure Error for Full Correction",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_pfr",
+    "text": "Pressure error where predictive idle reaches its configured correction rate."
+  },
+  {
+    "title": "Maximum Pressure Change While Learning",
+    "context": "Setting · Idle",
+    "url": "/user-guide/#field-di_plr",
+    "text": "Learning pauses while pressure changes faster than this value."
+  },
+  {
+    "title": "Safety Check Interval (ms)",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_ci",
+    "text": "How often general safety conditions are evaluated. Hard overspeed and current-delay timing run independently. Restricted to 10-250 ms so protection cannot be delayed by configuration."
+  },
+  {
+    "title": "Combustion-Loss Shutdown Delay (ms)",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_fo",
+    "text": "How long this independent protection source must continuously report combustion loss. When the timer expires, the ECU immediately cuts fuel and begins fault shutdown, regardless of automatic-relight settings."
+  },
+  {
+    "title": "How Combustion Loss Is Detected",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_fs",
+    "text": "Signal used to decide that combustion has been lost while RUNNING. A flame sensor is the most direct evidence; N1 is the preferred fallback. EGT-only detection is available when neither is fitted."
+  },
+  {
+    "title": "N1 Flameout RPM",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_fn",
+    "text": "For N1-source flameout: declare flameout if N1 stays below this RPM. 0 uses Min RPM. This is delayed by Flameout Delay."
+  },
+  {
+    "title": "Low EGT for Flameout",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_eb",
+    "text": "For EGT-source flameout: combustion loss is suspected when selected EGT is below this value and still falling while RUNNING. The condition must persist for the Combustion-Loss Confirmation Time. 0 disables this low-temperature condition."
+  },
+  {
+    "title": "Rapid EGT Fall for Flameout",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_ef",
+    "text": "For EGT-source flameout: also suspect combustion loss if selected EGT falls faster than this rate, even before it reaches the low-EGT threshold. Default 50 °C/s. 0 disables this rapid-fall condition."
+  },
+  {
+    "title": "Pre-Start EGT Maximum",
+    "context": "Setting · Combustion & Startup Protection",
+    "url": "/user-guide/#field-sf_hs",
+    "text": "Blocks START when selected EGT is already above this value. This check occurs before fuel or ignition is commanded; it does not trip on the normal ignition temperature rise. 0 disables the hot-engine start interlock."
+  },
+  {
+    "title": "Enable Automatic Relight",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_en",
+    "text": "Monitor the selected relight trigger independently and automatically fire the selected ignition output. This does not enable, disable, or delay the separate combustion-loss shutdown protection."
+  },
+  {
+    "title": "Ignition Output to Use",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_oid",
+    "text": "Exact fitted ignition device energized during the relight attempt. Removing it leaves this subsystem visibly unresolved; another output is never selected silently."
+  },
+  {
+    "title": "How Relight Is Triggered",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_ts",
+    "text": "Independent source that starts the automatic relight timer. It may be different from the source used by Combustion Loss protection."
+  },
+  {
+    "title": "Relight Trigger Confirmation (ms)",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_td",
+    "text": "How long the relight trigger must remain continuously true before ignition starts automatically. Use a short nonzero value to reject one noisy sample."
+  },
+  {
+    "title": "Low EGT to Trigger Relight",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_tb",
+    "text": "For an EGT relight trigger: start the confirmation timer when selected EGT is at or below this value and still falling. 0 disables this condition."
+  },
+  {
+    "title": "Rapid EGT Fall to Trigger Relight",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_tf",
+    "text": "For an EGT relight trigger: start the confirmation timer when temperature falls at least this quickly. 0 disables this condition."
+  },
+  {
+    "title": "How Successful Relight Is Confirmed",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_cs",
+    "text": "Independent signal that confirms combustion has returned and allows ignition to turn off."
+  },
+  {
+    "title": "Minimum N1 to Fire Relight Ignition",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_mr",
+    "text": "The ECU will not energize automatic relight below this healthy N1 speed or below Minimum Running N1, whichever is higher. If N1 falls below the effective floor during an attempt, ignition is cut and the engine shuts down. Choose a speed that proves adequate self-sustaining airflow."
+  },
+  {
+    "title": "N1 Relight Trigger / Recovery Speed",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_cr",
+    "text": "With N1 triggering, relight starts after speed falls below this value but remains above Minimum N1 to Fire. With N1 confirmation, ignition stays on until speed recovers above it."
+  },
+  {
+    "title": "EGT Recovery Rise",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_tr",
+    "text": "For EGT relight confirmation: igniter stays on until selected EGT rises this much above the temperature at relight start. 0 prevents EGT-rise confirmation. Set too low and EGT noise/throttle changes can false-confirm; too high can reject a real relight. Verify on a real start."
+  },
+  {
+    "title": "Relight Timeout (ms)",
+    "context": "Setting · Automatic Relight",
+    "url": "/user-guide/#field-rl_to",
+    "text": "Maximum relight time after a flameout. If combustion is not restored, ignition is cut and the engine shuts down. 0 uses the hard 30-second maximum; shorter configured values win."
+  },
+  {
+    "title": "ECU Loop Target Hz",
+    "context": "Setting · ECU Runtime",
+    "url": "/user-guide/#field-tm_lh",
+    "text": "Main control-loop target frequency. Default 400 Hz. Lower values reduce CPU use; higher values improve control granularity but increase load. Recommended range: 200-500 Hz. Takes effect after a reboot."
+  },
+  {
+    "title": "N1 Warn RPM",
+    "context": "Setting · External Instrument Cluster Display",
+    "url": "/user-guide/#field-cl_n1",
+    "text": "N1 warning-zone start on the external cluster. 0 selects an automatic value at 90% of configured Maximum N1 Speed, even if N1 overspeed safety is off. This changes only cluster presentation."
+  },
+  {
+    "title": "N2 Warn RPM",
+    "context": "Setting · External Instrument Cluster Display",
+    "url": "/user-guide/#field-cl_n2",
+    "text": "N2 warning-zone start on the external cluster. This field appears only when N2 feedback is fitted and changes only cluster presentation."
+  },
+  {
+    "title": "EGT Warn",
+    "context": "Setting · External Instrument Cluster Display",
+    "url": "/user-guide/#field-cl_tw",
+    "text": "Selected engine-temperature warning threshold for cluster status. 0 = auto (selected EGT limit minus safety margin)."
+  },
+  {
+    "title": "Oil Warn",
+    "context": "Setting · External Instrument Cluster Display",
+    "url": "/user-guide/#field-cl_ow",
+    "text": "Oil pressure warning status code threshold. 0 = auto (running minimum)"
+  },
+  {
+    "title": "Enable Windmilling Oil Protection",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_en",
+    "text": "Allow the selected oil pump to run automatically in STANDBY or FAULT while the selected healthy shaft is above the threshold. Leave this off when the engine does not need pressure lubrication while windmilling."
+  },
+  {
+    "title": "Oil Pump to Protect",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_oid",
+    "text": "Exact fitted oil-pump device commanded by windmilling protection. With one pump it is selected automatically; with several, choose the pump feeding the windmilling shaft."
+  },
+  {
+    "title": "Shaft to Monitor",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_src",
+    "text": "Choose which shaft can automatically request protective oil flow."
+  },
+  {
+    "title": "Start Oil Pump Above",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_rl",
+    "text": "Oil protection starts when the selected shaft exceeds this speed while the ECU is in standby. Keep it below that shaft's maximum speed or the protection can never activate."
+  },
+  {
+    "title": "Windmilling Fixed / Minimum Pump Output (%)",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_fp",
+    "text": "Used as the fixed windmilling output when the pressure target is 0, or as the minimum pump output while pressure is regulated."
+  },
+  {
+    "title": "Optional Windmilling Oil Pressure Target",
+    "context": "Setting · Windmilling Oil Protection",
+    "url": "/user-guide/#field-so_fb",
+    "text": "Above 0: use the normal automatic oil-pressure regulator to hold this target, with the fixed/minimum output as its floor. At 0: command only the fixed output. Pressure mode requires a fitted oil-pressure sensor and Oil pressure loop enabled in Hardware."
+  },
+  {
+    "title": "START Relight Output",
+    "context": "Setting · Manual Relight",
+    "url": "/user-guide/#field-ms_oid",
+    "text": "Exact fitted ignition device held on while START is held during RUNNING. This may be different from the automatic-relight output."
+  },
+  {
+    "title": "Igniter on START (running)",
+    "context": "Setting · Manual Relight",
+    "url": "/user-guide/#field-ms_is",
+    "text": "Fire igniter while START button is held during RUNNING — manual relight aid. Disable if accidental button presses are a concern."
+  },
+  {
+    "title": "Maximum RPM Change Rate",
+    "context": "Setting · RPM Sensor Fault Detection",
+    "url": "/user-guide/#field-rh_jt",
+    "text": "Maximum plausible shaft acceleration or deceleration, expressed as a fraction of that shaft's configured RPM limit per second. Example: 0.40 with a 100,000 RPM limit allows 40,000 RPM/s (4,000 RPM between 100 ms samples). Jump checking starts only after the previous accepted reading is above 500 RPM, so the first rise from zero does not fault."
+  },
+  {
+    "title": "Zero Readings Before Fault",
+    "context": "Setting · RPM Sensor Fault Detection",
+    "url": "/user-guide/#field-rh_zs",
+    "text": "Number of consecutive zero readings required before a running RPM sensor is declared stuck at zero."
+  },
+  {
+    "title": "Use Torch",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_ut",
+    "text": "Spike main fuel demand through the turbine section to push burning exhaust into the AB duct. Configure torch timing in the fields below."
+  },
+  {
+    "title": "Use AB Igniter",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_ui",
+    "text": "Fire the dedicated afterburner igniter installed in Hardware during the ignition window. Can be used alone or with torch."
+  },
+  {
+    "title": "Torch Spike %",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_tpct",
+    "text": "Extra main-fuel-metering demand during the torch window. Higher values introduce more fuel. Typical: 20–40%."
+  },
+  {
+    "title": "Torch Duration (ms)",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_tms",
+    "text": "How long to hold the fuel spike before cutting back. Typical: 300–600 ms."
+  },
+  {
+    "title": "Torch Temperature Guard",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_tgm",
+    "text": "Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown."
+  },
+  {
+    "title": "Custom Torch EGT Cut",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_ttl",
+    "text": "Used only in Custom mode. It should be below the configured main-engine temperature shutdown."
+  },
+  {
+    "title": "Light-Up Pump %",
+    "context": "Setting · Afterburner — Ignition Method",
+    "url": "/user-guide/#field-ab_lpp",
+    "text": "AB fuel pump demand used while the light-up sequence is trying to establish a confirmed flame."
+  },
+  {
+    "title": "Light-up Evidence",
+    "context": "Setting · Afterburner — Flame Confirmation",
+    "url": "/user-guide/#field-ab_fm",
+    "text": "Verified sensor mode rejects an input already ON before fuel. External level mode is for a separate flame controller whose asserted level is itself trusted. Timed mode provides no flame evidence."
+  },
+  {
+    "title": "EGT Rise",
+    "context": "Setting · Afterburner — Flame Confirmation",
+    "url": "/user-guide/#field-ab_tr",
+    "text": "Minimum selected EGT rise required to confirm ignition (EGT Rise mode). Typical: 20-50 C. Too low can false-confirm on noise/throttle changes; too high can reject a real light. Verify on a real start."
+  },
+  {
+    "title": "EGT Rise Window (ms)",
+    "context": "Setting · Afterburner — Flame Confirmation",
+    "url": "/user-guide/#field-ab_tw",
+    "text": "Time window in which the required EGT rise must occur (EGT Rise mode). Typical: 1500-3000 ms."
+  },
+  {
+    "title": "Unverified Timed Delay (ms)",
+    "context": "Setting · Afterburner — Flame Confirmation",
+    "url": "/user-guide/#field-ab_ams",
+    "text": "Delay before continuing without verifying flame. This is not flame confirmation. Typical starting point: 1000-2000 ms, verified on a restrained test setup."
+  },
+  {
+    "title": "Confirmation Timeout (ms)",
+    "context": "Setting · Afterburner — Flame Confirmation",
+    "url": "/user-guide/#field-ab_fto",
+    "text": "Overall deadline for flame confirmation. Exceeding this triggers an AB fault and shuts down the afterburner. Typical: 3000-5000 ms."
+  },
+  {
+    "title": "Pump Command Source",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_pcm",
+    "text": "Choose how AB pump flow is commanded while lit. Dedicated AB Input uses the analog, RC, PWM-duty, or registry/I2C AB command configured in Hardware."
+  },
+  {
+    "title": "Afterburner Fuel Pump Min %",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_pmn",
+    "text": "Minimum afterburner fuel-pump demand for a variable command source. With a missing servo-PWM afterburner input, demand fails to this minimum."
+  },
+  {
+    "title": "Afterburner Fuel Pump Max %",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_pmx",
+    "text": "Maximum afterburner fuel-pump demand. Fixed Max Output holds this value while the afterburner is running."
+  },
+  {
+    "title": "Main Fuel Offset %",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_mo",
+    "text": "Adds to main fuel while AB is running. A negative value may reduce fuel, but a running pump is held at its calibrated reliable minimum; an Off command remains Off. 0 = none."
+  },
+  {
+    "title": "Stabilize Hold (ms)",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_sms",
+    "text": "Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms."
+  },
+  {
+    "title": "Stabilize Max EGT",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_smt",
+    "text": "AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled."
+  },
+  {
+    "title": "Running Flame-Loss Delay (ms)",
+    "context": "Setting · Afterburner — Running",
+    "url": "/user-guide/#field-ab_fld",
+    "text": "When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running."
+  },
+  {
+    "title": "Oil Temp Limit",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_ot",
+    "text": "Dashboard temperature reference and visual advisory. It becomes a fault shutdown only when oil-temperature safety is enabled. 0 hides the bar."
+  },
+  {
+    "title": "Oil-Temperature Confirmation (ms)",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_ot_d",
+    "text": "High oil temperature must persist for this time before shutdown."
+  },
+  {
+    "title": "Minimum Running Fuel Pressure",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_fp",
+    "text": "Visual low-pressure advisory on the Dashboard during RUNNING. It becomes a fault shutdown only when low fuel-pressure safety is enabled. 0 removes the advisory."
+  },
+  {
+    "title": "Fuel-Pressure Confirmation (ms)",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_fp_d",
+    "text": "Low running fuel pressure must persist for this time before shutdown."
+  },
+  {
+    "title": "Battery Min (V)",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_bv",
+    "text": "Visual low-voltage advisory on the Dashboard. It becomes an undervoltage shutdown only when battery safety is enabled. 0 removes the advisory."
+  },
+  {
+    "title": "Bus-Voltage Confirmation (ms)",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_bv_d",
+    "text": "Low battery or bus voltage must persist for this time before shutdown."
+  },
+  {
+    "title": "Experimental Surge Detection (RPM²)",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_sg",
+    "text": "Experimental statistical N1-instability detector over a 10-sample rolling window, not an RPM limit. It requires tuning from recorded stable and surge data for this exact engine. 500,000 RPM² corresponds to about 707 RPM standard deviation. 0 disables it."
+  },
+  {
+    "title": "Target N2 RPM",
+    "context": "Setting · Automatic N2 Speed Control",
+    "url": "/user-guide/#field-gv_tr",
+    "text": "Power turbine (N2) speed setpoint for the governor. Set to your rated output shaft RPM. 0 = governor disabled. In prop-pitch mode the governor adds propeller load to hold this speed, so set it to your rated power-turbine RPM — too low can over-load and stall the core."
+  },
+  {
+    "title": "No-Correction Speed Band (RPM)",
+    "context": "Setting · Automatic N2 Speed Control",
+    "url": "/user-guide/#field-gv_bd",
+    "text": "The controller makes no correction while N2 is within this distance above or below the target. A small band prevents hunting. Typical: 200–500 RPM."
+  },
+  {
+    "title": "Fuel Change at 1,000 RPM Error (%/s)",
+    "context": "Setting · Automatic N2 Speed Control",
+    "url": "/user-guide/#field-gv_kp",
+    "text": "Fuel correction rate produced by a 1,000 RPM error outside the no-correction band. Example: 25 means fuel changes 25 percentage points per second at that error. Start around 10-25 and increase only while checking for hunting."
+  },
+  {
+    "title": "Pitch Change at 1,000 RPM Error (%/s)",
+    "context": "Setting · Automatic N2 Speed Control",
+    "url": "/user-guide/#field-gv_pk",
+    "text": "Requested propeller-pitch correction rate at a 1,000 RPM error. A nonzero value selects pitch-primary control when a proportional pitch actuator is fitted. Actual movement is also limited by Full Propeller-Pitch Travel Time."
+  },
+  {
+    "title": "Full Propeller-Pitch Travel Time (s)",
+    "context": "Setting · Automatic N2 Speed Control",
+    "url": "/user-guide/#field-gv_pr",
+    "text": "Shortest allowed time for the pitch actuator to travel through its full range. This prevents abrupt load changes. 0 allows immediate movement. Typical: 1–5 s."
+  },
+  {
+    "title": "Signal-Loss Timeout (ms)",
+    "context": "Setting · RC / Servo Signal Loss Detection",
+    "url": "/user-guide/#field-rc_fs",
+    "text": "Marks a receiver input invalid when no valid pulse arrives in time. A lost operator-throttle signal returns main fuel toward the calibrated minimum output; STOP still performs the immediate fuel cut."
+  }
+]

@@ -1,0 +1,11 @@
+<figure class="build-figure">
+  <img src="{{ '/assets/images/guided-builds/' | append: include.file | append: '.svg' | relative_url }}" width="1000" height="600" loading="lazy" alt="{{ include.alt | escape }}">
+  <figcaption>{{ include.caption }}{% unless page.build_level %} Terminal labels describe connections, not physical pin order.{% endunless %}</figcaption>
+</figure>
+{% assign wire_rows = site.data.build_wiring[include.file] %}
+{% if wire_rows %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Connection</th><th>From</th><th>To</th><th>Check</th></tr></thead>
+  <tbody>{% for wire in wire_rows %}<tr>{% for field in wire %}<td>{{ field }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}

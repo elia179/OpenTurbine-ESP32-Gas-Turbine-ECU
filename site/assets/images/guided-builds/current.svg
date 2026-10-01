@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Current measurement with a shunt amplifier</title><desc id="desc">Bench only: INA180A1, gain 20, 0.1 Ω shunt, 0–1 A. Nominal output: 2 V/A.</desc>
+<style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
+<rect width="1000" height="600" rx="18" fill="#101922"/>
+<text x="30" y="42" class="heading" text-anchor="start">Current measurement with a shunt amplifier</text>
+<text x="30" y="76" class="small" text-anchor="start">Bench only: INA180A1, gain 20, 0.1 Ω shunt, 0–1 A. Nominal output: 2 V/A.</text>
+<rect x="340" y="275" width="300" height="220" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="490.0" y="307" class="" text-anchor="middle">INA180A1 module</text>
+<rect x="760" y="275" width="210" height="220" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="865.0" y="307" class="" text-anchor="middle">ESP32 ECU</text>
+<rect x="30" y="110" width="240" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="150.0" y="142" class="" text-anchor="middle">Fused 5 V source</text>
+<rect x="760" y="110" width="210" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="865.0" y="142" class="" text-anchor="middle">DC load</text>
+<text x="250" y="155" class="" text-anchor="end">+</text>
+<text x="780" y="155" class="" text-anchor="start">+</text>
+<text x="250" y="224" class="" text-anchor="end">−</text>
+<text x="780" y="224" class="" text-anchor="start">−</text>
+<polyline points="270,165 400,165" class="net heavy" stroke="#ff9276"/>
+<rect x="400" y="151" width="100" height="28" fill="#1c2b38" stroke="#b6c4d2" stroke-width="2"/>
+<polyline points="500,165 760,165" class="net heavy" stroke="#ff9276"/>
+<polyline points="270,235 300,235 300,500 985,500 985,235 970,235" class="net heavy" stroke="#b6c4d2"/>
+<text x="415" y="136" class="small" text-anchor="start">0.1 Ω</text>
+<text x="340" y="255" class="" text-anchor="start">IN+</text>
+<text x="570" y="255" class="" text-anchor="start">IN−</text>
+<polyline points="385,165 385,275" class="net" stroke="#74dcb7"/>
+<polyline points="570,165 570,275" class="net" stroke="#74dcb7"/>
+<circle cx="385" cy="165" r="5" fill="#ff9276"/>
+<circle cx="570" cy="165" r="5" fill="#ff9276"/>
+<text x="620" y="352" class="" text-anchor="end">OUT</text>
+<text x="780" y="352" class="" text-anchor="start">ADC GPIO</text>
+<polyline points="640,362 760,362" class="net" stroke="#74dcb7"/>
+<text x="360" y="414" class="" text-anchor="start">VS = 3.3 V</text>
+<text x="360" y="465" class="" text-anchor="start">GND</text>
+<text x="780" y="414" class="" text-anchor="start">3.3 V</text>
+<text x="780" y="465" class="" text-anchor="start">GND</text>
+<polyline points="640,425 760,425" class="net" stroke="#ff9276"/>
+<polyline points="640,475 760,475" class="net" stroke="#b6c4d2"/>
+<polyline points="695,475 695,500" class="net" stroke="#b6c4d2"/>
+<circle cx="695" cy="475" r="5" fill="#b6c4d2"/>
+<circle cx="695" cy="500" r="5" fill="#b6c4d2"/>
+<text x="30" y="410" class="small" text-anchor="start">Supply − joins logic GND.</text>
+<text x="30" y="440" class="small" text-anchor="start">100 nF: VS to GND.</text>
+<text x="30" y="470" class="small" text-anchor="start">Kelvin sense at shunt.</text>
+<text x="30" y="519" class="small" text-anchor="start">Use a ≥0.5 W shunt. This circuit is not a starter/pump power design or an isolated sensor.</text>
+<text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
+<polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
+<text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>
+<polyline points="447,552 499,552" class="net" stroke="#ff9276"/>
+<text x="528" y="558" class="small" text-anchor="start">Ground / return</text>
+<polyline points="695,552 747,552" class="net" stroke="#b6c4d2"/>
+<text x="30" y="584" class="small" text-anchor="start">Connections are also listed in the guide. Confirm the exact module pinout before wiring.</text></svg>
