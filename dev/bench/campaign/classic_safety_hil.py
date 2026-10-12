@@ -33,6 +33,7 @@ class ClassicSafetyHil:
         self.dut = DUT()
         self.dc = DutConfig(self.dut)
         self.tester = Tester(os.environ.get("OTBENCH_PORT", "COM4")).open()
+        self.tester_version = self.tester.ping()
         self.original_hw = self.dut.hardware()
         self.original_ecu = self.dut._get("/api/ecu_config")
         self.rows = []
@@ -247,7 +248,7 @@ class ClassicSafetyHil:
         payload = {
             "firmware": self.dut.data().get("fw_version", "unknown"),
             "target": "esp32dev",
-            "tester": "ESP32-S3 OTBench 0.9",
+            "tester": f"ESP32-S3 {self.tester_version}",
             "repetitions": repetitions,
             "passed": sum(row["ok"] for row in self.rows),
             "total": len(self.rows),

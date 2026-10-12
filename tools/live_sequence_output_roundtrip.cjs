@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { chromium, request } = require('playwright');
 
 function installedBrowser() {
@@ -16,6 +17,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getJson(base, route, attempts = 50) {
   for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempts > 1 && attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+      try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+      catch (_) {} // Only a successful API read proves recovery.
+    }
     const api = await request.newContext({
       baseURL: base,
       extraHTTPHeaders: { Connection:'close', 'Cache-Control':'no-cache' }
@@ -34,8 +39,14 @@ async function getJson(base, route, attempts = 50) {
 
 async function getTelemetrySnapshot(base, attempts = 50) {
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const data = await getJson(base, '/api/data', 1);
-    if (typeof data.mode === 'string') return data;
+    if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+      try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+      catch (_) {}
+    }
+    try {
+      const data = await getJson(base, '/api/data', 1);
+      if (typeof data.mode === 'string') return data;
+    } catch (_) {} // Retry the transport across the expected software reboot.
     await sleep(650);
   }
   throw new Error('/api/data did not return a complete telemetry snapshot');

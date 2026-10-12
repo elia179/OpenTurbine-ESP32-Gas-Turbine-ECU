@@ -1,4 +1,4 @@
-"""Physical shared-I2C HIL using OTBench 0.9 and the existing switch jumpers.
+"""Physical shared-I2C HIL using OTBench 0.11 and the existing switch jumpers.
 
 The classic tester temporarily makes DUT GPIO13/15 an I2C bus and emulates one
 supported accessory at a time. The campaign proves discovery, assignment
@@ -55,7 +55,7 @@ class I2cQualification:
     def reset_i2c_tester(self):
         """Reset the synthetic slave before changing its I2C address."""
         self.t._reset_board()
-        if not self.t.ping().startswith("OK OTBench 0.9"):
+        if not self.t.ping().startswith("OK OTBench 0.11"):
             raise RuntimeError("OTBench did not return after I2C emulator reset")
 
     def start_tca(self, input_value: int):
@@ -181,6 +181,9 @@ class I2cQualification:
             1.9 <= float(last["torque"].get("value", 0)) <= 2.1 and
             3.9 <= float(last["thrust"].get("value", 0)) <= 4.1
         )
+        status = self.t.raw("I2CEMU STATUS")
+        self.record("NAU7802_ANALOG_STARTUP", "nau_init_ok=1" in status and
+                    "nau_cal=03" in status, status=status)
         self.record("NAU7802_TORQUE_AND_THRUST_CALIBRATION", ok,
                     code=code, response=response, last=last,
                     sample_count=len(samples))
@@ -305,6 +308,9 @@ class I2cQualification:
                 1.9 <= float(a.get("value", 0)) <= 2.1 and
                 3.9 <= float(b.get("value", 0)) <= 4.1
             ), timeout=10, interval=0.1)
+        status = self.t.raw("I2CEMU STATUS")
+        self.record("NAU7802_ANALOG_STARTUP", "nau_init_ok=1" in status and
+                    "nau_cal=03" in status, status=status)
         self.record("NAU7802_TORQUE_AND_THRUST_CALIBRATION", code == 200 and ok,
                     code=code, torque=self.registry_value(data, "torque_main"),
                     thrust=self.registry_value(data, "thrust_main"),
@@ -362,8 +368,9 @@ def main():
     print(f"RESULT: {passed}/{len(q.rows)} I2C checks passed; restored={restored}; error={error}")
     print("Results:", os.path.abspath(path))
     # Keep focused diagnostics useful as real gates too; the full campaign has
-    # thirteen checks and the TCA-only reconnect campaign has six.
-    expected = 6 if os.environ.get("I2C_ONLY_TCA") == "1" else 13
+    # fourteen checks; focused TCA reconnect has six and NAU startup has three.
+    expected = (3 if os.environ.get("I2C_ONLY_NAU") == "1" else
+                6 if os.environ.get("I2C_ONLY_TCA") == "1" else 14)
     return 0 if len(q.rows) == expected and passed == len(q.rows) and restored and not error else 1
 
 

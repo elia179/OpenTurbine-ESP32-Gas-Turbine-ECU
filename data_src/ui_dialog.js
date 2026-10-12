@@ -108,12 +108,64 @@
     }
   });
   let navigationStarting = false;
+  window.OTIsSamePageWarningLink = (anchor, target) => {
+    if (!anchor.hasAttribute('data-ot-warning-link') || target.origin !== location.origin || target.pathname !== location.pathname) return false;
+    const current = new URL(location.href);
+    const destination = new URL(target.href);
+    current.searchParams.delete('v');
+    destination.searchParams.delete('v');
+    return current.search === destination.search;
+  };
+  function installWarningNavigation(root = document) {
+    const bannerSelector = '[id$="banner"], .error-banner, .warning-banner, .cfg-inline-warn, .fault-actions';
+    root.querySelectorAll(`${bannerSelector.split(', ').map(selector => selector + ' a[href]').join(', ')}`)
+      .forEach(anchor => {
+        if (!anchor.hasAttribute('data-ot-warning-link')) anchor.setAttribute('data-ot-warning-link', '');
+      });
+    const missingActions = {
+      'config-storage-banner':['/system.html#system-backup-restore','Review backup and restore'],
+      'limited-run-banner':['/tools.html','Review reduced-power diagnostics'],
+      'surge-warn-banner':['/log.html','Review event evidence']
+    };
+    Object.entries(missingActions).forEach(([id, [url, label]]) => {
+      const banner = document.getElementById(id);
+      if (!banner || banner.querySelector('a[href]')) return;
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.setAttribute('data-ot-warning-link', '');
+      anchor.style.cssText = 'color:inherit;text-decoration:underline;margin-left:.5rem';
+      anchor.textContent = label + ' →';
+      banner.appendChild(anchor);
+    });
+  }
+  const startWarningNavigation = () => {
+    installWarningNavigation();
+    new MutationObserver(() => installWarningNavigation()).observe(document.body, {childList:true, subtree:true});
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startWarningNavigation, {once:true});
+  else startWarningNavigation();
   document.addEventListener('click', async event => {
-    const anchor = event.target.closest?.('nav a[href]');
+    const anchor = event.target.closest?.('nav a[href], a[data-ot-warning-link][href]');
     if (!anchor || event.defaultPrevented || event.button !== 0 || event.metaKey
         || event.ctrlKey || event.shiftKey || event.altKey || anchor.target === '_blank') return;
     const target = new URL(anchor.href, location.href);
     if (target.origin !== location.origin) return;
+    // Local warning links reveal a Sequence tab without stopping its polling.
+    if (window.OTIsSamePageWarningLink(anchor, target)) {
+      event.preventDefault();
+      if (target.hash === location.hash) window.dispatchEvent(new Event('hashchange'));
+      else location.hash = target.hash;
+      requestAnimationFrame(() => {
+        const element = document.getElementById(decodeURIComponent(target.hash.slice(1)));
+        if (!element) return;
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          if (parent.tagName === 'DETAILS') parent.open = true;
+        }
+        element.scrollIntoView({behavior:'smooth', block:'center'});
+        element.focus({preventScroll:true});
+      });
+      return;
+    }
     const release = document.querySelector('script[data-ot-version]')?.dataset.otVersion;
     if (release) target.searchParams.set('v', release);
     if (target.href === location.href) return;
@@ -287,7 +339,7 @@
     [/custom controller|operating state|fitted input|feedback signal|output is unavailable|owns this output|mapped input|target-source/i,'#controller-overview','Custom controllers'],
     [/N2 Pullback Full|N2 pullback should/i,'#cf-pb_n2e','N2 pullback'],
     [/Cluster N2/i,'/system.html#cf-cl_n2','N2 display warning'],
-    [/Governor target plus/i,'#cf-gv_tr','N2 governor target'],
+    [/Governor target plus/i,'#controller-overview','N2 controller'],
     [/N2-based idle target/i,'#cf-di_tr','N2 idle target'],
     [/N2 overspeed|Maximum N2/i,'#cf-n2_rpm_limit','N2 protection'],
     [/N1 pullback/i,'#cf-pb_n1e','N1 pullback'],
@@ -307,7 +359,7 @@
     [/P1 Pullback Full/i,'#cf-pb_p1e','P1 pullback'],
     [/P2 Pullback Full/i,'#cf-pb_p2e','P2 pullback'],
     [/Torque Pullback Full/i,'#cf-pb_tqe','Torque pullback'],
-    [/Governor target/i,'#cf-gv_tr','N2 governor'],
+    [/Governor target/i,'#controller-overview','N2 controller'],
     [/Min RPM/i,'#cf-min_rpm','Minimum running speed']
   ];
   const relatedRoutes = [
@@ -315,7 +367,7 @@
     [/Startup oil-pressure minimum.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
     [/Normal Running Oil Pressure.*Full-Throttle Oil Pressure/i,'#cf-oil_mx','Full-throttle oil pressure'],
     [/Normal Running Oil Pressure.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
-    [/Governor target plus/i,'#cf-gv_bd','N2 governor no-correction band']
+    [/Governor target plus/i,'#controller-overview','N2 controller']
   ];
   window.OTValidationLinks = messages => {
     const seen = new Set();

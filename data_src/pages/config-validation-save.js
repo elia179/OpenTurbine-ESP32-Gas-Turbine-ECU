@@ -1,6 +1,18 @@
 // ── Cross-parameter inline validation warnings ────────────────
 // Called after renderForm() and after any field edit.
 // Reads values directly from the form inputs so they stay in sync.
+const INLINE_WARNING_DESTINATIONS = {
+  'warn-preignrpm':'/sequence.html#starter-target',
+  'warn-idlelimit':'#cf-di_tr', 'warn-n1-pullback-trip':'#cf-pb_n1e',
+  'warn-governor-zero':'#controller-overview', 'warn-standby-oil-rpm':'#cf-so_rl',
+  'warn-standby-oil-output':'#cf-so_fp', 'warn-standby-oil-device':'#cf-so_oid',
+  'warn-standby-oil-loop':'/controllers.html#controller-overview',
+  'warn-ab-main-fuel-floor':'#cf-ab_mo', 'warn-n2-pullback-trip':'#cf-pb_n2e',
+  'warn-n2-governor-trip':'#controller-overview', 'warn-n2-cluster-trip':'/system.html#cf-cl_n2',
+  'warn-prestart-egt-limit':'#cf-sf_hs', 'warn-tot-zero':'#cf-tot_limit',
+  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'#cf-oil_rm'
+};
+
 function runValidation() {
   // Helper: read a numeric value from a form field by SCHEMA key
   function fv(key) {
@@ -201,11 +213,13 @@ function runValidation() {
     if (!titleEl) return;
     // Avoid duplicate
     if (targetSection.querySelector('[data-warnkey="' + w.key + '"]')) return;
-    const div = document.createElement('div');
+    const div = document.createElement('a');
     div.className = 'cfg-inline-warn';
+    div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
+    div.setAttribute('data-ot-warning-link', '');
     div.setAttribute('data-warnkey', w.key);
-    div.style.cssText = 'font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
-    div.textContent = w.msg;
+    div.style.cssText = 'display:block;font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
+    div.textContent = w.msg + ' Review configuration →';
     titleEl.insertAdjacentElement('afterend', div);
     const group = targetSection.closest('.config-group');
     if (group) group.open = true;

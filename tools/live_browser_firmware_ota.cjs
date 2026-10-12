@@ -38,7 +38,14 @@ function installedBrowser() {
   const page = await browser.newPage();
   let chunks = 0;
   page.on('response', response => {
-    if (new URL(response.url()).pathname === '/api/firmware_chunk' && response.ok()) chunks++;
+    const url = new URL(response.url());
+    if (url.pathname !== '/api/firmware_chunk') return;
+    if (response.ok()) {
+      chunks++;
+      if (chunks % 64 === 0) console.log(`Firmware upload: ${chunks} acknowledged chunks, offset ${url.searchParams.get('offset')}.`);
+    } else {
+      console.error(`Firmware upload rejection: HTTP ${response.status()}, offset ${url.searchParams.get('offset')}, final ${url.searchParams.get('final')}.`);
+    }
   });
   await page.addInitScript(() => {
     localStorage.setItem('ot_beta_notice_ack_v1', '1');

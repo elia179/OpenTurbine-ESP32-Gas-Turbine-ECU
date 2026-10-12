@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { chromium, request } = require('playwright');
 
 function installedBrowser() {
@@ -68,14 +69,20 @@ async function json(response, label) {
   const requestPagePath = new WeakMap();
   const successfulResponseRequests = new WeakSet();
   const started = Date.now();
-  const deadline = started + durationSec * 1000;
+  let deadline = started + durationSec * 1000;
 
-  function acceptExpectedRebootDisconnects(fromIndex, purpose) {
-    const rebootTransportFailure = /^https?:\/\/[^/]+\/api\/[^:]*: net::ERR_(?:CONNECTION_(?:TIMED_OUT|RESET|REFUSED|CLOSED)|NETWORK_CHANGED|FAILED)$/;
+  function acceptExpectedRebootDisconnects(fromIndex, purpose, consoleFromIndex) {
+    const rebootTransportFailure = /^https?:\/\/[^/]+\/api\/[^:]*: net::ERR_(?:CONNECTION_(?:TIMED_OUT|RESET|REFUSED|CLOSED|ABORTED)|NETWORK_CHANGED|FAILED)$/;
     const observed = failures.splice(fromIndex);
     const unexpected = observed.filter(item => !rebootTransportFailure.test(item));
     failures.push(...unexpected);
     const recovered = observed.length - unexpected.length;
+    // Chromium reports the same reboot disconnect through both events. Only
+    // accept transport console errors captured inside this verified reboot;
+    // ordinary browsing errors and JavaScript exceptions remain fatal.
+    const rebootConsoleFailure = /Failed to load resource: net::ERR_(?:CONNECTION_(?:TIMED_OUT|RESET|REFUSED|CLOSED|ABORTED)|NETWORK_CHANGED|FAILED|ABORTED)$/;
+    const observedConsole = consoleErrors.splice(consoleFromIndex);
+    consoleErrors.push(...observedConsole.filter(item => !rebootConsoleFailure.test(item)));
     if (recovered) {
       console.log(`${label} ${purpose}: accepted ${recovered} API disconnect(s) during the verified software reboot.`);
     }
@@ -274,7 +281,7 @@ async function json(response, label) {
       const statusResponse = await page.request.get(`${base}/api/status`, { timeout: 8000 });
       if (statusResponse.ok()) {
         const status = await statusResponse.json();
-        heapNote = ` heap=${status.free_heap}/${status.max_alloc_heap} tw=${status.http_time_wait} boot=${status.boot_count} reset=${status.reset_reason}`;
+        heapNote = ` heap=${status.free_heap}/${status.max_alloc_heap} tw=${status.http_time_wait}`;
       }
     } catch (_) {}
     console.log(`${label} navigation ${navigations}: ${route} connected${heapNote}`);
@@ -472,6 +479,10 @@ async function json(response, label) {
     });
     try {
       for (let attempt = 0; attempt < 60; attempt++) {
+        if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+          try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+          catch (_) {}
+        }
         await page.waitForTimeout(500);
         try {
           // One Classic request can be reset while the immediately following
@@ -500,7 +511,14 @@ async function json(response, label) {
       extraHTTPHeaders: { Connection: 'close', 'Cache-Control': 'no-cache' }
     });
     try {
+      let reconnectAttempt = 0;
       while (Date.now() < end) {
+        if (reconnectAttempt++ % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+          // Rejoining the fixture AP is part of the expected reboot workflow.
+          // Ordinary browsing still must preserve the exact boot counter.
+          try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+          catch (_) {}
+        }
         let telemetry;
         try {
           const response = await recoveryApi.get(`/api/data?_reboot=${Date.now()}`, { timeout: 5000 });
@@ -553,6 +571,7 @@ async function json(response, label) {
     console.log(`${label} ${info.chip} build=${info.build_id}; original ramp=${originalRamp} ms; duration=${durationSec}s`);
 
     const editRebootFailureIndex = failures.length;
+    const editRebootConsoleIndex = consoleErrors.length;
     rampEdited = await saveRamp(editedRamp, 'edit', originalRamp);
     const editedBootCount = rampEdited
       ? (classicStandbySaveReboots
@@ -560,11 +579,14 @@ async function json(response, label) {
           : await proveSaveWithoutReboot(initialTelemetry.boot_count, 'controller save'))
       : Number(initialTelemetry.boot_count);
     if (rampEdited && classicStandbySaveReboots)
-      acceptExpectedRebootDisconnects(editRebootFailureIndex, 'controller save');
+      acceptExpectedRebootDisconnects(editRebootFailureIndex, 'controller save', editRebootConsoleIndex);
     const engineRestoreFailureIndex = failures.length;
+    const engineRestoreConsoleIndex = consoleErrors.length;
     await exerciseEngineFileRoundTrip();
     const soakBootCount = await waitForExpectedReboot(editedBootCount, 'engine-file restore');
-    acceptExpectedRebootDisconnects(engineRestoreFailureIndex, 'engine-file restore');
+    acceptExpectedRebootDisconnects(engineRestoreFailureIndex, 'engine-file restore', engineRestoreConsoleIndex);
+    // Setup and intentional reconnects must not consume the browsing interval.
+    deadline = Date.now() + durationSec * 1000 + 45000;
     const actions = [exerciseDashboard, exerciseHardware, exerciseSystem, exerciseCalibration, exerciseSequence, exerciseLog, exerciseTools];
     let round = 0;
     while (Date.now() < deadline - 45000) {
@@ -582,12 +604,13 @@ async function json(response, label) {
     let cleanupBootCount = Number(soakBootCount);
     if (rampEdited) {
       const cleanupRebootFailureIndex = failures.length;
+      const cleanupRebootConsoleIndex = consoleErrors.length;
       await saveRamp(originalRamp, 'restore', editedRamp);
       cleanupBootCount = classicStandbySaveReboots
         ? await waitForExpectedReboot(soakBootCount, 'Classic cleanup controller save')
         : await proveSaveWithoutReboot(soakBootCount, 'cleanup controller save');
       if (classicStandbySaveReboots)
-        acceptExpectedRebootDisconnects(cleanupRebootFailureIndex, 'cleanup controller save');
+        acceptExpectedRebootDisconnects(cleanupRebootFailureIndex, 'cleanup controller save', cleanupRebootConsoleIndex);
     }
     restored = true;
     await exerciseDashboard();
@@ -636,6 +659,14 @@ async function json(response, label) {
     if (recoveredConfigReadBackpressure.length) {
       console.log(`${label} recovered ${recoveredConfigReadBackpressure.length} bounded configuration-read retry/retries; every resulting page reached CONNECTED.`);
     }
+    fs.writeFileSync(path.join(outDir, `${label.toLowerCase()}-result.json`), JSON.stringify({
+      passed: true, target: info.target, version: info.firmware_version,
+      build_id: info.build_id, duration_s: Math.round((Date.now() - started) / 1000),
+      navigations, saves, original_ramp_ms: originalRamp, restored,
+      soak_boot_count: soakBootCount, final_boot_count: finalTelemetry.boot_count,
+      failures, httpErrors, recovered_get_resets: recoveredGetResets.length,
+      recovered_config_reads: recoveredConfigReadBackpressure.length
+    }, null, 2));
     console.log(`${label} realistic session PASSED: ${Math.round((Date.now() - started) / 1000)}s, ${navigations} navigations, ${saves} persisted config saves, original config restored.`);
   } finally {
     if (!restored && rampEdited && Number.isFinite(originalRamp)) {
@@ -686,6 +717,10 @@ async function json(response, label) {
           if (!classicStandbySaveReboots && !response?.ok())
             throw new Error(`HTTP ${response?.status()}`);
           for (let attempt = 0; attempt < 40; attempt++) {
+            if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+              try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+              catch (_) {}
+            }
             await page.waitForTimeout(750);
             try {
               const cfg = await cleanupApi.get(`/api/config?_cleanup=${Date.now()}`, { timeout: 10000 });

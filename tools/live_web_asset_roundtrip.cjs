@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {chromium, request} = require('playwright');
+const {execFileSync} = require('node:child_process');
 
 if (!process.argv.includes('--allow-write')) throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(arg => /^http/.test(arg)) || 'http://192.168.4.1';
@@ -55,6 +56,9 @@ async function snapshot() {
   assert.equal(chunks, expectedChunks);
   let after;
   for (let attempt=0; attempt<40; attempt++) {
+    if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+      try {execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'});} catch (_) {}
+    }
     try {
       after = await snapshot();
       if (after.live.boot_count > before.live.boot_count &&

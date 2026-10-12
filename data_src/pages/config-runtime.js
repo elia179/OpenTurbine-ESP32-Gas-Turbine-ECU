@@ -83,6 +83,7 @@ window.applyData = function(d) {
       _clearDirty();
       applyView();
       hookValidation();
+      revealConfigDeepLink();
     }
     const saveButton = document.getElementById('btn-save');
     if (saveButton) saveButton.disabled = locked || !_cfgDirty;
@@ -1142,6 +1143,11 @@ function revealConfigDeepLink() {
   }
   if (group) group.open = true;
   if (protectionCard) protectionCard.open = true;
+  // System nests its configuration groups inside category details as well.
+  if (revealTarget.tagName === 'DETAILS') revealTarget.open = true;
+  for (let parent = revealTarget.parentElement; parent; parent = parent.parentElement) {
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  }
   section?.classList.remove('filter-hidden');
   field?.classList.remove('filter-hidden');
   document.querySelectorAll('.deep-link-target').forEach(el => el.classList.remove('deep-link-target'));

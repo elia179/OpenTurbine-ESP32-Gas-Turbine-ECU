@@ -36,27 +36,28 @@ async function fetchJson(route, options = {}) {
 
 async function reconnect() {
   await delay(8000);
-  if (process.platform === 'win32' && base === 'http://192.168.4.1') {
-    try {
-      execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'});
-    } catch (_) {
-      // The adapter may already be reconnecting. Let status polling decide.
+  let lastError = '';
+  for (let i=0; i<40; i++) {
+    // A combined Hardware + Settings save deliberately reboots twice on
+    // Classic. Windows can join another remembered AP between those resets.
+    // Keep selecting the fixture AP until the actual status read succeeds.
+    if (i % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
+      try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+      catch (_) {} // status read remains the authority
     }
-  }
-  for (let i=0; i<25; i++) {
     let fault = '';
     try {
-      const r = await fetch(base+'/api/status', {signal:AbortSignal.timeout(2000),headers:{Connection:'close'}});
+      const r = await fetch(base+'/api/status', {signal:AbortSignal.timeout(3000),headers:{Connection:'close'}});
       if (r.ok) {
         const status = await r.json();
         if (status.mode === 'STANDBY') return;
         if (status.mode === 'FAULT') fault = status.fault_description || 'ECU entered FAULT after the save';
       }
-    } catch (_) {}
+    } catch (error) { lastError = error.message; }
     if (fault) throw new Error(fault);
     await delay(1000);
   }
-  throw new Error('ECU did not reconnect');
+  throw new Error(`ECU did not reconnect: ${lastError || 'no STANDBY status'}`);
 }
 
 async function restoreDescription(value) {

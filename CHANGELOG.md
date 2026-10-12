@@ -8,6 +8,16 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.1] — local hardware-test candidate (2026-10-12)
+
+- Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
+- Retry failed initialization, calibrate both assigned channels, and discard the previous-channel conversion before publishing force or torque.
+- Make actionable configuration warnings navigate to their settings or diagnostics; preserve unsaved edits and reveal collapsed destination cards.
+- Expose actionable firmware-upload rejection details and update tester startup checks.
+- Refresh the web asset cache revision. Save-triggered reboot behavior is unchanged.
+- Hardware qualification remains pending; no release has been published.
+- Large configuration reads fall back to the reserved transfer workspace if a heap snapshot allocation fails, preserving write exclusion during the response.
+
 ## [Unreleased]
 
 ## [2.5.0] — 2026-10-01

@@ -213,7 +213,7 @@ document.addEventListener('click', async event => {
   if (!link || !_seqDirty || event.defaultPrevented || event.button !== 0 ||
       event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target === '_blank') return;
   const url = new URL(link.href, location.href);
-  if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search)) return;
+  if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search) || window.OTIsSamePageWarningLink?.(link, url)) return;
   event.preventDefault();
   if (await OTDialog.confirm('Sequence has unsaved changes. Leave and discard them?',
       {title:'Unsaved sequence changes', confirmText:'Discard and leave', danger:true})) {

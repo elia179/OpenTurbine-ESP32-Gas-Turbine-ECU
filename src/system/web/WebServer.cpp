@@ -1711,7 +1711,19 @@ static void _sendOwnedJson(AsyncWebServerRequest* req, const char* json, size_t 
 static void _sendLargeReadJson(AsyncWebServerRequest* req, const char* json,
                                size_t len, int status = 200) {
     if (!req || !json) return;
-    _sendOwnedJson(req, json, len, status);
+    OwnedJsonResponse* resp = new (std::nothrow) OwnedJsonResponse(json, len, status);
+    if (!resp || !resp->_sourceValid()) {
+        delete resp;
+        // A fragmented Classic heap can reject the page snapshot even though
+        // its boot-reserved receive workspace is free. Borrow that workspace
+        // for this response; its lease still excludes configuration writes.
+        Serial.printf("[WebServer] Large JSON response using reserved workspace (%u bytes)\n",
+                      (unsigned)len);
+        _sendBorrowedWebRxJson(req, json, len, status);
+        return;
+    }
+    _finalizeJsonResponse(resp);
+    req->send(resp);
 }
 
 
@@ -3858,10 +3870,17 @@ void WebServer::_setupRoutes() {
             }
             if (index + len < total) return;
             if (_otaError || _otaUploadOwner != req) {
+                char errorBody[224];
+                snprintf(errorBody, sizeof(errorBody),
+                    "{\"ok\":false,\"error\":\"Firmware chunk rejected: %s; offset %lu, received %lu\"}",
+                    Update.hasError() ? Update.errorString() : "upload state or offset mismatch",
+                    (unsigned long)offset, (unsigned long)_otaChunkReceived);
+                Serial.printf("[OTA] %s (body %u/%u, owner %d)\n", errorBody,
+                    (unsigned)(index + len), (unsigned)total, _otaUploadOwner == req);
                 if (Update.isRunning()) Update.abort();
                 _otaInProgress = false;
                 _otaUploadOwner = nullptr;
-                req->send(400, "application/json", "{\"ok\":false,\"error\":\"Firmware chunk rejected\"}");
+                req->send(400, "application/json", errorBody);
                 return;
             }
             _otaUploadOwner = nullptr;

@@ -61,7 +61,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261001j',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261001j');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261012a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261012a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="cfg-explore-note"><strong>Planning future hardware:</strong> amber-bordered tuning values are editable and save normally, but the ECU will not use them until their prerequisites are configured. Enable switches and choices for missing hardware stay locked, so exploring cannot arm a feature unexpectedly.</div>
     </div>
   </div>
-  <div id="lock-warn" class="error-banner" style="display:none">Warning: engine is running - config is locked. Stop the engine to edit (live editing requires Dev Mode enabled beforehand, from Tools while in STANDBY).</div>
+  <div id="lock-warn" class="error-banner" style="display:none">Warning: engine is running - config is locked. Stop the engine to edit (live editing requires Dev Mode enabled beforehand, from Tools while in STANDBY). <a data-ot-warning-link href="/index.html" style="color:inherit">Review engine state on Dashboard &rarr;</a></div>
 
   <section id="controller-overview" class="control-overview" style="display:none"></section>
   <div id="cfg-form"><p style="color:var(--dim);font-size:.85rem">Loading settings…</p></div>
@@ -390,7 +390,7 @@ document.addEventListener('click', async event => {
   if (!link || !_cfgDirty || event.defaultPrevented || event.button !== 0 ||
       event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target === '_blank') return;
   const url = new URL(link.href, location.href);
-  if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search)) return;
+  if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search) || window.OTIsSamePageWarningLink?.(link, url)) return;
   event.preventDefault();
   if (await OTDialog.confirm('This page has unsaved changes. Leave and discard them?',
       {title:'Unsaved changes', confirmText:'Discard and leave', danger:true})) {
@@ -2199,6 +2199,18 @@ function renderForm(preserveControllerOpenState = false) {
 // ── Cross-parameter inline validation warnings ────────────────
 // Called after renderForm() and after any field edit.
 // Reads values directly from the form inputs so they stay in sync.
+const INLINE_WARNING_DESTINATIONS = {
+  'warn-preignrpm':'/sequence.html#starter-target',
+  'warn-idlelimit':'#cf-di_tr', 'warn-n1-pullback-trip':'#cf-pb_n1e',
+  'warn-governor-zero':'#controller-overview', 'warn-standby-oil-rpm':'#cf-so_rl',
+  'warn-standby-oil-output':'#cf-so_fp', 'warn-standby-oil-device':'#cf-so_oid',
+  'warn-standby-oil-loop':'/controllers.html#controller-overview',
+  'warn-ab-main-fuel-floor':'#cf-ab_mo', 'warn-n2-pullback-trip':'#cf-pb_n2e',
+  'warn-n2-governor-trip':'#controller-overview', 'warn-n2-cluster-trip':'/system.html#cf-cl_n2',
+  'warn-prestart-egt-limit':'#cf-sf_hs', 'warn-tot-zero':'#cf-tot_limit',
+  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'#cf-oil_rm'
+};
+
 function runValidation() {
   // Helper: read a numeric value from a form field by SCHEMA key
   function fv(key) {
@@ -2399,11 +2411,13 @@ function runValidation() {
     if (!titleEl) return;
     // Avoid duplicate
     if (targetSection.querySelector('[data-warnkey="' + w.key + '"]')) return;
-    const div = document.createElement('div');
+    const div = document.createElement('a');
     div.className = 'cfg-inline-warn';
+    div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
+    div.setAttribute('data-ot-warning-link', '');
     div.setAttribute('data-warnkey', w.key);
-    div.style.cssText = 'font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
-    div.textContent = w.msg;
+    div.style.cssText = 'display:block;font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
+    div.textContent = w.msg + ' Review configuration →';
     titleEl.insertAdjacentElement('afterend', div);
     const group = targetSection.closest('.config-group');
     if (group) group.open = true;
@@ -3070,6 +3084,7 @@ window.applyData = function(d) {
       _clearDirty();
       applyView();
       hookValidation();
+      revealConfigDeepLink();
     }
     const saveButton = document.getElementById('btn-save');
     if (saveButton) saveButton.disabled = locked || !_cfgDirty;
@@ -4129,6 +4144,11 @@ function revealConfigDeepLink() {
   }
   if (group) group.open = true;
   if (protectionCard) protectionCard.open = true;
+  // System nests its configuration groups inside category details as well.
+  if (revealTarget.tagName === 'DETAILS') revealTarget.open = true;
+  for (let parent = revealTarget.parentElement; parent; parent = parent.parentElement) {
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  }
   section?.classList.remove('filter-hidden');
   field?.classList.remove('filter-hidden');
   document.querySelectorAll('.deep-link-target').forEach(el => el.classList.remove('deep-link-target'));

@@ -176,6 +176,8 @@ private:
     inline static uint8_t _nauInitStage = 0;
     inline static uint8_t _nauSelectedChannel = 255;
     inline static uint8_t _nauPendingRegistryIndex = 255;
+    inline static uint8_t _nauCalibratedChannels = 0;
+    inline static bool _nauDiscardNextSample = false;
     inline static uint32_t _nauInitMs = 0;
     inline static uint32_t _nauFailureLogMs = 0;
     inline static bool _needsConfigure = false;
@@ -419,66 +421,123 @@ private:
         _nauInitStage = 0;
         _nauSelectedChannel = 255;
         _nauPendingRegistryIndex = 255;
+        _nauCalibratedChannels = 0;
+        _nauDiscardNextSample = true;
+        for (uint8_t i = 0; i < _registry->inputCount; ++i)
+            if (_registry->inputs[i].driver == ChannelRegistry::I2cLoadCell)
+                _valid[i] = false;
         // Reset and power-up are intentionally non-blocking. The converter is
         // not considered healthy until power-ready and calibration complete.
-        if (!_writeReg(0x2A, 0x00, 0x01) ||
-            !_writeReg(0x2A, 0x00, 0x00) ||
-            !_writeReg(0x2A, 0x00, 0x06)) {
+        _nauInitMs = millis();
+        if (!_writeReg(0x2A, 0x00, 0x01)) {
             Serial.println("[I2C] NAU7802 reset/power-up write failed");
             _markMissing(0x2A, Nau7802);
             return;
         }
-        _nauInitStage = 1;
+        _nauInitStage = 1; // hold reset until a later control-loop tick
+    }
+
+    static void _failNauInit(const char* message) {
+        _logNauFailure(message);
+        _nauConfigured = false;
+        _nauInitStage = 0;
         _nauInitMs = millis();
+        _markMissing(0x2A, Nau7802);
     }
 
     static void _serviceNauInit() {
-        if (!_nauInitStage || !_present(0x2A, Nau7802)) return;
+        if (!_present(0x2A, Nau7802)) return;
         const ChannelRegistry::Channel* chosen = _nauChannel();
         if (!chosen) { _nauInitStage = 0; return; }
-        uint8_t pu = 0;
-        if (!_readReg(0x2A, 0x00, pu)) {
-            Serial.println("[I2C] NAU7802 power/status read failed");
-            _markMissing(0x2A, Nau7802);
+        if (!_nauInitStage) {
+            if (!_nauConfigured && millis() - _nauInitMs >= 100UL)
+                _beginNauConfiguration();
             return;
         }
         if (_nauInitStage == 1) {
-            if (!(pu & 0x08U)) {
-                if (millis() - _nauInitMs > 250UL) {
-                    Serial.printf("[I2C] NAU7802 power-ready timeout (PU=0x%02X)\n", pu);
-                    _markMissing(0x2A, Nau7802);
-                }
-                return;
-            }
-            const uint8_t ctrl2 = (uint8_t)((chosen->deviceChannel ? 0x80 : 0) |
-                                  (_rateCode(chosen->loadCellRate) << 4));
-            if (!_writeReg(0x2A, 0x01, (uint8_t)(0x20 | _gainCode(chosen->loadCellGain))) ||
-                !_writeReg(0x2A, 0x02, (uint8_t)(ctrl2 | 0x04)) ||
-                !_writeReg(0x2A, 0x00, 0x16)) {
-                Serial.println("[I2C] NAU7802 gain/rate/calibration write failed");
-                _markMissing(0x2A, Nau7802);
+            if (millis() - _nauInitMs < 1UL) return;
+            if (!_writeReg(0x2A, 0x00, 0x02)) {
+                _failNauInit("[I2C] NAU7802 reset release failed");
                 return;
             }
             _nauInitStage = 2;
             _nauInitMs = millis();
             return;
         }
-        uint8_t ctrl2 = 0;
-        if (!_readReg(0x2A, 0x02, ctrl2)) {
-            Serial.println("[I2C] NAU7802 calibration status read failed");
-            _markMissing(0x2A, Nau7802);
+        if (_nauInitStage == 2) {
+            uint8_t pu = 0;
+            if (!_readReg(0x2A, 0x00, pu)) {
+                _failNauInit("[I2C] NAU7802 power/status read failed");
+                return;
+            }
+            if (!(pu & 0x08U)) {
+                if (millis() - _nauInitMs > 250UL) {
+                    _failNauInit("[I2C] NAU7802 power-ready timeout");
+                }
+                return;
+            }
+            const uint8_t ctrl2 = (uint8_t)((chosen->deviceChannel ? 0x80 : 0) |
+                                  (_rateCode(chosen->loadCellRate) << 4));
+            // 3.0 V excitation leaves the required 0.3 V LDO headroom on a
+            // 3.3 V ESP32 bus. Adafruit #4538 connects E+ to this AVDD output.
+            // Configure the ADC chopper clock before starting conversion.
+            if (!_writeReg(0x2A, 0x01, (uint8_t)(0x28 | _gainCode(chosen->loadCellGain))) ||
+                !_writeReg(0x2A, 0x15, 0x30) ||
+                !_writeReg(0x2A, 0x1B, 0x00) ||
+                !_writeReg(0x2A, 0x02, ctrl2) ||
+                !_writeReg(0x2A, 0x00, 0x96)) {
+                _failNauInit("[I2C] NAU7802 analog setup write failed");
+                return;
+            }
+            _nauSelectedChannel = chosen->deviceChannel;
+            _nauInitStage = 3;
+            _nauInitMs = millis();
             return;
         }
-        if (ctrl2 & 0x08U) {
-            Serial.printf("[I2C] NAU7802 internal calibration error (CTRL2=0x%02X)\n", ctrl2);
-            _markMissing(0x2A, Nau7802);
-        } else if (!(ctrl2 & 0x04U)) {
+        if (_nauInitStage == 3) {
+            // Allow the analog supply, PGA and conversion filter to settle
+            // without blocking the engine loop, then calibrate the AFE.
+            if (millis() - _nauInitMs < 600UL) return;
+            const uint8_t ctrl2 = (uint8_t)((_nauSelectedChannel ? 0x80 : 0) |
+                                  (_rateCode(chosen->loadCellRate) << 4) | 0x04);
+            if (!_writeReg(0x2A, 0x02, ctrl2)) {
+                _failNauInit("[I2C] NAU7802 calibration start failed");
+                return;
+            }
+            _nauInitStage = 4;
+            _nauInitMs = millis();
+            return;
+        }
+        uint8_t ctrl2 = 0;
+        if (!_readReg(0x2A, 0x02, ctrl2)) {
+            _failNauInit("[I2C] NAU7802 calibration status read failed");
+            return;
+        }
+        if (ctrl2 & 0x04U) {
+            if (millis() - _nauInitMs > 1000UL)
+                _failNauInit("[I2C] NAU7802 calibration timeout");
+        } else if (ctrl2 & 0x08U) {
+            _failNauInit("[I2C] NAU7802 internal calibration error");
+        } else {
+            _nauCalibratedChannels |= (uint8_t)(1U << _nauSelectedChannel);
+            // Each channel has its own AFE coefficients. Calibrate every
+            // assigned bridge once before exposing either as a valid input.
+            for (uint8_t i = 0; i < _registry->inputCount; ++i) {
+                const auto& c = _registry->inputs[i];
+                if (!c.installed || c.driver != ChannelRegistry::I2cLoadCell ||
+                    (_nauCalibratedChannels & (1U << c.deviceChannel))) continue;
+                const uint8_t next = (uint8_t)((c.deviceChannel ? 0x80 : 0) |
+                                     (_rateCode(chosen->loadCellRate) << 4) | 0x04);
+                if (!_writeReg(0x2A, 0x02, next)) {
+                    _failNauInit("[I2C] NAU7802 second-channel calibration failed");
+                    return;
+                }
+                _nauSelectedChannel = c.deviceChannel;
+                _nauInitMs = millis();
+                return;
+            }
             _nauConfigured = true;
-            _nauSelectedChannel = chosen->deviceChannel;
             _nauInitStage = 0;
-        } else if (millis() - _nauInitMs > 1000UL) {
-            Serial.printf("[I2C] NAU7802 calibration timeout (CTRL2=0x%02X)\n", ctrl2);
-            _markMissing(0x2A, Nau7802);
         }
     }
 
@@ -567,6 +626,7 @@ private:
                 } else {
                     _nauSelectedChannel = c.deviceChannel;
                     _nauPendingRegistryIndex = i;
+                    _nauDiscardNextSample = true;
                 }
                 // The first conversion after switching channels may belong to
                 // the previous input. Wait for this channel's next ready sample.
@@ -590,6 +650,10 @@ private:
                     raw = ((int32_t)Wire.read() << 16) |
                           ((int32_t)Wire.read() << 8) | Wire.read();
                     if (raw & 0x00800000L) raw |= 0xFF000000L;
+                    if (_nauDiscardNextSample) {
+                        _nauDiscardNextSample = false;
+                        return;
+                    }
                     float forceN = (raw - c.loadCellZero) * c.loadCellNPerCount;
                     float physical = !strcmp(c.role, "torque") ? forceN * c.leverArmM : forceN;
                     _values[i] = _sequence[i]

@@ -41,7 +41,7 @@
 #include "esp_timer.h"     // synchronized dual-pickup phase stimulus (tester only)
 #include "driver/gpio.h"
 
-static const char* OTBENCH_VER = "0.10";
+static const char* OTBENCH_VER = "0.11";
 
 // ── Signal kinds ─────────────────────────────────────────────
 enum Kind {
@@ -124,6 +124,9 @@ static volatile uint8_t g_i2cRegs[32] = {};
 static volatile uint8_t g_i2cPhase = 0;
 static volatile uint16_t g_tlaRaw = 2048;
 static volatile int32_t g_nauRaw = 0;
+static volatile uint32_t g_nauAnalogMs = 0, g_nauCalMs = 0;
+static volatile uint8_t g_nauCalMask = 0;
+static volatile bool g_nauInitOk = false;
 static constexpr int I2C_EMU_SDA = 13;
 static constexpr int I2C_EMU_SCL = 14;
 
@@ -146,15 +149,25 @@ static void i2cEmuReceive(int count) {
         while (count-- > 0 && Wire.available()) {
             uint8_t value = Wire.read();
             const uint8_t writtenReg = g_i2cReg;
-            if (g_i2cEmuMode == I2C_EMU_NAU7802 && writtenReg == 0x02)
-                value &= (uint8_t)~0x04U;  // finish internal calibration immediately
+            if (g_i2cEmuMode == I2C_EMU_NAU7802) {
+                if (writtenReg == 0x00 && (value & 0x01)) {
+                    memset((void*)g_i2cRegs, 0, sizeof(g_i2cRegs));
+                    g_nauCalMask = 0;
+                    g_nauInitOk = false;
+                }
+                if (writtenReg == 0x00 && (value & 0x84) == 0x84 &&
+                    (g_i2cRegs[0] & 0x84) != 0x84) g_nauAnalogMs = millis();
+                if (writtenReg == 0x02 && (value & 0x04)) {
+                    g_nauCalMs = millis();
+                    g_nauInitOk = (g_i2cRegs[0] & 0x96) == 0x96 &&
+                        (g_i2cRegs[1] & 0x38) == 0x28 &&
+                        g_i2cRegs[0x15] == 0x30 &&
+                        (uint32_t)(millis() - g_nauAnalogMs) >= 600;
+                    if (!g_nauInitOk) value |= 0x08; // CAL_ERR
+                }
+            }
             g_i2cRegs[g_i2cReg & 0x1F] = value;
             g_i2cReg = (uint8_t)(g_i2cReg + 1U);
-        }
-        if (g_i2cEmuMode == I2C_EMU_NAU7802) {
-            // Power-ready and conversion-ready remain asserted after reset or
-            // power-up writes; the ECU still performs its real init sequence.
-            g_i2cRegs[0x00] |= 0x28U;
         }
     }
     while (Wire.available()) Wire.read();
@@ -168,32 +181,28 @@ static void i2cEmuRequest() {
         return;
     }
     if (g_i2cEmuMode == I2C_EMU_NAU7802) {
-        // The classic ESP32 slave HAL dispatches receive/request callbacks
-        // from a task. Back-to-back STOP-separated master transactions can
-        // therefore expose the previous register pointer. Model the exact
-        // NAU7802 request order instead: three PU/status reads and one CTRL2
-        // calibration read during initialization, then each channel produces
-        // PU, 24-bit sample, and CTRL2 channel-select transactions.
-        if (g_i2cPhase < 3) {
-            Wire.write((uint8_t)0x28);  // PUR + CR
-            g_i2cPhase = (uint8_t)(g_i2cPhase + 1U);
-        } else if (g_i2cPhase == 3) {
-            Wire.write((uint8_t)0x00);  // calibration complete, no error
-            g_i2cPhase = 4;
-        } else {
-            const uint8_t operational = (uint8_t)((g_i2cPhase - 4) % 3);
-            if (operational == 0) {
-                Wire.write((uint8_t)0x28);  // conversion ready
-            } else if (operational == 1) {
-                const uint32_t raw = (uint32_t)g_nauRaw & 0x00FFFFFFUL;
-                Wire.write((uint8_t)(raw >> 16));
-                Wire.write((uint8_t)(raw >> 8));
-                Wire.write((uint8_t)raw);
-            } else {
-                Wire.write((uint8_t)0x00);  // channel-select CTRL2 read
-            }
-            g_i2cPhase = (uint8_t)(g_i2cPhase + 1U);
+        // Honor the addressed register rather than an assumed read order.
+        // Real-chip HIL must also qualify slave callback timing on each SoC.
+        if ((g_i2cRegs[2] & 0x04) && (uint32_t)(millis() - g_nauCalMs) >= 40) {
+            g_i2cRegs[2] &= (uint8_t)~0x04;
+            if (!(g_i2cRegs[2] & 0x08))
+                g_nauCalMask |= (uint8_t)(1U << ((g_i2cRegs[2] >> 7) & 1));
         }
+        if (g_i2cReg == 0x00) {
+            uint8_t status = g_i2cRegs[0] & (uint8_t)~0x28;
+            if (status & 0x02) status |= 0x08;
+            if (g_nauInitOk && !(g_i2cRegs[2] & 0x0C) &&
+                (g_nauCalMask & (1U << ((g_i2cRegs[2] >> 7) & 1)))) status |= 0x20;
+            Wire.write(status);
+        } else if (g_i2cReg == 0x12) {
+            const uint32_t raw = (uint32_t)g_nauRaw & 0x00FFFFFFUL;
+            Wire.write((uint8_t)(raw >> 16));
+            Wire.write((uint8_t)(raw >> 8));
+            Wire.write((uint8_t)raw);
+        } else {
+            Wire.write(g_i2cRegs[g_i2cReg & 0x1F]);
+        }
+        ++g_i2cPhase;
         return;
     }
     Wire.write(g_i2cRegs[g_i2cReg & 0x1F]);
@@ -221,13 +230,15 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
         g_tlaRaw = (uint16_t)constrain(value, 0L, 4095L);
     } else if (mode == I2C_EMU_NAU7802) {
         address = 0x2A;
-        g_i2cRegs[0x00] = 0x28;  // power-ready + conversion-ready
         g_nauRaw = constrain(value, -8388351L, 8388350L);
     } else {
         return false;
     }
     g_i2cReg = 0;
     g_i2cPhase = 0;
+    g_nauCalMask = 0;
+    g_nauInitOk = false;
+    g_nauAnalogMs = g_nauCalMs = 0;
     Wire.onReceive(i2cEmuReceive);
     Wire.onRequest(i2cEmuRequest);
     if (!Wire.begin(address, I2C_EMU_SDA, I2C_EMU_SCL, 400000)) return false;
@@ -885,11 +896,12 @@ static void handleLine(char* line) {
             return;
         }
         if (!strcasecmp(kind, "STATUS")) {
-            Serial.printf("OK mode=%u reg=%02X phase=%u tca_in=%02X tca_out=%02X tla=%u nau=%ld\n",
+            Serial.printf("OK mode=%u reg=%02X phase=%u tca_in=%02X tca_out=%02X tla=%u nau=%ld nau_init_ok=%u nau_cal=%02X\n",
                           (unsigned)g_i2cEmuMode, (unsigned)g_i2cReg,
                           (unsigned)g_i2cPhase,
                           (unsigned)g_i2cRegs[0], (unsigned)g_i2cRegs[1],
-                          (unsigned)g_tlaRaw, (long)g_nauRaw);
+                          (unsigned)g_tlaRaw, (long)g_nauRaw,
+                          (unsigned)g_nauInitOk, (unsigned)g_nauCalMask);
             return;
         }
         if (!val) {

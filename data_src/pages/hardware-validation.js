@@ -107,7 +107,7 @@ function checkPinConflicts() {
       const names = entries.map(e => e.label).join(' and ');
       return `⚠ Pin conflict: GPIO ${gpio} assigned to both ${names}`;
     });
-    banner.innerHTML = msgs.map(escapeHtmlText).join('<br>');
+    banner.innerHTML = msgs.map(msg => `<a data-ot-warning-link href="#hardware-inputs-panel" style="display:block;color:inherit">${escapeHtmlText(msg)} — Review GPIO assignments &rarr;</a>`).join('');
     banner.style.display = '';
     _pinConflictBlocking = true;
   } else {

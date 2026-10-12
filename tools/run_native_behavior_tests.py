@@ -124,6 +124,7 @@ def main() -> int:
              ["-DOT_PLATFORM_ESP32S3"]),
             ("feedback_control", [str(ROOT / "dev" / "host" / "feedback_control_behavior.cpp")], []),
             ("phase_registry", [str(ROOT / "dev" / "host" / "phase_registry_behavior.cpp")], []),
+            ("i2c_loadcell_behavior", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], []),
         ]
         for name, sources, extra_flags in tests:
             # Windows Application Control classifies the generic
