@@ -81,5 +81,4 @@ before calibration; HIL records startup validity and the two-channel calibration
 mask. Its old request-order shortcut could hide incorrect initialization.
 The bench platform is pinned to the same 55.03.37 core as the DUT.
 
-Hardware validation is still required, including classic ESP32 slave callback
-timing, physical bridge excitation and real loaded sensor readings.
+The two-chip fixture now passes discovery, analog setup/settling, both-channel calibration and force/torque conversion with the unchanged ECU driver. Classic slave replies require FIFO preload after receiving the register pointer; the tester now does this. Physical bridge excitation and real loaded Adafruit sensor readings still require the tester's board.

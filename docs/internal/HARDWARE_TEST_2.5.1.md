@@ -1,6 +1,6 @@
-# OpenTurbine 2.5.1 local hardware-test candidate
+# OpenTurbine 2.5.1 hardware-test record
 
-Based on main c7cb1fe, with local uncommitted changes. Hardware testing is now authorized and in progress. Nothing has been published.
+Based on main c7cb1fe. Publication requires completed local hardware checks and the canonical GitHub release workflow; the flasher selects the latest stable release's matched recommended package.
 
 ## Images
 
@@ -22,6 +22,7 @@ existing engine configuration before replacing the LittleFS image.
   of assuming a fixed request order. The focused NAU campaign now has its own
   correct result count; full I2C coverage includes an explicit startup check.
 - Firmware version 2.5.1; asset cache 20261012a. Intentional save reboot retained.
+- Large configuration reads can borrow the reserved transfer workspace if an owned heap snapshot allocation fails. Writes remain excluded until that response releases its lease.
 
 ## Bench sequence
 
@@ -64,8 +65,9 @@ HIL harness unit tests: 33 passing; native-runner unit tests: 7 passing.
 
 The full native suite is incomplete: Windows Application Control (4551) blocks
 feedback_control_behavior.exe and phase_registry.exe even after bounded retries.
-These are not reported as passes. Physical testing and real bridge accuracy,
-noise, excitation and slave callback timing remain unverified.
+These are not reported as local passes. The GitHub Windows runner executes the full required native and Go gates before publishing. Real Adafruit bridge accuracy, noise and physical excitation still require the tester's actual sensor board.
+
+Verification run 38306419486 passed the complete canonical required gate, generated-asset check, Windows setup-tool build, matched package build, and version/checksum verification. Its artifact upload failed because the verification branch name contained a slash. Artifact names now use run ID and attempt; the tagged release must still complete its own full workflow before being considered live.
 
 ## Hardware run in progress (2026-10-12)
 
@@ -82,5 +84,10 @@ Completed on Classic: twelve web files / 53 chunks with exact engine preservatio
 engine-file browser round trip (32,406 bytes); invalid restore rejection without
 Hardware changes; CSV and NDJSON log downloads; five physically measured output
 paths; overspeed and physical STOP isolate fuel/ignition and park the fuel servo.
-Further browser tests and the role swap are pending. Serial and test logs are
-under the artifact directory, with detailed safety results in dev/bench/results.
+Classic also passed System page saves and Sequence output persistence with exact restoration, live warning navigation, and a ten-minute ordinary-browsing interval (707 seconds total, 39 navigations, two persisted saves, no unexpected reboot). That long run used build a8cb1bd69f6b62fb. A later read-response fallback rebuild, ec44a23e86186b8d, passed live warning navigation and a second 407-chunk browser OTA with exact configuration preservation. After the S3 role swap, that rebuild passed final complete-engine-file download/restore and page checks: 247 seconds, 11 navigations, two persisted saves, settings restored and no unexpected reboot during browsing. Classic was left as DUT and S3 as tester.
+
+S3 DUT COM4 / Classic tester COM3 passed twelve web-file uploads (53 chunks), a 31,028-byte complete-engine-file round trip, CSV/NDJSON downloads, a 404-chunk browser OTA, and all five wired actuator paths (1,500 us fuel servo, full oil duty, shutoff, igniter and starter enable). Build b081c8b18065fb68 then passed a short browser session: 190 seconds total, 13 navigations, two persisted saves, settings restored, and no unexpected reboot. The original S3 engine file was restored before that session.
+
+The focused physical I2C campaign passed 3/3: NAU discovery, correct analog startup and both-channel calibration, and raw 102,000 counts converted to 2 Nm torque and 4 N thrust. Result: `dev/bench/results/i2c_devices_hil_20261012_235739.json`. The Classic slave must preload its FIFO after receiving the addressed register; filling it only in onRequest delivered stale bytes. Correcting the tester preload allowed the unchanged ECU driver to pass. The focused sensor campaign also omits unrelated tool/controller fast-setting patches. Initial failed runs are retained in the local artifact logs.
+
+Full flash backups for both chips and all serial/browser logs are under the ignored artifact directory. The wired emulator proves digital acquisition and conversion, not a physically loaded Adafruit bridge. The fixture does not provide independent powered-load or oscilloscope timing evidence.

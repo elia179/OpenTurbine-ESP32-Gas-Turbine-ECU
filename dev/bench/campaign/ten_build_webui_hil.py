@@ -770,7 +770,7 @@ class TenBuildRunner:
                 return False
         return True
 
-    def apply_profile(self, spec):
+    def apply_profile(self, spec, *, fast_config=True):
         expected = self.dut.hardware()
         # Classic streams this large document from its fixed receive workspace.
         # Let the GET response drain before reusing the same content in a POST;
@@ -817,7 +817,8 @@ class TenBuildRunner:
             time.sleep(1.0)
         if not verified:
             raise RuntimeError(f"/api/hardware verify failed for {spec['id']}; last={last}")
-        self.patch_fast_config()
+        if fast_config:
+            self.patch_fast_config()
         self.safe_standby()
 
     def check(self, checks, name: str, ok: bool, detail: str = "") -> bool:

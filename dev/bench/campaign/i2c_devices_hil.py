@@ -148,7 +148,7 @@ class I2cQualification:
 
     def run_nau_only(self):
         self.r.apply_profile({"id": "i2c_bus_only", "name": "I2C bus only",
-                              "build": self.bus_profile})
+                              "build": self.bus_profile}, fast_config=False)
         self.t._reset_board()
         self.t.ping()
         emu_reply = self.t.raw("I2CEMU NAU7802 102000")

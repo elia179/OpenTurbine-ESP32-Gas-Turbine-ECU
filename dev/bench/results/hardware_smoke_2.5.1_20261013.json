@@ -1,0 +1,71 @@
+{
+  "version": "2.5.1",
+  "recorded": "2026-10-13T00:09:17",
+  "scope": "Two-chip no-load fixture; actual Adafruit bridge, powered loads and independent timing remain field checks",
+  "classic_final": {
+    "passed": true,
+    "target": "esp32dev",
+    "version": "2.5.1",
+    "build_id": "ec44a23e86186b8d",
+    "duration_s": 247,
+    "navigations": 11,
+    "saves": 2,
+    "original_ramp_ms": 1000,
+    "restored": true,
+    "soak_boot_count": 338,
+    "final_boot_count": 339,
+    "failures": [],
+    "httpErrors": [],
+    "recovered_get_resets": 25,
+    "recovered_config_reads": 0
+  },
+  "classic_long_soak": {
+    "passed": true,
+    "target": "esp32dev",
+    "version": "2.5.1",
+    "build_id": "a8cb1bd69f6b62fb",
+    "duration_s": 707,
+    "navigations": 39,
+    "saves": 2,
+    "original_ramp_ms": 1000,
+    "restored": true,
+    "soak_boot_count": 331,
+    "final_boot_count": 332,
+    "failures": [],
+    "httpErrors": [],
+    "recovered_get_resets": 13,
+    "recovered_config_reads": 0
+  },
+  "s3_short_soak": {
+    "passed": true,
+    "target": "esp32s3dev",
+    "version": "2.5.1",
+    "build_id": "b081c8b18065fb68",
+    "duration_s": 190,
+    "navigations": 13,
+    "saves": 2,
+    "original_ramp_ms": 1000,
+    "restored": true,
+    "soak_boot_count": 95,
+    "final_boot_count": 95,
+    "failures": [],
+    "httpErrors": [],
+    "recovered_get_resets": 5,
+    "recovered_config_reads": 0
+  },
+  "nau_result": "i2c_devices_hil_20261012_235739.json",
+  "classic_safety_result": "classic_safety_hil_20261012_224740.json",
+  "wired_outputs": {
+    "classic": 5,
+    "s3": 5
+  },
+  "browser_ota_chunks": {
+    "classic": 407,
+    "s3": 404
+  },
+  "web_asset_chunks": {
+    "classic": 53,
+    "s3": 53
+  },
+  "initial_observation": "Pre-existing Classic 2.5.0 browser OTA rejected after 257 chunks; root cause unconfirmed. Candidate OTA passes after USB installation."
+}

@@ -129,6 +129,7 @@ static volatile uint8_t g_nauCalMask = 0;
 static volatile bool g_nauInitOk = false;
 static constexpr int I2C_EMU_SDA = 13;
 static constexpr int I2C_EMU_SCL = 14;
+static void preloadNauReply();
 
 static void i2cEmuReceive(int count) {
     if (count <= 0 || !Wire.available()) return;
@@ -171,16 +172,12 @@ static void i2cEmuReceive(int count) {
         }
     }
     while (Wire.available()) Wire.read();
+    if (g_i2cEmuMode == I2C_EMU_NAU7802) preloadNauReply();
 }
 
-static void i2cEmuRequest() {
-    if (g_i2cEmuMode == I2C_EMU_TLA2528 && g_i2cReg == 0x11) {
-        const uint16_t wireValue = (uint16_t)(g_tlaRaw & 0x0FFFU) << 4;
-        Wire.write((uint8_t)(wireValue >> 8));
-        Wire.write((uint8_t)wireValue);
-        return;
-    }
-    if (g_i2cEmuMode == I2C_EMU_NAU7802) {
+static void preloadNauReply() {
+        uint8_t reply[3];
+        size_t length = 1;
         // Honor the addressed register rather than an assumed read order.
         // Real-chip HIL must also qualify slave callback timing on each SoC.
         if ((g_i2cRegs[2] & 0x04) && (uint32_t)(millis() - g_nauCalMs) >= 40) {
@@ -193,15 +190,29 @@ static void i2cEmuRequest() {
             if (status & 0x02) status |= 0x08;
             if (g_nauInitOk && !(g_i2cRegs[2] & 0x0C) &&
                 (g_nauCalMask & (1U << ((g_i2cRegs[2] >> 7) & 1)))) status |= 0x20;
-            Wire.write(status);
+            reply[0] = status;
         } else if (g_i2cReg == 0x12) {
             const uint32_t raw = (uint32_t)g_nauRaw & 0x00FFFFFFUL;
-            Wire.write((uint8_t)(raw >> 16));
-            Wire.write((uint8_t)(raw >> 8));
-            Wire.write((uint8_t)raw);
+            reply[0] = (uint8_t)(raw >> 16);
+            reply[1] = (uint8_t)(raw >> 8);
+            reply[2] = (uint8_t)raw;
+            length = 3;
         } else {
-            Wire.write(g_i2cRegs[g_i2cReg & 0x1F]);
+            reply[0] = g_i2cRegs[g_i2cReg & 0x1F];
         }
+        // Classic ESP32 must preload its slave FIFO before the read address;
+        // filling it in onRequest delivers the previous register's bytes.
+        Wire.slaveWrite(reply, length);
+}
+
+static void i2cEmuRequest() {
+    if (g_i2cEmuMode == I2C_EMU_TLA2528 && g_i2cReg == 0x11) {
+        const uint16_t wireValue = (uint16_t)(g_tlaRaw & 0x0FFFU) << 4;
+        Wire.write((uint8_t)(wireValue >> 8));
+        Wire.write((uint8_t)wireValue);
+        return;
+    }
+    if (g_i2cEmuMode == I2C_EMU_NAU7802) {
         ++g_i2cPhase;
         return;
     }
@@ -243,6 +254,7 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
     Wire.onRequest(i2cEmuRequest);
     if (!Wire.begin(address, I2C_EMU_SDA, I2C_EMU_SCL, 400000)) return false;
     g_i2cEmuMode = mode;
+    if (mode == I2C_EMU_NAU7802) preloadNauReply();
     return true;
 }
 #endif
