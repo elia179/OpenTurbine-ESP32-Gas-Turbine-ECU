@@ -111,7 +111,16 @@ Past-session previews could race: selecting a second run before the first respon
 
 The full pre-hardware software/package gate passed at `a8626fb29488f0254c4e1de9805eaf7a6dfdcf57` in [run 38363101058](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38363101058), including all 20 UI programs. This result precedes the CRLF/additional-chart follow-up; publication was skipped.
 
+## Preview refresh and readable download errors
+
+The Session Preview Refresh button promised to reload the selected session but always fetched the current one. Remember the selected past-run identity and refresh that run; normal tab initialization still selects the current session. Preserve the selected identity after an error so Refresh can retry it.
+
+Log downloads previously displayed raw JSON error bodies. The shared response checker now extracts the ECU's error/reason text, preserves plain-text errors, and carries the HTTP status. Missing past sessions retain the not-found message; a busy/locked recorder displays its actual explanation, and connection failures explain how to retry instead of falsely claiming the file is missing.
+
+The source and packaged browser regression clicks the real Refresh button and verifies it requests the selected run, clicks Event NDJSON and verifies the application dialog contains the human-readable 423 explanation, and verifies 503 current/past previews report the recorder's busy message. Refreshing after a current-preview failure requests the current file again. The focused browser regression, all 45 pre-hardware UX groups, all 61 UI smoke checks and public-content validation pass locally.
+
 ## Sources
+
 
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

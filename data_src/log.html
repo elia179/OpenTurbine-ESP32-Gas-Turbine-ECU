@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div style="margin-top:.75rem">
       <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
         <span style="font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em">Session Preview</span>
-        <button onclick="loadSessionPreview()" style="font-size:.72rem;padding:.25rem .75rem" title="Reload the selected session preview and chart.">Refresh</button>
+        <button id="session-preview-refresh" onclick="refreshSessionPreview()" style="font-size:.72rem;padding:.25rem .75rem" title="Reload the selected session preview and chart.">Refresh</button>
         <span id="session-preview-msg" style="font-size:.72rem;color:var(--dim)"></span>
       </div>
 
@@ -613,7 +613,7 @@ function downloadLog(fmt) {
   const url  = fmt === 'csv' ? '/api/log/csv' : '/api/log/raw';
   const name = fmt === 'csv' ? 'event_log.csv' : 'event_log.ndjson';
   fetch(url).then(async r => {
-    if (!r.ok) throw new Error(await r.text() || ('HTTP ' + r.status));
+    await assertOkResponse(r, 'Log download failed');
     return r.blob();
   }).then(b => {
     downloadLogBlob(b, name);
@@ -648,10 +648,18 @@ function cancelClear() {
   _clearTarget = null;
 }
 
-async function assertOkResponse(r) {
+async function assertOkResponse(r, fallback = '') {
   if (r.ok) return;
   const body = await r.text().catch(() => '');
-  throw new Error(body || ('HTTP ' + r.status));
+  let message = body;
+  try {
+    const details = JSON.parse(body);
+    message = typeof details?.error === 'string' ? details.error
+      : typeof details?.reason === 'string' ? details.reason : '';
+  } catch (_) {}
+  const error = new Error(message || fallback || ('Request failed (HTTP ' + r.status + ')'));
+  error.status = r.status;
+  throw error;
 }
 
 async function waitForEventLogClear() {
@@ -944,7 +952,7 @@ function saveSessionCfg() {
 
 function downloadSessionLog() {
   fetch('/api/session/log').then(async r => {
-    if (!r.ok) throw new Error(await r.text() || 'No session log available yet');
+    await assertOkResponse(r, 'No session log available yet');
     return r.blob();
   }).then(b => {
     downloadLogBlob(b, 'session_' + Date.now() + '.csv');
@@ -955,6 +963,7 @@ function downloadSessionLog() {
 let _sessionHeaders = [];
 let _sessionRows    = [];
 let _sessionPreviewRequest = 0;
+let _sessionPreviewRun = null;
 
 function clearSessionPreview(message = '') {
   _sessionHeaders = [];
@@ -1000,7 +1009,12 @@ function renderSessionCsvPreview(csv, labelPrefix = '') {
   return true;
 }
 
+function refreshSessionPreview() {
+  return _sessionPreviewRun === null ? loadSessionPreview() : previewSession(_sessionPreviewRun);
+}
+
 function loadSessionPreview() {
+  _sessionPreviewRun = null;
   const request = ++_sessionPreviewRequest;
   const msg   = document.getElementById('session-preview-msg');
   const wrap  = document.getElementById('session-preview-wrap');
@@ -1010,7 +1024,7 @@ function loadSessionPreview() {
   if (empty) empty.style.display = 'none';
 
   return fetch('/api/session/log').then(async r => {
-    if (!r.ok) throw new Error(await r.text() || 'no log');
+    await assertOkResponse(r, 'No session log available yet');
     return r.text();
   }).then(csv => {
     const rows = Math.max(0, csv.trim().split('\n').filter(line => line.trim()).length - 1);
@@ -1025,14 +1039,19 @@ function loadSessionPreview() {
     }
   }).catch(e => {
     const err = e && e.message ? e.message : '';
+    const standby = e?.status === 423 || err.includes('STANDBY');
+    const missing = e?.status === 404;
     const rowEl = document.getElementById('session-rows');
     const download = document.getElementById('session-current-download');
-    if (rowEl) rowEl.textContent = err.includes('STANDBY')
+    if (rowEl) rowEl.textContent = standby
       ? 'Current session log available after STANDBY'
-      : 'No current session log; use Past Sessions above';
+      : missing ? 'No current session log; use Past Sessions above'
+      : 'Current session could not be loaded. Press Refresh to retry.';
     if (download) download.disabled = true;
     if (request === _sessionPreviewRequest)
-      clearSessionPreview(err.includes('STANDBY') ? 'Session preview available after STANDBY' : '');
+      clearSessionPreview(standby ? 'Session preview available after STANDBY'
+        : missing ? '' : e?.status ? err
+        : 'Could not load the current session. Check the ECU connection and press Refresh.');
   });
 }
 
@@ -1261,7 +1280,7 @@ function loadSessionList() {
 
 function downloadSession(run) {
   fetch('/api/session/log?run=' + run).then(async r => {
-    if (!r.ok) throw new Error(await r.text() || ('Run #' + run + ' is not available'));
+    await assertOkResponse(r, 'Run #' + run + ' is not available');
     return r.blob();
   }).then(b => {
     downloadLogBlob(b, 'session_' + run + '.csv');
@@ -1269,6 +1288,7 @@ function downloadSession(run) {
 }
 
 function previewSession(run) {
+  _sessionPreviewRun = run;
   const request = ++_sessionPreviewRequest;
   const msg   = document.getElementById('session-preview-msg');
   const wrap  = document.getElementById('session-preview-wrap');
@@ -1277,8 +1297,8 @@ function previewSession(run) {
   if (wrap)  wrap.style.display = 'none';
   if (empty) empty.style.display = 'none';
 
-  fetch('/api/session/log?run=' + run).then(async r => {
-    if (!r.ok) throw new Error(await r.text() || 'not found');
+  return fetch('/api/session/log?run=' + run).then(async r => {
+    await assertOkResponse(r, 'Run #' + run + ' is not available');
     return r.text();
   }).then(csv => {
     if (request !== _sessionPreviewRequest) return;
@@ -1289,7 +1309,10 @@ function previewSession(run) {
   }).catch(e => {
     if (request !== _sessionPreviewRequest) return;
     const err = e && e.message ? e.message : '';
-    clearSessionPreview(err.includes('STANDBY') ? 'Run #' + run + ' available after STANDBY' : 'Run #' + run + ' not found');
+    const message = e?.status === 404 ? 'Run #' + run + ' not found'
+      : e?.status ? 'Run #' + run + ': ' + err
+      : 'Could not load run #' + run + '. Check the ECU connection and press Refresh.';
+    clearSessionPreview(message);
   });
 }
 

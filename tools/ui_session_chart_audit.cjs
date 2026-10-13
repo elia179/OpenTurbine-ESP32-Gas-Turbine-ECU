@@ -49,7 +49,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         const delayed=async route=>{started();await held;await route.fulfill({status,contentType:'text/plain',body:status===200?'t_ms,tot_c\n0,111\n100,112':'Session not found'});};
         await page.route('**/api/session/log?run=41',delayed);
         const response=page.waitForResponse(r=>r.url().endsWith('/api/session/log?run=41'));
-        await page.evaluate(()=>previewSession(41));await seen;
+        await page.evaluate(()=>{previewSession(41);});await seen;
         await page.evaluate(()=>previewSession(42));
         await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='Run #42 - 2 rows');
         release();await response;
@@ -60,6 +60,28 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         assert.equal(await page.evaluate(()=>_sessionRows[0][1]),'650');
         await page.unroute('**/api/session/log?run=41',delayed);
       }
+      const refresh=page.waitForRequest(r=>r.url().endsWith('/api/session/log?run=42'));
+      await page.locator('#session-preview-refresh').click();await refresh;
+      await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='Run #42 - 2 rows');
+      const rejection=async route=>route.fulfill({status:423,contentType:'application/json',body:JSON.stringify({error:'Raw log download requires STANDBY with standby logging disabled'})});
+      await page.route('**/api/log/raw',rejection);
+      await page.getByRole('button',{name:'Event NDJSON',exact:true}).click();
+      await page.locator('#ot-dialog-message').waitFor({state:'visible'});
+      assert.equal(await page.locator('#ot-dialog-message').textContent(),'Raw log download requires STANDBY with standby logging disabled');
+      await page.getByRole('button',{name:'OK',exact:true}).click();await page.unroute('**/api/log/raw',rejection);
+      const unavailable=async route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Recorder is busy. Try again.'})});
+      await page.route('**/api/session/log?run=42',unavailable);
+      await page.locator('#session-preview-refresh').click();
+      await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='Run #42: Recorder is busy. Try again.');
+      await page.unroute('**/api/session/log?run=42',unavailable);
+      await page.route('**/api/session/log',unavailable);
+      await page.evaluate(()=>loadSessionPreview());
+      assert.equal(await page.locator('#session-preview-msg').textContent(),'Recorder is busy. Try again.');
+      assert.match(await page.locator('#session-rows').textContent(),/could not be loaded.*Refresh/);
+      await page.unroute('**/api/session/log',unavailable);
+      const currentRefresh=page.waitForRequest(r=>r.url().endsWith('/api/session/log'));
+      await page.locator('#session-preview-refresh').click();await currentRefresh;
+      await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='2 rows');
       const large=await page.evaluate(()=>{
         const headers=['t_ms','n1_rpm','tot_c','n2_rpm','oil_bar','thr_pct','tit_c','oil_temp_c','batt_v','fuel_press_bar','glow_pct','fuel_flow'];
         for(const [,cb] of CHART_COLS) document.getElementById(cb).checked=true;
