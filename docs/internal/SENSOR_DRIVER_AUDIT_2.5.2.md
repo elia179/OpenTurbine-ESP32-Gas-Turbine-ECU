@@ -59,13 +59,13 @@ The new real-browser audit clicks the controls, verifies HTTP persistence and re
 
 Local verification passed all 19 browser audit programs (the full runner passed its first 18; the final smoke test passed after its RC fixture was updated to provide the required receiver-valid flag), all 316 safety checks, public-content validation, and Classic/S3 filesystem builds and budgets. The mobile HX711 form was visually inspected. The extra generated Calibration payload is approximately 270 compressed bytes.
 
-## Sources
-
 ## TLA2528 calibration reference follow-up
 
 The firmware already uses the configured TLA2528 reference, but older Calibration controls converted counts with a fixed 3300 mV. This made a 5 V ADC display incorrect voltages and caused entered voltage thresholds and datasheet values to save the wrong raw counts or sensitivity. Registry calibration now resolves the selected channel's ADC reference for voltage displays/conversions, threshold input limits, P1/P2 factory voltage values, pressure/flow defaults, oil datasheet sensitivity, battery divider and analog torque scale. The native ADC still uses 3300 mV. Legacy actuator-current controls retain their native ADC path.
 
 The browser audit now exercises actual 5 V TLA switch/flame saves, a 0.5–4.5 V pressure sensor, battery divider and analog torque coefficients, plus oil datasheet slope and native-reference invariance. The I2C source audit was updated for the shared HX711/NAU/analog wizard; its former literal NAU-only heading no longer exists.
+
+At code commit `2c0ea64`, the complete local runner passes all 19 UI audit programs, alongside 316 safety checks, the I2C/load-cell source audit, public-content validation, and both filesystem builds/budgets. The final full build/package gate is [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672); its result was still pending when this note was written. The preceding run failed only the obsolete NAU-only heading assertion, which is corrected in this commit. No firmware source was changed by the calibration wizard/reference follow-ups.
 
 ## Sources
 
