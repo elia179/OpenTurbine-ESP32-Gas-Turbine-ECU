@@ -125,6 +125,18 @@ The chart used row positions for x coordinates even though its axis was labelled
 
 Unchecked traces, single-row logs and all-invalid selected readings previously left a blank canvas. Provide accessible status text explaining selection or the missing data, hide the unused canvas, and restore it when the user selects a valid trace. Source and packaged regressions verify irregular timing, timer rollover, each empty state and recovery by checking a trace.
 
+## Restore and operator calibration recovery
+
+The engine-file restore flow handled POST failures but not FileReader errors/abort. Those browser events left the restore button disabled, the selected file retained and the state stuck on Restoring. A shared failure handler now unlocks retry and clears the file input for both asynchronous read errors/abort and synchronous read exceptions. A browser fault-injection regression reproduces the old disabled-button failure and verifies that selecting the same file afterward sends exactly one complete engine file. Unreadable files send no request. Source and packaged pages pass.
+
+The routine mode/status refresh also re-enabled the restore button during a pending restore. A held-response browser regression reproduced this independently. Track the active restore attempt, retain the disabled button across status refreshes and reject a second file selection until the attempt finishes. Failures release the busy state while retaining the engine-mode lock; success remains locked until reboot. The held response and repeated selection still produce exactly one POST.
+
+Throttle/idle recaptures retained the previous endpoint when a new capture failed, and a telemetry-reported ADC/servo type change re-labelled already captured values instead of invalidating them. A shared endpoint capture clears the attempted endpoint, serializes each input's captures, locks Save while sampling and restores controls/status on failure. Type changes clear both endpoints and invalidate any capture still in progress. Healthy endpoint averaging and 2%/1% margins are unchanged.
+
+The additional browser audit verifies throttle and idle minimum/maximum capture, failure after valid captures, locked controls during the one-second window, successful fresh retry and ADC-to-servo change during capture. It runs against source and packaged mobile pages and is automatically included as the twenty-first UI audit program. All 316 safety checks, the I2C source audit and public-content validation pass locally.
+
+The preceding full software/package gate passed at `e3433e52208c4d6534383178f5338e01f14c9d21` in [run 38382696073](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38382696073), including the chart timing and empty-state changes. Publication was skipped; this result precedes the restore/operator capture recovery changes.
+
 ## Sources
 
 

@@ -409,8 +409,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="wizard-title">Idle Input Min / Max Calibration</div>
       <div class="wizard-steps" id="idle-wiz-steps">Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving moves the usable minimum inward by 2% of the captured span and the maximum inward by 1%.</div>
       <div class="wiz-buttons" style="margin-bottom:.4rem">
-        <button onclick="captureIdleMin()">Capture Min</button>
-        <button onclick="captureIdleMax()">Capture Max</button>
+        <button id="btn-idle-cap-min" onclick="captureIdleMin()">Capture Min</button>
+        <button id="btn-idle-cap-max" onclick="captureIdleMax()">Capture Max</button>
         <button onclick="saveIdle()" id="btn-idle-save" disabled>Save</button>
       </div>
       <div id="idle-status" style="font-size:.75rem;color:var(--dim)"></div>
@@ -554,8 +554,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="wizard-title">Throttle Input Min / Max Calibration</div>
       <div class="wizard-steps" id="th-wiz-steps">Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving moves the usable minimum inward by 2% of the captured span and the maximum inward by 1%.</div>
       <div class="wiz-buttons" style="margin-bottom:.4rem">
-        <button onclick="captureThMin()">Capture Min</button>
-        <button onclick="captureThMax()">Capture Max</button>
+        <button id="btn-th-cap-min" onclick="captureThMin()">Capture Min</button>
+        <button id="btn-th-cap-max" onclick="captureThMax()">Capture Max</button>
         <button onclick="saveThrottle()" id="btn-th-save" disabled>Save</button>
       </div>
       <div id="th-status" style="font-size:.75rem;color:var(--dim)"></div>
@@ -711,6 +711,8 @@ let oilPts = [];
 let flameNoise = null;
 let thMin = null, thMax = null;
 let idleMin = null, idleMax = null;
+const _operatorCaptureBusy = {throttle:false, idle:false};
+const _operatorCaptureGeneration = {throttle:0, idle:0};
 let cfg = {};
 
 // Input types reported by firmware ('adc', 'servo', or 'none')
@@ -1038,7 +1040,10 @@ function applyInputTypeLabels(d) {
   const idleType = d.idle_input_type     ?? 'adc';
 
   if (thType !== throttleInputType) {
+    ++_operatorCaptureGeneration.throttle;
+    thMin = thMax = null;
     throttleInputType = thType;
+    renderThStatus();
     const isServo = thType === 'servo';
     setText('th-raw-label', isServo ? 'Servo signal' : 'ADC pin voltage');
     // Update calibration wizard hint
@@ -1052,7 +1057,10 @@ function applyInputTypeLabels(d) {
     if (thRow) thRow.style.display = thType === 'none' ? 'none' : '';
   }
   if (idleType !== idleInputType) {
+    ++_operatorCaptureGeneration.idle;
+    idleMin = idleMax = null;
     idleInputType = idleType;
+    renderIdleStatus();
     const isServo = idleType === 'servo';
     setText('idle-raw-label', isServo ? 'Servo signal' : 'ADC pin voltage');
     const steps = document.getElementById('idle-wiz-steps');
@@ -2069,20 +2077,42 @@ async function nextCalibrationFrame() {
   await new Promise(resolve => setTimeout(resolve, 340));
   return calibrationConnected() ? (live || {}) : {};
 }
-async function captureThMin() {
-  document.getElementById('th-status').textContent = 'Hold minimum for 1 second…';
-  const key = throttleInputType === 'servo' ? 'throttle_input_us' : 'throttle_input_raw';
-  try { thMin = await _captureInputAverage(key); } catch(e) { alert(e.message); return; }
-  document.getElementById('th-lo').textContent = inputReadingText(thMin, throttleInputType, 'throttle');
-  renderThStatus();
+async function captureOperatorEndpoint(role, maximum) {
+  if (_operatorCaptureBusy[role]) return;
+  const throttle = role === 'throttle', prefix = throttle ? 'th' : 'idle';
+  const type = throttle ? throttleInputType : idleInputType;
+  const generation = _operatorCaptureGeneration[role];
+  const render = throttle ? renderThStatus : renderIdleStatus;
+  const assign = value => {
+    if (throttle) { if (maximum) thMax=value; else thMin=value; }
+    else { if (maximum) idleMax=value; else idleMin=value; }
+  };
+  _operatorCaptureBusy[role] = true;
+  assign(null);
+  render();
+  const buttons = ['min','max'].map(end => document.getElementById('btn-'+prefix+'-cap-'+end));
+  buttons.forEach(button => button.disabled=true);
+  const status = document.getElementById(prefix+'-status');
+  status.textContent = 'Hold '+(maximum ? 'maximum' : 'minimum')+' for 1 second…';
+  let failure = '';
+  try {
+    if (!['adc','servo'].includes(type)) throw new Error('Input is not fitted. Configure it on Hardware before capturing.');
+    const value = await _captureInputAverage(role+'_input_'+(type === 'servo' ? 'us' : 'raw'));
+    if (generation !== _operatorCaptureGeneration[role]) throw new Error('Input type changed during capture. Capture both endpoints again.');
+    assign(value);
+    if (throttle) setText(maximum ? 'th-hi' : 'th-lo',inputReadingText(value,type,role));
+  } catch (error) {
+    failure = error.message;
+    alert(failure);
+  } finally {
+    _operatorCaptureBusy[role] = false;
+    buttons.forEach(button => button.disabled=false);
+    render();
+    if (failure) status.textContent = 'Capture failed. '+failure;
+  }
 }
-async function captureThMax() {
-  document.getElementById('th-status').textContent = 'Hold maximum for 1 second…';
-  const key = throttleInputType === 'servo' ? 'throttle_input_us' : 'throttle_input_raw';
-  try { thMax = await _captureInputAverage(key); } catch(e) { alert(e.message); return; }
-  document.getElementById('th-hi').textContent = inputReadingText(thMax, throttleInputType, 'throttle');
-  renderThStatus();
-}
+function captureThMin() { return captureOperatorEndpoint('throttle',false); }
+function captureThMax() { return captureOperatorEndpoint('throttle',true); }
 function renderThStatus() {
   let msg = '';
   if (thMin !== null) msg += `Min: ${inputReadingText(thMin, throttleInputType, 'throttle')}   `;
@@ -2092,7 +2122,7 @@ function renderThStatus() {
     msg += `  → proposed: ${inputReadingText(Math.round(thMin+span*.02), throttleInputType, 'throttle')}–${inputReadingText(Math.round(thMax-span*.01), throttleInputType, 'throttle')}`;
   }
   document.getElementById('th-status').textContent = msg;
-  document.getElementById('btn-th-save').disabled = thMin === null || thMax === null;
+  document.getElementById('btn-th-save').disabled = _operatorCaptureBusy.throttle || thMin === null || thMax === null;
 }
 function saveThrottle() {
   if (thMin === null || thMax === null) { alert('Capture both min and max first.'); return; }
@@ -2111,18 +2141,8 @@ function saveThrottle() {
 }
 
 // ── P1 / P2 zero calibration ─────────────────────────────────
-async function captureIdleMin() {
-  document.getElementById('idle-status').textContent = 'Hold minimum for 1 second…';
-  const key = idleInputType === 'servo' ? 'idle_input_us' : 'idle_input_raw';
-  try { idleMin = await _captureInputAverage(key); } catch(e) { alert(e.message); return; }
-  renderIdleStatus();
-}
-async function captureIdleMax() {
-  document.getElementById('idle-status').textContent = 'Hold maximum for 1 second…';
-  const key = idleInputType === 'servo' ? 'idle_input_us' : 'idle_input_raw';
-  try { idleMax = await _captureInputAverage(key); } catch(e) { alert(e.message); return; }
-  renderIdleStatus();
-}
+function captureIdleMin() { return captureOperatorEndpoint('idle',false); }
+function captureIdleMax() { return captureOperatorEndpoint('idle',true); }
 function renderIdleStatus() {
   let msg = '';
   if (idleMin !== null) msg += `Min: ${inputReadingText(idleMin, idleInputType, 'idle')}   `;
@@ -2132,7 +2152,7 @@ function renderIdleStatus() {
     msg += `  → proposed: ${inputReadingText(Math.round(idleMin+span*.02), idleInputType, 'idle')}–${inputReadingText(Math.round(idleMax-span*.01), idleInputType, 'idle')}`;
   }
   document.getElementById('idle-status').textContent = msg;
-  document.getElementById('btn-idle-save').disabled = idleMin === null || idleMax === null;
+  document.getElementById('btn-idle-save').disabled = _operatorCaptureBusy.idle || idleMin === null || idleMax === null;
 }
 function saveIdle() {
   if (idleMin === null || idleMax === null) { alert('Capture both min and max first.'); return; }

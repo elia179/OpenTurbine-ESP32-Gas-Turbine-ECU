@@ -1,3 +1,4 @@
+let _engineFileRestoreBusy = false;
 // ── Dev Mode toggle ───────────────────────────────────────────
 // ── Live sensor badge helpers ─────────────────────────────────
 // Map from field key → function that returns badge text from telemetry data
@@ -139,7 +140,7 @@ window.applyData = function(d) {
   const frBtn = document.getElementById('btn-factory-reset');
   if (frBtn) frBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
   const cfgRestoreBtn = document.getElementById('cfg-restore-btn');
-  if (cfgRestoreBtn) cfgRestoreBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+  if (cfgRestoreBtn) cfgRestoreBtn.disabled = _engineFileRestoreBusy || !['STANDBY', 'FAULT'].includes(runtimeMode);
 
   // Dev Mode button label
 };
@@ -341,6 +342,7 @@ window.backupConfig = backupConfig;
 async function restoreConfig(input) {
   const file = input.files[0];
   if (!file) return;
+  if (_engineFileRestoreBusy) { input.value = ''; return; }
   const msg = document.getElementById('cfg-backup-msg');
   const btn = document.getElementById('cfg-restore-btn');
   const state = document.getElementById('cfg-backup-state');
@@ -355,12 +357,29 @@ async function restoreConfig(input) {
     input.value = '';
     return;
   }
+  _engineFileRestoreBusy = true;
   if (btn) btn.disabled = true;
   if (state) {
     state.textContent = 'Restoring…';
     state.className   = 'tool-state active';
   }
+  const failRestore = message => {
+    _engineFileRestoreBusy = false;
+    if (state) {
+      state.textContent = 'Error';
+      state.className = 'tool-state fault';
+    }
+    if (msg) {
+      msg.textContent = 'Restore failed: ' + message;
+      msg.style.color = 'var(--red)';
+      msg.style.display = '';
+    }
+    if (btn) btn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+    input.value = '';
+  };
   const reader = new FileReader();
+  reader.onerror = () => failRestore('Could not read the engine file. Select the file again to retry.');
+  reader.onabort = () => failRestore('Reading the engine file was cancelled. Select the file again to retry.');
   reader.onload = ev => {
     const postRestore = async () => {
       const payload = compactEngineFileForRestore(ev.target.result);
@@ -417,21 +436,11 @@ async function restoreConfig(input) {
         throw new Error(d.error || 'Unknown error');
       }
     })
-    .catch(e => {
-      if (state) {
-        state.textContent = 'Error';
-        state.className   = 'tool-state fault';
-      }
-      if (msg) {
-        msg.textContent = 'Restore failed: ' + e.message;
-        msg.style.color = 'var(--red)';
-        msg.style.display = '';
-      }
-      if (btn) btn.disabled = false;
-    });
+    .catch(e => failRestore(e.message));
     input.value = '';
   };
-  reader.readAsText(file);
+  try { reader.readAsText(file); }
+  catch (_) { failRestore('Could not read the engine file. Select the file again to retry.'); }
 }
 window.restoreConfig = restoreConfig;
 

@@ -48,6 +48,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Position session chart readings by their actual timestamps, handle timer rollover, and explain empty chart selections, one-row logs and invalid readings.
 
+- Recover engine-file restore controls after browser file-read errors, cancellation or exceptions, allowing the same file to be selected again without sending unreadable data to the ECU.
+- Keep engine-file restore locked across telemetry updates until its attempt completes, preventing overlapping restores while a response or reboot is pending.
+- Clear failed throttle/idle endpoint recaptures, lock capture/save controls while averaging, and discard endpoints when the input type changes so old captures cannot be reused in different units.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
