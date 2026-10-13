@@ -823,11 +823,11 @@ function installedBrowser() {
     await page.goto(`${base}/calibration.html`);
     await page.waitForFunction(() => document.querySelector('#th-wiz-steps').textContent.includes('servo signal'));
     assert.match(await text(page, '#cal-th-raw'), /us|µs/);
-    await page.request.post(`${base}/__sim/data`, { data: { throttle_input_us: 1120, throttle_input_norm: 0.12 } });
+    await page.request.post(`${base}/__sim/data`, { data: { throttle_input_us: 1120, throttle_input_norm: 0.12, rc_throttle_valid: true } });
     await page.waitForFunction(() => document.querySelector('#cal-th-raw').textContent.includes('1120'));
     await page.locator('#throttle-cal-row button', { hasText: 'Capture Min' }).click();
     await page.waitForFunction(() => document.querySelector('#th-status')?.textContent.includes('Min: 1120'));
-    await page.request.post(`${base}/__sim/data`, { data: { throttle_input_us: 1880, throttle_input_norm: 0.88 } });
+    await page.request.post(`${base}/__sim/data`, { data: { throttle_input_us: 1880, throttle_input_norm: 0.88, rc_throttle_valid: true } });
     await page.waitForFunction(() => document.querySelector('#cal-th-raw').textContent.includes('1880'));
     await page.locator('#throttle-cal-row button', { hasText: 'Capture Max' }).click();
     await page.waitForFunction(() => document.querySelector('#th-status')?.textContent.includes('Max: 1880'));

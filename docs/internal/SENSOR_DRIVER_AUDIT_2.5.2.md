@@ -57,6 +57,8 @@ Analog thrust saves an ascending raw-count curve spanning 0–4095, extrapolated
 
 The new real-browser audit clicks the controls, verifies HTTP persistence and reload, rejects a missing HX711 lever arm and invalid/unhealthy samples, checks both analog polarities and loads above the known reference, exercises mobile layout, and preserves signed NAU7802 calibration behavior. Full development-branch verification is recorded below when complete. No sensor-board accuracy is implied by these browser tests.
 
+Local verification passed all 19 browser audit programs (the full runner passed its first 18; the final smoke test passed after its RC fixture was updated to provide the required receiver-valid flag), all 316 safety checks, public-content validation, and Classic/S3 filesystem builds and budgets. The mobile HX711 form was visually inspected. The extra generated Calibration payload is approximately 270 compressed bytes.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)
