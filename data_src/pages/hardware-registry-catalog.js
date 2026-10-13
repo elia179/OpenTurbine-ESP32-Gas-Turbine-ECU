@@ -713,10 +713,11 @@ function registryAnalogScaleEditor(direction, c, index) {
   }
   const unit = role === 'speed' ? 'RPM' : role === 'pressure' ? 'bar' : role === 'temperature' ? '°C' : role === 'flow' ? 'L/min' : role === 'current' ? 'A' : role === 'torque' ? 'Nm' : role === 'thrust' ? 'N' : 'unit';
   const zeroClass = registryFieldChangedClass(direction, index, 'analog_zero_mv');
+  const referenceMv = Number(c.driver) === 9 ? Number(c.i2c_reference_mv ?? 3300) : 3300;
   const scaleClass = `${registryFieldChangedClass(direction, index, 'analog_mv_per_unit')}${Number(c.analog_mv_per_unit ?? cal.analog_mv_per_unit) <= 0 ? ' field-error' : ''}`;
   const scaleDigits = role === 'speed' ? 4 : 3;
   const scaleStep = role === 'speed' ? '0.0001' : '0.001';
-  return `<div class="hw-field"><span class="hw-label">Zero offset (mV)</span><span class="hw-desc">Sensor output voltage at 0 ${escapeHtmlText(unit)}.</span><input class="${zeroClass}" type="number" min="0" max="3300" step="0.1" value="${registryFormatValue(c.analog_zero_mv ?? cal.analog_zero_mv)}" oninput="updateRegistryChannel('${direction}',${index},'analog_zero_mv',registryParseValue(this.value))"></div>
+  return `<div class="hw-field"><span class="hw-label">Zero offset (mV)</span><span class="hw-desc">Sensor output voltage at 0 ${escapeHtmlText(unit)}.</span><input class="${zeroClass}" type="number" min="0" max="${referenceMv}" step="0.1" value="${registryFormatValue(c.analog_zero_mv ?? cal.analog_zero_mv)}" oninput="updateRegistryChannel('${direction}',${index},'analog_zero_mv',registryParseValue(this.value))"></div>
           <div class="hw-field"><span class="hw-label">mV per ${escapeHtmlText(unit)}</span><span class="hw-desc">Physical value = (ADC mV - zero offset) / this factor.</span><input class="${scaleClass}" type="number" min="0.000001" step="${scaleStep}" value="${registryFormatValue(c.analog_mv_per_unit ?? cal.analog_mv_per_unit, scaleDigits)}" oninput="updateRegistryChannel('${direction}',${index},'analog_mv_per_unit',registryParseValue(this.value))"></div>`;
 }
 function registryTemperatureIsSpi(c) {

@@ -337,7 +337,10 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'phase_pulses_per_unit') value = Number(value);
   if (key === 'phase_zero_deg') value = Math.max(-180,Math.min(180,Number(value) || 0));
   if (key === 'phase_deg_per_nm') value = Number(value);
-  if (key === 'analog_zero_mv') value = Math.max(0, Math.min(3300, Number(value) || 0));
+  if (key === 'analog_zero_mv') {
+    const referenceMv = Number(c.driver) === 9 ? Number(c.i2c_reference_mv ?? 3300) : 3300;
+    value = Math.max(0, Math.min(referenceMv, Number(value) || 0));
+  }
   if (key === 'analog_mv_per_unit') value = Math.max(0.000001, Number(value) || 1);
   if (key === 'analog_divider') value = Math.max(1, Math.min(100, Number(value) || 1));
   if (key === 'ntc_beta' || key === 'ntc_r0' || key === 'ntc_r_fixed') value = Math.max(0.001, Number(value) || 1);

@@ -156,8 +156,31 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     });
     close(oilSlope,5000/4095/500);
     assert.equal(await page.evaluate(()=>adcMv(4095,{driver:1,i2c_reference_mv:5000})),3300);
+    const flowVisibility=await page.evaluate(()=>{
+      const hw={channel_registry:{inputs:[{id:'flow_tla',purpose:'fuel_flow',driver:9,
+        installed:true,i2c_address:16,device_channel:6}]}};
+      const original=cfg.hardware; cfg.hardware=hw;
+      const fallback=fuelFlowAnalogFromTelemetryOrHardware({has_fuel_flow:true});
+      cfg.hardware=original;
+      return {analog:hwFuelFlowAnalog(hw),fallback,
+        pulse:hwFuelFlowAnalog({channel_registry:{inputs:[{id:'flow_pulse',purpose:'fuel_flow',driver:2,pin:34}]}})};
+    });
+    assert.deepEqual(flowVisibility,{analog:true,fallback:true,pulse:false});
+    await page.goto(base+'/hardware.html');
+    await page.waitForFunction(()=>cfg?.channel_registry?.inputs?.some(c=>c.id==='tla_oil'));
+    const offset=page.locator('input[oninput*="\'input\',5,\'analog_zero_mv\'"]');
+    assert.equal(await offset.getAttribute('max'),'5000');
+    await offset.evaluate(el=>{el.value='4000';el.dispatchEvent(new Event('input',{bubbles:true}));});
+    assert.equal(await page.evaluate(()=>cfg.channel_registry.inputs[5].analog_zero_mv),4000);
+    await offset.evaluate(el=>{el.value='5501';el.dispatchEvent(new Event('input',{bubbles:true}));});
+    assert.equal(await page.evaluate(()=>cfg.channel_registry.inputs[5].analog_zero_mv),5000);
+    const nativeOffset=await page.evaluate(()=>{
+      const c=cfg.channel_registry.inputs[5];c.driver=1;c.pin=34;
+      updateRegistryChannel('input',5,'analog_zero_mv',4000);return c.analog_zero_mv;
+    });
+    assert.equal(nativeOffset,3300);
     assert.deepEqual(errors,[]);
-    console.log('Force calibration UI passed: actual wizard clicks and persisted/reloaded HX711 coefficients, required lever arm, invalid/unhealthy HX input rejection, native/TLA thrust curves, rising/falling polarity, above-reference loads, mobile layout, NAU regression and TLA 5 V thresholds/pressure/battery/torque/oil calibration.');
+    console.log('Force calibration UI passed: actual wizard clicks and persisted/reloaded HX711 coefficients, required lever arm, invalid/unhealthy HX input rejection, native/TLA thrust curves, rising/falling polarity, above-reference loads, mobile layout, NAU regression, TLA 5 V thresholds/pressure/battery/torque/oil calibration, fuel-flow visibility and Hardware offset editing.');
   } finally {await browser.close();}
   process.exit(0);
 })().catch(error=>{console.error(error.stack||error);process.exit(1);});

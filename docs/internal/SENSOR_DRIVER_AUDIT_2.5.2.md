@@ -67,6 +67,12 @@ The browser audit now exercises actual 5 V TLA switch/flame saves, a 0.5–4.5 V
 
 At code commit `2c0ea64`, the complete local runner passes all 19 UI audit programs, alongside 316 safety checks, the I2C/load-cell source audit, public-content validation, and both filesystem builds/budgets. The final full build/package gate is [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672); its result was still pending when this note was written. The preceding run failed only the obsolete NAU-only heading assertion, which is corrected in this commit. No firmware source was changed by the calibration wizard/reference follow-ups.
 
+## Hardware and fuel-flow UI follow-up
+
+The wider UI review found Hardware's analog zero-offset editor still capped TLA2528 values at 3300 mV even with a 5 V reference. Its generated source modules now use the channel reference for both the input limit and edit handler. The browser regression dispatches the actual editor input event and verifies 4000 mV is retained, 5501 mV is limited to 5000 mV, and a native ADC retains its 3300 mV limit.
+
+Calibration's initial fuel-flow visibility and telemetry fallback recognized only native analog driver 1, although the firmware supports TLA2528 driver 9 as analog fuel flow. Both now recognize drivers 1 and 9; pulse flow stays outside the voltage-calibration wizard. The focused browser audit verifies this before relying on a telemetry type field.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

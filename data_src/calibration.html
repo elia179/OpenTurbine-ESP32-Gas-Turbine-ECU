@@ -760,7 +760,7 @@ function hwCurrentEnabled(hw, key, flatKey) {
   return !!(registry && (hw?.actuators?.[key]?.has_current || registry.has_current));
 }
 function hwFuelFlowAnalog(hw) {
-  return Number(registryChannelByPurpose(hw, 'inputs', 'fuel_flow')?.driver) === 1;
+  return [1,9].includes(Number(registryChannelByPurpose(hw, 'inputs', 'fuel_flow')?.driver));
 }
 function hwAbFlameEnabled(hw) {
   return !!registryChannelByPurpose(hw, 'inputs', 'ab_flame');
@@ -1094,7 +1094,7 @@ function fuelFlowAnalogFromTelemetryOrHardware(d) {
   const fitted = d?.has_fuel_flow === true || hwSensorEnabled(hw, 'fuel_flow', 'has_fuel_flow');
   const type = d?.fuel_flow_type !== undefined
     ? d.fuel_flow_type
-    : (Number(registryChannelByPurpose(hw, 'inputs', 'fuel_flow')?.driver) === 1 ? 0 : 1);
+    : (hwFuelFlowAnalog(hw) ? 0 : 1);
   return fitted && Number(type) === 0;
 }
 function abFlameFromTelemetryOrHardware(d) {
