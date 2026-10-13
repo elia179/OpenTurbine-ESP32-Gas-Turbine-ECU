@@ -14,9 +14,19 @@ static unsigned spiBits=0, spiByte=0, spiAddress=0;
 static int mosi=0, sdo=1;
 static uint32_t configuredMs=0;
 static bool spiOrderingViolation=false;
+static bool hxReady=false;
+static unsigned hxPulses=0;
+static uint32_t hxFrame=0;
+static int hxBit=HIGH;
 inline void pinMode(int,int) {}
 inline void delayMicroseconds(unsigned) {}
+inline void noInterrupts() {}
+inline void interrupts() {}
 inline void digitalWrite(int pin,int value) {
+    if(pin==8 && value==HIGH && hxReady) {
+        hxBit=hxPulses<24 ? (hxFrame>>(23-hxPulses))&1 : HIGH;
+        if(++hxPulses==25) hxReady=false;
+    }
     if(pin==4) mosi=value;
     if(pin==2) {
         spiSelected=value==LOW;
@@ -56,11 +66,12 @@ inline void digitalWrite(int pin,int value) {
         }
     }
 }
-inline int digitalRead(int) { return sdo; }
+inline int digitalRead(int pin) { return pin==7 ? (hxPulses ? hxBit : (hxReady ? LOW : HIGH)) : sdo; }
 #include "../../src/hal/sensors/MAX31856TempSensor.h"
 #include "../../src/hal/sensors/MAX31855TempSensor.h"
 #include "../../src/hal/sensors/MAX6675TempSensor.h"
 #include "../../src/hal/sensors/DS18B20TempSensor.h"
+#include "../../src/hal/sensors/HX711Sensor.h"
 
 static void dsTick(DS18B20TempSensor& sensor,unsigned ms) {
     for(unsigned i=0;i<ms;i+=2) {fakeMillisClock()+=2;sensor.update();}
@@ -140,4 +151,19 @@ int main() {
     oneWireDevice.scratch[0]=0x50; oneWireDevice.scratch[1]=0x05;
     dsTick(ds,210); assert(ds.isHealthy() && ds.getValue()==85);
     std::cout<<"DS18B20 stuck-low rejection, transient setup recovery, resolution recovery and real 85 C passed\n";
+    HX711Sensor hx(7,8,"HX711"); hx.begin();
+    fakeMillisClock()+=400;
+    auto hxSample=[&](int32_t raw) {
+        hxFrame=(uint32_t)raw&0xFFFFFF; hxPulses=0; hxReady=true;
+        hx.update(); assert(hxPulses==25);
+    };
+    for(unsigned i=0;i<3;++i) {hxSample(-1000);fakeMillisClock()+=100;}
+    assert(hx.isHealthy() && hx.rawCounts()==-1000);
+    hxReady=false; hxPulses=0;
+    fakeMillisClock()+=501; hx.update(); assert(!hx.isHealthy());
+    hxSample(500); assert(hx.isHealthy() && hx.rawCounts()==500);
+    hxSample(0x7FFFFF); hxSample(0x7FFFFF); hxSample(0x7FFFFF);
+    assert(!hx.isHealthy());
+    hxSample(-200); assert(hx.isHealthy() && hx.rawCounts()==-200);
+    std::cout<<"HX711 signed samples, 25-clock selection, stale/saturated recovery and old-median rejection passed\n";
 }

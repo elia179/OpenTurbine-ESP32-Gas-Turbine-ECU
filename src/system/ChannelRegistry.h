@@ -956,8 +956,13 @@ private:
             return c.i2cAddress >= 0x20 && c.i2cAddress <= 0x27 && c.deviceChannel < 8;
         if (c.driver == I2cAnalog)
             return c.i2cAddress >= 0x10 && c.i2cAddress <= 0x17 && c.deviceChannel < 8 &&
+                   isfinite(c.minValue) && isfinite(c.maxValue) &&
+                   c.minValue >= 0.0f && c.maxValue <= 4095.0f && c.maxValue > c.minValue &&
                    c.i2cReferenceMv >= 1000.0f && c.i2cReferenceMv <= 5500.0f &&
-                   c.analogMvPerUnit > 0.0f &&
+                   isfinite(c.analogZeroMv) &&
+                   c.analogMvPerUnit > 0.0f && c.analogMvPerUnit <= 1000000.0f &&
+                   (strcmp(c.role, "voltage") ||
+                    (c.analogDivider >= 1.0f && c.analogDivider <= 100.0f)) &&
                    c.digitalThresholdRaw <= 4095 &&
                    c.digitalHysteresisRaw <= 2047 &&
                    c.filterAlpha > 0.0f && c.filterAlpha <= 1.0f;

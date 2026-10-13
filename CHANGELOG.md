@@ -16,6 +16,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 - Correct MAX31855 sampling edges and restore each SPI device's idle clock before selecting it, preventing shifted readings on repeated reads and shared clocks. Wait for the MAX31855 power-up conversion.
 - Reject all-zero DS18B20 scratchpads, retain a discovered sensor after transient setup failure, and recover its requested resolution after peripheral configuration loss.
 - Reject load-cell zero offsets outside signed 24-bit ADC counts, preventing integer overflow from malformed calibration files. Explain the shared NAU7802 gain/rate requirement when channel settings conflict.
+- Validate TLA2528 raw ranges and conversion scales so malformed settings cannot silently make every sample invalid or corrupt voltage readings.
+- Clear HX711 median history after stale or saturated input faults so recovery publishes a fresh load reading.
 
 ## [2.5.1] — 2026-10-13
 

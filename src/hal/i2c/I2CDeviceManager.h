@@ -648,6 +648,7 @@ private:
                     _tlaConfigured &= (uint8_t)~(1U << (c.i2cAddress - 0x10));
                     if (_tlaPendingRegistryIndex != i) _tlaPendingMs = millis();
                     _tlaPendingRegistryIndex = i;
+                    _markMissing(c.i2cAddress, Tla2528);
                     return;
                 }
                 raw = frame >> 4;

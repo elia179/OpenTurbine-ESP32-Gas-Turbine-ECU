@@ -16,11 +16,13 @@ These are protocol/configuration and recovery fixes; engine sequencing and RUNNI
 
 The surrounding calibration review also found that HX711/NAU7802 zero offsets were not constrained to signed 24-bit ADC counts. A malformed file could make `raw - zero` overflow a 32-bit signed integer on the ESP32. Registry validation now rejects such offsets; legacy HX711 settings use the same bounds. Mismatched NAU7802 gain/rate settings now return an actionable validation error instead of an empty generic rejection.
 
+TLA2528 settings also accepted reversed/out-of-ADC raw ranges and unbounded conversion parameters. Match the native ADC's raw bounds and voltage-divider limits, and reject nonfinite offsets/scales. This prevents a valid chip being rendered permanently unhealthy by a saved range it can never satisfy.
+
 ## Other drivers reviewed
 
 - **MAX6675:** user-proven working; its driver and sampling mode are unchanged. Its shared SPI helper now explicitly restores the same idle LOW before CS, protecting it from other SPI modes on shared lines.
 - **MAX31855:** frame width, signed temperature, fault flag, range, software clock and disconnected pull-up reviewed; the repeated-read/shared-clock defect above is fixed.
-- **HX711:** 24-bit signed read, 25-clock channel A/gain 128 selection, interrupt-protected clock timing, startup settling, saturation and stale-sample handling reviewed. No comparable setup defect found.
+- **HX711:** 24-bit signed read, 25-clock channel A/gain 128 selection, interrupt-protected clock timing, startup settling, saturation and stale-sample handling reviewed. Clear the median history on stale/saturated faults so a recovered sensor cannot publish its old load as the first fresh sample.
 - **NAU7802:** retain the 2.5.1 fixes and run the existing actual-driver regression for power/settling/calibration, both channels, stale conversion rejection and retry.
 - **Native analog/NTC:** ADC resolution/attenuation, divider orientation, calibration, rail checks and platform pin restrictions reviewed. No comparable chip setup defect found.
 - **PCNT RPM / MCPWM phase capture:** initialization error handling, capture timing, wrap arithmetic and loss handling reviewed. Existing behavior/math tests cover the supported configuration. No comparable device startup defect found.

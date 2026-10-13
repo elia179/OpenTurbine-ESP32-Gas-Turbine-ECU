@@ -206,5 +206,16 @@ int main() {
     thrust.loadCellRate=cell.loadCellRate==80 ? 40 : 80;
     assert(!cells.validate());
     assert(std::strstr(ChannelRegistry::validationError(),"matching values"));
+    cells.inputCount=1; cell=ChannelRegistry::Channel{};
+    cell.installed=true; cell.direction=ChannelRegistry::Input;
+    cell.driver=ChannelRegistry::I2cAnalog; cell.pin=-1; cell.i2cAddress=0x10;
+    cell.minValue=0; cell.maxValue=4095;
+    std::strcpy(cell.id,"p1_main"); std::strcpy(cell.role,"pressure");
+    std::strcpy(cell.purpose,"p1_pressure");
+    assert(cells.validate());
+    cell.minValue=3000; cell.maxValue=2000; assert(!cells.validate());
+    cell.minValue=0; cell.maxValue=5000; assert(!cells.validate());
+    cell.maxValue=4095; cell.analogMvPerUnit=INFINITY; assert(!cells.validate());
+    cell.analogMvPerUnit=1000; cell.minValue=NAN; assert(!cells.validate());
     std::cout << "phase registry, speed ownership, named switches, long binding round-trip and load-cell calibration validation vectors passed\n";
 }

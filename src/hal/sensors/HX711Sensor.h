@@ -44,7 +44,10 @@ public:
 
     void update() override {
         if (_doutPin < 0 || _clockPin < 0 || digitalRead(_doutPin) != LOW) {
-            if (_lastSampleMs && millis() - _lastSampleMs > STALE_TIMEOUT_MS) _healthy = false;
+            if (_lastSampleMs && millis() - _lastSampleMs > STALE_TIMEOUT_MS) {
+                _healthy = false;
+                _medianCount = _medianIndex = 0;
+            }
             return;
         }
 
@@ -71,7 +74,10 @@ public:
         const uint32_t raw24 = data & 0xFFFFFFu;
         if (raw24 == 0x7FFFFFu || raw24 == 0x800000u) {
             if (_saturatedSamples < 255) ++_saturatedSamples;
-            if (_saturatedSamples >= SATURATION_LIMIT) _healthy = false;
+            if (_saturatedSamples >= SATURATION_LIMIT) {
+                _healthy = false;
+                _medianCount = _medianIndex = 0;
+            }
             return;
         }
         _saturatedSamples = 0;
