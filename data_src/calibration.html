@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -524,17 +524,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       </div>
       <div id="torque-status" style="font-size:.75rem;color:var(--dim)"></div>
     </div>
-    <!-- HX711 torque info (shown for HX711 load cell sensors) -->
-    <div class="wizard" id="torque-hx711-wizard" style="display:none">
-      <div class="wizard-title">Torque Sensor (HX711 Load Cell)</div>
-      <div class="wizard-steps">
-        For HX711 load cells, zero offset and scale factor are set directly on the
-        <a href="/hardware.html" style="color:var(--accent)">Hardware Settings</a> page.<br>
-        <span style="color:var(--dim)">Zero count: raw HX711 count at no load.
-        Scale: Nm per raw count = known torque in Nm / (loaded raw count − zero count). Capture the zero with all load removed, then apply the known torque.</span>
-      </div>
-      <div id="torque-hx711-status" style="font-size:.75rem;color:var(--dim)"></div>
-    </div>
     <div class="wizard" id="torque-phase-wizard" style="display:none">
       <div class="wizard-title">Shaft torsion calibration (phase difference)</div>
       <div class="wizard-steps">Use equal effective tooth counts on both conditioned pickups. Stopped tooth positions do not establish phase zero: both calibration points require fresh pickup edges while the shaft is spinning.<br>
@@ -1012,10 +1001,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setText('thrust-raw-label', Number(thrustRegistry?.driver) === 10
     ? 'Raw load-cell count' : 'ADC pin voltage');
   const adcWiz  = document.getElementById('torque-adc-wizard');
-  const hxWiz   = document.getElementById('torque-hx711-wizard');
   const phaseWiz = document.getElementById('torque-phase-wizard');
   if (adcWiz) adcWiz.style.display  = (isHX711 || isNauTorque || isPhaseTorque) ? 'none' : '';
-  if (hxWiz)  hxWiz.style.display   = isHX711 ? '' : 'none';
   if (phaseWiz) phaseWiz.style.display = isPhaseTorque ? '' : 'none';
   if (isPhaseTorque) showPendingPhaseTorqueCalibration();
   renderLoadCellWizard('torque', torqueRegistry);
@@ -1337,7 +1324,7 @@ window.applyData = function(d) {
     setText('cal-thrust', Number(d.thrust).toFixed(1) + ' N');
     const thrustChannel = registryChannelByPurpose(cfg.hardware || {}, 'inputs', 'thrust');
     setText('cal-thrust-raw', Number(thrustChannel?.driver) === 10
-      ? (d.thrust_raw ?? '—') : adcMvText(d.thrust_raw));
+      ? (d.thrust_raw ?? '—') : forceAdcText('thrust',d.thrust_raw));
   }
 
   // ── Throttle input ────────────────────────────────────────────
@@ -2484,41 +2471,57 @@ function saveBattVoltDivider() {
 }
 
 // ── Torque sensor calibration ─────────────────────────────────
-const _loadCellCal = {torque:{zero:null,id:null}, thrust:{zero:null,id:null}};
+const _loadCellCal = {torque:{zero:null,id:null,mode:null}, thrust:{zero:null,id:null,mode:null}};
+function forceCalibrationMode(kind, channel) {
+  if (!channel || channel.installed === false) return null;
+  if (Number(channel.driver) === 10) return 'nau';
+  if (kind === 'torque' && Number(channel.driver) === 1 && Number(channel.torque_interface) === 1) return 'hx';
+  if (kind === 'thrust' && [1,9].includes(Number(channel.driver)) && !Number(channel.torque_interface)) return 'analog';
+  return null;
+}
 function renderLoadCellWizard(kind, channel) {
   const box = document.getElementById(kind + '-loadcell-wizard');
   if (!box) return;
-  if (!channel || Number(channel.driver) !== 10) {
+  const mode = forceCalibrationMode(kind, channel);
+  if (!mode) {
     _loadCellCal[kind].id = null;
     _loadCellCal[kind].zero = null;
+    _loadCellCal[kind].mode = null;
     box.innerHTML = '';
     return;
   }
-  if (_loadCellCal[kind].id !== channel.id) _loadCellCal[kind].zero = null;
+  if (_loadCellCal[kind].id !== channel.id || _loadCellCal[kind].mode !== mode) _loadCellCal[kind].zero = null;
   _loadCellCal[kind].id = channel.id;
+  _loadCellCal[kind].mode = mode;
   const torque = kind === 'torque';
   box.innerHTML = `<div class="wizard">
-    <div class="wizard-title">${torque?'Torque':'Thrust'} Load Cell (NAU7802)</div>
-    <div class="wizard-steps">1. Remove all load and capture zero.<br>2. Apply a trusted known load, enter it below, and save. OpenTurbine stores force internally in newtons.${torque?' Enter the perpendicular lever arm; torque is force × lever arm.':''}</div>
+    <div class="wizard-title">${torque?'Torque':'Thrust'} ${mode==='analog'?'Sensor (Analog)':'Load Cell ('+(mode==='hx'?'HX711':'NAU7802')+')'}</div>
+    <div class="wizard-steps">1. Remove all load, wait for a steady reading, and capture zero.<br>2. Apply a trusted known load, wait for a steady reading, enter it below, and save. Known loads are converted to newtons.${torque?' Enter the perpendicular lever arm; torque is force × lever arm.':''}</div>
     <div style="display:flex;gap:.5rem;align-items:end;flex-wrap:wrap;margin:.6rem 0">
-      <label>Known load <input id="${kind}-lc-known" title="Enter the trusted calibration load currently applied to the load cell." type="number" min="0.000001" step="0.001" style="width:8rem"></label>
+      <label>Known load <input id="${kind}-lc-known" title="Enter the trusted calibration load currently applied to the sensor." type="number" min="0.000001" step="0.001" style="width:8rem"></label>
       <label>Unit <select id="${kind}-lc-unit" title="Choose the unit used for the known calibration load; it is converted to newtons internally."><option value="N">N</option><option value="kg">kg mass</option><option value="g">grams</option><option value="kgf">kgf</option><option value="lbf">lbf</option></select></label>
-      ${torque?`<label>Lever arm (m) <input id="${kind}-lc-arm" type="number" min="0.000001" max="100" step="0.001" value="${Number(channel.lever_arm_m??1)}" style="width:7rem"></label>`:''}
+      ${torque?`<label>Lever arm (m) <input id="${kind}-lc-arm" type="number" min="0.000001" max="100" step="0.001" value="${mode==='hx'?'':Number(channel.lever_arm_m??1)}" style="width:7rem"></label>`:''}
     </div>
     <div class="wiz-buttons"><button onclick="captureLoadCellZero('${kind}')">Capture zero</button><button onclick="saveLoadCellKnown('${kind}')">Capture known load &amp; save</button></div>
     <div id="${kind}-lc-status" style="font-size:.75rem;color:var(--dim);margin-top:.4rem"></div>
   </div>`;
 }
+function forceAdcText(kind, raw) {
+  const channel = registryInputById(_loadCellCal[kind].id || kind);
+  const reference = Number(channel?.driver) === 9 ? Number(channel.i2c_reference_mv ?? 3300) : 3300;
+  return validAdcRaw(raw) && Number.isFinite(reference) ? Math.round(raw * reference / 4095) + ' mV' : '—';
+}
 function loadCellRaw(kind) {
+  if (_loadCellCal[kind].mode === 'analog') return liveAdcRaw(kind + '_raw');
   const raw = live[kind + '_raw'];
   if (!live[kind + '_healthy'] || !calibrationConnected()) return NaN;
   return typeof raw === 'number' && Number.isInteger(raw) && raw >= -8388608 && raw <= 8388607 ? raw : NaN;
 }
 function captureLoadCellZero(kind) {
   const raw = loadCellRaw(kind);
-  if (!Number.isFinite(raw)) { alert('No live NAU7802 sample is available. Check the device connection.'); return; }
+  if (!Number.isFinite(raw)) { alert('No valid live sensor sample is available. Check the device connection.'); return; }
   _loadCellCal[kind].zero = raw;
-  document.getElementById(kind+'-lc-status').textContent = `Zero captured at raw count ${raw}. Apply the known load next.`;
+  document.getElementById(kind+'-lc-status').textContent = `Zero captured at ${_loadCellCal[kind].mode==='analog'?forceAdcText(kind,raw):'raw count '+raw}. Apply the known load next.`;
 }
 function loadToNewtons(value, unit) {
   if (unit === 'kg' || unit === 'kgf') return value * 9.80665;
@@ -2531,24 +2534,45 @@ function saveLoadCellKnown(kind) {
   const raw = loadCellRaw(kind);
   const entered = Number(document.getElementById(kind+'-lc-known')?.value);
   if (!Number.isFinite(zero)) { alert('Capture zero with all load removed first.'); return; }
-  if (!Number.isFinite(raw) || raw === zero) { alert('No changed live load-cell reading. Apply the known load and try again.'); return; }
+  if (!Number.isFinite(raw) || raw === zero) { alert('No changed live sensor reading. Apply the known load and try again.'); return; }
   if (!(entered > 0) || !Number.isFinite(entered)) { alert('Enter a finite positive known load.'); return; }
   const forceN = loadToNewtons(entered, document.getElementById(kind+'-lc-unit').value);
   const nPerCount = forceN / (raw - zero);
   if (!Number.isFinite(nPerCount) || nPerCount === 0) { alert('The computed calibration scale is invalid. Check the known load.'); return; }
-  const fields = {loadcell_zero:Math.round(zero), loadcell_n_per_count:nPerCount};
-  if (kind === 'torque') {
-    const arm = Number(document.getElementById(kind+'-lc-arm')?.value);
-    if (!(arm > 0 && arm <= 100)) { alert('Enter a valid perpendicular lever arm in metres.'); return; }
-    fields.lever_arm_m = arm;
+  const mode = _loadCellCal[kind].mode;
+  let fields, summary;
+  if (mode === 'analog') {
+    const points = [0,4095].map(v=>({raw:v,value:(v-zero)*nPerCount}));
+    if (points.some(p=>!Number.isFinite(p.value) || Math.abs(p.value)>3.4e38)) {
+      alert('The computed sensor range is too large. Check the known load and units.'); return;
+    }
+    fields = {calibration_points:points};
+    summary = `Saved: zero ${forceAdcText(kind,zero)}, known load ${forceN.toFixed(3)} N at ${forceAdcText(kind,raw)}.`;
+  } else {
+    let arm = null;
+    if (kind === 'torque') {
+      arm = Number(document.getElementById(kind+'-lc-arm')?.value);
+      if (!(arm > 0 && arm <= 100)) { alert('Enter a valid perpendicular lever arm in metres.'); return; }
+    }
+    if (mode === 'hx') {
+      const scale = nPerCount * arm;
+      if (!(scale >= 0.000001 && scale <= 1000000)) {
+        alert(scale <= 0 ? 'The loaded HX711 count must be greater than zero count. Check load direction and the A+/A− bridge wiring.' : 'The computed HX711 scale is outside the supported range. Check the known load and lever arm.'); return;
+      }
+      fields = {hx711_zero:zero,hx711_scale:scale};
+      summary = `Saved: zero ${zero}, ${scale.toExponential(6)} Nm/count, from ${forceN.toFixed(3)} N × ${arm} m.`;
+    } else if (mode === 'nau') {
+      fields = {loadcell_zero:zero,loadcell_n_per_count:nPerCount};
+      if (arm !== null) fields.lever_arm_m = arm;
+      summary = `Saved: zero ${zero}, ${nPerCount.toExponential(6)} N/count${arm!==null?', lever arm '+arm+' m':''}.`;
+    } else { alert('The configured sensor is no longer available. Reload this page.'); return; }
   }
   const id = _loadCellCal[kind].id;
-  if (!id) { alert('The configured load-cell channel is no longer available. Reload this page and try again.'); return; }
+  if (!id) { alert('The configured sensor channel is no longer available. Reload this page and try again.'); return; }
   patchHardware({channel_registry_calibration:{id,...fields}}, () => {
     const ch = registryInputById(id);
     if (ch) Object.assign(ch, fields);
-    document.getElementById(kind+'-lc-status').textContent =
-      `Saved: zero ${Math.round(zero)}, ${Math.abs(nPerCount).toExponential(6)} N/count${kind==='torque' ? ', lever arm '+fields.lever_arm_m+' m' : ''}.`;
+    document.getElementById(kind+'-lc-status').textContent = summary;
     _loadCellCal[kind].zero = null;
   });
 }

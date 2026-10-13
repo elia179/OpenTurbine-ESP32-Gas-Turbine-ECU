@@ -47,6 +47,16 @@ No physical TCA9554, TLA2528, MAX31856, DS18B20, or HX711 module is attached to 
 
 RC signal loss after calibration publishes the saved minimum pulse width, not necessarily zero. The browser now requires `rc_throttle_valid` / `rc_idle_valid` before capturing receiver endpoints. Focused browser regressions reject plausible 1000/1200 µs fallback values with invalid flags, while accepting healthy 1500 µs pulses and zero ADC counts. These follow-up UI changes pass the calibration browser regression and all 316 safety checks; the full GitHub result above refers to the preceding `f9b6c32` code commit. No firmware driver changed in this follow-up.
 
+## Guided force calibration follow-up
+
+Calibration now provides a zero/known-load wizard for HX711 torque and analog thrust on native ADC or TLA2528 channels. The existing NAU7802 wizard shares the same unit conversion and capture controls.
+
+HX711 requires the perpendicular lever arm explicitly and saves `hx711_zero` plus torque in Nm/count as `hx711_scale`. The existing positive-scale firmware bounds remain enforced; a falling HX711 signal gives an actionable load-direction/bridge-wiring message. Raw captures require a connected, healthy signed 24-bit sample.
+
+Analog thrust saves an ascending raw-count curve spanning 0–4095, extrapolated from the zero and known-load captures. This supports rising or falling voltage and prevents the firmware's piecewise curve clamp from clipping force at the known reference load. Connected valid raw ADC readings can repair an unhealthy existing calibration. TLA2528 voltage displays use the configured reference voltage.
+
+The new real-browser audit clicks the controls, verifies HTTP persistence and reload, rejects a missing HX711 lever arm and invalid/unhealthy samples, checks both analog polarities and loads above the known reference, exercises mobile layout, and preserves signed NAU7802 calibration behavior. Full development-branch verification is recorded below when complete. No sensor-board accuracy is implied by these browser tests.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

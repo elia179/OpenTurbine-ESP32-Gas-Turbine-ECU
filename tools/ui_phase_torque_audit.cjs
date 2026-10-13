@@ -365,14 +365,12 @@ function installedBrowser() {
       return {fault,torqueFault,thrustFault,
         recovered:!document.getElementById('bar-torque').classList.contains('fault'),
         torqueHealthy:document.getElementById('torque-h-cal').className,
-        thrustHealthy:document.getElementById('thrust-h-cal').className,
-        instructions:document.getElementById('torque-hx711-wizard').textContent};
+        thrustHealthy:document.getElementById('thrust-h-cal').className};
     });
     assert.equal(calibrationHealth.fault,true);
     assert.equal(calibrationHealth.recovered,true);
     assert.notEqual(calibrationHealth.torqueFault,calibrationHealth.torqueHealthy);
     assert.notEqual(calibrationHealth.thrustFault,calibrationHealth.thrustHealthy);
-    assert.match(calibrationHealth.instructions,/loaded raw count − zero count/);
     const receiverCapture = await page.evaluate(async () => {
       document.getElementById('conn').className = 'conn-dot connected';
       const pulseWidths = [null,0,499,2501,1000,1500];

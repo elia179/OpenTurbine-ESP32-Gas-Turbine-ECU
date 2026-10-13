@@ -807,7 +807,7 @@ async function optionDisabled(page, selector, value) {
     assert.equal(await shown(page, '#oiltemp-ntc-wizard'), true);
     assert.equal(await shown(page, '#oiltemp-fixed-note'), false);
     assert.equal(await shown(page, '#torque-adc-wizard'), true);
-    assert.equal(await shown(page, '#torque-hx711-wizard'), false);
+    assert.equal(await shown(page, '#torque-loadcell-wizard .wizard'), false);
 
     const calibrationHw = await (await page.request.get(`${base}/api/hardware`)).json();
     const calibrationInputs = calibrationHw.channel_registry.inputs.map(channel => {
@@ -840,7 +840,8 @@ async function optionDisabled(page, selector, value) {
     assert.equal(await shown(page, '#oiltemp-ntc-wizard'), false);
     assert.equal(await shown(page, '#oiltemp-fixed-note'), true);
     assert.equal(await shown(page, '#torque-adc-wizard'), false);
-    assert.equal(await shown(page, '#torque-hx711-wizard'), true);
+    assert.equal(await shown(page, '#torque-loadcell-wizard'), true);
+    assert.match(await page.locator('#torque-loadcell-wizard').textContent(), /HX711/);
     for (const selector of ['#glow-current-cal-row', '#igniter-current-cal-row', '#igniter2-current-cal-row', '#oilpump-current-cal-row']) {
       assert.equal(await shown(page, selector), false, `${selector} should require its parent hardware feature`);
     }
