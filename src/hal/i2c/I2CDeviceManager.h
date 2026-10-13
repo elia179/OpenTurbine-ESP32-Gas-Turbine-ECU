@@ -35,6 +35,7 @@ public:
         _tlaConfigured = 0;
         _tlaPendingRegistryIndex = 255;
         for (uint8_t i = 0; i < registry.inputCount; ++i) {
+            _valid[i] = false;
             _adcDigitalState[i] = !registry.inputs[i].activeHigh;
             _adcConfig[i] = _adcConfigKey(registry.inputs[i]);
             _adcDigitalChannel[i] = ChannelRegistry::isSwitchCondition(registry.inputs[i]);
@@ -214,6 +215,11 @@ private:
         if (c.driver == ChannelRegistry::I2cLoadCell)
             return max<uint32_t>(500UL, 5000UL / max<uint16_t>(c.loadCellRate, 10));
         return 500UL;
+    }
+
+    static bool _filterFresh(uint8_t index, const ChannelRegistry::Channel& c) {
+        return _valid[index] && _sampleMs[index] &&
+               millis() - _sampleMs[index] <= _staleMs(c);
     }
 
     static bool _ack(uint8_t address) {
@@ -681,11 +687,14 @@ private:
                     physical = (mv - c.analogZeroMv) / max(c.analogMvPerUnit, 0.001f);
                 }
                 const float alpha = constrain(c.filterAlpha, 0.01f, 1.0f);
-                _values[i] = _adcDigitalChannel[i] ? physical : (_sequence[i]
-                    ? _values[i] + alpha * (physical - _values[i])
-                    : physical);
-                valid = isfinite(_values[i]) &&
-                        raw >= c.minValue && raw <= c.maxValue;
+                valid = isfinite(physical) && raw >= c.minValue && raw <= c.maxValue;
+                if (valid) {
+                    // Rejected or stale readings must not seed the next healthy
+                    // value. Preserve smoothing only across fresh valid samples.
+                    _values[i] = _adcDigitalChannel[i] ? physical : (_filterFresh(i,c)
+                        ? _values[i] + alpha * (physical - _values[i]) : physical);
+                    valid = isfinite(_values[i]);
+                }
             } else ok = false;
         } else if (c.driver == ChannelRegistry::I2cLoadCell &&
                    _present(c.i2cAddress, Nau7802) && _nauConfigured) {
@@ -729,11 +738,12 @@ private:
                     }
                     float forceN = (raw - c.loadCellZero) * c.loadCellNPerCount;
                     float physical = !strcmp(c.role, "torque") ? forceN * c.leverArmM : forceN;
-                    _values[i] = _sequence[i]
-                        ? _values[i] + c.filterAlpha * (physical - _values[i])
-                        : physical;
-                    valid = isfinite(_values[i]) &&
-                            raw > -8388352L && raw < 8388351L;
+                    valid = isfinite(physical) && raw > -8388352L && raw < 8388351L;
+                    if (valid) {
+                        _values[i] = _filterFresh(i,c)
+                            ? _values[i] + c.filterAlpha * (physical - _values[i]) : physical;
+                        valid = isfinite(_values[i]);
+                    }
                 } else {
                     _logNauFailure("[I2C] NAU7802 24-bit sample read failed");
                 }

@@ -103,5 +103,17 @@ int main() {
     Wire.conversionsStuck = false;
     advance(40);
     assert(input(0, 100) && input(1, -100));
-    std::cout << "NAU7802 behavior passed: analog startup, nonblocking settling, write retry, calibration errors/timeouts, both-channel calibration, signed force/torque, stale-channel discard and freshness recovery\n";
+    Wire = FakeWire{};
+    single.inputs[0].filterAlpha = 0.2f;
+    start(single); advance(800); assert(input(0,100));
+    Wire.samples[0] = 8388607; // A saturated sample must never enter the filter.
+    advance(2); assert(!input(0,100));
+    Wire.samples[0] = 20000;
+    advance(2); assert(input(0,200)); // First recovered value uses only the fresh load.
+    Wire.samples[0] = 10000;
+    advance(2); assert(input(0,180)); // Ordinary healthy smoothing is retained.
+    Wire.conversionsStuck = true; advance(510); assert(!input(0,180));
+    Wire.samples[0] = 30000; Wire.conversionsStuck = false;
+    advance(2); assert(input(0,300));
+    std::cout << "NAU7802 behavior passed: analog startup, nonblocking settling, write retry, calibration errors/timeouts, both-channel calibration, signed force/torque, stale-channel discard, saturation rejection and fresh filter recovery\n";
 }

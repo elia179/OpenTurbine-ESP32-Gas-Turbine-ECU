@@ -68,4 +68,24 @@ int main() {
     Wire.tla[2]=0; // reset removes the appended ID; driver must recover it.
     tick(50); assert(Wire.tla[2]==0x10);
     std::cout << "TLA2528 retained-configuration recovery, channel-ID isolation and reset recovery passed\n";
+
+    r.inputCount = 1;
+    auto& analog = r.inputs[0];
+    analog.deviceChannel = 0; analog.minValue = 100; analog.maxValue = 4000;
+    analog.filterAlpha = 0.2f; analog.analogMvPerUnit = 1;
+    std::strcpy(analog.role,"pressure");
+    Wire = FakeWire{}; Wire.tlaPresent = true; Wire.tlaSamples[0] = 1000;
+    I2CDeviceManager::begin(true,21,22,-1,100000,r); tick(20);
+    auto valueAt = [&](int counts) {
+        float value; int32_t raw; uint32_t seq, ms;
+        assert(I2CDeviceManager::input(0,value,raw,seq,ms));
+        assert(std::fabs(value-counts*3300.0f/4095.0f)<0.01f);
+    };
+    valueAt(1000);
+    Wire.tlaSamples[0] = 4095; tick(2); assert(!read(0,4095));
+    Wire.tlaSamples[0] = 2000; tick(2); valueAt(2000);
+    Wire.tlaSamples[0] = 1000; tick(2); valueAt(1800);
+    fakeMillisClock() += 510; assert(!read(0,1000));
+    Wire.tlaSamples[0] = 3000; tick(2); valueAt(3000);
+    std::cout << "TLA2528 invalid range rejection, healthy smoothing and stale filter recovery passed\n";
 }

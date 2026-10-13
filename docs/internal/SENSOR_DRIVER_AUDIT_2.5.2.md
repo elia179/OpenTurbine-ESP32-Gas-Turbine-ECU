@@ -73,6 +73,16 @@ The wider UI review found Hardware's analog zero-offset editor still capped TLA2
 
 Calibration's initial fuel-flow visibility and telemetry fallback recognized only native analog driver 1, although the firmware supports TLA2528 driver 9 as analog fuel flow. Both now recognize drivers 1 and 9; pulse flow stays outside the voltage-calibration wizard. The focused browser audit verifies this before relying on a telemetry type field.
 
+## I2C filter recovery follow-up
+
+TLA2528 and NAU7802 updated their filtered values before rejecting out-of-range/saturated samples. Their filters also used a nonzero lifetime sample counter to keep smoothing across stale gaps. Thus an invalid sample could contaminate the next healthy reading, or a recovered sensor could publish a mix with its old value.
+
+Reject invalid raw/physical values before updating the filter, and resume smoothing only when the previous sample was valid and still fresh. The first good sample after a fault or stale gap seeds the filter directly. Normal smoothing between healthy samples is unchanged. Reinitialization clears validity without allocating new state or resetting sequence counters.
+
+Actual-driver native regressions use a 0.2 filter coefficient and verify NAU saturation, TLA invalid raw ranges, first fresh values after stale gaps, and retained healthy smoothing. These tests compile locally; their execution is delegated to GitHub because local Windows Application Control previously blocked the native executables.
+
+The preceding complete build/package gate at `2c0ea641b37a60dc044f5216f1d3193107eff33f` passed in [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672), including all 19 UI audits, native driver models, both firmware targets and package validation. Publication was skipped. That result precedes the Hardware offset/fuel-flow and filter-recovery follow-ups.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

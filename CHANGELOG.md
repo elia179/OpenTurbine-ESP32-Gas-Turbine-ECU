@@ -34,6 +34,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Honor the TLA2528 reference when editing Hardware zero offsets instead of silently limiting them to 3300 mV. Recognize TLA2528 fuel-flow channels as analog when selecting calibration controls before telemetry arrives.
 
+- Keep invalid TLA2528/NAU7802 samples out of their smoothing filters and restart filtering from the first valid sample after a fault or stale gap. Clear sample validity when reinitializing the I2C manager.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
