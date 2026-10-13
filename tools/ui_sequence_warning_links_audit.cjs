@@ -98,7 +98,21 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('[data-protection="n1"]').getAttribute('open'), '');
     await page.goto(base + '/hardware.html?v=20261013d');
     await page.waitForFunction(() => typeof cfg !== 'undefined' && !!cfg.controls);
-    await page.evaluate(() => { cfg.controls.start_pin = cfg.controls.stop_pin; checkPinConflicts(); });
+    for (const [purpose,field,label] of [['p1_pressure','p1_trip_bar','P1 pressure'],['p2_pressure','p2_trip_bar','P2 pressure'],['torque','torque_trip_nm','Torque']]) {
+      await page.evaluate(({purpose,field}) => {
+        settingsCfg.safety ||= {}; settingsCfg.safety[field] = 3;
+        const rows = registryRoot().inputs;
+        let index = rows.findIndex(row => registryDerivedPurpose('input',row) === purpose);
+        if (index < 0) { index = rows.length; rows.push({id:'audit_'+purpose,purpose,role:purpose==='torque'?'torque':'pressure',driver:1,pin:-1}); }
+        removeRegistryChannel('input',index);
+      }, {purpose,field});
+      assert.match(await page.locator('#registry-remove-body').textContent(), new RegExp(label + ' hard trip.*disabled after saving'));
+      await page.evaluate(() => closeRegistryRemoveDialog());
+    }
+    await page.evaluate(() => {
+      if (!(Number(cfg.controls.stop_pin) >= 0)) cfg.controls.stop_pin = 14;
+      cfg.controls.start_pin = cfg.controls.stop_pin; checkPinConflicts();
+    });
     const conflict = page.locator('#pin-conflict-banner a[data-ot-warning-link]').first();
     await conflict.click();
     await page.waitForFunction(() => location.hash === '#hardware-inputs-panel');

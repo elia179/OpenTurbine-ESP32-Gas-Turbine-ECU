@@ -1364,6 +1364,19 @@ bool Config::sanitizeForHardware() {
     disarmUnavailable(HardwareConfig::hasP1, pullbackP1Enabled);
     disarmUnavailable(HardwareConfig::hasP2, pullbackP2Enabled);
     disarmUnavailable(HardwareConfig::hasTorque, pullbackTorqueEnabled);
+    // These hard trips have no separate enable flag: a positive threshold
+    // arms them. A saved Hardware removal must therefore clear the threshold.
+    // Availability means configured hardware, never live sensor health; a
+    // disconnected fitted sensor must retain its protection and report loss.
+    auto disarmUnavailableTrip = [&](bool available, float& limit) {
+        if (!available && limit != 0.0f) {
+            limit = 0.0f;
+            changed = true;
+        }
+    };
+    disarmUnavailableTrip(HardwareConfig::hasP1, p1TripLimit);
+    disarmUnavailableTrip(HardwareConfig::hasP2, p2TripLimit);
+    disarmUnavailableTrip(HardwareConfig::hasTorque, torqueTripLimit);
     // An enabled starter-assist mode is an operating command, not merely a
     // tuning value. If a Hardware edit removes its required starter/N1 path
     // (or changes to a non-PWM starter), disarm it while preserving all of its

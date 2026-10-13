@@ -4125,10 +4125,6 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
             return nullptr;
         };
         auto byIdOrRole = [](ChannelRegistry::Direction dir, const char* id, const char* role) -> const ChannelRegistry::Channel* {
-            if (id) {
-                const auto* c = HardwareConfig::channelRegistry.find(id, dir);
-                if (c) return c;
-            }
             const char* purpose = nullptr;
             if (id) {
                 if (!strcmp(id, "n1_main") || !strcmp(id, "primary_n1")) purpose = "n1_speed";
@@ -4163,6 +4159,12 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
                 else if (!strcmp(id, "ab_pump")) purpose = "ab_pump";
                 else if (!strcmp(id, "prop_pitch")) purpose = "prop_pitch";
                 else if (!strcmp(id, "air_starter")) purpose = "air_starter";
+            }
+            // Stable IDs survive purpose edits. A former built-in ID must
+            // not keep assigning this card to its old logical device too.
+            if (id) {
+                const auto* c = HardwareConfig::channelRegistry.find(id, dir);
+                if (c && c->installed && (!purpose || !strcmp(c->purpose, purpose))) return c;
             }
             const ChannelRegistry::Channel* list = dir == ChannelRegistry::Input
                 ? HardwareConfig::channelRegistry.inputs

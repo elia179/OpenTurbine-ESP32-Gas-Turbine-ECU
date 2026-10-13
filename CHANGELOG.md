@@ -10,6 +10,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [2.5.2] — Unreleased
 
+- Disable P1/P2 pressure and torque hard trips when their sensors are removed from the saved Hardware configuration, avoiding orphaned hard-trip warnings. Retain protection when configured sensors merely lose their signal.
+- Respect a channel's configured purpose when resolving built-in IDs, preventing a repurposed sensor or output from also retaining its former assignment and producing an invalid saved setup.
+- Defer sensor-dependent settings cleanup during complete engine-file staging until the incoming Hardware has been applied, so runtime validation uses the restored setup.
+
 - Reject empty firmware files in System with retry guidance instead of falsely reporting a successful update and reboot.
 - Reject web asset sets containing empty files before uploading any pages, and identify the files that need replacing.
 - Allow complete engine-file downloads when optional live metadata is unavailable; bound that request and show an error state when the backup itself fails.

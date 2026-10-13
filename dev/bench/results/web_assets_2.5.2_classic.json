@@ -1,0 +1,32 @@
+{
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "bb91cd6c6b85d9a5",
+    "target": "esp32dev",
+    "chip": "ESP32",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "matched_assets": [
+    "calibration.html",
+    "controllers.html",
+    "hardware.html",
+    "index.html",
+    "log.html",
+    "sequence.html",
+    "app.js",
+    "style.css",
+    "system.html",
+    "theme.js",
+    "ui_dialog.js",
+    "tools.html"
+  ],
+  "engine_preserved": true,
+  "first_and_final_replay": true,
+  "live_warning_navigation": true
+}

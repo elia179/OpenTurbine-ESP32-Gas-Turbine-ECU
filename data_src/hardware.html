@@ -3497,6 +3497,10 @@ function registryRoleUsage(direction, c) {
   if (direction === 'input') {
     const seq = registrySequenceUsers(registryInputSequenceBlocksForPurpose(purpose));
     if (seq.length) uses.add(`Sequencer: ${seq.join(', ')}`);
+    const hardTrip = {p1_pressure:['p1_trip_bar','P1 pressure'],
+      p2_pressure:['p2_trip_bar','P2 pressure'], torque:['torque_trip_nm','Torque']}[purpose];
+    if (hardTrip && Number(settingsCfg?.safety?.[hardTrip[0]]) > 0)
+      uses.add(`Safety: ${hardTrip[1]} hard trip (disabled after saving if its sensor is removed)`);
     if (purpose === 'n1_speed') {
       if (cfg.safety?.overspeed !== false) uses.add('Safety: N1 overspeed');
       if (cfg.safety?.surge) uses.add('Safety: surge detection');

@@ -1253,7 +1253,10 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
         appendLoadWarning(warnBuf);
     }
 
-    sanitizeForHardware();
+    // Full engine-file restore parses Settings before applying its Hardware.
+    // Defer all topology cleanup along with rule resolution in that staging
+    // path; its caller sanitizes once the uploaded hardware is authoritative.
+    if (resolveRuleHandles) sanitizeForHardware();
     // Rules were reloaded (and possibly compacted) — stale hysteresis latch
     // state must not carry over to a different rule at the same index.
     RulesEngine::resetLatches();

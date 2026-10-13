@@ -15,6 +15,8 @@ function expect(label, condition) {
 }
 
 const configSerialize = read('src/system/ConfigSerialize.cpp');
+expect('full engine-file staging defers topology cleanup until the uploaded hardware is applied',
+  configSerialize.includes('if (resolveRuleHandles) sanitizeForHardware();'));
 const configHeader = read('src/system/Config.h');
 expect('factory control defaults match the reviewed clean-board profile',
   configSerialize.includes('throttleRampUpMs = 1000; throttleRampDownMs = 2000;') &&
@@ -23,6 +25,8 @@ expect('factory control defaults match the reviewed clean-board profile',
   configSerialize.includes('strlcpy(fuel.sourceId, "operator_throttle"') &&
   configSerialize.includes('strlcpy(fuel.targetId, "main_fuel"'));
 const hardwareConfigCpp = read('src/system/HardwareConfig.cpp');
+expect('built-in registry IDs only resolve installed cards with the matching configured purpose',
+  hardwareConfigCpp.includes('if (c && c->installed && (!purpose || !strcmp(c->purpose, purpose))) return c;'));
 expect('first boot initializes the complete settings profile before unified save',
   hardwareConfigCpp.includes('Config::resetToCompiledDefaults();') &&
   configHeader.includes('static void resetToCompiledDefaults();') &&
@@ -30,6 +34,10 @@ expect('first boot initializes the complete settings profile before unified save
 expect('validated runtime restore carries its matching engine identity into the atomic save',
   configSerialize.includes('strlcpy(profileId, id, sizeof(profileId));'));
 const configCpp = read('src/system/Config.cpp') + configSerialize;
+expect('saved hardware removal disarms threshold-enabled pressure and torque hard trips using configured availability',
+  ['disarmUnavailableTrip(HardwareConfig::hasP1, p1TripLimit);',
+   'disarmUnavailableTrip(HardwareConfig::hasP2, p2TripLimit);',
+   'disarmUnavailableTrip(HardwareConfig::hasTorque, torqueTripLimit);'].every(call => configCpp.includes(call)));
 const configHtml = read('data_src/config.html');
 const configRuntime = read('data_src/pages/config-runtime.js');
 const hardware = read('src/Hardware.h');

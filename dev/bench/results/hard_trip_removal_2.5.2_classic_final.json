@@ -1,0 +1,30 @@
+{
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "bb91cd6c6b85d9a5",
+    "target": "esp32dev",
+    "chip": "ESP32",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "checks": [
+    "p1: configured trip retained and unavailable trips disarmed",
+    "p1: removal disables its trip after reboot; engine tuning preserved",
+    "p1: complete engine-file restore reinstates the sensor and its positive trip",
+    "p2: configured trip retained and unavailable trips disarmed",
+    "p2: removal disables its trip after reboot; engine tuning preserved",
+    "p2: complete engine-file restore reinstates the sensor and its positive trip",
+    "torque: configured trip retained and unavailable trips disarmed",
+    "torque: removal disables its trip after reboot; engine tuning preserved",
+    "torque: complete engine-file restore reinstates the sensor and its positive trip"
+  ],
+  "restored": true,
+  "complete": true,
+  "purpose_ids_preserved": true,
+  "failure": null
+}
