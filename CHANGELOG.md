@@ -30,6 +30,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Add guided HX711 torque and native/TLA2528 analog thrust calibration: capture zero and a known load, convert mass/force units, and save the coefficients used by each driver. Support rising/falling analog thrust signals without clipping loads above the calibration reference; honor the TLA reference voltage in thrust displays.
 
+- Honor the configured TLA2528 ADC reference throughout registry calibration voltage displays, flame/switch thresholds, pressure factory values, pressure/flow defaults, oil datasheet sensitivity, battery divider calculation, and analog torque scaling. Native ESP32 ADC calibration retains its 3.3 V reference.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.

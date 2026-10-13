@@ -1453,7 +1453,7 @@ function applyData(d) {
       sbr.textContent = '⚠ START unavailable: ' + startBlock;
       if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261013c';
+        link.href = '/sequence.html?v=20261013d';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }

@@ -1534,8 +1534,9 @@ expect('compact percentages retain the displayed tenth-percent digit',
   webApp.includes('throttle_effective:Number(v[20])/1000') &&
   webApp.includes('demand:Number(percent)/1000'));
 expect('calibration presents physical ADC voltages while preserving raw storage',
-  calibrationHtml.includes("return Number(raw) * 3300.0 / 4095.0") &&
-  calibrationHtml.includes('function adcRawFromMv(mv)') &&
+  calibrationHtml.includes("return Number(raw) * adcReferenceMv(channel) / 4095.0") &&
+  calibrationHtml.includes('function adcRawFromMv(mv, channel)') &&
+  calibrationHtml.includes('Number(c?.driver) === 9 ? Number(c.i2c_reference_mv ?? 3300) : 3300') &&
   calibrationHtml.includes('ADC pin voltage') &&
   calibrationHtml.includes("digital_threshold_raw:threshold") &&
   !calibrationHtml.includes('>Raw ADC<'));

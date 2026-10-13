@@ -61,6 +61,14 @@ Local verification passed all 19 browser audit programs (the full runner passed 
 
 ## Sources
 
+## TLA2528 calibration reference follow-up
+
+The firmware already uses the configured TLA2528 reference, but older Calibration controls converted counts with a fixed 3300 mV. This made a 5 V ADC display incorrect voltages and caused entered voltage thresholds and datasheet values to save the wrong raw counts or sensitivity. Registry calibration now resolves the selected channel's ADC reference for voltage displays/conversions, threshold input limits, P1/P2 factory voltage values, pressure/flow defaults, oil datasheet sensitivity, battery divider and analog torque scale. The native ADC still uses 3300 mV. Legacy actuator-current controls retain their native ADC path.
+
+The browser audit now exercises actual 5 V TLA switch/flame saves, a 0.5–4.5 V pressure sensor, battery divider and analog torque coefficients, plus oil datasheet slope and native-reference invariance. The I2C source audit was updated for the shared HX711/NAU/analog wizard; its former literal NAU-only heading no longer exists.
+
+## Sources
+
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)
 - [TI TLA2528 datasheet](https://www.ti.com/lit/ds/symlink/tla2528.pdf), sections 7.3.9, 7.4.2 and 7.6
 - [Analog Devices MAX31856 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/max31856.pdf), conversion timing, SPI interface and CR0/CR1

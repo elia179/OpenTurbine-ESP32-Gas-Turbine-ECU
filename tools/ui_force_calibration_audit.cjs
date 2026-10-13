@@ -105,8 +105,59 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     channel=(await state()).hardware.channel_registry.inputs[0];
     assert.equal(channel.loadcell_zero,1000);close(channel.loadcell_n_per_count,-4.4482216153/500);
     assert.equal(channel.calibration_points,undefined);
+    // Other TLA2528 voltage-based calibration controls must use its 5 V reference.
+    const adc=(id,purpose,role,device_channel)=>({id,purpose,role,name:id,driver:9,installed:true,
+      pin:-1,i2c_address:16,device_channel,i2c_reference_mv:5000,min:0,max:4095});
+    const channels=[adc('tla_gate','sequence_gate','digital_switch',0),
+      adc('tla_flame','flame','flame',1),adc('tla_p1','p1_pressure','pressure',2),
+      adc('tla_battery','battery_voltage','voltage',3),adc('tla_torque','torque','torque',4),
+      adc('tla_oil','oil_pressure','pressure',5)];
+    await page.request.post(base+'/__sim/reset');
+    await page.request.patch(base+'/api/hardware',{data:{channel_registry:{inputs:channels,outputs:[],bindings:[]}}});
+    await page.request.post(base+'/__sim/data',{data:{batt_voltage_raw:2048,batt_voltage_healthy:true,torque_raw:819,torque_healthy:true}});
+    await page.goto(base+'/calibration.html');
+    await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.id==='tla_gate' && calibrationConnected() && live.batt_voltage_raw===2048);
+    const gate=page.locator('[data-channel-id="tla_gate"]');
+    assert.equal(await gate.locator('[data-adc-threshold]').getAttribute('max'),'5000');
+    await gate.locator('[data-adc-threshold]').fill('4000');
+    await gate.locator('[data-adc-hysteresis]').fill('100');
+    await gate.locator('button',{hasText:/^Save$/}).click();
+    await page.waitForFunction(()=>document.querySelector('[data-channel-id="tla_gate"] [data-adc-status]').textContent==='Saved.');
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_gate');
+    assert.equal(channel.digital_threshold_raw,3276);assert.equal(channel.digital_hysteresis_raw,82);
+    assert.equal(await page.locator('#flame-thr-direct').getAttribute('max'),'5000');
+    await page.locator('#flame-thr-direct').fill('2000');await page.locator('#flame-hyst-direct').fill('100');
+    await page.locator('[onclick="saveFlameThresholdDirect()"]').click();
+    await page.waitForFunction(()=>document.getElementById('flame-status').textContent.startsWith('Main flame threshold set'));
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_flame');
+    assert.equal(channel.digital_threshold_raw,1638);assert.equal(channel.digital_hysteresis_raw,82);
+    await page.locator('#p1-mode-factory').click();
+    assert.equal(await page.locator('#p1-v-max').getAttribute('max'),'5');
+    await page.locator('#p1-v-zero').fill('0.5');await page.locator('#p1-v-max').fill('4.5');
+    await page.locator('#p1-v-valmax').fill('10');
+    await page.locator('[onclick="p12Save(\'p1\')"]').click();
+    await page.waitForFunction(()=>document.getElementById('p1-cal-status').textContent.startsWith('✓ Saved:'));
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_p1');
+    assert.deepEqual(channel.calibration_points,[{raw:410,value:0},{raw:3686,value:10}]);
+    close(channel.analog_mv_per_unit,400);
+    if(await page.locator('#ot-dialog-confirm').isVisible()) await page.locator('#ot-dialog-confirm').click();
+    await page.locator('#bv-known-v').fill('10');
+    await page.locator('[onclick="captureBattVolt()"]').click();
+    await page.locator('#btn-bv-save').click();
+    await page.waitForFunction(()=>cfg.hardware.channel_registry.inputs.find(c=>c.id==='tla_battery').analog_divider===4);
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_battery');assert.equal(channel.analog_divider,4);
+    await page.locator('[onclick="captureTorqueZero()"]').click();await page.locator('#torque-fullscale').fill('100');
+    await page.locator('#btn-torque-save').click();
+    await page.waitForFunction(()=>document.getElementById('torque-status').textContent.startsWith('Saved: scale='));
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_torque');
+    close(channel.analog_zero_mv,1000);close(channel.analog_mv_per_unit,50);
+    const oilSlope=await page.evaluate(()=>{
+      oilPts=[{raw:819,b:0}];document.getElementById('oil-mv-bar').value='500';oilUseDatasheet();return oilFit.c;
+    });
+    close(oilSlope,5000/4095/500);
+    assert.equal(await page.evaluate(()=>adcMv(4095,{driver:1,i2c_reference_mv:5000})),3300);
     assert.deepEqual(errors,[]);
-    console.log('Force calibration UI passed: actual wizard clicks and persisted/reloaded HX711 coefficients, required lever arm, invalid/unhealthy HX input rejection, native/TLA thrust curves, rising/falling polarity, above-reference loads, mobile layout and NAU regression.');
+    console.log('Force calibration UI passed: actual wizard clicks and persisted/reloaded HX711 coefficients, required lever arm, invalid/unhealthy HX input rejection, native/TLA thrust curves, rising/falling polarity, above-reference loads, mobile layout, NAU regression and TLA 5 V thresholds/pressure/battery/torque/oil calibration.');
   } finally {await browser.close();}
   process.exit(0);
 })().catch(error=>{console.error(error.stack||error);process.exit(1);});
