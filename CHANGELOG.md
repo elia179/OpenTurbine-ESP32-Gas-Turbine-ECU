@@ -10,6 +10,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [2.5.2] — Unreleased
 
+- Reject empty firmware files in System with retry guidance instead of falsely reporting a successful update and reboot.
+- Reject web asset sets containing empty files before uploading any pages, and identify the files that need replacing.
+- Allow complete engine-file downloads when optional live metadata is unavailable; bound that request and show an error state when the backup itself fails.
+
 - Restore TCA9554 input polarity and pin direction, retry failed setup before accepting relay demands, and detect lost configuration during the device heartbeat.
 - Configure TLA2528 manual analog conversion and its output format explicitly, check returned channel IDs, and reject previous-channel readings.
 - Restart MAX31856 conversion settling after successful configuration retries, configure the filter/type with conversions stopped, and recover from peripheral configuration loss.

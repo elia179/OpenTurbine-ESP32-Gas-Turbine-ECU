@@ -287,9 +287,10 @@ async function backupConfig() {
   };
   fetchEngineFile()
     .then(async cfg => {
-      const dataRes = await fetch('/api/data');
-      const live = dataRes.ok ? await dataRes.json() : {};
-      return [cfg, live];
+      // Live status only annotates the backup; losing it must not discard a
+      // complete engine file that has already been read successfully.
+      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null);
+      return [cfg, live || {}];
     })
     .then(([cfg, live]) => {
       cfg._backup_meta = {
@@ -330,6 +331,7 @@ async function backupConfig() {
       }, 3000);
     })
     .catch(e => {
+      if (state) { state.textContent = 'Error'; state.className = 'tool-state fault'; }
       if (msg) {
         msg.textContent = 'Backup failed: ' + e.message;
         msg.style.color = 'var(--red)';
@@ -1195,6 +1197,7 @@ async function startSystemOTA(input) {
   };
   input.value = '';
   try {
+    if (file.size === 0) throw new Error('The selected firmware file is empty. Choose a complete firmware.bin and try again.');
     // Keep every request small. A single multi-megabyte multipart request can
     // exhaust or destabilize the Classic ESP32 network stack while flash is
     // being programmed; the bounded endpoint retains OTA state between chunks.
@@ -1252,10 +1255,12 @@ function startSystemWebAssetsUpdate(input) {
   const names = new Set(files.map(file => file.name));
   const missing = required.filter(name => !names.has(name));
   const invalid = files.filter(file => !required.includes(file.name));
-  if (missing.length || invalid.length || files.length !== required.length) {
+  const empty = files.filter(file => file.size === 0);
+  if (missing.length || invalid.length || empty.length || files.length !== required.length) {
     alert('Choose exactly the twelve generated data/*.gz web assets.\n\nMissing: ' +
       (missing.join(', ') || 'none') + '\nUnexpected: ' +
-      (invalid.map(file => file.name).join(', ') || 'none'));
+      (invalid.map(file => file.name).join(', ') || 'none') + '\nEmpty: ' +
+      (empty.map(file => file.name).join(', ') || 'none'));
     input.value = '';
     return;
   }

@@ -137,6 +137,14 @@ The additional browser audit verifies throttle and idle minimum/maximum capture,
 
 The preceding full software/package gate passed at `e3433e52208c4d6534383178f5338e01f14c9d21` in [run 38382696073](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38382696073), including the chart timing and empty-state changes. Publication was skipped; this result precedes the restore/operator capture recovery changes.
 
+## Empty maintenance files
+
+A zero-byte firmware selection previously sent no chunks but reported success and opened the reboot overlay. Reject it through the normal update error/retry UI. A complete web-asset selection with one empty file previously began uploading the earlier files before reaching the invalid asset. Validate all file sizes before starting the upload and identify empty filenames. Browser regressions reproduced both old behaviors and now verify zero upload requests, cleared file inputs, enabled retry controls and no firmware reboot overlay on source and packaged mobile pages.
+
+## Backup without optional telemetry
+
+A successful engine-file read previously still failed to download if the subsequent optional `/api/data` metadata request lost its connection or returned malformed JSON. Bound the metadata request to three seconds and use unknown metadata on failure, retaining the complete engine file. If the engine-file request itself fails, show an explicit Error state. Browser regressions verify the actual downloaded hardware/settings are unchanged during injected telemetry network/JSON failures and that repeated engine-file HTTP 503 responses still surface as a backup failure. Source and packaged pages pass.
+
 ## Sources
 
 

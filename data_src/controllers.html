@@ -3212,9 +3212,10 @@ async function backupConfig() {
   };
   fetchEngineFile()
     .then(async cfg => {
-      const dataRes = await fetch('/api/data');
-      const live = dataRes.ok ? await dataRes.json() : {};
-      return [cfg, live];
+      // Live status only annotates the backup; losing it must not discard a
+      // complete engine file that has already been read successfully.
+      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null);
+      return [cfg, live || {}];
     })
     .then(([cfg, live]) => {
       cfg._backup_meta = {
@@ -3255,6 +3256,7 @@ async function backupConfig() {
       }, 3000);
     })
     .catch(e => {
+      if (state) { state.textContent = 'Error'; state.className = 'tool-state fault'; }
       if (msg) {
         msg.textContent = 'Backup failed: ' + e.message;
         msg.style.color = 'var(--red)';

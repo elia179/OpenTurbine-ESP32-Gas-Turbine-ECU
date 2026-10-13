@@ -31,6 +31,50 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         };
       });
       const file={name:'saved-engine.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(await (await page.request.get(base+'/api/ecu_config')).json()))};
+      await page.goto(base+'/system.html');
+      await page.waitForFunction(()=>typeof runtimeMode!=='undefined'&&runtimeMode==='STANDBY');
+      let firmwareRequests=0;
+      page.on('request',r=>{if(r.url().includes('/api/firmware_chunk'))firmwareRequests++;});
+      await page.locator('#ota-file').setInputFiles({name:'firmware.bin',mimeType:'application/octet-stream',buffer:Buffer.alloc(0)});
+      assert.equal(await page.locator('#ota-state').textContent(),'Error','empty firmware must not report a successful update');
+      assert.match(await page.locator('#ota-msg').textContent(),/empty/i);
+      assert.equal(await page.locator('#ota-btn').isDisabled(),false);
+      assert.equal(await page.locator('#ota-file').inputValue(),'');
+      assert.equal(await page.locator('#reboot-overlay.show').count(),0);
+      assert.equal(firmwareRequests,0);
+      let assetRequests=0;
+      page.on('request',r=>{if(r.url().includes('/api/web_asset_chunk'))assetRequests++;});
+      const assetNames=['calibration.html.gz','controllers.html.gz','hardware.html.gz','index.html.gz','log.html.gz','sequence.html.gz','app.js.gz','style.css.gz','system.html.gz','theme.js.gz','ui_dialog.js.gz','tools.html.gz'];
+      await page.locator('#assets-files').setInputFiles(assetNames.map(name=>({name,mimeType:'application/gzip',buffer:name==='tools.html.gz'?Buffer.alloc(0):fs.readFileSync(path.resolve(__dirname,'../data/'+name))})));
+      assert.equal(assetRequests,0,'an empty asset must reject the complete selection before writing any pages');
+      await page.locator('#ot-dialog-confirm').waitFor();
+      assert.match(await page.locator('#ot-dialog-message').textContent(),/Empty: tools\.html\.gz/);
+      await page.locator('#ot-dialog-confirm').click();
+      assert.equal(await page.locator('#assets-btn').isDisabled(),false);
+      assert.equal(await page.locator('#assets-files').inputValue(),'');
+      for(const fault of ['network','json']) {
+        const badTelemetry=route=>fault==='network'?route.abort('failed'):route.fulfill({status:200,contentType:'application/json',body:'not JSON'});
+        await page.route('**/api/data',badTelemetry);
+        await page.evaluate(()=>{document.getElementById('cfg-backup-state').textContent='Ready';});
+        const downloaded=page.waitForEvent('download',{timeout:5000});
+        // Observe a failed download promise too, so an assertion cannot leave an unhandled rejection.
+        downloaded.catch(()=>{});
+        await page.evaluate(()=>backupConfig());
+        await page.waitForFunction(()=>['Download started','Error'].includes(document.getElementById('cfg-backup-state').textContent)||document.getElementById('cfg-backup-msg').textContent.startsWith('Backup failed:'));
+        assert.equal(await page.locator('#cfg-backup-state').textContent(),'Download started','optional telemetry failure must not prevent an engine-file backup');
+        const saved=JSON.parse(fs.readFileSync(await (await downloaded).path(),'utf8'));
+        const original=JSON.parse(file.buffer.toString());
+        assert.deepEqual(saved.hardware,original.hardware);
+        assert.deepEqual(saved.settings,original.settings);
+        assert.equal(saved._backup_meta.fw_version,'unknown');
+        await page.unroute('**/api/data',badTelemetry);
+      }
+      const noEngineFile=route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"busy"}'});
+      await page.route('**/api/ecu_config',noEngineFile);
+      await page.evaluate(()=>{document.getElementById('cfg-backup-state').textContent='Ready';backupConfig();});
+      await page.waitForFunction(()=>document.getElementById('cfg-backup-state').textContent==='Error');
+      assert.match(await page.locator('#cfg-backup-msg').textContent(),/Backup failed: HTTP 503/);
+      await page.unroute('**/api/ecu_config',noEngineFile);
       for(const fault of ['error','abort','throw']) {
         await page.goto(base+'/system.html');
         await page.waitForFunction(()=>typeof runtimeMode!=='undefined'&&runtimeMode==='STANDBY');
@@ -100,7 +144,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       assert.deepEqual(errors,[]);
       await page.close();
     }
-    console.log('Restore/calibration recovery audit passed: file-read error/abort/exception and same-file retry; throttle/idle recapture failures, capture locking, fresh retries and changed-input rejection; source and packaged mobile pages.');
+    console.log('Restore/calibration recovery audit passed: empty firmware/assets rejected before upload; complete backup despite optional telemetry errors and explicit engine-file failure; file-read error/abort/exception and same-file retry; throttle/idle recapture failures, capture locking, fresh retries and changed-input rejection; source and packaged mobile pages.');
   } finally {await browser.close();}
   process.exit(0);
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
