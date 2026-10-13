@@ -22,7 +22,9 @@ The load-cell calibration wizard now requires a connected, healthy signed 24-bit
 
 The HX711 scale instructions now divide known Nm by (loaded count minus zero count), rather than the loaded count alone. Calibration shows torque/thrust health and faults the torque bar when unhealthy.
 
-The broader UI review also rejects missing/disconnected readings during ADC, phase and throttle calibration, hides uninstalled analog switches, displays missing ADC data as unavailable, and restores switch capture controls after errors. ADC calibration does not require an already-correct calibrated physical value; it accepts connected raw counts so calibration can repair invalid scaling.
+The broader UI review also rejects missing/disconnected readings during ADC, phase and throttle calibration, hides uninstalled analog switches, displays missing ADC data as unavailable, and restores switch capture controls after errors. Throttle/idle RC captures accept only the native driver's 500–2500 µs pulse range, so signal-loss zero cannot become an endpoint. A regression verifies valid pulses, signal loss and legitimate zero ADC counts.
+
+ADC calibration does not require an already-correct calibrated physical value; it accepts connected raw counts so calibration can repair invalid scaling.
 
 ## Other drivers reviewed
 

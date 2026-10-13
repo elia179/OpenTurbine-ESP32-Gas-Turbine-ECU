@@ -26,6 +26,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Correct the HX711 scale instructions to subtract zero counts; show torque/thrust health in Calibration and mark the torque bar faulted when unhealthy.
 
+- Reject lost or invalid RC pulses when capturing throttle/idle calibration endpoints; accept only the driver-supported 500–2500 µs range.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.

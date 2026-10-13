@@ -373,6 +373,27 @@ function installedBrowser() {
     assert.notEqual(calibrationHealth.torqueFault,calibrationHealth.torqueHealthy);
     assert.notEqual(calibrationHealth.thrustFault,calibrationHealth.thrustHealthy);
     assert.match(calibrationHealth.instructions,/loaded raw count − zero count/);
+    const receiverCapture = await page.evaluate(async () => {
+      document.getElementById('conn').className = 'conn-dot connected';
+      const pulseWidths = [null,0,499,2501,1500];
+      let index = 0;
+      nextCalibrationFrame = async () => {
+        await new Promise(resolve => setTimeout(resolve,20));
+        return {throttle_input_us:pulseWidths[index++ % pulseWidths.length]};
+      };
+      const pulse = await _captureInputAverage('throttle_input_us');
+      nextCalibrationFrame = async () => {
+        await new Promise(resolve => setTimeout(resolve,20));
+        return {throttle_input_us:0,throttle_input_raw:0};
+      };
+      let missing = '';
+      try { await _captureInputAverage('throttle_input_us'); } catch (error) { missing = error.message; }
+      const adcZero = await _captureInputAverage('throttle_input_raw');
+      return {pulse,missing,adcZero};
+    });
+    assert.equal(receiverCapture.pulse,1500);
+    assert.equal(receiverCapture.adcZero,0);
+    assert.match(receiverCapture.missing,/No valid input samples/);
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {
