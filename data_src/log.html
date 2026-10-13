@@ -164,10 +164,10 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div id="session-chart-wrap" style="display:none;margin-bottom:.75rem">
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;font-size:.72rem">
           <span style="color:var(--dim)">Plot:</span>
-          <label id="chart-lbl-n1"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-n1"   checked onchange="redrawChart()"> <span style="color:#4ea4f5">N1 RPM</span></label>
+          <label id="chart-lbl-n1"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-n1"   checked onchange="redrawChart()"> <span style="color:#4ea4f5">N1 kRPM</span></label>
           <label id="chart-lbl-tot"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-tot"  checked onchange="redrawChart()"> <span style="color:#f59c3a">TOT <span class="chart-tunit">°C</span></span></label>
-          <label id="chart-lbl-n2"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-n2"          onchange="redrawChart()"> <span style="color:#52d98a">N2 RPM</span></label>
-          <label id="chart-lbl-oil"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-oil"         onchange="redrawChart()"> <span style="color:#d9785e">Oil bar</span></label>
+          <label id="chart-lbl-n2"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-n2"          onchange="redrawChart()"> <span style="color:#52d98a">N2 kRPM</span></label>
+          <label id="chart-lbl-oil"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-oil"         onchange="redrawChart()"> <span style="color:#d9785e">Oil bar ×100</span></label>
           <label id="chart-lbl-p1" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-p1" onchange="redrawChart()"> <span style="color:#88b8ef">P1 bar ×100</span></label>
           <label id="chart-lbl-p2" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-p2" onchange="redrawChart()"> <span style="color:#b9a1ef">P2 bar ×100</span></label>
           <label id="chart-lbl-torque" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-torque" onchange="redrawChart()"> <span style="color:#e3b65f">Torque Nm</span></label>
@@ -177,26 +177,28 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
           <label id="chart-lbl-thr"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-thr"         onchange="redrawChart()"> <span style="color:#c97adb">Throttle %</span></label>
           <label id="chart-lbl-tit"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-tit"         onchange="redrawChart()"> <span style="color:#e8875a">TIT <span class="chart-tunit">°C</span></span></label>
           <label id="chart-lbl-oilt" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-oilt"        onchange="redrawChart()"> <span style="color:#9bd66f">Oil temp <span class="chart-tunit">°C</span></span></label>
-          <label id="chart-lbl-batt" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-batt"        onchange="redrawChart()"> <span style="color:#5ecdd9">Batt V</span></label>
-          <label id="chart-lbl-fp"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-fp"          onchange="redrawChart()"> <span style="color:#b87fdb">Fuel pressure</span></label>
+          <label id="chart-lbl-batt" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-batt"        onchange="redrawChart()"> <span style="color:#5ecdd9">Batt V ×10</span></label>
+          <label id="chart-lbl-fp"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-fp"          onchange="redrawChart()"> <span style="color:#b87fdb">Fuel pressure bar ×100</span></label>
           <label id="chart-lbl-glow" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-glow"        onchange="redrawChart()"> <span style="color:#f06060">Glow output (%)</span></label>
-          <label id="chart-lbl-wetg" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-wetg"        onchange="redrawChart()"> <span style="color:#e05f8a">Wet glow fuel output</span></label>
-          <label id="chart-lbl-gcur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-gcur"        onchange="redrawChart()"> <span style="color:#ff8b8b">Glow current</span></label>
-          <label id="chart-lbl-icur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-icur"        onchange="redrawChart()"> <span style="color:#ffb15c">Igniter 1 current</span></label>
-          <label id="chart-lbl-i2cur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-i2cur"      onchange="redrawChart()"> <span style="color:#ffce6b">secondary igniter current</span></label>
-          <label id="chart-lbl-ocur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-ocur"        onchange="redrawChart()"> <span style="color:#c7d96a">Oil current</span></label>
+          <label id="chart-lbl-wetg" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-wetg"        onchange="redrawChart()"> <span style="color:#e05f8a">Wet glow fuel output %</span></label>
+          <label id="chart-lbl-gcur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-gcur"        onchange="redrawChart()"> <span style="color:#ff8b8b">Glow current A ×10</span></label>
+          <label id="chart-lbl-icur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-icur"        onchange="redrawChart()"> <span style="color:#ffb15c">Igniter 1 current A ×10</span></label>
+          <label id="chart-lbl-i2cur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-i2cur"      onchange="redrawChart()"> <span style="color:#ffce6b">Secondary igniter current A ×10</span></label>
+          <label id="chart-lbl-ocur" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-ocur"        onchange="redrawChart()"> <span style="color:#c7d96a">Oil current A ×10</span></label>
           <label id="chart-lbl-fp2"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-fp2"         onchange="redrawChart()"> <span style="color:#68c97a">Secondary / aux fuel pump %</span></label>
           <label id="chart-lbl-prop" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-prop"        onchange="redrawChart()"> <span style="color:#7ab3f0">Prop pitch %</span></label>
-          <label id="chart-lbl-ff"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-ff"          onchange="redrawChart()"> <span style="color:#f5c842">Fuel flow</span></label>
-          <label id="chart-lbl-abm"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abm"         onchange="redrawChart()"> <span style="color:#e84040">AB mode</span></label>
-          <label id="chart-lbl-abfl" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abfl"        onchange="redrawChart()"> <span style="color:#f07030">AB flame</span></label>
+          <label id="chart-lbl-ff"   style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-ff"          onchange="redrawChart()"> <span style="color:#f5c842">Fuel flow L/min</span></label>
+          <label id="chart-lbl-abm"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abm"         onchange="redrawChart()"> <span style="color:#e84040">AB mode ×20</span></label>
+          <label id="chart-lbl-abfl" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abfl"        onchange="redrawChart()"> <span style="color:#f07030">AB flame ×50</span></label>
           <label id="chart-lbl-abp"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abp"         onchange="redrawChart()"> <span style="color:#ff5a4f">AB pump %</span></label>
           <label id="chart-lbl-abo"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-abo"         onchange="redrawChart()"> <span style="color:#ff8a3a">AB offset %</span></label>
           <label id="chart-lbl-opct" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-opct"        onchange="redrawChart()"> <span style="color:#8fd0b0">Oil pump %</span></label>
           <label id="chart-lbl-lhz"  style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-lhz"         onchange="redrawChart()"> <span style="color:#a0a8ff">Loop Hz ÷10</span></label>
           <label id="chart-lbl-lavg" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-lavg"        onchange="redrawChart()"> <span style="color:#c0b0ff">Loop avg ms ×10</span></label>
           <label id="chart-lbl-lmax" style="cursor:pointer;display:none"><input type="checkbox" id="chart-cb-lmax"        onchange="redrawChart()"> <span style="color:#e0a8ff">Loop max ms ×10</span></label>
+          <span id="session-extra-chart-controls" style="display:contents"></span>
         </div>
+        <p style="font-size:.72rem;color:var(--dim);margin:.3rem 0 .6rem">Traces share one scale; labels show the units and any plotting multiplier.</p>
         <canvas id="session-chart" style="width:100%;height:200px;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></canvas>
       </div>
 
@@ -952,6 +954,7 @@ function downloadSessionLog() {
 // ── Session CSV data (parsed, available for chart) ────────────
 let _sessionHeaders = [];
 let _sessionRows    = [];
+let _sessionPreviewRequest = 0;
 
 function clearSessionPreview(message = '') {
   _sessionHeaders = [];
@@ -975,8 +978,8 @@ function renderSessionCsvPreview(csv, labelPrefix = '') {
   const lines = csv.trim().split('\n').filter(l => l.trim());
   if (lines.length < 2) return false;
 
-  _sessionHeaders = lines[0].split(',');
-  _sessionRows    = lines.slice(1).map(l => l.split(','));
+  _sessionHeaders = lines[0].split(',').map(h => h.trim());
+  _sessionRows    = lines.slice(1).map(l => l.replace(/\r$/, '').split(','));
 
   const dataRows = _sessionRows.slice(-50);
   let html = '<thead><tr style="background:var(--surface);position:sticky;top:0">';
@@ -998,6 +1001,7 @@ function renderSessionCsvPreview(csv, labelPrefix = '') {
 }
 
 function loadSessionPreview() {
+  const request = ++_sessionPreviewRequest;
   const msg   = document.getElementById('session-preview-msg');
   const wrap  = document.getElementById('session-preview-wrap');
   const empty = document.getElementById('session-preview-empty');
@@ -1014,6 +1018,7 @@ function loadSessionPreview() {
     const download = document.getElementById('session-current-download');
     if (rowEl) rowEl.textContent = rows + ' rows in the current session';
     if (download) download.disabled = false;
+    if (request !== _sessionPreviewRequest) return;
     if (!renderSessionCsvPreview(csv)) {
       clearSessionPreview('No session data yet');
       return;
@@ -1026,7 +1031,8 @@ function loadSessionPreview() {
       ? 'Current session log available after STANDBY'
       : 'No current session log; use Past Sessions above';
     if (download) download.disabled = true;
-    clearSessionPreview(err.includes('STANDBY') ? 'Session preview available after STANDBY' : '');
+    if (request === _sessionPreviewRequest)
+      clearSessionPreview(err.includes('STANDBY') ? 'Session preview available after STANDBY' : '');
   });
 }
 
@@ -1066,7 +1072,52 @@ const CHART_COLS = [
   ['loop_exec_max_ms','chart-cb-lmax', 'chart-lbl-lmax', '#e0a8ff', v => v * 10],   // ms → ×10 for scale
 ];
 
+let _sessionExtraChartCols = [];
+
+function _buildExtraChartControls() {
+  const wrap = document.getElementById('session-extra-chart-controls');
+  const selected = new Set(_sessionExtraChartCols.filter(([, id]) => document.getElementById(id)?.checked).map(([header]) => header));
+  _sessionExtraChartCols = [];
+  wrap.replaceChildren();
+  const standard = new Set(CHART_COLS.map(([header]) => header));
+  const colors = ['#88b8ef', '#e986b9', '#72ccba', '#e3b65f', '#b9a1ef', '#b0c975'];
+  _sessionHeaders.forEach((header, column) => {
+    if (standard.has(header) || !header.startsWith('sensor_')) return;
+    // The file stores the captured name, stable ID and engineering unit.
+    // Use that snapshot rather than today's hardware list for past sessions.
+    const units = {rpm:['kRPM', v => v / 1000], c:[dispTempUnit(), v => toDispTemp(v)],
+      bar:['bar ×100', v => v * 100], l_min:['L/min', v => v], a:['A ×10', v => v * 10],
+      v:['V ×10', v => v * 10], nm:['Nm', v => v], n:['N', v => v], value:['', v => v]};
+    const suffix = Object.keys(units).find(unit => header.endsWith('_' + unit));
+    const [unit, scale] = units[suffix] || ['', v => v];
+    const separator = header.lastIndexOf('__');
+    const name = (separator > 7 ? header.slice(7, separator) : header.slice(7)).replace(/_/g, ' ');
+    const id = 'chart-cb-extra-' + column, labelId = 'chart-lbl-extra-' + column;
+    const color = colors[_sessionExtraChartCols.length % colors.length];
+    const label = document.createElement('label');
+    label.id = labelId;
+    label.style.cursor = 'pointer';
+    label.style.maxWidth = '100%';
+    label.style.overflowWrap = 'anywhere';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = id;
+    checkbox.checked = selected.has(header);
+    checkbox.addEventListener('change', redrawChart);
+    const text = document.createElement('span');
+    text.style.color = color;
+    text.textContent = ' ' + name + (unit ? ' ' + unit : '');
+    if (suffix === 'c') text.dataset.chartSensorTemperature = name;
+    // Stable IDs distinguish sensors whose recorded names happen to match.
+    label.title = header;
+    label.append(checkbox, text);
+    wrap.append(label);
+    _sessionExtraChartCols.push([header, id, labelId, color, scale]);
+  });
+}
+
 function _updateChartControls() {
+  _buildExtraChartControls();
   let hasAny = false;
   CHART_COLS.forEach(([hdr,, lblId]) => {
     const lbl = document.getElementById(lblId);
@@ -1074,13 +1125,16 @@ function _updateChartControls() {
     if (lbl) lbl.style.display = has ? '' : 'none';
     if (has) hasAny = true;
   });
-  document.getElementById('session-chart-wrap').style.display = hasAny ? '' : 'none';
+  document.getElementById('session-chart-wrap').style.display = hasAny || _sessionExtraChartCols.length ? '' : 'none';
 }
 
 function redrawChart() {
   // Chart temperature series follow the site-wide °C/°F preference (their
   // scale fns use toDispTemp); keep the plot legend units in step.
   document.querySelectorAll('.chart-tunit').forEach(el => { el.textContent = dispTempUnit(); });
+  document.querySelectorAll('[data-chart-sensor-temperature]').forEach(el => {
+    el.textContent = ' ' + el.dataset.chartSensorTemperature + ' ' + dispTempUnit();
+  });
   const canvas = document.getElementById('session-chart');
   if (!canvas || !_sessionRows.length) return;
   const dpr = window.devicePixelRatio || 1;
@@ -1098,7 +1152,7 @@ function redrawChart() {
   ctx.fillRect(0, 0, W, H);
 
   // Determine which columns to draw
-  const active = CHART_COLS.filter(([hdr, cbId]) => {
+  const active = [...CHART_COLS, ..._sessionExtraChartCols].filter(([hdr, cbId]) => {
     const cb = document.getElementById(cbId);
     return _sessionHeaders.includes(hdr) && cb && cb.checked;
   });
@@ -1215,6 +1269,7 @@ function downloadSession(run) {
 }
 
 function previewSession(run) {
+  const request = ++_sessionPreviewRequest;
   const msg   = document.getElementById('session-preview-msg');
   const wrap  = document.getElementById('session-preview-wrap');
   const empty = document.getElementById('session-preview-empty');
@@ -1226,11 +1281,13 @@ function previewSession(run) {
     if (!r.ok) throw new Error(await r.text() || 'not found');
     return r.text();
   }).then(csv => {
+    if (request !== _sessionPreviewRequest) return;
     if (!renderSessionCsvPreview(csv, 'Run #' + run)) {
       clearSessionPreview('No session data yet');
       return;
     }
   }).catch(e => {
+    if (request !== _sessionPreviewRequest) return;
     const err = e && e.message ? e.message : '';
     clearSessionPreview(err.includes('STANDBY') ? 'Run #' + run + ' available after STANDBY' : 'Run #' + run + ' not found');
   });

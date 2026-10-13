@@ -40,6 +40,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Release browser Blob URLs after event and session downloads so repeated log exports do not retain their data in memory.
 
+- Parse firmware CRLF session CSVs correctly so the final recorded column remains available to the chart. Add chart controls for recorded additional sensors, preserving historical names and units independently of the current hardware setup.
+
+- Show chart units and plotting multipliers explicitly, and keep delayed session-preview responses or errors from replacing the latest selected run.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.

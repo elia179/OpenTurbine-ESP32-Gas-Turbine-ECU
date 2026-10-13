@@ -97,7 +97,22 @@ The event CSV/NDJSON and current/archived session download paths created Blob UR
 
 The real-browser chart audit also downloads each of the four export formats twice and verifies exact file contents, filenames, removal of temporary anchors and release of all Blob URLs. Both source and gzip-packaged pages pass. This changes browser resource cleanup only; ECU log retrieval and file contents are unchanged.
 
+## Session CSV compatibility and additional sensor charts
+
+SessionLogger writes CRLF with `File::println`, but the browser split only on LF and retained CR in the final header. That prevented an exact match for the final chart column in real firmware logs. Trim header tokens and remove row-ending CR; LF files and an optional UTF-8 BOM remain supported.
+
+Additional registry sensors could be selected for capture and appeared in the CSV table, but had no plot controls. Generate unchecked chart controls from each recorded `sensor_<name>__<id>_<unit>` header, using its historical name/unit rather than the current configuration. Keep selections when refreshing the same columns, remove controls absent from the next file, distinguish same-name sensors by their recorded identity, and follow temperature preferences. Numeric scale multipliers are explicit in these new labels.
+
+The focused browser audit covers firmware CRLF headers/rows, nine additional sensor unit types, a registry-only session, duplicate names with distinct force/torque units, checkbox refresh, Fahrenheit conversion, mobile width, and switching back to a standard-column file, on source and packaged pages.
+
+Existing chart labels also omitted their scale transformations (RPM divided by 1000, pressure multiplied by 100, voltage/current multiplied by 10, and afterburner state multipliers). Labels now state the plotted units/multipliers and explain that traces share one scale. The calculations are unchanged.
+
+Past-session previews could race: selecting a second run before the first response arrived let the first response overwrite the newer selection, or its error clear the successful newer chart. Track the latest preview request and ignore older preview results. A delayed-response browser regression covers both a successful older CSV and an older HTTP 404 while the newer run remains displayed.
+
+The full pre-hardware software/package gate passed at `a8626fb29488f0254c4e1de9805eaf7a6dfdcf57` in [run 38363101058](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38363101058), including all 20 UI programs. This result precedes the CRLF/additional-chart follow-up; publication was skipped.
+
 ## Sources
+
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)
 - [TI TLA2528 datasheet](https://www.ti.com/lit/ds/symlink/tla2528.pdf), sections 7.3.9, 7.4.2 and 7.6
