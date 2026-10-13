@@ -83,6 +83,14 @@ Actual-driver native regressions use a 0.2 filter coefficient and verify NAU sat
 
 The preceding complete build/package gate at `2c0ea641b37a60dc044f5216f1d3193107eff33f` passed in [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672), including all 19 UI audits, native driver models, both firmware targets and package validation. Publication was skipped. That result precedes the Hardware offset/fuel-flow and filter-recovery follow-ups.
 
+## Session chart follow-up
+
+Session CSVs recorded P1/P2 pressure, torque, shaft power, thrust and starter output but the Log page had no chart controls for them. Add these numeric traces, with shaft power shown in kW. The chart also gathered every selected point into an array and spread it into `Math.min`/`Math.max`, exceeding the browser's function argument limit for realistic large multi-trace sessions. Iterate to find the range, avoiding that call limit and extra combined array. Reject nonfinite raw or converted values as gaps.
+
+A real-browser regression reproduced `RangeError: Maximum call stack size exceeded` on the old renderer with a 20,000-row log. The fixed renderer passes this case and verifies the six new controls, kW conversion, nonfinite gaps, mobile layout, and source/gzip-packaged parity. It is included automatically as the twentieth browser audit program.
+
+The chart audit and existing complete UI smoke program pass locally, along with 316 safety checks, the I2C source audit, public-content validation, and both filesystem builds/budgets. The driver-filter gate [38358343952](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38358343952) is running at `dc5ba58573ed4b49f82aec196324247374399be4`; it precedes this chart-only follow-up and therefore does not test the new twentieth browser audit.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

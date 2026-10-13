@@ -36,6 +36,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Keep invalid TLA2528/NAU7802 samples out of their smoothing filters and restart filtering from the first valid sample after a fault or stale gap. Clear sample validity when reinitializing the I2C manager.
 
+- Add Session Data chart controls for P1/P2 pressure, torque, shaft power, thrust and starter output. Render large multi-trace logs without exceeding browser argument limits; treat nonfinite readings as gaps.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
