@@ -29,6 +29,8 @@ int main() {
     assert(SensorProtocolDecode::ds18b20(scratch, 12, t) && near(t, 85));
     scratch[8] ^= 1;
     assert(!SensorProtocolDecode::ds18b20(scratch, 12, t));
+    const uint8_t stuckLow[9] = {};
+    assert(!SensorProtocolDecode::ds18b20(stuckLow, 12, t));
     bool state = false;
     state = AdcThreshold::update(2080, 2048, 128, state);
     assert(!state); // below 2112 ON edge

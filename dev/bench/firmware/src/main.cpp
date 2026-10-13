@@ -41,7 +41,7 @@
 #include "esp_timer.h"     // synchronized dual-pickup phase stimulus (tester only)
 #include "driver/gpio.h"
 
-static const char* OTBENCH_VER = "0.11";
+static const char* OTBENCH_VER = "0.12";
 
 // ── Signal kinds ─────────────────────────────────────────────
 enum Kind {
@@ -127,9 +127,11 @@ static volatile int32_t g_nauRaw = 0;
 static volatile uint32_t g_nauAnalogMs = 0, g_nauCalMs = 0;
 static volatile uint8_t g_nauCalMask = 0;
 static volatile bool g_nauInitOk = false;
+static volatile bool g_tlaRegisterRead = false;
 static constexpr int I2C_EMU_SDA = 13;
 static constexpr int I2C_EMU_SCL = 14;
 static void preloadNauReply();
+static void preloadPeripheralReply();
 
 static void i2cEmuReceive(int count) {
     if (count <= 0 || !Wire.available()) return;
@@ -137,6 +139,7 @@ static void i2cEmuReceive(int count) {
     --count;
     if (g_i2cEmuMode == I2C_EMU_TLA2528 &&
         (first == 0x08 || first == 0x10)) {
+        g_tlaRegisterRead = first == 0x10;
         if (count > 0 && Wire.available()) {
             g_i2cReg = Wire.read();
             --count;
@@ -173,6 +176,26 @@ static void i2cEmuReceive(int count) {
     }
     while (Wire.available()) Wire.read();
     if (g_i2cEmuMode == I2C_EMU_NAU7802) preloadNauReply();
+    else preloadPeripheralReply();
+}
+
+static void preloadPeripheralReply() {
+    uint8_t reply[2];
+    size_t length = 1;
+    if (g_i2cEmuMode == I2C_EMU_TLA2528 && !g_tlaRegisterRead) {
+        const uint16_t wireValue = (uint16_t)(((g_tlaRaw & 0x0FFFU) << 4) |
+            ((g_i2cRegs[2] & 0x10) ? (g_i2cRegs[0x11] & 7U) : 0U));
+        reply[0] = (uint8_t)(wireValue >> 8);
+        reply[1] = (uint8_t)wireValue;
+        length = 2;
+    } else if (g_i2cEmuMode == I2C_EMU_TCA9554 ||
+               g_i2cEmuMode == I2C_EMU_TLA2528) {
+        reply[0] = g_i2cRegs[g_i2cReg & 0x1F];
+        if (g_i2cEmuMode == I2C_EMU_TCA9554 && g_i2cReg == 0)
+            reply[0] ^= g_i2cRegs[2];
+    } else return;
+    // TCA/TLA need the same Classic slave FIFO preloading as NAU7802.
+    Wire.slaveWrite(reply, length);
 }
 
 static void preloadNauReply() {
@@ -206,17 +229,7 @@ static void preloadNauReply() {
 }
 
 static void i2cEmuRequest() {
-    if (g_i2cEmuMode == I2C_EMU_TLA2528 && g_i2cReg == 0x11) {
-        const uint16_t wireValue = (uint16_t)(g_tlaRaw & 0x0FFFU) << 4;
-        Wire.write((uint8_t)(wireValue >> 8));
-        Wire.write((uint8_t)wireValue);
-        return;
-    }
-    if (g_i2cEmuMode == I2C_EMU_NAU7802) {
-        ++g_i2cPhase;
-        return;
-    }
-    Wire.write(g_i2cRegs[g_i2cReg & 0x1F]);
+    ++g_i2cPhase;
 }
 
 static void i2cEmuStop() {
@@ -249,12 +262,14 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
     g_i2cPhase = 0;
     g_nauCalMask = 0;
     g_nauInitOk = false;
+    g_tlaRegisterRead = false;
     g_nauAnalogMs = g_nauCalMs = 0;
     Wire.onReceive(i2cEmuReceive);
     Wire.onRequest(i2cEmuRequest);
     if (!Wire.begin(address, I2C_EMU_SDA, I2C_EMU_SCL, 400000)) return false;
     g_i2cEmuMode = mode;
     if (mode == I2C_EMU_NAU7802) preloadNauReply();
+    else preloadPeripheralReply();
     return true;
 }
 #endif

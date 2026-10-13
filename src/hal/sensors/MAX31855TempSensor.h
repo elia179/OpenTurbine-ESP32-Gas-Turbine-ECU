@@ -10,9 +10,9 @@
 //  Bit layout (per datasheet):
 //    31–18  Thermocouple temp (13-bit + sign, 0.25°C/LSB)
 //    16     Fault bit (1 = any fault present)
-//    3      SCV: short to VCC
-//    2      SCG: short to GND
-//    1      OC:  open circuit
+//    2      SCV: short to VCC
+//    1      SCG: short to GND
+//    0      OC:  open circuit
 // ============================================================
 
 class MAX31855TempSensor : public ISensor {
@@ -37,11 +37,13 @@ public:
         _temp    = 0;
         _healthy = false;
         _lastMs  = 0;
+        _startedMs = millis();
         _sampleSeq = 0;
     }
 
     void update() override {
         unsigned long now = millis();
+        if (now - _startedMs < 200UL) return; // datasheet power-up conversion
         if (now - _lastMs < READ_INTERVAL_MS) return;
         _lastMs = now;
 
@@ -92,9 +94,12 @@ private:
     float       _temp    = 0;
     bool        _healthy = false;
     unsigned long _lastMs = 0;
+    unsigned long _startedMs = 0;
     uint32_t      _sampleSeq = 0;
 
     uint32_t _read32() {
-        return SoftwareSpiRead::bits(_clk, _cs, _miso, 32, false);
+        // D31 is available when CS falls; sample it before the first falling
+        // SCLK edge, which shifts D30 onto SO. Subsequent bits use rising edges.
+        return SoftwareSpiRead::bits(_clk, _cs, _miso, 32, true);
     }
 };

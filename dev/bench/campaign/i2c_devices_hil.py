@@ -1,4 +1,4 @@
-"""Physical shared-I2C HIL using OTBench 0.11 and the existing switch jumpers.
+"""Physical shared-I2C HIL using OTBench 0.12 and the existing switch jumpers.
 
 The classic tester temporarily makes DUT GPIO13/15 an I2C bus and emulates one
 supported accessory at a time. The campaign proves discovery, assignment
@@ -55,7 +55,7 @@ class I2cQualification:
     def reset_i2c_tester(self):
         """Reset the synthetic slave before changing its I2C address."""
         self.t._reset_board()
-        if not self.t.ping().startswith("OK OTBench 0.11"):
+        if not self.t.ping().startswith("OK OTBench 0.12"):
             raise RuntimeError("OTBench did not return after I2C emulator reset")
 
     def start_tca(self, input_value: int):

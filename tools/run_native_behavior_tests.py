@@ -125,6 +125,8 @@ def main() -> int:
             ("feedback_control", [str(ROOT / "dev" / "host" / "feedback_control_behavior.cpp")], []),
             ("phase_registry", [str(ROOT / "dev" / "host" / "phase_registry_behavior.cpp")], []),
             ("i2c_loadcell_behavior", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], []),
+            ("i2c_peripheral_behavior", [str(ROOT / "dev" / "host" / "i2c_peripheral_behavior.cpp")], []),
+            ("sensor_driver_behavior", [str(ROOT / "dev" / "host" / "sensor_driver_behavior.cpp")], []),
         ]
         for name, sources, extra_flags in tests:
             # Windows Application Control classifies the generic

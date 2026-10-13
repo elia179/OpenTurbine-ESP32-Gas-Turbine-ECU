@@ -31,6 +31,9 @@ public:
                       const ChannelRegistry& registry) {
         _enabled = enabled && sda >= 0 && scl >= 0 && sda != scl;
         _registry = &registry;
+        _tcaConfigured = 0;
+        _tlaConfigured = 0;
+        _tlaPendingRegistryIndex = 255;
         for (uint8_t i = 0; i < registry.inputCount; ++i) {
             _adcDigitalState[i] = !registry.inputs[i].activeHigh;
             _adcConfig[i] = _adcConfigKey(registry.inputs[i]);
@@ -91,27 +94,25 @@ public:
         const auto& c = _registry->inputs[registryIndex];
         const Device* d = _find(c.i2cAddress, _typeForDriver(c.driver));
         return d && d->present && _valid[registryIndex] &&
+               (c.driver != ChannelRegistry::I2cDigital ||
+                (_tcaConfigured & (1U << (c.i2cAddress - 0x20)))) &&
                sampleMs && millis() - sampleMs <= _staleMs(c);
     }
 
     static bool writeOutput(const ChannelRegistry::Channel& c, float demand) {
         if (!_enabled || c.driver != ChannelRegistry::I2cRelay ||
             c.deviceChannel >= 8 || !_present(c.i2cAddress, Tca9554)) return false;
+        if (!_ensureTcaConfiguration(c.i2cAddress)) return false;
         const uint8_t bit = (uint8_t)(1U << c.deviceChannel);
         const bool on = RelayDemand::physicalLevel(demand, c.inverted);
         uint8_t& latch = _tcaLatch[c.i2cAddress - 0x20];
         uint8_t nextLatch = latch;
         if (on) nextLatch |= bit; else nextLatch &= (uint8_t)~bit;
-        // Actuator updates run every ECU tick. Do not retransmit an unchanged
-        // latch hundreds of times per second. A bounded heartbeat is still
-        // required because discovery scans stop while the engine is active:
-        // otherwise an expander unplugged during a steady demand could look
-        // healthy forever.
+        // Configuration/readback heartbeat above also verifies device presence
+        // while discovery is disabled. Write only changed demands.
         const uint8_t deviceIndex = c.i2cAddress - 0x20;
         const uint16_t nowTick = (uint16_t)(millis() >> 4);
-        if (nextLatch == latch &&
-            (uint16_t)(nowTick - _tcaVerifiedTick[deviceIndex]) <
-                TCA_HEARTBEAT_TICKS) return true;
+        if (nextLatch == latch) return true;
         const bool ok = _writeReg(c.i2cAddress, 0x01, nextLatch);
         if (ok) {
             latch = nextLatch;
@@ -127,7 +128,9 @@ public:
     }
 
     static bool channelAvailable(const ChannelRegistry::Channel& c) {
-        return _enabled && _present(c.i2cAddress, _typeForDriver(c.driver));
+        return _enabled && _present(c.i2cAddress, _typeForDriver(c.driver)) &&
+               (c.driver != ChannelRegistry::I2cRelay ||
+                (_tcaConfigured & (1U << (c.i2cAddress - 0x20))));
     }
 
     static bool channelRechecking(const ChannelRegistry::Channel& c) {
@@ -172,6 +175,9 @@ private:
     inline static uint8_t _tcaLatch[8] = {};
     inline static uint8_t _tcaDirection[8] = {255,255,255,255,255,255,255,255};
     inline static uint16_t _tcaVerifiedTick[8] = {};
+    inline static uint8_t _tcaConfigured = 0, _tlaConfigured = 0;
+    inline static uint8_t _tlaPendingRegistryIndex = 255;
+    inline static uint32_t _tlaPendingMs = 0;
     inline static bool _nauConfigured = false;
     inline static uint8_t _nauInitStage = 0;
     inline static uint8_t _nauSelectedChannel = 255;
@@ -239,7 +245,7 @@ private:
         Wire.beginTransmission(address);
         Wire.write((uint8_t)0x10);
         Wire.write(reg);
-        if (Wire.endTransmission(false) != 0) return false;
+        if (Wire.endTransmission(true) != 0) return false;
         if (Wire.requestFrom(address, (uint8_t)1) != 1) return false;
         value = Wire.read();
         return true;
@@ -354,6 +360,12 @@ private:
         if (requirePresent && !_present(address, Tca9554)) return false;
         uint8_t direction = 0xFF, latch = 0;
         bool assigned = false;
+        const uint8_t configuredBit = (uint8_t)(1U << (address - 0x20));
+        for (uint8_t i = 0; i < _registry->inputCount; ++i) {
+            const auto& c = _registry->inputs[i];
+            if (c.installed && c.driver == ChannelRegistry::I2cDigital &&
+                c.i2cAddress == address) assigned = true;
+        }
         for (uint8_t i = 0; i < _registry->outputCount; ++i) {
             const auto& c = _registry->outputs[i];
             if (!c.installed || c.driver != ChannelRegistry::I2cRelay ||
@@ -365,20 +377,61 @@ private:
             if (safeOn) latch |= bit;
         }
         if (!assigned) return true;
+        _tcaConfigured &= (uint8_t)~configuredBit;
 
         // Set the safe latch before changing direction: a pin becoming an
         // output must never briefly expose the expander's previous latch.
         const bool ok = _writeReg(address, 0x01, latch) &&
+                        _writeReg(address, 0x02, 0) &&
                         _writeReg(address, 0x03, direction);
         if (!ok) {
             _markMissing(address, Tca9554);
             return false;
         }
         _tcaDirection[address - 0x20] = direction;
+        _tcaConfigured |= configuredBit;
         _tcaLatch[address - 0x20] = latch;
         _tcaVerifiedTick[address - 0x20] = (uint16_t)(millis() >> 4);
         _record(address, Tca9554, true);
         return true;
+    }
+
+    static bool _ensureTcaConfiguration(uint8_t address) {
+        const uint8_t index = address - 0x20;
+        const uint8_t bit = (uint8_t)(1U << index);
+        if (!(_tcaConfigured & bit)) return _configureTcaOutputs(address, true);
+        const uint16_t nowTick = (uint16_t)(millis() >> 4);
+        if ((uint16_t)(nowTick - _tcaVerifiedTick[index]) < TCA_HEARTBEAT_TICKS)
+            return true;
+        uint8_t direction = 0, polarity = 0, latch = 0;
+        if (!_readReg(address, 0x03, direction) ||
+            !_readReg(address, 0x02, polarity) ||
+            !_readReg(address, 0x01, latch) ||
+            direction != _tcaDirection[index] || polarity != 0 ||
+            latch != _tcaLatch[index]) {
+            // An ACK is not evidence that the pins are still outputs. A
+            // peripheral reset leaves them inputs while latch writes succeed.
+            _tcaConfigured &= (uint8_t)~bit;
+            _markMissing(address, Tca9554);
+            return false;
+        }
+        _tcaVerifiedTick[index] = nowTick;
+        _record(address, Tca9554, true);
+        return true;
+    }
+
+    static bool _configureTla(uint8_t address) {
+        const uint8_t bit = (uint8_t)(1U << (address - 0x10));
+        _tlaConfigured &= (uint8_t)~bit;
+        // Restore the protocol even if the separately powered ADC retained
+        // GPIO, averaging, or sequencer settings from an earlier application.
+        const bool ok = _tlaWriteReg(address, 0x10, 0) &&
+                        _tlaWriteReg(address, 0x05, 0) &&
+                        _tlaWriteReg(address, 0x03, 0) &&
+                        _tlaWriteReg(address, 0x02, 0x10);
+        if (ok) _tlaConfigured |= bit;
+        else _markMissing(address, Tla2528);
+        return ok;
     }
 
     static void _parkAssignedRelayOutputs() {
@@ -543,6 +596,8 @@ private:
 
     static void _serviceOneInput() {
         _serviceNauInit();
+        if (_tlaPendingRegistryIndex != 255 && millis() - _tlaPendingMs >= 100UL)
+            _tlaPendingRegistryIndex = 255;
         if (!_registry->inputCount) return;
         uint8_t i = 0;
         const ChannelRegistry::Channel* selected = nullptr;
@@ -563,12 +618,16 @@ private:
         if (c.driver == ChannelRegistry::I2cLoadCell &&
             _nauPendingRegistryIndex != 255 && _nauPendingRegistryIndex != i)
             return;
+        if (c.driver == ChannelRegistry::I2cAnalog &&
+            _tlaPendingRegistryIndex != 255 && _tlaPendingRegistryIndex != i)
+            return;
         int32_t raw = 0;
         bool ok = false;
         bool valid = true;
         if (c.driver == ChannelRegistry::I2cDigital && _present(c.i2cAddress, Tca9554)) {
             uint8_t bits = 0;
-            ok = _readReg(c.i2cAddress, 0x00, bits);
+            ok = _ensureTcaConfiguration(c.i2cAddress) &&
+                 _readReg(c.i2cAddress, 0x00, bits);
             if (ok) {
                 const bool high = bits & (1U << c.deviceChannel);
                 raw = high ? 1 : 0;
@@ -576,9 +635,22 @@ private:
             }
         } else if (c.driver == ChannelRegistry::I2cAnalog &&
                    _present(c.i2cAddress, Tla2528)) {
-            ok = _tlaWriteReg(c.i2cAddress, 0x11, c.deviceChannel);
+            ok = ((_tlaConfigured & (1U << (c.i2cAddress - 0x10))) ||
+                  _configureTla(c.i2cAddress)) &&
+                 _tlaWriteReg(c.i2cAddress, 0x11, c.deviceChannel);
             if (ok && Wire.requestFrom(c.i2cAddress, (uint8_t)2) == 2) {
-                raw = (((uint16_t)Wire.read() << 8) | Wire.read()) >> 4;
+                const uint16_t frame = ((uint16_t)Wire.read() << 8) | Wire.read();
+                if ((frame & 0x0FU) != c.deviceChannel) {
+                    // Never assign a latched previous-channel conversion to
+                    // another pressure/voltage/switch input. Retry configuration
+                    // too, because a reset removes appended channel IDs.
+                    _valid[i] = false;
+                    _tlaConfigured &= (uint8_t)~(1U << (c.i2cAddress - 0x10));
+                    if (_tlaPendingRegistryIndex != i) _tlaPendingMs = millis();
+                    _tlaPendingRegistryIndex = i;
+                    return;
+                }
+                raw = frame >> 4;
                 const float mv = raw * c.i2cReferenceMv / 4095.0f;
                 float physical = 0.0f;
                 if (_adcDigitalChannel[i]) {
@@ -671,6 +743,8 @@ private:
             _sampleMs[i] = millis(); ++_sequence[i];
             if (c.driver == ChannelRegistry::I2cLoadCell)
                 _nauPendingRegistryIndex = 255;
+            if (c.driver == ChannelRegistry::I2cAnalog)
+                _tlaPendingRegistryIndex = 255;
             // Use the common recovery path so a good sample also clears a
             // pending loss timer. Directly setting present/lastSeen left the
             // old timer armed and shortened every subsequent recheck.
@@ -680,6 +754,7 @@ private:
                     (c.driver == ChannelRegistry::I2cLoadCell && _nauConfigured)) &&
                    _present(c.i2cAddress, _typeForDriver(c.driver))) {
             if (_adcDigitalChannel[i]) _adcDigitalState[i] = !c.activeHigh;
+            if (c.driver == ChannelRegistry::I2cAnalog) _tlaPendingRegistryIndex = 255;
             _markMissing(c.i2cAddress, _typeForDriver(c.driver));
         }
     }

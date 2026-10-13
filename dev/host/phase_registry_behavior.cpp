@@ -181,5 +181,30 @@ int main() {
         bindingRoot["bindings"][0]["channel"] = "selected_output_that_is_too_long";
         assert(!roundTrip.fromJson(bindingRoot));
     }
-    std::cout << "phase registry, speed ownership, named switches and long binding round-trip vectors passed\n";
+    ChannelRegistry cells;
+    cells.inputCount=1;
+    auto& cell=cells.inputs[0];
+    cell.installed=true; cell.direction=ChannelRegistry::Input;
+    cell.driver=ChannelRegistry::Analog; cell.pin=32; cell.hx711Clk=33;
+    cell.torqueInterface=1;
+    std::strcpy(cell.id,"torque_main"); std::strcpy(cell.role,"torque");
+    std::strcpy(cell.purpose,"torque");
+    cell.hx711Zero=8388607; assert(cells.validate());
+    cell.hx711Zero=-8388608; assert(cells.validate());
+    cell.hx711Zero=INT32_MIN; assert(!cells.validate());
+    cell.driver=ChannelRegistry::I2cLoadCell; cell.pin=-1; cell.torqueInterface=0;
+    cell.i2cAddress=0x2A; cell.deviceChannel=0; cell.leverArmM=0.5f;
+    cell.loadCellZero=8388607; assert(cells.validate());
+    cell.loadCellZero=-8388608; assert(cells.validate());
+    cell.loadCellZero=INT32_MIN; assert(!cells.validate());
+    cell.loadCellZero=0;
+    cells.inputCount=2; cells.inputs[1]=cell;
+    auto& thrust=cells.inputs[1];
+    std::strcpy(thrust.id,"thrust_main"); std::strcpy(thrust.role,"thrust");
+    std::strcpy(thrust.purpose,"thrust"); thrust.deviceChannel=1; thrust.leverArmM=0;
+    assert(cells.validate());
+    thrust.loadCellRate=cell.loadCellRate==80 ? 40 : 80;
+    assert(!cells.validate());
+    assert(std::strstr(ChannelRegistry::validationError(),"matching values"));
+    std::cout << "phase registry, speed ownership, named switches, long binding round-trip and load-cell calibration validation vectors passed\n";
 }

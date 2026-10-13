@@ -8,8 +8,8 @@
 //  Supports all thermocouple types: B, E, J, K, N, R, S, T
 //  (pass the two-letter string as tcType, e.g. "K" or "J")
 //
-//  Datasheet SPI: CPOL=1, CPHA=1 (mode 1 or 3 — reads on
-//  falling SCLK, MAX31856 is mode 1).  CS active LOW.
+//  Datasheet SPI: mode 1 or 3. With our CPOL=1 clock, SDI is
+//  latched on rising SCLK and SDO changes on falling SCLK. CS active LOW.
 //
 //  Register map (read addresses = reg | 0x00, write = reg | 0x80):
 //    0x00  CR0  — configuration register 0 (noise filter, auto-conv)
@@ -62,7 +62,8 @@ public:
         // Chip never accepted its configuration (miswired/absent MOSI) —
         // retry so a fixed wiring fault recovers without a reboot, and stay
         // unhealthy instead of reporting the power-on 0.0 °C as valid.
-        if (!_configOk) {
+        if (!_configOk || _readReg(0x00) != 0x91 ||
+            _readReg(0x01) != (_tcReg & 0x0F)) {
             _configOk = _configure();
             _healthy  = false;
             return;
@@ -80,7 +81,6 @@ public:
         uint32_t raw = _readReg3(0x0C);  // returns 24-bit value
 
         // Bits 23:5 = 19-bit + sign temperature, 0.0078125 °C/LSB
-        // Bit 0 of last byte is the fault flag (redundant, already checked)
         // raw is left-justified in the 24-bit field: shift right by 5 → bits 18:0
         int32_t val = (int32_t)((raw & 0xFFFFE0u) >> 5);    // 19-bit signed
         if (val & 0x40000) val |= (int32_t)0xFFF80000;  // sign extend
@@ -127,11 +127,18 @@ private:
         // CR0 = 0x91: 50 Hz noise filter + open-circuit detection (OCFAULT=01)
         //             + auto-convert mode (continuous).  Without OCFAULT a
         //             detached thermocouple never sets the OPEN fault bit.
-        _writeReg(0x00, 0x91);
+        // Set filter/type with conversions stopped, including when recovering
+        // a separately powered chip that retained its previous configuration.
+        _writeReg(0x00, 0x11);
         // CR1 = tcType in lower nibble, averaging = 1 sample (bits 6:4 = 000)
         _writeReg(0x01, _tcReg & 0x0F);
-        return _readReg(0x00) == 0x91 &&
-               _readReg(0x01) == (_tcReg & 0x0F);
+        _writeReg(0x00, 0x91);
+        const bool ok = _readReg(0x00) == 0x91 &&
+                        _readReg(0x01) == (_tcReg & 0x0F);
+        // A successful retry starts a new first conversion. The original boot
+        // timestamp cannot justify reading its power-on 0 C after only 120 ms.
+        if (ok) _startedMs = millis();
+        return ok;
     }
 
     // CR1 lower nibble codes per datasheet Table 4
@@ -150,9 +157,8 @@ private:
         }
     }
 
-    // Software SPI helpers — MAX31856 is SPI mode 1 (CPOL=0,CPHA=1)
-    // We use CPOL=1 (idle high) which is compatible because the chip
-    // samples on the falling edge of SCLK in both mode 1 and 3.
+    // Software SPI mode 3: MOSI is stable before the rising latch edge;
+    // sample MISO after the falling shift edge and its propagation delay.
     uint8_t _transferByte(uint8_t out) {
         uint8_t in = 0;
         for (int i = 7; i >= 0; i--) {
@@ -167,6 +173,7 @@ private:
     }
 
     void _writeReg(uint8_t reg, uint8_t val) {
+        digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);
         _transferByte(reg | 0x80);   // write address
@@ -176,6 +183,7 @@ private:
     }
 
     uint8_t _readReg(uint8_t reg) {
+        digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);
         _transferByte(reg & 0x7F);   // read address
@@ -186,6 +194,7 @@ private:
 
     // Read 3 consecutive registers into a 24-bit value (MSB first)
     uint32_t _readReg3(uint8_t startReg) {
+        digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);
         _transferByte(startReg & 0x7F);

@@ -18,11 +18,39 @@ struct FakeWire {
     bool calibrationStuck = false, powerStuck = false, conversionsStuck = false;
     bool staleConversion = false, prematureCalibration = false;
     unsigned calibrations[2] = {};
+    bool tcaPresent = false, tlaPresent = false, tlaStale = false;
+    std::array<uint8_t, 4> tca{{1,255,255,0}};
+    std::array<uint8_t, 32> tla{};
+    std::array<uint16_t, 8> tlaSamples{{500,1000,1500,2000,2500,3000,3500,4000}};
+    uint8_t tlaPreviousChannel = 0;
+    int tcaFailRegister = -1;
     void begin(int, int, uint32_t) {}
     void setTimeOut(unsigned) {}
     void beginTransmission(uint8_t a) { address = a; tx.clear(); }
     void write(uint8_t b) { tx.push_back(b); }
     int endTransmission(bool = true) {
+        if (address == 0x20 && tcaPresent) {
+            if (tx.empty()) return 0;
+            pointer = tx[0];
+            if (tx.size() == 2) {
+                if (pointer == tcaFailRegister) return 2;
+                tca[pointer & 3] = tx[1];
+            }
+            return 0;
+        }
+        if (address == 0x10 && tlaPresent) {
+            if (tx.empty()) return 0;
+            if (tx.size() < 2) return 2;
+            pointer = tx[1];
+            if (tx[0] == 0x08 && tx.size() == 3) {
+                if (pointer == 0x11 && tla[0x11] != tx[2]) {
+                    tlaPreviousChannel = tla[0x11];
+                    tlaStale = true;
+                }
+                tla[pointer & 31] = tx[2];
+            }
+            return 0;
+        }
         if (!present || address != 0x2A) return 2;
         if (tx.empty()) return 0;
         pointer = tx[0];
@@ -49,6 +77,21 @@ struct FakeWire {
         return 0;
     }
     uint8_t requestFrom(uint8_t a, uint8_t count) {
+        if ((a == 0x20 && tcaPresent) || (a == 0x10 && tlaPresent)) {
+            rx.clear(); readIndex = 0;
+            if (a == 0x20) rx.push_back(pointer == 0 ? tca[0] ^ tca[2] : tca[pointer & 3]);
+            else if (count == 1) rx.push_back(pointer == 0 ? 0x80 : tla[pointer & 31]);
+            else {
+                const uint8_t channel = tlaStale ? tlaPreviousChannel : tla[0x11];
+                tlaStale = false;
+                // Retained GPIO/sequencer/OSR settings invalidate this frame.
+                const bool configured = !tla[5] && !tla[0x10] && !tla[3];
+                const uint16_t frame = configured ? (uint16_t)((tlaSamples[channel] << 4) |
+                    ((tla[2] & 0x10) ? channel : 0)) : 0xFFFF;
+                rx = {(uint8_t)(frame >> 8), (uint8_t)frame};
+            }
+            return (uint8_t)rx.size();
+        }
         if (!present || a != 0x2A) return 0;
         rx.clear(); readIndex = 0;
         if ((regs[2] & 4) && !calibrationStuck && millis() - calibrationStarted >= 40) {

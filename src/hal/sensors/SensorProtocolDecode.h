@@ -44,6 +44,9 @@ constexpr uint8_t dallasCrc8(const uint8_t* data, size_t length) {
 }
 constexpr bool ds18b20(const uint8_t scratch[9], uint8_t resolution, float& celsius) {
     if (!scratch || dallasCrc8(scratch, 8) != scratch[8]) return false;
+    // A bus stuck LOW produces nine zero bytes with a matching zero CRC.
+    // Configuration bits 4:0 must be one and bit 7 must be zero.
+    if ((scratch[4] & 0x9Fu) != 0x1Fu) return false;
     int16_t raw = (int16_t)(((uint16_t)scratch[1] << 8) | scratch[0]);
     if (resolution == 9) raw &= ~0x07;
     else if (resolution == 10) raw &= ~0x03;

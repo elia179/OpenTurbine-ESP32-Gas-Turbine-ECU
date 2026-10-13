@@ -1766,6 +1766,10 @@ bool validatePlatformPins(const JsonDocument& doc,
         validationStage("platform torque HX711 scale");
         return false;
     }
+    if (!canonicalTorque && !numberRange(torque, "hx_zero", -8388608.0f, 8388607.0f)) {
+        validationStage("platform torque HX711 zero must fit signed 24-bit counts");
+        return false;
+    }
 
     JsonVariantConst actuators = doc["actuators"];
     validationStage("platform actuator GPIOs or electrical ranges");

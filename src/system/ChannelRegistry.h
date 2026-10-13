@@ -532,7 +532,11 @@ public:
             if (inputs[i].driver == I2cLoadCell) {
                 nauLoadCells++;
                 if (!nauGain) { nauGain = inputs[i].loadCellGain; nauRate = inputs[i].loadCellRate; }
-                else if (inputs[i].loadCellGain != nauGain || inputs[i].loadCellRate != nauRate) return false;
+                else if (inputs[i].loadCellGain != nauGain || inputs[i].loadCellRate != nauRate) {
+                    snprintf(_validationError, sizeof(_validationError),
+                             "NAU7802 channels share one gain and sample rate; configure matching values");
+                    return false;
+                }
             }
         }
         if (auxiliaryPcnt > 2) {
@@ -928,6 +932,7 @@ private:
         return c.torqueInterface == 1 && c.direction == Input &&
                (!strcmp(c.role, "torque") || !strcmp(c.role, "thrust")) &&
                c.driver == Analog && c.pin >= 0 && c.hx711Clk >= 0 && c.pin != c.hx711Clk &&
+               c.hx711Zero >= -8388608L && c.hx711Zero <= 8388607L &&
                c.hx711Scale >= 0.000001f && c.hx711Scale <= 1000000.0f;
     }
     static bool rangeValid(const Channel& c) {
@@ -963,6 +968,7 @@ private:
                     c.loadCellGain == 64 || c.loadCellGain == 128) &&
                    (c.loadCellRate == 10 || c.loadCellRate == 20 || c.loadCellRate == 40 ||
                     c.loadCellRate == 80 || c.loadCellRate == 320) &&
+                   c.loadCellZero >= -8388608L && c.loadCellZero <= 8388607L &&
                    isfinite(c.loadCellNPerCount) && c.loadCellNPerCount != 0.0f &&
                    isfinite(c.leverArmM) && c.leverArmM <= 100.0f &&
                    (!strcmp(c.role, "torque") ? c.leverArmM > 0.0f

@@ -9,6 +9,9 @@ __attribute__((noinline)) inline uint32_t bits(int clockPin, int chipSelectPin,
                                               bool sampleHigh,
                                               unsigned int halfPeriodUs = 5) {
     uint32_t raw = 0;
+    // Set this device's idle level while every chip is deselected. The prior
+    // transaction (possibly a different SPI mode) must not shift the first bit.
+    digitalWrite(clockPin, sampleHigh ? LOW : HIGH);
     digitalWrite(chipSelectPin, LOW);
     delayMicroseconds(1);
     for (uint8_t i = 0; i < count; ++i) {

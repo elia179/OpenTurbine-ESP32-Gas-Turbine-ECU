@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <OneWire.h>
 #include <new>
+#include "SensorProtocolDecode.h"
 
 // ============================================================
 //  DS18B20TempSensor — Dallas/Maxim DS18B20 1-Wire digital thermometer
@@ -23,8 +24,8 @@
 //   12-bit  → 750 ms   (0.0625 °C)
 //
 //  Healthy range: −55 °C to +125 °C (sensor spec).
-//  85 °C is the power-on-reset value — rejected only on the first
-//  conversion after begin(); later it is a legitimate temperature.
+//  85 °C is also a legitimate temperature; publish only after a requested
+//  conversion and a valid scratchpad with the configured resolution.
 //  Scratchpad CRC failure / missing presence pulse — fault.
 //
 //  Uses placement-new (no heap allocation after begin()).
@@ -58,8 +59,9 @@ public:
             }
         }
         _ow->reset_search();
-        if (_haveAddr && _setResolution()) _startConversion(millis());
-        else { _haveAddr = false; _state = ST_IDLE; }
+        _resolutionVerified = _haveAddr && _setResolution();
+        if (_haveAddr) _startConversion(millis());
+        else _state = ST_IDLE;
 
         _temp    = 0.0f;
         _healthy = false;
@@ -118,6 +120,9 @@ private:
     enum ReadState : uint8_t { ST_IDLE, ST_CONVERTING, ST_READING };
 
     unsigned long _convDelayMs() const {
+        // After a failed setup or peripheral power cycle the chip can still
+        // be at its 12-bit default. Do not read it on the shorter 10-bit timer.
+        if (!_resolutionVerified) return 750UL;
         switch (_resolution) {
             case 9:  return  94UL;
             case 10: return 188UL;
@@ -126,8 +131,8 @@ private:
         }
     }
 
-    // Broadcast CONVERT T and arm the ready timer (~2 ms on the bus).
-    bool _startConversion(unsigned long now) {
+    // Address CONVERT T and arm the timer after the command has finished.
+    bool _startConversion(unsigned long) {
         const bool present = _ow && _ow->reset();
         if (present) {
             _ow->select(_addr);
@@ -135,7 +140,8 @@ private:
         } else {
             _healthy = false;
         }
-        _convReadyMs = now + _convDelayMs();
+        _conversionStarted = present;
+        _convReadyMs = millis() + _convDelayMs();
         _state = ST_CONVERTING;
         return present;
     }
@@ -163,19 +169,28 @@ private:
     }
 
     void _processScratchpad() {
-        if (OneWire::crc8(_scratch, 8) != _scratch[8]) {
+        float t = 0.0f;
+        if (!_conversionStarted ||
+            !SensorProtocolDecode::ds18b20(_scratch, _resolution, t)) {
             _healthy = false;                 // garbled read / device gone
             return;
         }
-        int16_t raw = (int16_t)(((uint16_t)_scratch[1] << 8) | _scratch[0]);
-        // Mask undefined low bits at reduced resolution
-        if      (_resolution == 9)  raw &= ~0x07;
-        else if (_resolution == 10) raw &= ~0x03;
-        else if (_resolution == 11) raw &= ~0x01;
-        float t = raw * 0.0625f;
-        // 85.0 °C (raw 0x0550) is the power-on-reset value: reject it only
-        // on the first conversion after begin() — afterwards a requested
-        // conversion has demonstrably run, so 85 °C is a legitimate oil temp.
+        const uint8_t config = (uint8_t)(0x1F | ((_resolution - 9U) << 5));
+        if (_scratch[4] != config) {
+            _healthy = false;
+            _resolutionVerified = false;
+            // Restore settings using the cached ROM, without a runtime search
+            // or a blocking scratchpad verification. Verify on the next read.
+            if (_ow->reset()) {
+                _ow->select(_addr);
+                _ow->write(0x4E);
+                _ow->write(_scratch[2]);
+                _ow->write(_scratch[3]);
+                _ow->write(config);
+            }
+            return;
+        }
+        _resolutionVerified = true;
         if (t >= -55.0f && t <= 125.0f) {
             _temp    = t;
             _healthy = true;
@@ -195,6 +210,8 @@ private:
 
     uint8_t       _addr[8]      = {};
     bool          _haveAddr     = false;
+    bool          _resolutionVerified = false;
+    bool          _conversionStarted = false;
     uint8_t       _scratch[9]   = {};
     uint8_t       _scratchIdx   = 0;
     ReadState     _state        = ST_IDLE;

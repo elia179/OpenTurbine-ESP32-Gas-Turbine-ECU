@@ -8,6 +8,15 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.2] — Unreleased
+
+- Restore TCA9554 input polarity and pin direction, retry failed setup before accepting relay demands, and detect lost configuration during the device heartbeat.
+- Configure TLA2528 manual analog conversion and its output format explicitly, check returned channel IDs, and reject previous-channel readings.
+- Restart MAX31856 conversion settling after successful configuration retries, configure the filter/type with conversions stopped, and recover from peripheral configuration loss.
+- Correct MAX31855 sampling edges and restore each SPI device's idle clock before selecting it, preventing shifted readings on repeated reads and shared clocks. Wait for the MAX31855 power-up conversion.
+- Reject all-zero DS18B20 scratchpads, retain a discovered sensor after transient setup failure, and recover its requested resolution after peripheral configuration loss.
+- Reject load-cell zero offsets outside signed 24-bit ADC counts, preventing integer overflow from malformed calibration files. Explain the shared NAU7802 gain/rate requirement when channel settings conflict.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
@@ -17,8 +26,6 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 - Refresh the web asset cache revision. Save-triggered reboot behavior is unchanged.
 - Classic and S3 two-chip bench checks cover browser updates, complete engine-file transfers, page navigation and wired outputs; the focused NAU7802 I2C campaign passes startup and both calibrated channels. Physical Adafruit bridge excitation and loaded readings still require the tester's sensor board.
 - Large configuration reads fall back to the reserved transfer workspace if a heap snapshot allocation fails, preserving write exclusion during the response.
-
-## [Unreleased]
 
 ## [2.5.0] — 2026-10-01
 
