@@ -26,7 +26,6 @@ description: OpenTurbine is experimental ESP32 turbine ECU software with Windows
 </div><p><a href="{{ '/hardware/' | relative_url }}">Check supported boards, sensors and electrical interfaces →</a></p></div></section>
 
 <section class="section"><div class="shell"><h2>Interface preview</h2>
-<details><summary>View Hardware, Controllers, Calibration, Sequence, System and Tools</summary>
 <div class="ui-gallery">
 <figure><img class="screenshot" src="{{ '/assets/images/hardware-page.png' | relative_url }}" width="1800" height="1050" loading="lazy" alt="OpenTurbine Hardware page with fitted inputs and outputs"><figcaption><strong>Hardware</strong> — add and configure fitted devices.</figcaption></figure>
 <figure><img class="screenshot" src="{{ '/assets/images/controllers-page.png' | relative_url }}" width="1800" height="1050" loading="lazy" alt="OpenTurbine Controllers page with configurable turbine controls"><figcaption><strong>Controllers</strong> — assign output control and protection.</figcaption></figure>
@@ -34,7 +33,7 @@ description: OpenTurbine is experimental ESP32 turbine ECU software with Windows
 <figure><img class="screenshot" src="{{ '/assets/images/sequence-page.png' | relative_url }}" width="1800" height="1050" loading="lazy" alt="OpenTurbine Sequence page with editable startup blocks"><figcaption><strong>Sequence</strong> — order startup and shutdown actions.</figcaption></figure>
 <figure><img class="screenshot" src="{{ '/assets/images/system-page.png' | relative_url }}" width="1800" height="1050" loading="lazy" alt="OpenTurbine System page with device and interface settings"><figcaption><strong>System</strong> — manage connections, backups and updates.</figcaption></figure>
 <figure><img class="screenshot" src="{{ '/assets/images/tools-page.png' | relative_url }}" width="1800" height="1050" loading="lazy" alt="OpenTurbine Tools page with diagnostics and bench controls"><figcaption><strong>Tools</strong> — run bounded output tests and inspect diagnostics.</figcaption></figure>
-</div></details></div></section>
+</div></div></section>
 
 <section class="section alt"><div class="shell">
 <h2>Before connecting an engine</h2>
