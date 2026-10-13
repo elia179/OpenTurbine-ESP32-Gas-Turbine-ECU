@@ -26,7 +26,7 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Correct the HX711 scale instructions to subtract zero counts; show torque/thrust health in Calibration and mark the torque bar faulted when unhealthy.
 
-- Reject lost or invalid RC pulses when capturing throttle/idle calibration endpoints; accept only the driver-supported 500–2500 µs range.
+- Reject lost or invalid RC pulses when capturing throttle/idle calibration endpoints; require the receiver-valid flag as well as the driver-supported 500–2500 µs range, rejecting saved-minimum fallback values after signal loss.
 
 ## [2.5.1] — 2026-10-13
 

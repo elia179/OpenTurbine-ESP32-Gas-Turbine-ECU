@@ -2045,8 +2045,10 @@ async function _captureInputAverage(key) {
   while (performance.now() < until) {
     const d = await nextCalibrationFrame();
     const v = d[key];
+    const receiverValid = key === 'throttle_input_us' ? d.rc_throttle_valid === true
+      : key === 'idle_input_us' ? d.rc_idle_valid === true : false;
     const valid = key.endsWith('_us')
-      ? Number.isFinite(v) && v >= 500 && v <= 2500 : validAdcRaw(v);
+      ? receiverValid && Number.isFinite(v) && v >= 500 && v <= 2500 : validAdcRaw(v);
     if (calibrationConnected() && valid) samples.push(v);
   }
   if (!samples.length) throw new Error('No valid input samples received. Check the connection and signal.');

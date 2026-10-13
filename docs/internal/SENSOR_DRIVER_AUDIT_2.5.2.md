@@ -43,6 +43,10 @@ The local NAU7802 regression ran successfully. Windows Application Control block
 
 No physical TCA9554, TLA2528, MAX31856, DS18B20, or HX711 module is attached to this bench. Datasheet review and protocol models cannot establish real breakout-board wiring, excitation, electrical noise or calibration accuracy. A DS18B20 absent during initial ROM discovery still requires a reboot after connection; runtime discovery is deliberately avoided because a ROM search can block the ECU loop. Parasite-powered DS18B20 operation remains unsupported and requires external VDD. MAX31855/HX711 cannot distinguish every possible wiring failure from a valid zero reading.
 
+## Follow-up UI review
+
+RC signal loss after calibration publishes the saved minimum pulse width, not necessarily zero. The browser now requires `rc_throttle_valid` / `rc_idle_valid` before capturing receiver endpoints. Focused browser regressions reject plausible 1000/1200 µs fallback values with invalid flags, while accepting healthy 1500 µs pulses and zero ADC counts. These follow-up UI changes pass the calibration browser regression and all 316 safety checks; the full GitHub result above refers to the preceding `f9b6c32` code commit. No firmware driver changed in this follow-up.
+
 ## Sources
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

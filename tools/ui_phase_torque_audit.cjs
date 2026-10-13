@@ -375,25 +375,33 @@ function installedBrowser() {
     assert.match(calibrationHealth.instructions,/loaded raw count − zero count/);
     const receiverCapture = await page.evaluate(async () => {
       document.getElementById('conn').className = 'conn-dot connected';
-      const pulseWidths = [null,0,499,2501,1500];
+      const pulseWidths = [null,0,499,2501,1000,1500];
       let index = 0;
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,20));
-        return {throttle_input_us:pulseWidths[index++ % pulseWidths.length]};
+        const raw = pulseWidths[index++ % pulseWidths.length];
+        return {throttle_input_us:raw,rc_throttle_valid:raw !== 1000};
       };
       const pulse = await _captureInputAverage('throttle_input_us');
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,20));
-        return {throttle_input_us:0,throttle_input_raw:0};
+        return {throttle_input_us:1000,rc_throttle_valid:false,throttle_input_raw:0};
       };
       let missing = '';
       try { await _captureInputAverage('throttle_input_us'); } catch (error) { missing = error.message; }
+      let idleMissing = '';
+      nextCalibrationFrame = async () => {
+        await new Promise(resolve => setTimeout(resolve,20));
+        return {idle_input_us:1200,rc_idle_valid:false,throttle_input_raw:0};
+      };
+      try { await _captureInputAverage('idle_input_us'); } catch (error) { idleMissing = error.message; }
       const adcZero = await _captureInputAverage('throttle_input_raw');
-      return {pulse,missing,adcZero};
+      return {pulse,missing,idleMissing,adcZero};
     });
     assert.equal(receiverCapture.pulse,1500);
     assert.equal(receiverCapture.adcZero,0);
     assert.match(receiverCapture.missing,/No valid input samples/);
+    assert.match(receiverCapture.idleMissing,/No valid input samples/);
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {
