@@ -119,6 +119,12 @@ Log downloads previously displayed raw JSON error bodies. The shared response ch
 
 The source and packaged browser regression clicks the real Refresh button and verifies it requests the selected run, clicks Event NDJSON and verifies the application dialog contains the human-readable 423 explanation, and verifies 503 current/past previews report the recorder's busy message. Refreshing after a current-preview failure requests the current file again. The focused browser regression, all 45 pre-hardware UX groups, all 61 UI smoke checks and public-content validation pass locally.
 
+## Session chart timing and empty states
+
+The chart used row positions for x coordinates even though its axis was labelled as elapsed time. A real-browser regression reproduced a reading at 1000 ms being placed halfway across a 10000 ms log instead of at 10%. Use recorded uint32 timestamps for x positions, accumulate forward deltas across millis rollover, and reject malformed/backwards timestamp rows as gaps. Files without a time column retain row-based plotting. Sub-second durations no longer round down to an unexplained zero seconds.
+
+Unchecked traces, single-row logs and all-invalid selected readings previously left a blank canvas. Provide accessible status text explaining selection or the missing data, hide the unused canvas, and restore it when the user selects a valid trace. Source and packaged regressions verify irregular timing, timer rollover, each empty state and recovery by checking a trace.
+
 ## Sources
 
 

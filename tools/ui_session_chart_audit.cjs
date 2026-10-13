@@ -99,6 +99,34 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       assert.deepEqual(metrics.map(m=>m.header).sort(),['p1_bar','p2_bar','torque_nm','shaft_power_w','thrust_n','starter_pct'].sort());
       assert.ok(metrics.every(m=>m.visible));assert.equal(metrics.find(m=>m.header==='shaft_power_w').scaled,2.5);
       assert.deepEqual(await page.evaluate(()=>[_sessionHeaders[0],_sessionRows[0].at(-1)]),['t_ms','30']);
+      const timing=await page.evaluate(()=>{
+        for(const [,id] of CHART_COLS) document.getElementById(id).checked=id==='chart-cb-tot';
+        const proto=CanvasRenderingContext2D.prototype,move=proto.moveTo,line=proto.lineTo;
+        const xs=[];
+        proto.moveTo=function(x,y){if(this.strokeStyle==='#f59c3a')xs.push(x);return move.call(this,x,y);};
+        proto.lineTo=function(x,y){if(this.strokeStyle==='#f59c3a')xs.push(x);return line.call(this,x,y);};
+        try {renderSessionCsvPreview('t_ms,tot_c\n0,650\n1000,700\n10000,750');}
+        finally {proto.moveTo=move;proto.lineTo=line;}
+        return (xs[1]-xs[0])/(xs[2]-xs[0]);
+      });
+      assert.ok(Math.abs(timing-0.1)<1e-9,`one-second reading appears at ${timing} of a ten-second run`);
+      const rollover=await page.evaluate(()=>{
+        const proto=CanvasRenderingContext2D.prototype,original=proto.fillText;
+        const labels=[];proto.fillText=function(text,...args){labels.push(text);return original.call(this,text,...args);};
+        try {renderSessionCsvPreview('t_ms,tot_c\n4294966796,650\n0,700\n500,750');}
+        finally {proto.fillText=original;}
+        return labels;
+      });
+      assert.ok(rollover.includes('1.0 s'));assert.ok(!rollover.some(label=>/^-[\d.]+ s$/.test(label)));
+      await page.locator('#chart-cb-tot').uncheck();
+      assert.equal(await page.locator('#session-chart-message').textContent(),'Select a measurement above to plot it.');
+      assert.equal(await page.locator('#session-chart').isVisible(),false);
+      await page.locator('#chart-cb-tot').check();
+      assert.equal(await page.locator('#session-chart').isVisible(),true);
+      await page.evaluate(()=>renderSessionCsvPreview('t_ms,tot_c\n0,650'));
+      assert.match(await page.locator('#session-chart-message').textContent(),/At least two readings/);
+      await page.evaluate(()=>renderSessionCsvPreview('t_ms,tot_c\n0,nan\n100,Infinity'));
+      assert.match(await page.locator('#session-chart-message').textContent(),/No valid readings/);
       // Missing, nonfinite and malformed cells must create gaps, not ruin the axes.
       const finite=await page.evaluate(()=>{
         const proto=CanvasRenderingContext2D.prototype, original=proto.lineTo;
@@ -137,7 +165,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       assert.equal(await page.locator('#session-extra-chart-controls input').count(),0);
       await page.close();
     }
-    console.log('Session chart audit passed: download content and cleanup, delayed-preview isolation, CRLF/BOM files, standard/additional sensor traces and units, 20,000-row logs, nonfinite gaps, mobile layout and packaged assets.');
+    console.log('Session chart audit passed: download content and cleanup, preview selection/errors, CRLF/BOM files, standard/additional traces, timestamp spacing/rollover, empty-state recovery, 20,000-row logs, nonfinite gaps, mobile layout and packaged assets.');
   } finally {await browser.close();}
   process.exit(0);
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});

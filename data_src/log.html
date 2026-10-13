@@ -199,6 +199,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
           <span id="session-extra-chart-controls" style="display:contents"></span>
         </div>
         <p style="font-size:.72rem;color:var(--dim);margin:.3rem 0 .6rem">Traces share one scale; labels show the units and any plotting multiplier.</p>
+        <p id="session-chart-message" role="status" hidden style="font-size:.78rem;color:var(--dim);padding:.6rem 0"></p>
         <canvas id="session-chart" style="width:100%;height:200px;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></canvas>
       </div>
 
@@ -1147,6 +1148,13 @@ function _updateChartControls() {
   document.getElementById('session-chart-wrap').style.display = hasAny || _sessionExtraChartCols.length ? '' : 'none';
 }
 
+function _setSessionChartMessage(message) {
+  const status = document.getElementById('session-chart-message');
+  status.textContent = message;
+  status.hidden = !message;
+  document.getElementById('session-chart').hidden = !!message;
+}
+
 function redrawChart() {
   // Chart temperature series follow the site-wide °C/°F preference (their
   // scale fns use toDispTemp); keep the plot legend units in step.
@@ -1156,6 +1164,7 @@ function redrawChart() {
   });
   const canvas = document.getElementById('session-chart');
   if (!canvas || !_sessionRows.length) return;
+  _setSessionChartMessage('');
   const dpr = window.devicePixelRatio || 1;
   canvas.width  = canvas.offsetWidth  * dpr;
   canvas.height = canvas.offsetHeight * dpr;
@@ -1175,13 +1184,35 @@ function redrawChart() {
     const cb = document.getElementById(cbId);
     return _sessionHeaders.includes(hdr) && cb && cb.checked;
   });
-  if (!active.length) return;
+  if (!active.length) {
+    _setSessionChartMessage('Select a measurement above to plot it.');
+    return;
+  }
 
   // Build series: array of {col, scaledVals, color}
   const tIdx = _sessionHeaders.indexOf('t_ms');
+  let timeOffsets = null, timeRange = 0;
+  if (tIdx >= 0) {
+    let previous = null;
+    timeOffsets = _sessionRows.map(row => {
+      const cell = String(row[tIdx] ?? '').trim();
+      const timestamp = Number(cell);
+      if (!cell || !Number.isInteger(timestamp) || timestamp < 0 || timestamp > 0xffffffff) return null;
+      if (previous !== null) {
+        // Firmware millis() is unsigned 32-bit. Accept rollover while
+        // rejecting backwards/out-of-order rows instead of stretching the axis.
+        const delta = (timestamp - previous + 0x100000000) % 0x100000000;
+        if (delta > 0x7fffffff) return null;
+        timeRange += delta;
+      }
+      previous = timestamp;
+      return timeRange;
+    });
+  }
   const series = active.map(([hdr, cbId, , color, scaleFn]) => {
     const colIdx = _sessionHeaders.indexOf(hdr);
-    const vals = _sessionRows.map(r => {
+    const vals = _sessionRows.map((r, index) => {
+      if (timeOffsets && timeOffsets[index] === null) return null;
       const v = parseFloat(r[colIdx]);
       if (!Number.isFinite(v)) return null;
       const scaled = scaleFn(v);
@@ -1191,7 +1222,10 @@ function redrawChart() {
   });
 
   const n = _sessionRows.length;
-  if (n < 2) return;  // need at least 2 points to draw lines (avoids div-by-zero in x calc)
+  if (n < 2) {
+    _setSessionChartMessage('At least two readings are needed to draw a chart.');
+    return;
+  }
 
   // Global min/max across all series
   // Iterate rather than spreading every selected trace into a function call:
@@ -1202,7 +1236,10 @@ function redrawChart() {
     if (v < vMin) vMin = v;
     if (v > vMax) vMax = v;
   }
-  if (!Number.isFinite(vMin) || !Number.isFinite(vMax)) return;
+  if (!Number.isFinite(vMin) || !Number.isFinite(vMax)) {
+    _setSessionChartMessage('No valid readings in the selected measurements.');
+    return;
+  }
   if (vMax === vMin) { vMax += 1; vMin -= 1; }
   const vRange = vMax - vMin;
 
@@ -1222,14 +1259,12 @@ function redrawChart() {
 
   // Time axis label
   if (tIdx >= 0 && _sessionRows.length > 1) {
-    const t0 = parseInt(_sessionRows[0][tIdx]) || 0;
-    const t1 = parseInt(_sessionRows[_sessionRows.length - 1][tIdx]) || 0;
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.font = '9px monospace';
     ctx.textAlign = 'left';
     ctx.fillText('0 s', PAD.left, H - 6);
     ctx.textAlign = 'right';
-    ctx.fillText(((t1 - t0) / 1000).toFixed(0) + ' s', PAD.left + cw, H - 6);
+    ctx.fillText((timeRange / 1000).toFixed(timeRange < 1000 ? 2 : timeRange < 10000 ? 1 : 0) + ' s', PAD.left + cw, H - 6);
   }
 
   // Draw each series
@@ -1240,7 +1275,8 @@ function redrawChart() {
     let first = true;
     vals.forEach((v, i) => {
       if (v === null) { first = true; return; }
-      const x = PAD.left + (i / (n - 1)) * cw;
+      const fraction = timeOffsets && timeRange > 0 ? timeOffsets[i] / timeRange : i / (n - 1);
+      const x = PAD.left + fraction * cw;
       const y = PAD.top  + ch - ((v - vMin) / vRange) * ch;
       if (first) { ctx.moveTo(x, y); first = false; }
       else        ctx.lineTo(x, y);
