@@ -592,6 +592,21 @@ function loadLog(retryEmpty = true, busyRetries = 3) {
     });
 }
 
+function downloadLogBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  try {
+    document.body.appendChild(a);
+    a.click();
+  } finally {
+    a.remove();
+    // Give the browser time to start the download before releasing its data.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
 function downloadLog(fmt) {
   const url  = fmt === 'csv' ? '/api/log/csv' : '/api/log/raw';
   const name = fmt === 'csv' ? 'event_log.csv' : 'event_log.ndjson';
@@ -599,10 +614,7 @@ function downloadLog(fmt) {
     if (!r.ok) throw new Error(await r.text() || ('HTTP ' + r.status));
     return r.blob();
   }).then(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = name;
-    a.click();
+    downloadLogBlob(b, name);
   }).catch(e => {
     alert(e.message || 'Download failed');
   });
@@ -933,10 +945,7 @@ function downloadSessionLog() {
     if (!r.ok) throw new Error(await r.text() || 'No session log available yet');
     return r.blob();
   }).then(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = 'session_' + Date.now() + '.csv';
-    a.click();
+    downloadLogBlob(b, 'session_' + Date.now() + '.csv');
   }).catch(e => alert(e.message || 'No session log available yet'));
 }
 
@@ -1201,10 +1210,7 @@ function downloadSession(run) {
     if (!r.ok) throw new Error(await r.text() || ('Run #' + run + ' is not available'));
     return r.blob();
   }).then(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = 'session_' + run + '.csv';
-    a.click();
+    downloadLogBlob(b, 'session_' + run + '.csv');
   }).catch(e => alert(e.message || ('Run #' + run + ' is not available')));
 }
 

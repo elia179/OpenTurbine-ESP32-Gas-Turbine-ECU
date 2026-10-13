@@ -38,6 +38,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Add Session Data chart controls for P1/P2 pressure, torque, shaft power, thrust and starter output. Render large multi-trace logs without exceeding browser argument limits; treat nonfinite readings as gaps.
 
+- Release browser Blob URLs after event and session downloads so repeated log exports do not retain their data in memory.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.

@@ -65,7 +65,7 @@ The firmware already uses the configured TLA2528 reference, but older Calibratio
 
 The browser audit now exercises actual 5 V TLA switch/flame saves, a 0.5–4.5 V pressure sensor, battery divider and analog torque coefficients, plus oil datasheet slope and native-reference invariance. The I2C source audit was updated for the shared HX711/NAU/analog wizard; its former literal NAU-only heading no longer exists.
 
-At code commit `2c0ea64`, the complete local runner passes all 19 UI audit programs, alongside 316 safety checks, the I2C/load-cell source audit, public-content validation, and both filesystem builds/budgets. The final full build/package gate is [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672); its result was still pending when this note was written. The preceding run failed only the obsolete NAU-only heading assertion, which is corrected in this commit. No firmware source was changed by the calibration wizard/reference follow-ups.
+At code commit `2c0ea64`, the complete local runner passes all 19 UI audit programs, alongside 316 safety checks, the I2C/load-cell source audit, public-content validation, and both filesystem builds/budgets. The full build/package gate [GitHub run 38355718672](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38355718672) subsequently passed. The preceding run failed only the obsolete NAU-only heading assertion, which is corrected in this commit. No firmware source was changed by the calibration wizard/reference follow-ups.
 
 ## Hardware and fuel-flow UI follow-up
 
@@ -89,7 +89,13 @@ Session CSVs recorded P1/P2 pressure, torque, shaft power, thrust and starter ou
 
 A real-browser regression reproduced `RangeError: Maximum call stack size exceeded` on the old renderer with a 20,000-row log. The fixed renderer passes this case and verifies the six new controls, kW conversion, nonfinite gaps, mobile layout, and source/gzip-packaged parity. It is included automatically as the twentieth browser audit program.
 
-The chart audit and existing complete UI smoke program pass locally, along with 316 safety checks, the I2C source audit, public-content validation, and both filesystem builds/budgets. The driver-filter gate [38358343952](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38358343952) is running at `dc5ba58573ed4b49f82aec196324247374399be4`; it precedes this chart-only follow-up and therefore does not test the new twentieth browser audit.
+The chart audit and existing complete UI smoke program pass locally, along with 316 safety checks, the I2C source audit, public-content validation, and both filesystem builds/budgets. The driver-filter gate [38358343952](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38358343952) passed at `dc5ba58573ed4b49f82aec196324247374399be4`, including actual-driver NAU/TLA invalid-sample and fresh-filter recovery regressions, all 19 preceding UI audits, both firmware targets and matched-package validation. Publication was skipped. It precedes the chart follow-up and therefore does not test the new twentieth browser audit.
+
+## Download memory follow-up
+
+The event CSV/NDJSON and current/archived session download paths created Blob URLs without revoking them, retaining every downloaded file until the page closed. A shared helper now attaches and removes its temporary anchor and revokes the URL after a one-second delay, allowing the browser to begin saving first.
+
+The real-browser chart audit also downloads each of the four export formats twice and verifies exact file contents, filenames, removal of temporary anchors and release of all Blob URLs. Both source and gzip-packaged pages pass. This changes browser resource cleanup only; ECU log retrieval and file contents are unchanged.
 
 ## Sources
 

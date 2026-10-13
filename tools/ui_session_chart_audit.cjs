@@ -14,10 +14,34 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
     for(const bundle of ['source','packaged']) {
       const page=await browser.newPage({viewport:{width:1200,height:900}});
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      await page.addInitScript(()=>{
+        window.activeDownloadUrls=new Set();
+        const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
+        URL.createObjectURL=blob=>{const url=create(blob);activeDownloadUrls.add(url);return url;};
+        URL.revokeObjectURL=url=>{activeDownloadUrls.delete(url);revoke(url);};
+      });
       if(bundle==='packaged') await page.route(/\/log\.html(?:\?.*)?$/,route=>route.fulfill({status:200,contentType:'text/html',body:gunzipSync(fs.readFileSync(path.resolve(__dirname,'../data/log.html.gz')))}));
       await page.goto(`http://127.0.0.1:${port}/log.html`);
       await page.locator('#tab-session').click();
       await page.waitForFunction(()=>typeof _sessionTabLoad!=='undefined' && _sessionTabLoad===null);
+      const csv='t_ms,tot_c\n0,650\n100,700\n',raw='{"event":"test"}\n';
+      await page.route(/\/api\/(?:log\/(?:csv|raw)|session\/log)(?:\?.*)?$/,route=>route.fulfill({status:200,contentType:'text/plain',body:route.request().url().includes('/raw')?raw:csv}));
+      for(let repeat=0;repeat<2;repeat++) {
+        for(const [call,filename,content] of [
+          ["downloadLog('raw')",/^event_log\.ndjson$/,raw],
+          ["downloadLog('csv')",/^event_log\.csv$/,csv],
+          ['downloadSessionLog()',/^session_\d+\.csv$/,csv],
+          ['downloadSession(42)',/^session_42\.csv$/,csv]
+        ]) {
+          const ready=page.waitForEvent('download');
+          await page.evaluate(call);
+          const download=await ready;
+          assert.match(download.suggestedFilename(),filename);
+          assert.equal(fs.readFileSync(await download.path(),'utf8'),content);
+        }
+      }
+      await page.waitForFunction(()=>activeDownloadUrls.size===0);
+      assert.equal(await page.locator('a[href^="blob:"]').count(),0);
       const large=await page.evaluate(()=>{
         const headers=['t_ms','n1_rpm','tot_c','n2_rpm','oil_bar','thr_pct','tit_c','oil_temp_c','batt_v','fuel_press_bar','glow_pct','fuel_flow'];
         for(const [,cb] of CHART_COLS) document.getElementById(cb).checked=true;
@@ -46,7 +70,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
       await page.close();
     }
-    console.log('Session chart audit passed: 20,000-row logs with multiple traces, P1/P2/torque/power/thrust/starter controls, power units, nonfinite gaps, mobile layout and packaged assets.');
+    console.log('Session chart audit passed: repeated downloads preserve filenames/content and release Blob URLs; 20,000-row logs, all traces, power units, nonfinite gaps, mobile layout and packaged assets.');
   } finally {await browser.close();}
   process.exit(0);
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
