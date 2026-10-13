@@ -271,6 +271,42 @@ function installedBrowser() {
     assert.equal(runningCalibration.zero,3);
     assert.equal(runningCalibration.sensitivity,0.04);
     assert.equal(runningCalibration.cleared,true);
+    const loadCell = await page.evaluate(() => {
+      const patches = [];
+      patchHardware = (patch,onOk) => { patches.push(patch); onOk(); };
+      document.getElementById('conn').className = 'conn-dot connected';
+      const channel = {id:'torque_bridge',driver:10,lever_arm_m:1};
+      renderLoadCellWizard('torque',channel);
+      live = {torque_healthy:false,torque_raw:100};
+      captureLoadCellZero('torque');
+      const faultZero = _loadCellCal.torque.zero;
+      live = {torque_healthy:true,torque_raw:null};
+      captureLoadCellZero('torque');
+      const nullZero = _loadCellCal.torque.zero;
+      live.torque_raw = 100;
+      document.getElementById('conn').className = 'conn-dot disconnected';
+      captureLoadCellZero('torque');
+      const disconnectedZero = _loadCellCal.torque.zero;
+      document.getElementById('conn').className = 'conn-dot connected';
+      captureLoadCellZero('torque');
+      document.getElementById('torque-lc-known').value = '20';
+      live.torque_raw = 200; live.torque_healthy = false;
+      saveLoadCellKnown('torque');
+      const faultSaves = patches.length;
+      live.torque_healthy = true;
+      saveLoadCellKnown('torque');
+      live.torque_raw = -100;
+      captureLoadCellZero('torque');
+      renderLoadCellWizard('torque',{...channel,id:'replacement'});
+      const replacementZero = _loadCellCal.torque.zero;
+      captureLoadCellZero('torque');
+      renderLoadCellWizard('torque',null);
+      return {faultZero,nullZero,disconnectedZero,faultSaves,patches,replacementZero,
+        removedZero:_loadCellCal.torque.zero};
+    });
+    assert.deepEqual(loadCell,{faultZero:null,nullZero:null,disconnectedZero:null,faultSaves:0,
+      patches:[{channel_registry_calibration:{id:'torque_bridge',loadcell_zero:100,
+        loadcell_n_per_count:0.2,lever_arm_m:1}}],replacementZero:null,removedZero:null});
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {

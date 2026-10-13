@@ -19,6 +19,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 - Validate TLA2528 raw ranges and conversion scales so malformed settings cannot silently make every sample invalid or corrupt voltage readings.
 - Clear HX711 median history after stale or saturated input faults so recovery publishes a fresh load reading.
 
+- Require a connected, healthy load-cell sample in the calibration wizard, and discard a captured zero when its channel changes or disappears.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.

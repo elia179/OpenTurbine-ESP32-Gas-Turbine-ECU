@@ -18,6 +18,8 @@ The surrounding calibration review also found that HX711/NAU7802 zero offsets we
 
 TLA2528 settings also accepted reversed/out-of-ADC raw ranges and unbounded conversion parameters. Match the native ADC's raw bounds and voltage-divider limits, and reject nonfinite offsets/scales. This prevents a valid chip being rendered permanently unhealthy by a saved range it can never satisfy.
 
+The load-cell calibration wizard now requires a connected, healthy signed 24-bit sample. It rejects missing raw data rather than treating null as zero, clears the captured zero when the channel changes or disappears, and rejects nonfinite calibration scales. Browser regressions cover faulted/disconnected samples and channel replacement.
+
 ## Other drivers reviewed
 
 - **MAX6675:** user-proven working; its driver and sampling mode are unchanged. Its shared SPI helper now explicitly restores the same idle LOW before CS, protecting it from other SPI modes on shared lines.
