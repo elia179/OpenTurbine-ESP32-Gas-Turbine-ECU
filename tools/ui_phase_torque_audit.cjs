@@ -215,7 +215,7 @@ function installedBrowser() {
     assert.deepEqual(torqueOnlyDashboard,{speedVisible:false,powerVisible:false},
       'compact numeric zero must not expose speed/power for a torque-only phase sensor');
     await page.goto(`${base}/calibration.html`);
-    await page.waitForFunction(() => typeof capturePhaseTorqueZero === 'function' && !!cfg);
+    await page.waitForFunction(() => typeof capturePhaseTorqueZero === 'function' && !!cfg && calibrationConnected());
     const calibration = await page.evaluate(() => {
       const channel = {id:'torque_main',purpose:'torque',torque_interface:2,
         pulses_per_unit:2,phase_zero_deg:0,phase_deg_per_nm:1};
@@ -307,6 +307,53 @@ function installedBrowser() {
     assert.deepEqual(loadCell,{faultZero:null,nullZero:null,disconnectedZero:null,faultSaves:0,
       patches:[{channel_registry_calibration:{id:'torque_bridge',loadcell_zero:100,
         loadcell_n_per_count:0.2,lever_arm_m:1}}],replacementZero:null,removedZero:null});
+    const adcCapture = await page.evaluate(async () => {
+      cfg.hardware.channel_registry.inputs = [
+        {id:'switch_live',driver:1,role:'digital_switch',installed:true},
+        {id:'switch_absent',driver:1,role:'digital_switch',installed:false}
+      ];
+      renderAdcSwitchCalibration();
+      const cards = adcSwitchCards().map(c => c.id);
+      const box = document.querySelector('[data-channel-id="switch_live"]');
+      const button = box.querySelector('button');
+      const frames = [null, {healthy:true,raw:null}, {raw:0},
+        {healthy:false,raw:1000}, {healthy:true,raw:4096}, {healthy:true,raw:-1},
+        {healthy:true,raw:1.5}, {healthy:true,raw:1200}];
+      let index = 0;
+      nextCalibrationFrame = async () => {
+        await new Promise(resolve => setTimeout(resolve,40));
+        const sample = frames[index++ % frames.length];
+        return {registry_inputs:sample ? [{id:'switch_live',...sample}] : []};
+      };
+      const samples = await sampleAdcSwitchRaw('switch_live');
+      updateAdcSwitchLive({registry_inputs:[{id:'switch_live',healthy:true,raw:null}]});
+      const missing = box.querySelector('[data-adc-live]').textContent;
+      nextCalibrationFrame = async () => { throw new Error('test connection loss'); };
+      await captureAdcSwitchState('switch_live',false,button);
+      return {cards,samples,missing,disabled:button.disabled,
+        status:box.querySelector('[data-adc-status]').textContent};
+    });
+    assert.deepEqual(adcCapture.cards,['switch_live']);
+    assert.ok(adcCapture.samples.length >= 4);
+    assert.ok(adcCapture.samples.every(raw => raw === 1200));
+    assert.equal(adcCapture.missing,'unavailable');
+    assert.equal(adcCapture.disabled,false);
+    assert.equal(adcCapture.status,'Capture failed: test connection loss');
+    const rawGuards = await page.evaluate(() => {
+      document.getElementById('conn').className = 'conn-dot connected';
+      live = {p1_raw:100,torque_healthy:true,torque_phase_rpm:600,torque_raw:null};
+      const valid = liveAdcRaw('p1_raw');
+      const missingText = adcMvText(null);
+      const missingPhase = livePhaseTorqueDegrees();
+      live.p1_raw = null; const missing = Number.isNaN(liveAdcRaw('p1_raw'));
+      live.p1_raw = 4096; const outside = Number.isNaN(liveAdcRaw('p1_raw'));
+      live.p1_raw = 100;
+      document.getElementById('conn').className = 'conn-dot disconnected';
+      return {valid,missingText,missingPhase,missing,outside,
+        disconnected:Number.isNaN(liveAdcRaw('p1_raw'))};
+    });
+    assert.deepEqual(rawGuards,{valid:100,missingText:'—',missingPhase:null,
+      missing:true,outside:true,disconnected:true});
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {

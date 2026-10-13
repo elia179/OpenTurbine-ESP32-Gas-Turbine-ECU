@@ -1387,11 +1387,21 @@ function bar(id, val, lo, hi, healthy) {
   el.className = 'bar-fill' + (!healthy ? ' fault' : pct > 90 ? ' warn' : '');
 }
 
+function calibrationConnected() {
+  return document.getElementById('conn')?.classList.contains('connected') === true;
+}
+function validAdcRaw(raw) {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= 4095;
+}
+function liveAdcRaw(key) {
+  const raw = live[key];
+  return calibrationConnected() && validAdcRaw(raw) ? raw : NaN;
+}
 function adcMv(raw) {
   return Number(raw) * 3300.0 / 4095.0;
 }
 function adcMvText(raw) {
-  return Number.isFinite(Number(raw)) ? Math.round(adcMv(raw)) + ' mV' : '—';
+  return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw)) ? Math.round(adcMv(raw)) + ' mV' : '—';
 }
 function adcRawFromMv(mv) {
   return Math.round(Math.max(0, Math.min(3300, Number(mv))) * 4095.0 / 3300.0);
@@ -1402,8 +1412,8 @@ function inputReadingText(raw, type) {
 
 // ── Fuel pressure calibration wizard ─────────────────────────
 function fpCapZero() {
-  const raw = live.fuel_press_raw;
-  if (raw === undefined) { alert('No fuel pressure raw data yet'); return; }
+  const raw = liveAdcRaw('fuel_press_raw');
+  if (!Number.isFinite(raw)) { alert('No fuel pressure raw data yet'); return; }
   fpRawZero = raw;
   const ambientBar = pressureReferenceValue('fuelpress-zero-reference');
   document.getElementById('fp-pts-status').textContent =
@@ -1413,8 +1423,8 @@ function fpCapZero() {
 }
 
 function fpCapRef() {
-  const raw = live.fuel_press_raw;
-  if (raw === undefined) { alert('No fuel pressure raw data yet'); return; }
+  const raw = liveAdcRaw('fuel_press_raw');
+  if (!Number.isFinite(raw)) { alert('No fuel pressure raw data yet'); return; }
   fpRawRef = raw;
   document.getElementById('fp-pts-status').textContent =
     'Ref captured: ' + adcMvText(raw) + (fpRawZero !== null ? ' | ambient: ' + adcMvText(fpRawZero) + ' — ready to save' : ' | now capture ambient point');
@@ -1540,8 +1550,8 @@ function oilCalStart() {
   postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 }).then(() => {
     // Wait 3 s for pressure to settle at zero
     setTimeout(async () => {
-      const raw0 = live.oil_raw;
-      if (raw0 === undefined) {
+      const raw0 = liveAdcRaw('oil_raw');
+      if (!Number.isFinite(raw0)) {
         statusEl.textContent = 'No live ADC-pin voltage — check connection.';
         startBtn.disabled = false;
         return;
@@ -1711,8 +1721,8 @@ function fpMinSave() {
 function captureOilPoint() {
   const b = parseFloat(document.getElementById('oil-pval').value);
   if (isNaN(b) || b < 0) { alert('Enter a valid bar value (e.g. 3.5)'); return; }
-  const raw = live.oil_raw;
-  if (raw === undefined) { alert('No live oil-sensor voltage yet'); return; }
+  const raw = liveAdcRaw('oil_raw');
+  if (!Number.isFinite(raw)) { alert('No live oil-sensor voltage yet'); return; }
   oilPts.push({ raw, b });
   document.getElementById('oil-pval').value = '';
   renderOilPts();
@@ -2032,7 +2042,7 @@ async function _captureInputAverage(key) {
   const samples = [], until = performance.now() + 1000;
   while (performance.now() < until) {
     const d = await nextCalibrationFrame();
-    const v = Number(d[key]);
+    const v = d[key];
     if (Number.isFinite(v)) samples.push(v);
   }
   if (!samples.length) throw new Error('No input samples received.');
@@ -2043,7 +2053,7 @@ async function nextCalibrationFrame() {
   // The shared page stream already refreshes live at 3 Hz. Sampling that
   // browser state avoids a second HTTP loop during calibration captures.
   await new Promise(resolve => setTimeout(resolve, 340));
-  return live || {};
+  return calibrationConnected() ? (live || {}) : {};
 }
 async function captureThMin() {
   document.getElementById('th-status').textContent = 'Hold minimum for 1 second…';
@@ -2236,7 +2246,7 @@ const ADC_SWITCH_ROLES = new Set([
 const adcSwitchCaptures = new Map();
 function adcSwitchCards() {
   return (cfg.hardware?.channel_registry?.inputs || []).filter(c =>
-    [1,9].includes(Number(c?.driver)) &&
+    c?.installed !== false && [1,9].includes(Number(c?.driver)) &&
     (ADC_SWITCH_ROLES.has(String(c?.role || '')) ||
      ['start_switch','stop_switch'].includes(String(c?.purpose || ''))) &&
     !['flame','ab_flame'].includes(String(c?.purpose || '')));
@@ -2281,15 +2291,19 @@ function renderAdcSwitchCalibration() {
     box.append(title, readings, controls, status); list.append(box);
   });
 }
+function adcSwitchSampleValid(sample) {
+  return sample?.healthy === true && typeof sample.raw === 'number' &&
+    Number.isInteger(sample.raw) && sample.raw >= 0 && sample.raw <= 4095;
+}
 function updateAdcSwitchLive(data) {
   const telemetry = Array.isArray(data?.registry_inputs) ? data.registry_inputs : [];
   document.querySelectorAll('#adc-switch-cal-list [data-channel-id]').forEach(box => {
     const sample = telemetry.find(v => String(v?.id) === box.dataset.channelId);
-    if (!sample) return;
+    const valid = adcSwitchSampleValid(sample);
     const raw = box.querySelector('[data-adc-live]');
     const state = box.querySelector('[data-adc-state]');
-    if (raw) raw.textContent = sample.healthy === false ? 'unavailable' : adcMvText(sample.raw);
-    if (state) state.textContent = sample.healthy === false ? 'unavailable' : (Number(sample.value) >= .5 ? 'active' : 'inactive');
+    if (raw) raw.textContent = !valid ? 'unavailable' : adcMvText(sample.raw);
+    if (state) state.textContent = !valid ? 'unavailable' : (Number(sample.value) >= .5 ? 'active' : 'inactive');
   });
 }
 async function sampleAdcSwitchRaw(id) {
@@ -2299,7 +2313,7 @@ async function sampleAdcSwitchRaw(id) {
     const d = await nextCalibrationFrame();
     const s = d && Array.isArray(d.registry_inputs)
       ? d.registry_inputs.find(v => String(v?.id) === String(id)) : null;
-    if (s?.healthy !== false && Number.isFinite(Number(s?.raw))) values.push(Number(s.raw));
+    if (calibrationConnected() && adcSwitchSampleValid(s)) values.push(s.raw);
   }
   return values;
 }
@@ -2307,8 +2321,10 @@ async function captureAdcSwitchState(id, active, button) {
   const box = button.closest('[data-channel-id]');
   const status = box.querySelector('[data-adc-status]');
   button.disabled = true; status.textContent = 'Sampling for 1.5 seconds…';
-  const values = await sampleAdcSwitchRaw(id);
-  button.disabled = false;
+  let values;
+  try { values = await sampleAdcSwitchRaw(id); }
+  catch (error) { status.textContent = 'Capture failed: ' + error.message; return; }
+  finally { button.disabled = false; }
   if (values.length < 4) { status.textContent = 'No healthy ADC samples received.'; return; }
   const capture = adcSwitchCaptures.get(id) || {};
   capture[active ? 'active' : 'inactive'] = values;
@@ -2378,7 +2394,7 @@ function renderOilTempKnownPoints(){
 }
 function oilTempAddPoint(){
   const shown=parseFloat(document.getElementById('oilt-known-temp').value);
-  const raw=Number(live.oil_temp_raw);
+  const raw=liveAdcRaw('oil_temp_raw');
   if(!Number.isFinite(shown)){alert('Enter the known temperature first.');return;}
   if(!Number.isFinite(raw)||raw<=0||raw>=4095){alert('No valid unsaturated analog oil-temperature reading is available.');return;}
   if(_oilTempKnownPts.some(p=>Math.abs(p.raw-raw)<2)){
@@ -2425,8 +2441,8 @@ let _bvComputedDivider = null;
 function captureBattVolt() {
   const known = parseFloat(document.getElementById('bv-known-v').value);
   if (isNaN(known) || known <= 0) { alert('Enter the measured voltage first.'); return; }
-  const raw = live.batt_voltage_raw;
-  if (raw === undefined || raw <= 0) { alert('No battery ADC-pin voltage yet — check wiring.'); return; }
+  const raw = liveAdcRaw('batt_voltage_raw');
+  if (!Number.isFinite(raw) || raw <= 0) { alert('No battery ADC-pin voltage yet — check wiring.'); return; }
   const vAdc = (raw / 4095.0) * 3.3;
   if (vAdc < 0.01) { alert('ADC-pin voltage is too low to compute the divider reliably.'); return; }
   // ADC full scale = 3.3 V → Vbatt = (raw/4095) * 3.3 * divider
@@ -2489,7 +2505,7 @@ function renderLoadCellWizard(kind, channel) {
 }
 function loadCellRaw(kind) {
   const raw = live[kind + '_raw'];
-  if (!live[kind + '_healthy'] || document.getElementById('conn')?.classList.contains('disconnected')) return NaN;
+  if (!live[kind + '_healthy'] || !calibrationConnected()) return NaN;
   return typeof raw === 'number' && Number.isInteger(raw) && raw >= -8388608 && raw <= 8388607 ? raw : NaN;
 }
 function captureLoadCellZero(kind) {
@@ -2580,8 +2596,8 @@ function savePendingPhaseTorqueCalibration() {
 }
 document.addEventListener('DOMContentLoaded',showPendingPhaseTorqueCalibration,{once:true});
 function livePhaseTorqueDegrees() {
-  if (live.torque_healthy !== true || !(Number(live.torque_phase_rpm) > 0) ||
-      !Number.isFinite(Number(live.torque_raw))) return null;
+  if (!calibrationConnected() || live.torque_healthy !== true || !(Number(live.torque_phase_rpm) > 0) ||
+      typeof live.torque_raw !== 'number' || !Number.isFinite(live.torque_raw)) return null;
   return Number(live.torque_raw) / 1000000;
 }
 function capturePhaseTorqueZero() {
@@ -2639,8 +2655,8 @@ function savePhaseTorqueKnown() {
 }
 let _torqueZeroRaw = null;
 function captureTorqueZero() {
-  const raw = live.torque_raw;
-  if (raw === undefined) { alert('No torque ADC-pin voltage yet.'); return; }
+  const raw = liveAdcRaw('torque_raw');
+  if (!Number.isFinite(raw)) { alert('No torque ADC-pin voltage yet.'); return; }
   _torqueZeroRaw = raw;
   // Convert raw to volts: offset_V = raw/4095 * 3.3, then offset_Nm = offset_V * scale
   // Store as Nm offset (requires knowing scale first, but we store raw and recompute on save)
@@ -2718,8 +2734,8 @@ function p12CalMode(ch, mode) {
   _p12State[ch].mode = mode;
 }
 function p12CaptureZero(ch) {
-  const raw = live[ch + '_raw'];
-  if (raw === undefined) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
+  const raw = liveAdcRaw(ch + '_raw');
+  if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
   if (!_p12State[ch]) _p12State[ch] = {};
   _p12State[ch].zeroRaw = raw;
   const ambientBar = pressureReferenceValue(ch + '-zero-reference');
@@ -2727,10 +2743,10 @@ function p12CaptureZero(ch) {
     '✓ ' + adcMvText(raw) + ' = ' + pressureValueLabel(ambientBar);
 }
 function p12CaptureRef(ch) {
-  const raw = live[ch + '_raw'];
+  const raw = liveAdcRaw(ch + '_raw');
   const bar = parseFloat(document.getElementById(ch + '-ref-bar').value);
   const ambientBar = pressureReferenceValue(ch + '-zero-reference');
-  if (raw === undefined) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
+  if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
   if (isNaN(bar) || bar <= ambientBar) {
     alert('Reference pressure must be above the selected ambient value (' + pressureValueLabel(ambientBar) + ').'); return;
   }
@@ -2817,15 +2833,15 @@ function p12Clear(ch) {
 // ── Fuel flow analog calibration ──────────────────────────────
 const _ffState = {};
 function ffCaptureZero() {
-  const raw = live['fuel_flow_raw'];
-  if (raw === undefined) { alert('No live fuel-flow ADC-pin voltage'); return; }
+  const raw = liveAdcRaw('fuel_flow_raw');
+  if (!Number.isFinite(raw)) { alert('No live fuel-flow ADC-pin voltage'); return; }
   _ffState.zeroRaw = raw;
   document.getElementById('ff-zero-captured').textContent = '✓ ' + adcMvText(raw);
 }
 function ffCaptureRef() {
-  const raw = live['fuel_flow_raw'];
+  const raw = liveAdcRaw('fuel_flow_raw');
   const val = parseFloat(document.getElementById('ff-ref-val').value);
-  if (raw === undefined) { alert('No live fuel-flow ADC-pin voltage'); return; }
+  if (!Number.isFinite(raw)) { alert('No live fuel-flow ADC-pin voltage'); return; }
   if (isNaN(val) || val <= 0) { alert('Enter a valid reference flow rate'); return; }
   _ffState.refRaw = raw; _ffState.refVal = val;
   document.getElementById('ff-ref-captured').textContent = '✓ ' + adcMvText(raw) + ' @ ' + val;
@@ -2880,8 +2896,8 @@ const _curState = {};
 function curCaptureZero(which) {
   const rawKeys = { glow: 'glow_current_raw', ign: 'igniter_current_raw', ign2: 'igniter2_current_raw', oilpump: 'oil_pump_current_raw' };
   const rawKey = rawKeys[which] || (which + '_current_raw');
-  const raw = live[rawKey];
-  if (raw === undefined) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
+  const raw = liveAdcRaw(rawKey);
+  if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
   if (!_curState[which]) _curState[which] = {};
   _curState[which].zeroRaw = raw;
   _curState[which].zeroV   = (raw / 4095.0) * 3.3;
@@ -2891,10 +2907,10 @@ function curCaptureZero(which) {
 function curCaptureRef(which) {
   const rawKeys = { glow: 'glow_current_raw', ign: 'igniter_current_raw', ign2: 'igniter2_current_raw', oilpump: 'oil_pump_current_raw' };
   const rawKey = rawKeys[which] || (which + '_current_raw');
-  const raw = live[rawKey];
+  const raw = liveAdcRaw(rawKey);
   const refId = which + '-cur-ref-a';
   const amps  = parseFloat(document.getElementById(refId).value);
-  if (raw === undefined) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
+  if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
   if (isNaN(amps) || amps <= 0) { alert('Enter a valid reference current in amps'); return; }
   if (!_curState[which]) _curState[which] = {};
   _curState[which].refRaw  = raw;

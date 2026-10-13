@@ -21,6 +21,9 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 - Require a connected, healthy load-cell sample in the calibration wizard, and discard a captured zero when its channel changes or disappears.
 
+- Reject disconnected or missing readings in ADC/phase/throttle calibration captures, and display missing ADC data as unavailable.
+- Exclude uninstalled analog switches from calibration, reject missing/unhealthy ADC samples, and restore capture controls after errors.
+
 ## [2.5.1] — 2026-10-13
 
 - Fix NAU7802 bridge excitation by selecting the internal 3.0 V regulator and configuring the ADC clock before nonblocking settling and AFE calibration.
