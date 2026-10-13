@@ -71,7 +71,7 @@ def main():
             assert info['state'] == 'STANDBY' and not info['outputs_active'], info
 
     info = request('/api/device_info')
-    assert info['target'] == 'esp32dev' and info['firmware_version'] == '2.5.2', info
+    assert info['target'] in {'esp32dev','esp32s3dev'} and info['firmware_version'] == '2.5.2', info
     assert info['state'] == 'STANDBY' and not info['outputs_active'], info
     original = request('/api/ecu_config')
     args.result.parent.mkdir(parents=True, exist_ok=True)

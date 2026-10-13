@@ -32,6 +32,8 @@ class SafetyQualification:
         self.runner = TenBuildRunner(port=os.environ.get("OTBENCH_PORT", "COM3"))
         self.dut = self.runner.dut
         self.t = self.runner.t
+        self.device = self.dut.device_info()
+        self.tester_version = self.t.ping()
         self.firmware_before = self.dut.data().get("fw_version", "unknown")
         self.firmware_after = None
         self.rows: list[dict] = []
@@ -480,6 +482,8 @@ def main():
     result = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "firmware": qualification.firmware_before,
+        "device": qualification.device,
+        "tester": qualification.tester_version,
         "firmware_after": qualification.firmware_after,
         "firmware_match": firmware_match,
         "rows": qualification.rows,

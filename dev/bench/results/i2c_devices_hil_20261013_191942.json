@@ -1,0 +1,247 @@
+{
+  "timestamp": "2026-10-13T19:19:42",
+  "firmware": "2.5.2",
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "a654abe9953b34ad",
+    "target": "esp32s3dev",
+    "chip": "ESP32-S3",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "tester": "OK OTBench 0.14",
+  "firmware_after": "2.5.2",
+  "rows": [
+    {
+      "name": "TCA9554_DISCOVERED",
+      "ok": true,
+      "detail": {
+        "emulator": [
+          {
+            "reply": "OK",
+            "status": "OK mode=1 reg=00 phase=0 tca_in=01 tca_out=00 tla=2048 nau=0 nau_init_ok=0 nau_cal=00"
+          }
+        ],
+        "discovery": {
+          "address": 32,
+          "type": "TCA9554",
+          "present": true,
+          "rechecking": false,
+          "state": "AVAILABLE",
+          "last_seen_ms": 16533,
+          "errors": 0
+        }
+      }
+    },
+    {
+      "name": "TCA9554_ASSIGNMENT_SAVED",
+      "ok": true,
+      "detail": {
+        "code": 200,
+        "response": {
+          "ok": true,
+          "reboot": true
+        }
+      }
+    },
+    {
+      "name": "TCA9554_INPUT_HIGH",
+      "ok": true,
+      "detail": {
+        "input": {
+          "id": "i2c_switch",
+          "value": 1,
+          "raw": 1,
+          "healthy": true
+        }
+      }
+    },
+    {
+      "name": "TCA9554_OUTPUT_TEST_AND_SAFE_RETURN",
+      "ok": true,
+      "detail": {
+        "code": 200,
+        "response": {
+          "ok": true
+        },
+        "active": "OK mode=1 reg=00 phase=96 tca_in=01 tca_out=02 tla=2048 nau=0 nau_init_ok=0 nau_cal=00",
+        "safe": "OK mode=1 reg=00 phase=70 tca_in=01 tca_out=00 tla=2048 nau=0 nau_init_ok=0 nau_cal=00"
+      }
+    },
+    {
+      "name": "TCA9554_DISCONNECT_FAILS_INPUT_AND_BLOCKS_OUTPUT",
+      "ok": true,
+      "detail": {
+        "input": {
+          "id": "i2c_switch",
+          "value": 1,
+          "raw": 1,
+          "healthy": false
+        },
+        "tool_code": 409,
+        "response": {
+          "ok": false,
+          "error": "Registry output is not testable"
+        }
+      }
+    },
+    {
+      "name": "TCA9554_RECONNECT_AND_LOW_INPUT",
+      "ok": true,
+      "detail": {
+        "input": {
+          "id": "i2c_switch",
+          "value": 0,
+          "raw": 0,
+          "healthy": true
+        },
+        "discovery": {
+          "address": 32,
+          "type": "TCA9554",
+          "present": true,
+          "rechecking": false,
+          "state": "AVAILABLE",
+          "last_seen_ms": 17122,
+          "errors": 1
+        },
+        "emulator_start": [
+          {
+            "reply": "OK",
+            "status": "OK mode=1 reg=00 phase=0 tca_in=00 tca_out=00 tla=2048 nau=0 nau_init_ok=0 nau_cal=00"
+          }
+        ],
+        "emulator": "OK mode=1 reg=00 phase=141 tca_in=00 tca_out=00 tla=2048 nau=0 nau_init_ok=0 nau_cal=00"
+      }
+    },
+    {
+      "name": "ABSENT_NEW_I2C_DEVICE_REJECTED",
+      "ok": true,
+      "detail": {
+        "code": 409,
+        "response": {
+          "ok": false,
+          "error": "I2C device is not connected",
+          "detail": "New I2C assignments can only use a device detected on the live bus.",
+          "channel": "torque_main"
+        }
+      }
+    },
+    {
+      "name": "TLA2528_DISCOVERED",
+      "ok": true,
+      "detail": {
+        "discovery": {
+          "address": 16,
+          "type": "TLA2528",
+          "present": true,
+          "rechecking": false,
+          "state": "AVAILABLE",
+          "last_seen_ms": 18847,
+          "errors": 0
+        }
+      }
+    },
+    {
+      "name": "TLA2528_LIVE_CALIBRATED_INPUT",
+      "ok": true,
+      "detail": {
+        "code": 200,
+        "input": {
+          "id": "p1_main",
+          "value": 1.65,
+          "raw": 2048,
+          "healthy": true
+        }
+      }
+    },
+    {
+      "name": "TLA2528_DISCONNECT_INVALIDATES_INPUT",
+      "ok": true,
+      "detail": {
+        "input": {
+          "id": "p1_main",
+          "value": 1.65,
+          "raw": 2048,
+          "healthy": false
+        }
+      }
+    },
+    {
+      "name": "NAU7802_DISCOVERED",
+      "ok": true,
+      "detail": {
+        "emulator": "OK",
+        "discovery": {
+          "address": 42,
+          "type": "NAU7802",
+          "present": true,
+          "rechecking": false,
+          "state": "AVAILABLE",
+          "last_seen_ms": 11346,
+          "errors": 0
+        }
+      }
+    },
+    {
+      "name": "NAU7802_ANALOG_STARTUP",
+      "ok": true,
+      "detail": {
+        "status": "OK mode=3 reg=12 phase=140 tca_in=96 tca_out=2F tla=2048 nau=102000 nau_init_ok=1 nau_cal=03"
+      }
+    },
+    {
+      "name": "NAU7802_TORQUE_AND_THRUST_CALIBRATION",
+      "ok": true,
+      "detail": {
+        "code": 200,
+        "torque": {
+          "id": "torque_main",
+          "value": 2,
+          "raw": 102000,
+          "healthy": true
+        },
+        "thrust": {
+          "id": "thrust_main",
+          "value": 4,
+          "raw": 102000,
+          "healthy": true
+        },
+        "torque_raw": 102000,
+        "thrust_raw": 102000
+      }
+    },
+    {
+      "name": "NAU7802_DISCONNECT_INVALIDATES_BOTH_CHANNELS",
+      "ok": true,
+      "detail": {
+        "torque": {
+          "id": "torque_main",
+          "value": 2,
+          "raw": 102000,
+          "healthy": false
+        },
+        "thrust": {
+          "id": "thrust_main",
+          "value": 4,
+          "raw": 102000,
+          "healthy": false
+        }
+      }
+    }
+  ],
+  "restored": true,
+  "error": null,
+  "serial_tail": [
+    "[WebServer] POST /api/hardware: saved (8199 bytes) - reboot in 1s",
+    "[WebServer] Restarting: hardware config save",
+    "x\ufffd\ufffdESP-ROM:esp32s3-20210327"
+  ],
+  "serial_capture_complete": false,
+  "serial_capture_note": "Diagnostic thread stopped on Windows cp1252 encoding; all 14 API and physical checks completed. UTF-8 stdout configured for subsequent runs.",
+  "authoritative_config_restored_separately": true
+}

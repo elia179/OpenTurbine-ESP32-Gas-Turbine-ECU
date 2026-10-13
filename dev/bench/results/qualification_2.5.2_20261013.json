@@ -1,0 +1,230 @@
+{
+  "source_commit": "37ea51900e75fddc2aada3acf74d6c9c9f1f1bdc",
+  "esp32dev": {
+    "build_id": "bb91cd6c6b85d9a5",
+    "artifacts": {
+      "firmware.bin": "bf8bfd1c85191bac8abdb2a5037b87943beffa3887558fd72f77474c19515e05",
+      "firmware.elf": "bb91cd6c6b85d9a51cafc10c529d6ce001e666e534075dead5d8771e9fda7259",
+      "littlefs.bin": "d7fb3b2da1a679e697bd1fca37c5d4e80a5a146331ca6063bd50be31de4f7ed7",
+      "partitions.bin": "629efe38bbd2b997ccd505dac6224113bbb562369f4562ce2f777aebdd38df1c"
+    }
+  },
+  "esp32s3dev": {
+    "build_id": "a654abe9953b34ad",
+    "artifacts": {
+      "firmware.bin": "bdeecb1971fcc32cc61fc534a5ed0c8cb63187fdc25e986ec7b44ab44f64de53",
+      "firmware.elf": "a654abe9953b34ad4a5c587658ecff89e79bf24e2ab21308c54157be334e39f2",
+      "littlefs.bin": "8c98b83c879d33a1c0445999f684a06fa35565040f90ca02a79dd4c3d0d0aea0",
+      "partitions.bin": "347bc2f482e0bd1d904c0e354d1ff931221a00f67864af87e39ccb6a61d25eaf"
+    }
+  },
+  "web_assets": {
+    "app.js.gz": "06c5817249cba9b2dff06ec4bee069e1396450234dcb926d1a3d82e296745851",
+    "calibration.html.gz": "c463a8b9ed0fba8a92ec040d7cbde8b23f6ecfbf8e836d0593e8e2ea5a1f73cd",
+    "controllers.html.gz": "b944f353b53ae5d678cee521418e3f60ba57bead95dd43d11de23c2a59fccc65",
+    "hardware.html.gz": "dad6cc0ee863b147eaa0b17ef464799db17b667c81f08c390dd301f8e0d37888",
+    "index.html.gz": "4dc3163f47b26c21d0969b6b5e8fa0e0803d5cf96e4a0d2d8d9441137f782adc",
+    "log.html.gz": "9801f33bafeb1f9eb92eb35716470382725d4627136ba0a1ad62a6f70dd42d62",
+    "sequence.html.gz": "1437079d4ffb3ff1aef060cbed812d0bf8f47a8be127921057365c203a9b8ad0",
+    "style.css.gz": "e8dc4344c1c4a84efd09cb0912be5f425f4dde050cb68dd645122c3f81a9c87d",
+    "system.html.gz": "1c98b33d7cd2ac2df28ded40556753fc54aa8db9e2eecc11b6ceeb8a08213361",
+    "theme.js.gz": "65a44be701cfcc5ca23258068ecc42b2b7761c4d187b458de8ce9d3a4b7db06a",
+    "tools.html.gz": "c684a70b710c3f36d36a3f395ade08b0ba6634d60e2b3894426752807d5b591d",
+    "ui_dialog.js.gz": "bb9db4a399d032eb196212d346c3c1f3a6a9e7ac895816717809078c4e5925c6"
+  },
+  "ci": {
+    "url": "https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38416850626",
+    "conclusion": "success",
+    "publication": "skipped"
+  },
+  "classic_browser": {
+    "passed": true,
+    "target": "esp32dev",
+    "version": "2.5.2",
+    "build_id": "bb91cd6c6b85d9a5",
+    "duration_s": 442,
+    "navigations": 22,
+    "saves": 2,
+    "original_ramp_ms": 1000,
+    "restored": true,
+    "soak_boot_count": 406,
+    "final_boot_count": 407,
+    "failures": [],
+    "httpErrors": [],
+    "recovered_get_resets": 29,
+    "recovered_config_reads": 0
+  },
+  "s3_browser": {
+    "passed": true,
+    "target": "esp32s3dev",
+    "version": "2.5.2",
+    "build_id": "a654abe9953b34ad",
+    "duration_s": 255,
+    "navigations": 17,
+    "saves": 2,
+    "original_ramp_ms": 1000,
+    "restored": true,
+    "soak_boot_count": 98,
+    "final_boot_count": 98,
+    "failures": [],
+    "httpErrors": [],
+    "recovered_get_resets": 5,
+    "recovered_config_reads": 0
+  },
+  "classic_firmware_ota": {
+    "passed": true,
+    "chunks": 408,
+    "build_id": "bb91cd6c6b85d9a5",
+    "original_engine_preserved": true
+  },
+  "s3_web_assets": {
+    "device": {
+      "project": "OpenTurbine",
+      "firmware_version": "2.5.2",
+      "build_id": "a654abe9953b34ad",
+      "target": "esp32s3dev",
+      "chip": "ESP32-S3",
+      "state": "STANDBY",
+      "outputs_active": false,
+      "ota_allowed": true,
+      "pcb_profile": {
+        "state": "absent"
+      }
+    },
+    "files": [
+      "app.js.gz",
+      "calibration.html.gz",
+      "controllers.html.gz",
+      "hardware.html.gz",
+      "index.html.gz",
+      "log.html.gz",
+      "sequence.html.gz",
+      "style.css.gz",
+      "system.html.gz",
+      "theme.js.gz",
+      "tools.html.gz",
+      "ui_dialog.js.gz"
+    ],
+    "engine_preserved": true,
+    "first_and_final_replay": true
+  },
+  "tester_0.14": {
+    "otbench": "403ac2f199c2057f3f19b509323fa7cb627d2847cc26052a5848e750fca82a80",
+    "otbench_s3": "c0508fb004123e3a3d140d50feda41b9e300557a0d83c386b2bf88e100ea09a2"
+  },
+  "classic_final": {
+    "device": {
+      "project": "OpenTurbine",
+      "firmware_version": "2.5.2",
+      "build_id": "bb91cd6c6b85d9a5",
+      "target": "esp32dev",
+      "chip": "ESP32",
+      "state": "STANDBY",
+      "outputs_active": false,
+      "ota_allowed": true,
+      "pcb_profile": {
+        "state": "absent"
+      }
+    },
+    "authoritative_config_restored": true,
+    "browser_file_roundtrip": true,
+    "download_bytes": 32406,
+    "web_assets": {
+      "app.js.gz": "06c5817249cba9b2dff06ec4bee069e1396450234dcb926d1a3d82e296745851",
+      "calibration.html.gz": "c463a8b9ed0fba8a92ec040d7cbde8b23f6ecfbf8e836d0593e8e2ea5a1f73cd",
+      "controllers.html.gz": "b944f353b53ae5d678cee521418e3f60ba57bead95dd43d11de23c2a59fccc65",
+      "hardware.html.gz": "dad6cc0ee863b147eaa0b17ef464799db17b667c81f08c390dd301f8e0d37888",
+      "index.html.gz": "4dc3163f47b26c21d0969b6b5e8fa0e0803d5cf96e4a0d2d8d9441137f782adc",
+      "log.html.gz": "9801f33bafeb1f9eb92eb35716470382725d4627136ba0a1ad62a6f70dd42d62",
+      "sequence.html.gz": "1437079d4ffb3ff1aef060cbed812d0bf8f47a8be127921057365c203a9b8ad0",
+      "style.css.gz": "e8dc4344c1c4a84efd09cb0912be5f425f4dde050cb68dd645122c3f81a9c87d",
+      "system.html.gz": "1c98b33d7cd2ac2df28ded40556753fc54aa8db9e2eecc11b6ceeb8a08213361",
+      "theme.js.gz": "65a44be701cfcc5ca23258068ecc42b2b7761c4d187b458de8ce9d3a4b7db06a",
+      "tools.html.gz": "c684a70b710c3f36d36a3f395ade08b0ba6634d60e2b3894426752807d5b591d",
+      "ui_dialog.js.gz": "bb9db4a399d032eb196212d346c3c1f3a6a9e7ac895816717809078c4e5925c6"
+    },
+    "event_download_bytes": 49993,
+    "event_count": 757
+  },
+  "s3_final": {
+    "device": {
+      "project": "OpenTurbine",
+      "firmware_version": "2.5.2",
+      "build_id": "a654abe9953b34ad",
+      "target": "esp32s3dev",
+      "chip": "ESP32-S3",
+      "state": "STANDBY",
+      "outputs_active": false,
+      "ota_allowed": true,
+      "pcb_profile": {
+        "state": "absent"
+      }
+    },
+    "authoritative_config_restored": true,
+    "event_download_bytes": 21106,
+    "event_count": 304
+  },
+  "campaign": "2.5.2 dry two-board regression",
+  "records": [
+    {
+      "path": "dev/bench/results/classic_pinfunc_hil_20261013_180557.json",
+      "sha256": "3179f8e083d423f56d3378dfe45930f0f332e850c9e6e2a3d03485a642a49df9"
+    },
+    {
+      "path": "dev/bench/results/classic_safety_hil_20261013_193921.json",
+      "sha256": "93b8e10d06db78976eb16b2f2b64b79eb14ba6443946066f4a3471df37e7c4c5"
+    },
+    {
+      "path": "dev/bench/results/classic_temperature_safety_20261013_193049.json",
+      "sha256": "f01d24804d3e0c094b59323e2dcbb41418f07fe210eb3f90f017051dbf5b7da7"
+    },
+    {
+      "path": "dev/bench/results/reversed_digital_sensor_hil_20261013_181735.json",
+      "sha256": "c2105c0538890fe84c201efc79064ac1e57e5ff9346ad1478774b44191183aeb"
+    },
+    {
+      "path": "dev/bench/results/i2c_devices_hil_20261013_183405.json",
+      "sha256": "e78a898cf02d98af3f79469aa48679432538af92426a5d89e1ae3c13bb5b46c0"
+    },
+    {
+      "path": "dev/bench/results/profiles_2.5.2_classic.json",
+      "sha256": "2e5be90125e2bcacb985399461e1b74dbbbfdbb3514a3b756cf15a1a41a68fcb"
+    },
+    {
+      "path": "dev/bench/results/profiles_2.5.2_s3.json",
+      "sha256": "b0d1dc9a6199124563768fc38e69f8d332f5e8a953602c140dd35ac0f7373915"
+    },
+    {
+      "path": "dev/bench/results/phase2_safety_hil_20261013_191746.json",
+      "sha256": "925b55c2ec028811c1757d48b30ea07a87126c8318f469ed93ef8b82978083b3"
+    },
+    {
+      "path": "dev/bench/results/i2c_devices_hil_20261013_191942.json",
+      "sha256": "aebda767b1384b51fca63e4161f84f3642a44566e5d08c44d2b0ecbca73445de"
+    },
+    {
+      "path": "dev/bench/results/hard_trip_removal_2.5.2_s3_final.json",
+      "sha256": "4c13029f8d0b6aaec570b3563a65ea43912f6bfa8d3fd104c20a01a57a1ed101"
+    },
+    {
+      "path": "dev/bench/results/web_assets_2.5.2_s3.json",
+      "sha256": "df44a742c3c04c472241aa361cecd4e2dc7553af186b82d5b52a5bc281b228fd"
+    }
+  ],
+  "local_checks_complete": true,
+  "release_qualified": false,
+  "push_authorized": true,
+  "final_roles": {
+    "COM3": "Classic OpenTurbine 2.5.2 DUT",
+    "COM4": "S3 OTBench 0.14 tester"
+  },
+  "limitations": [
+    "No fuel or rotating turbine; no powered actuator loads or independent scope timing.",
+    "No 24-hour causal-plant soak or full release qualification.",
+    "Classic starter PWM transport unavailable; S3 tester has no DAC for intermediate Classic ADC sweep.",
+    "S3 I2C diagnostic serial capture incomplete; all 14 checks passed."
+  ],
+  "harness_unit_tests": 36,
+  "publication": "User approved publication and flasher-default promotion on 2026-10-13; live release verification pending",
+  "record_hash_format": "Git blob bytes (LF normalization)"
+}

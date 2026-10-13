@@ -1,0 +1,203 @@
+{
+  "timestamp": "2026-10-13T18:34:05",
+  "firmware": "2.5.2",
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "bb91cd6c6b85d9a5",
+    "target": "esp32dev",
+    "chip": "ESP32",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "firmware_after": "2.5.2",
+  "rows": [
+    {
+      "name": "NAU7802_DISCOVERED",
+      "ok": true,
+      "detail": {
+        "emulator": "OK",
+        "discovery": {
+          "address": 42,
+          "type": "NAU7802",
+          "present": true,
+          "rechecking": false,
+          "state": "AVAILABLE",
+          "last_seen_ms": 12121,
+          "errors": 0
+        }
+      }
+    },
+    {
+      "name": "NAU7802_ANALOG_STARTUP",
+      "ok": true,
+      "detail": {
+        "status": "OK mode=3 reg=12 phase=69 tca_in=96 tca_out=2F tla=2048 nau=102000 nau_init_ok=1 nau_cal=03"
+      }
+    },
+    {
+      "name": "NAU7802_TORQUE_AND_THRUST_CALIBRATION",
+      "ok": true,
+      "detail": {
+        "code": 200,
+        "response": {
+          "ok": true,
+          "reboot": true
+        },
+        "last": {
+          "torque": {
+            "id": "torque_main",
+            "value": 2,
+            "raw": 102000,
+            "healthy": true
+          },
+          "thrust": {
+            "id": "thrust_main",
+            "value": 4,
+            "raw": 102000,
+            "healthy": true
+          },
+          "discovery": {
+            "bus_active": true,
+            "devices": [
+              {
+                "address": 42,
+                "type": "NAU7802",
+                "present": true,
+                "rechecking": false,
+                "state": "AVAILABLE",
+                "last_seen_ms": 9807,
+                "errors": 0
+              }
+            ]
+          },
+          "emulator": "OK mode=3 reg=12 phase=69 tca_in=96 tca_out=2F tla=2048 nau=102000 nau_init_ok=1 nau_cal=03"
+        },
+        "sample_count": 1
+      }
+    }
+  ],
+  "restored": true,
+  "error": null,
+  "serial_tail": [
+    "[WebServer] POST /api/ecu_config: 20085 bytes - reboot in 1s",
+    "[WebServer] Restarting: engine config restore",
+    "ets Jul 29 2019 12:21:46",
+    "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
+    "configsip: 0, SPIWP:0xee",
+    "clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00",
+    "mode:DIO, clock div:2",
+    "load:0x3fff0030,len:4640",
+    "load:0x40078000,len:15660",
+    "load:0x40080400,len:3164",
+    "entry 0x4008059c",
+    "[OT] OpenTurbine booting - default profile: OpenTurbine",
+    "[OT] LittleFS OK",
+    "[OT] Boot #448",
+    "[OT] Reset reason: SOFTWARE (3)",
+    "[OT] system diagnostics ready",
+    "[HWCfg] Loaded OK - profile: OpenTurbine",
+    "[Config] Completing missing settings sections in ecu_config.json",
+    "[Config] Loaded OK - profile: OpenTurbine",
+    "[OT] Starting web server",
+    "[WiFi] AP: OpenTurbine  IP: 192.168.4.1  (open network)  TX=8 dBm",
+    "[WiFi] Captive portal DNS started",
+    "[WiFi] mDNS: http://ot.local",
+    "[WebServer] Started on port 80",
+    "[OT] Web server ready",
+    "[WebServer] POST /api/hardware: saved (7882 bytes) - reboot in 1s",
+    "[WebServer] Restarting: hardware config save",
+    "ets Jul 29 2019 12:21:46",
+    "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
+    "configsip: 0, SPIWP:0xee",
+    "clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00",
+    "mode:DIO, clock div:2",
+    "load:0x3fff0030,len:4640",
+    "load:0x40078000,len:15660",
+    "load:0x40080400,len:3164",
+    "entry 0x4008059c",
+    "[OT] OpenTurbine booting - default profile: OpenTurbine",
+    "[OT] LittleFS OK",
+    "[OT] Boot #449",
+    "[OT] Reset reason: SOFTWARE (3)",
+    "[OT] system diagnostics ready",
+    "[HWCfg] Loaded OK - profile: OpenTurbine",
+    "[Config] Completing missing settings sections in ecu_config.json",
+    "[Config] Loaded OK - profile: OpenTurbine",
+    "[VALIDATE] ERROR OilPumpOn: No compatible fitted output device is available",
+    "[VALIDATE] ERROR IgniterOn: No compatible fitted output device is available",
+    "[VALIDATE] ERROR FuelOpen: No compatible fitted output device is available",
+    "[VALIDATE] ERROR IgniterOff: No compatible fitted output device is available",
+    "[VALIDATE] WARN FuelPumpIdle: No main fuel metering output configured - idle fuel demand has no physical output",
+    "[VALIDATE] WARN startup: No starter, spool, or air-starter action is present. The sequence assumes the rotor is spooled externally; add a starter action unless manual/external starting is intentional.",
+    "[VALIDATE] WARN FinalStop: No N1 RPM sensor - cannot verify complete stop; uses the configured timeout as a spool-down delay",
+    "[OT] Starting web server",
+    "[WiFi] AP: OpenTurbine  IP: 192.168.4.1  (open network)  TX=8 dBm",
+    "[WiFi] Captive portal DNS started",
+    "[WiFi] mDNS: http://ot.local",
+    "[WebServer] Started on port 80",
+    "[OT] Web server ready",
+    "[WebServer] POST /api/hardware: saved (8495 bytes) - reboot in 1s",
+    "[WebServer] Restarting: hardware config save",
+    "ets Jul 29 2019 12:21:46",
+    "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
+    "configsip: 0, SPIWP:0xee",
+    "clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00",
+    "mode:DIO, clock div:2",
+    "load:0x3fff0030,len:4640",
+    "load:0x40078000,len:15660",
+    "load:0x40080400,len:3164",
+    "entry 0x4008059c",
+    "[OT] OpenTurbine booting - default profile: OpenTurbine",
+    "[OT] LittleFS OK",
+    "[OT] Boot #450",
+    "[OT] Reset reason: SOFTWARE (3)",
+    "[OT] system diagnostics ready",
+    "[HWCfg] Loaded OK - profile: OpenTurbine",
+    "[Config] Completing missing settings sections in ecu_config.json",
+    "[Config] Loaded OK - profile: OpenTurbine",
+    "[VALIDATE] ERROR OilPumpOn: No compatible fitted output device is available",
+    "[VALIDATE] ERROR IgniterOn: No compatible fitted output device is available",
+    "[VALIDATE] ERROR FuelOpen: No compatible fitted output device is available",
+    "[VALIDATE] ERROR IgniterOff: No compatible fitted output device is available",
+    "[VALIDATE] WARN FuelPumpIdle: No main fuel metering output configured - idle fuel demand has no physical output",
+    "[VALIDATE] WARN startup: No starter, spool, or air-starter action is present. The sequence assumes the rotor is spooled externally; add a starter action unless manual/external starting is intentional.",
+    "[VALIDATE] WARN FinalStop: No N1 RPM sensor - cannot verify complete stop; uses the configured timeout as a spool-down delay",
+    "[OT] Starting web server",
+    "[WiFi] AP: OpenTurbine  IP: 192.168.4.1  (open network)  TX=8 dBm",
+    "[WiFi] Captive portal DNS started",
+    "[WiFi] mDNS: http://ot.local",
+    "[WebServer] Started on port 80",
+    "[OT] Web server ready",
+    "[I2C] NAU7802 conversion-ready read failed",
+    "[WebServer] POST /api/ecu_config: 20084 bytes - reboot in 1s",
+    "[WebServer] Restarting: engine config restore",
+    "ets Jul 29 2019 12:21:46",
+    "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
+    "configsip: 0, SPIWP:0xee",
+    "clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00",
+    "mode:DIO, clock div:2",
+    "load:0x3fff0030,len:4640",
+    "load:0x40078000,len:15660",
+    "load:0x40080400,len:3164",
+    "entry 0x4008059c",
+    "[OT] OpenTurbine booting - default profile: OpenTurbine",
+    "[OT] LittleFS OK",
+    "[OT] Boot #451",
+    "[OT] Reset reason: SOFTWARE (3)",
+    "[OT] system diagnostics ready",
+    "[HWCfg] Loaded OK - profile: OpenTurbine",
+    "[Config] Completing missing settings sections in ecu_config.json",
+    "[Config] Loaded OK - profile: OpenTurbine",
+    "[OT] Starting web server",
+    "[WiFi] AP: OpenTurbine  IP: 192.168.4.1  (open network)  TX=8 dBm",
+    "[WiFi] Captive portal DNS started",
+    "[WiFi] mDNS: http://ot.local",
+    "[WebServer] Started on port 80",
+    "[OT] Web server ready"
+  ]
+}

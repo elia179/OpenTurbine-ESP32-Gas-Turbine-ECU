@@ -9,6 +9,7 @@ largest ECU JSON document during long HIL campaigns.
 import http.client
 import json
 import os
+import re
 import socket
 import subprocess
 import time
@@ -144,7 +145,7 @@ class DUT:
         # down that attempt and starts over. Throttle recovery requests so API
         # retry loops cannot keep the adapter permanently disconnected.
         now = time.monotonic()
-        if not force and now - self._last_wifi_reconnect < 5.0:
+        if not force and now - self._last_wifi_reconnect < 15.0:
             return
         connected_to_dut = False
         try:
@@ -168,13 +169,11 @@ class DUT:
             ).stdout
             # PCB profiles may use their own AP name. The 192.168.4.x lease,
             # not a hard-coded SSID, identifies a healthy DUT connection.
-            connected_to_dut = (
-                "State" in state and "connected" in state and
-                "192.168.4." in addresses
-            )
+            associated = bool(re.search(r"^\s*State\s*:\s*connected\s*$", state, re.MULTILINE))
+            connected_to_dut = associated and self.wifi_profile in state
             # Association alone is not enough: Windows can remain associated
             # after losing the ECU DHCP lease and fall back to 169.254/16.
-            if connected_to_dut and "192.168.4." in addresses:
+            if associated and "192.168.4." in addresses:
                 return
             # Do not restart an association that Windows already has underway.
             if "connecting" in state or "disconnecting" in state:
@@ -398,8 +397,11 @@ class DUT:
         d = self.data()
         if d.get("mode") in ("STARTUP", "RUNNING", "SHUTDOWN"):
             self.stop()
-            ok, d = self.poll_until(lambda x: x.get("mode") == "STANDBY", timeout=timeout)
-            return ok, d
+            ok, d = self.poll_until(lambda x: x.get("mode") in ("STANDBY", "FAULT"), timeout=timeout)
+            if not ok or d.get("mode") == "STANDBY":
+                return ok, d
+            # A protective shutdown ends in a latched FAULT rather than
+            # STANDBY. Wait for that transition before acknowledging it.
         if d.get("mode") == "FAULT" and d.get("fault_latched"):
             code, _ = self.clear_fault()
             if code == 200:

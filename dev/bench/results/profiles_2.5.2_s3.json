@@ -1,0 +1,303 @@
+{
+  "campaign": "dry_dual_target_profiles",
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "a654abe9953b34ad",
+    "target": "esp32s3dev",
+    "chip": "ESP32-S3",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "restored": true,
+  "profiles": [
+    {
+      "id": "turbojet",
+      "name": "turbojet",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "idle RC input sweep",
+          "ok": true,
+          "detail": "991->1890"
+        },
+        {
+          "name": "idle RC calibration save",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "N1 PCNT input",
+          "ok": true,
+          "detail": "6885->12000"
+        },
+        {
+          "name": "oil_pump command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "oil_pump physical output",
+          "ok": true,
+          "detail": "OILPUMP_OUT {'us': 0, 'hz': 0.0, 'duty': 1.0, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "fuel_sol command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "fuel_sol physical output",
+          "ok": true,
+          "detail": "FUEL_SOL {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "igniter command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "igniter physical output",
+          "ok": true,
+          "detail": "IGNITER {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "throttle command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "throttle physical output",
+          "ok": true,
+          "detail": "THROTTLE_OUT {'us': 1499, 'hz': 50.0, 'duty': 0.075, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "normal START accepted",
+          "ok": true,
+          "detail": "{'ok': True, 'started': True, 'request_id': 1}"
+        },
+        {
+          "name": "normal startup reaches RUNNING",
+          "ok": true,
+          "detail": "['RUNNING', 'STARTUP']"
+        },
+        {
+          "name": "physical fuel, ignition and fuel servo active",
+          "ok": true,
+          "detail": "{'fuel': True, 'igniter': True, 'servo': True}"
+        },
+        {
+          "name": "RUNNING remains stable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "physical STOP cuts combustion outputs",
+          "ok": true,
+          "detail": "{'THROTTLE_OUT_us': 1000, 'THROTTLE_OUT_hz': 50.0, 'THROTTLE_OUT_duty': 0.05, 'THROTTLE_OUT_level': 1, 'STARTER_OUT_us': 0, 'STARTER_OUT_hz': 0.0, 'STARTER_OUT_duty': 0.0, 'STARTER_OUT_level': 0, 'OILPUMP_OUT_us': 0, 'OILPUMP_OUT_hz': 0.0, 'OILPUMP_OUT_duty': 1.0, 'OILPUMP_OUT_level': 1, 'FUEL_SOL': 0, 'IGNITER': 0, 'STARTER_EN': 1}"
+        }
+      ],
+      "error": null,
+      "duration_s": 57.03
+    },
+    {
+      "id": "turboshaft",
+      "name": "turboshaft",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "idle RC input sweep",
+          "ok": true,
+          "detail": "1000->1900"
+        },
+        {
+          "name": "idle RC calibration save",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "N1 PCNT input",
+          "ok": true,
+          "detail": "6000->12000"
+        },
+        {
+          "name": "N2 PCNT input",
+          "ok": true,
+          "detail": "4286->9000"
+        },
+        {
+          "name": "oil_pump command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "oil_pump physical output",
+          "ok": true,
+          "detail": "OILPUMP_OUT {'us': 0, 'hz': 0.0, 'duty': 1.0, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "fuel_sol command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "fuel_sol physical output",
+          "ok": true,
+          "detail": "FUEL_SOL {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "igniter command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "igniter physical output",
+          "ok": true,
+          "detail": "IGNITER {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "throttle command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "throttle physical output",
+          "ok": true,
+          "detail": "THROTTLE_OUT {'us': 1499, 'hz': 50.0, 'duty': 0.075, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "normal START accepted",
+          "ok": true,
+          "detail": "{'ok': True, 'started': True, 'request_id': 1}"
+        },
+        {
+          "name": "normal startup reaches RUNNING",
+          "ok": true,
+          "detail": "['RUNNING', 'STANDBY', 'STARTUP']"
+        },
+        {
+          "name": "physical fuel, ignition and fuel servo active",
+          "ok": true,
+          "detail": "{'fuel': True, 'igniter': True, 'servo': True}"
+        },
+        {
+          "name": "RUNNING remains stable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "physical STOP cuts combustion outputs",
+          "ok": true,
+          "detail": "{'THROTTLE_OUT_us': 1000, 'THROTTLE_OUT_hz': 50.0, 'THROTTLE_OUT_duty': 0.05, 'THROTTLE_OUT_level': 1, 'STARTER_OUT_us': 0, 'STARTER_OUT_hz': 0.0, 'STARTER_OUT_duty': 0.0, 'STARTER_OUT_level': 0, 'OILPUMP_OUT_us': 0, 'OILPUMP_OUT_hz': 0.0, 'OILPUMP_OUT_duty': 1.0, 'OILPUMP_OUT_level': 1, 'FUEL_SOL': 0, 'IGNITER': 0, 'STARTER_EN': 1}"
+        }
+      ],
+      "error": null,
+      "duration_s": 58.32
+    },
+    {
+      "id": "turboprop",
+      "name": "turboprop",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "idle RC input sweep",
+          "ok": true,
+          "detail": "995->1897"
+        },
+        {
+          "name": "idle RC calibration save",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "N1 PCNT input",
+          "ok": true,
+          "detail": "6461->12000"
+        },
+        {
+          "name": "N2 PCNT input",
+          "ok": true,
+          "detail": "4932->8780"
+        },
+        {
+          "name": "fuel_sol command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "fuel_sol physical output",
+          "ok": true,
+          "detail": "FUEL_SOL {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "igniter command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "igniter physical output",
+          "ok": true,
+          "detail": "IGNITER {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "throttle command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "throttle physical output",
+          "ok": true,
+          "detail": "THROTTLE_OUT {'us': 1499, 'hz': 50.0, 'duty': 0.075, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "prop_pitch command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "prop_pitch physical output",
+          "ok": true,
+          "detail": "OILPUMP_OUT {'us': 108, 'hz': 5050.5, 'duty': 0.545, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "normal START accepted",
+          "ok": true,
+          "detail": "{'ok': True, 'started': True, 'request_id': 1}"
+        },
+        {
+          "name": "normal startup reaches RUNNING",
+          "ok": true,
+          "detail": "['RUNNING', 'STANDBY', 'STARTUP']"
+        },
+        {
+          "name": "physical fuel, ignition and fuel servo active",
+          "ok": true,
+          "detail": "{'fuel': True, 'igniter': True, 'servo': True}"
+        },
+        {
+          "name": "RUNNING remains stable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "physical STOP cuts combustion outputs",
+          "ok": true,
+          "detail": "{'THROTTLE_OUT_us': 1000, 'THROTTLE_OUT_hz': 50.0, 'THROTTLE_OUT_duty': 0.05, 'THROTTLE_OUT_level': 1, 'STARTER_OUT_us': 0, 'STARTER_OUT_hz': 0.0, 'STARTER_OUT_duty': 0.0, 'STARTER_OUT_level': 0, 'OILPUMP_OUT_us': 0, 'OILPUMP_OUT_hz': 0.0, 'OILPUMP_OUT_duty': 1.0, 'OILPUMP_OUT_level': 1, 'FUEL_SOL': 0, 'IGNITER': 0, 'STARTER_EN': 1}"
+        }
+      ],
+      "error": null,
+      "duration_s": 61.03
+    }
+  ],
+  "limitations": [
+    "No fuel, turbine, powered loads or independent scope timing.",
+    "Classic ADC intermediate sweep unavailable with S3 tester.",
+    "Profiles use timed startup, not a causal turbine plant."
+  ],
+  "complete": true,
+  "tester": "OK OTBench 0.13"
+}

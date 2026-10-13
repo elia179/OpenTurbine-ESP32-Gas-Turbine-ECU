@@ -41,7 +41,7 @@
 #include "esp_timer.h"     // synchronized dual-pickup phase stimulus (tester only)
 #include "driver/gpio.h"
 
-static const char* OTBENCH_VER = "0.12";
+static const char* OTBENCH_VER = "0.14";
 
 // ── Signal kinds ─────────────────────────────────────────────
 enum Kind {
@@ -110,12 +110,12 @@ static const int NUM_SIGNALS = sizeof(SIGNALS) / sizeof(SIGNALS[0]);
 
 static const float VREF = 3.3f;
 
-#if !defined(OTBENCH_S3)
 // ── Shared-I2C accessory emulator ─────────────────────────────
 // Reuses the existing START and STOP jumpers as SDA/SCL during the test, so
 // the complete ECU I2C stack can be exercised without changing bench wiring:
 //   DUT GPIO13 (SDA) <-> tester GPIO13
-//   DUT GPIO15 (SCL) <-> tester GPIO14
+//   S3 DUT GPIO15 (SCL) <-> Classic tester GPIO14
+// Reversed: Classic DUT GPIO13/4 <-> S3 tester GPIO13/14.
 // Only one slave is active at a time, matching the serial test campaign.
 enum I2cEmuMode : uint8_t { I2C_EMU_OFF, I2C_EMU_TCA9554, I2C_EMU_TLA2528, I2C_EMU_NAU7802 };
 static I2cEmuMode g_i2cEmuMode = I2C_EMU_OFF;
@@ -175,8 +175,10 @@ static void i2cEmuReceive(int count) {
         }
     }
     while (Wire.available()) Wire.read();
+#if !defined(OTBENCH_S3)
     if (g_i2cEmuMode == I2C_EMU_NAU7802) preloadNauReply();
     else preloadPeripheralReply();
+#endif
 }
 
 static void preloadPeripheralReply() {
@@ -195,7 +197,11 @@ static void preloadPeripheralReply() {
             reply[0] ^= g_i2cRegs[2];
     } else return;
     // TCA/TLA need the same Classic slave FIFO preloading as NAU7802.
+#if defined(OTBENCH_S3)
+    Wire.write(reply, length);
+#else
     Wire.slaveWrite(reply, length);
+#endif
 }
 
 static void preloadNauReply() {
@@ -225,17 +231,27 @@ static void preloadNauReply() {
         }
         // Classic ESP32 must preload its slave FIFO before the read address;
         // filling it in onRequest delivers the previous register's bytes.
+#if defined(OTBENCH_S3)
+        Wire.write(reply, length);
+#else
         Wire.slaveWrite(reply, length);
+#endif
 }
 
 static void i2cEmuRequest() {
     ++g_i2cPhase;
+#if defined(OTBENCH_S3)
+    // S3 requests data before transmission. Preloading this target's FIFO
+    // retains a stale status byte ahead of a later multi-byte conversion.
+    if (g_i2cEmuMode == I2C_EMU_NAU7802) preloadNauReply();
+    else preloadPeripheralReply();
+#endif
 }
 
 static void i2cEmuStop() {
     if (g_i2cEmuMode != I2C_EMU_OFF) Wire.end();
     g_i2cEmuMode = I2C_EMU_OFF;
-    // Restore the two ordinary active-low switch outputs in their safe state.
+    // Release shared wires; RESET restores their ordinary signal roles.
     pinMode(I2C_EMU_SDA, INPUT);
     pinMode(I2C_EMU_SCL, INPUT);
 }
@@ -268,11 +284,12 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
     Wire.onRequest(i2cEmuRequest);
     if (!Wire.begin(address, I2C_EMU_SDA, I2C_EMU_SCL, 400000)) return false;
     g_i2cEmuMode = mode;
+#if !defined(OTBENCH_S3)
     if (mode == I2C_EMU_NAU7802) preloadNauReply();
     else preloadPeripheralReply();
+#endif
     return true;
 }
-#endif
 
 // ── LEDC (raw ESP-IDF) — each FREQ_OUT / SERVO_OUT gets its OWN timer+channel ──
 // The Arduino ledcAttach/ledcWriteTone wrappers kept reusing a single timer, so N1
@@ -391,7 +408,7 @@ static void IRAM_ATTR totCsISR() {
         misoWrite(1);
     }
 }
-static void IRAM_ATTR totSckISR() {        // advance one bit per rising edge
+static void IRAM_ATTR totSckISR() {        // SO advances after the falling edge
     if (g_totBit < 0) return;
     g_totBit = (int8_t)(g_totBit - 1);
     if (g_totBit >= 0) misoWrite(g_totEnabled ? ((g_totWord >> g_totBit) & 1) : 1);
@@ -403,7 +420,7 @@ static void totBegin() {
     pinMode(TOT_MISO_PIN, OUTPUT);
     misoWrite(1);
     attachInterrupt(digitalPinToInterrupt(TOT_CS_PIN), totCsISR, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(TOT_SCK_PIN), totSckISR, RISING);
+    attachInterrupt(digitalPinToInterrupt(TOT_SCK_PIN), totSckISR, FALLING);
 }
 
 // Set the emulated temperature (°C). open=true asserts the open-circuit flag.
@@ -902,14 +919,12 @@ static void handleLine(char* line) {
         stopPhasePair();
 #if defined(OTBENCH_S3)
         if (g_emuMode != EMU_NONE) emuStop();
-#else
-        i2cEmuStop();
 #endif
+        i2cEmuStop();
         for (int i = 0; i < NUM_SIGNALS; i++) safeState(SIGNALS[i]);
         Serial.println("OK");
         return;
     }
-#if !defined(OTBENCH_S3)
     if (strcasecmp(cmd, "I2CEMU") == 0) {
         char* kind = strtok(nullptr, " \t");
         char* val  = strtok(nullptr, " \t");
@@ -943,11 +958,13 @@ static void handleLine(char* line) {
             Serial.println("ERR unknown I2C emulator");
             return;
         }
+#if defined(OTBENCH_S3)
+        if (g_emuMode != EMU_NONE) emuStop();
+#endif
         if (i2cEmuBegin(mode, strtol(val, nullptr, 0))) Serial.println("OK");
         else Serial.println("ERR I2C emulator start failed");
         return;
     }
-#endif
 #if defined(OTBENCH_S3)
     if (strcasecmp(cmd, "EMU") == 0) {
         char* kind = strtok(nullptr, " \t");
@@ -975,6 +992,7 @@ static void handleLine(char* line) {
             return;
         }
         if (!val) { Serial.println("ERR emulator value required"); return; }
+        if (g_i2cEmuMode != I2C_EMU_OFF) i2cEmuStop();
         if (!strcasecmp(kind, "MAX6675"))       emuSetThermocouple(EMU_MAX6675, val);
         else if (!strcasecmp(kind, "MAX31855")) emuSetThermocouple(EMU_MAX31855, val);
         else if (!strcasecmp(kind, "MAX31856")) emuSetThermocouple(EMU_MAX31856, val);

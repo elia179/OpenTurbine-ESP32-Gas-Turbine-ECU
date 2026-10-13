@@ -1,0 +1,253 @@
+{
+  "firmware": "2.5.2",
+  "target": "esp32dev",
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "bb91cd6c6b85d9a5",
+    "target": "esp32dev",
+    "chip": "ESP32",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "restored": true,
+  "tester": "ESP32-S3 OK OTBench 0.14",
+  "repetitions": 3,
+  "physical_start": true,
+  "passed": 6,
+  "total": 6,
+  "checks": [
+    {
+      "name": "N1 overspeed isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.668,
+        "event": "Engine over-speed: RPM exceeded the safety limit.\nWhat to do: Wait for the engine to cool down fully. Check your RPM limit setting in Controllers and verify throttle calibration before the next start.",
+        "n1_before": 40000,
+        "n1_after": 60000,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1350,
+            "hz": 50.0,
+            "duty": 0.068,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 1000,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "Physical STOP isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.34,
+        "event": "Seq: FinalStop",
+        "n1_before": 40000,
+        "stop_active": true,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1348,
+            "hz": 50.0,
+            "duty": 0.067,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 999,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "N1 overspeed isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.721,
+        "event": "Engine over-speed: RPM exceeded the safety limit.\nWhat to do: Wait for the engine to cool down fully. Check your RPM limit setting in Controllers and verify throttle calibration before the next start.",
+        "n1_before": 40500,
+        "n1_after": 60000,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1349,
+            "hz": 50.0,
+            "duty": 0.067,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 1000,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "Physical STOP isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.541,
+        "event": "Seq: FinalStop",
+        "n1_before": 39512,
+        "stop_active": true,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1349,
+            "hz": 50.0,
+            "duty": 0.067,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 1000,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "N1 overspeed isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.721,
+        "event": "Engine over-speed: RPM exceeded the safety limit.\nWhat to do: Wait for the engine to cool down fully. Check your RPM limit setting in Controllers and verify throttle calibration before the next start.",
+        "n1_before": 40500,
+        "n1_after": 60000,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1350,
+            "hz": 50.0,
+            "duty": 0.068,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 1000,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "Physical STOP isolates fuel",
+      "ok": true,
+      "detail": {
+        "elapsed_s": 0.464,
+        "event": "Seq: FinalStop",
+        "n1_before": 39512,
+        "stop_active": true,
+        "before": {
+          "fuel": {
+            "level": 1
+          },
+          "igniter": {
+            "level": 1
+          },
+          "throttle": {
+            "us": 1350,
+            "hz": 50.0,
+            "duty": 0.067,
+            "level": 1
+          }
+        },
+        "after": {
+          "fuel": {
+            "level": 0
+          },
+          "igniter": {
+            "level": 0
+          },
+          "throttle": {
+            "us": 1000,
+            "hz": 50.0,
+            "duty": 0.05,
+            "level": 1
+          }
+        }
+      }
+    }
+  ]
+}

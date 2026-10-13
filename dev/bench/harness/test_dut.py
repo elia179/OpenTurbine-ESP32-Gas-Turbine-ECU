@@ -98,6 +98,19 @@ class DutTelemetryCacheTests(unittest.TestCase):
         self.dut._post("/api/command", {})
         self.assertIsNotNone(self.dut._data_base)
 
+    def test_protective_shutdown_settles_before_fault_is_acknowledged(self):
+        self.dut.data = Mock(return_value={"mode": "SHUTDOWN"})
+        self.dut.stop = Mock()
+        self.dut.clear_fault = Mock(return_value=(200, {"ok": True}))
+        self.dut.poll_until = Mock(side_effect=[
+            (True, {"mode": "FAULT", "fault_latched": True}),
+            (True, {"mode": "STANDBY"}),
+        ])
+        ok, data = self.dut.ensure_mode_standby()
+        self.assertTrue(ok)
+        self.assertEqual(data["mode"], "STANDBY")
+        self.dut.clear_fault.assert_called_once()
+
     @patch("otbench.dut.time.sleep")
     @patch("otbench.dut.subprocess.run")
     @patch("otbench.dut.time.monotonic", side_effect=[100.0, 101.0, 161.0])
@@ -116,6 +129,31 @@ class DutTelemetryCacheTests(unittest.TestCase):
             if item.args and item.args[0][:3] == ["netsh", "wlan", "connect"]
         ]
         self.assertEqual(len(connect_calls), 2)
+
+    @patch("otbench.dut.time.sleep")
+    @patch("otbench.dut.subprocess.run")
+    @patch("otbench.dut.time.monotonic", return_value=100.0)
+    def test_stale_association_is_dropped_before_reconnecting(self, _clock, run, _sleep):
+        self.dut.wifi_profile = "OpenTurbine"
+        run.side_effect = [
+            Mock(stdout="    State : connected\n    SSID : OpenTurbine\n"),
+            Mock(stdout="IPv4 Address: 169.254.44.125"), Mock(), Mock(),
+        ]
+        with patch("otbench.dut.os.name", "nt"):
+            self.dut._reconnect_wifi()
+        self.assertEqual(run.call_args_list[2].args[0][:3], ["netsh", "wlan", "disconnect"])
+        self.assertEqual(run.call_args_list[3].args[0][:3], ["netsh", "wlan", "connect"])
+
+    @patch("otbench.dut.subprocess.run")
+    @patch("otbench.dut.time.monotonic", return_value=100.0)
+    def test_healthy_dut_address_preserves_custom_ap_association(self, _clock, run):
+        run.side_effect = [
+            Mock(stdout="    State : connected\n    SSID : CustomPCB\n"),
+            Mock(stdout="IPv4 Address: 192.168.4.4"),
+        ]
+        with patch("otbench.dut.os.name", "nt"):
+            self.dut._reconnect_wifi()
+        self.assertEqual(run.call_count, 2)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,8 @@ from ten_build_webui_hil import chan_input, chan_output
 
 print("[SETUP] Connecting DUT and S3 tester", flush=True)
 dut = DUT(); dc = DutConfig(dut); t = Tester(os.environ.get("OTBENCH_PORT", "COM4")).open()
+tester_version = t.ping()
+device_identity = dut.device_info()
 print("[SETUP] Tester ready; downloading original hardware", flush=True)
 original_hw = dut.hardware()
 print("[SETUP] Hardware downloaded; downloading complete engine file", flush=True)
@@ -296,7 +298,8 @@ with open(result_path, "w", encoding="utf-8") as result_file:
     json.dump({
         "campaign": "classic_pinfunc_hil",
         "dut": "ESP32 Classic",
-        "tester": "ESP32-S3 OTBench 0.9",
+        "tester": "ESP32-S3 " + tester_version,
+        "device": device_identity,
         "passed": npass,
         "total": len(results),
         "restored": cleanup_ok,

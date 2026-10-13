@@ -1,0 +1,31 @@
+{
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "a654abe9953b34ad",
+    "target": "esp32s3dev",
+    "chip": "ESP32-S3",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "files": [
+    "app.js.gz",
+    "calibration.html.gz",
+    "controllers.html.gz",
+    "hardware.html.gz",
+    "index.html.gz",
+    "log.html.gz",
+    "sequence.html.gz",
+    "style.css.gz",
+    "system.html.gz",
+    "theme.js.gz",
+    "tools.html.gz",
+    "ui_dialog.js.gz"
+  ],
+  "engine_preserved": true,
+  "first_and_final_replay": true
+}

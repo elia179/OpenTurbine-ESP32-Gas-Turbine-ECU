@@ -34,6 +34,10 @@ class ClassicSafetyHil:
         self.dc = DutConfig(self.dut)
         self.tester = Tester(os.environ.get("OTBENCH_PORT", "COM4")).open()
         self.tester_version = self.tester.ping()
+        self.identity = self.dut.device_info()
+        if self.identity.get("target") != "esp32dev":
+            raise RuntimeError(f"Classic DUT required: {self.identity}")
+        self.physical_start = os.environ.get("OTBENCH_PHYSICAL_START") == "1"
         self.original_hw = self.dut.hardware()
         self.original_ecu = self.dut._get("/api/ecu_config")
         self.rows = []
@@ -48,7 +52,9 @@ class ClassicSafetyHil:
 
     def profile(self, hw):
         ReversedDigitalSensorHil.quiet_profile(hw)
-        hw["controls"].update(start_pin=-1, stop_pin=14, stop_active_h=False,
+        hw["controls"].update(start_pin=13 if self.physical_start else -1,
+                              start_active_h=False, start_pullup=True,
+                              start_pulldown=False, stop_pin=14, stop_active_h=False,
                               stop_pullup=True, stop_pulldown=False)
         hw["sensors"]["n1_rpm"].update(enabled=True, pin=4, ppr=1.0)
         hw["actuators"]["throttle"].update(
@@ -110,6 +116,11 @@ class ClassicSafetyHil:
         temporary = deepcopy(self.original_ecu)
         self.profile(temporary["hardware"])
         settings = temporary["settings"]
+        # This intentionally minimal fixture removes the user's auxiliary
+        # devices and automatic-idle controller. Do not transplant their
+        # automation references or controller-dependent fuel mode into it.
+        settings["rules"] = []
+        settings["dynamic_idle"]["fuel_mode"] = 0
         settings["engine"].update(rpm_limit=50000, min_rpm=0)
         settings["throttle"].update(
             ramp_up_ms=0, ramp_down_ms=0, fuel_pump_min_pct=30
@@ -132,9 +143,20 @@ class ClassicSafetyHil:
         time.sleep(1.2)
         self.dut.ensure_mode_standby()
         self.dut.ensure_dev_mode(True)
-        code, response = self.dut.start()
-        if code != 200:
-            raise RuntimeError(f"START rejected: {code} {response}")
+        if self.physical_start:
+            self.tester.set("START", 1)
+            try:
+                started, data = self.dut.poll_until(
+                    lambda d: d.get("mode") in ("STARTUP", "RUNNING"),
+                    timeout=3, interval=0.1)
+            finally:
+                self.tester.set("START", 0)
+            if not started:
+                raise RuntimeError(f"Physical START not accepted: {data}")
+        else:
+            code, response = self.dut.start()
+            if code != 200:
+                raise RuntimeError(f"START rejected: {code} {response}")
         ok, data = self.dut.poll_until(
             lambda d: d.get("mode") == "RUNNING", timeout=8, interval=0.1
         )
@@ -248,8 +270,11 @@ class ClassicSafetyHil:
         payload = {
             "firmware": self.dut.data().get("fw_version", "unknown"),
             "target": "esp32dev",
+            "device": self.identity,
+            "restored": True,
             "tester": f"ESP32-S3 {self.tester_version}",
             "repetitions": repetitions,
+            "physical_start": self.physical_start,
             "passed": sum(row["ok"] for row in self.rows),
             "total": len(self.rows),
             "checks": self.rows,

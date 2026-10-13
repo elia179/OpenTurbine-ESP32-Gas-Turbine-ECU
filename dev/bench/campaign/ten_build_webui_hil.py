@@ -157,6 +157,7 @@ class TenBuildRunner:
         self.firmware_before = self.dut.data().get("fw_version", "unknown")
         self.firmware_after = None
         self.restored = False
+        self.original_ecu = self.dut._get("/api/ecu_config")
         self.original_hw = self.dut.hardware()
         self.original_cfg = self.dut.config()
         self._restore_config_patch = {}
@@ -169,14 +170,13 @@ class TenBuildRunner:
         self.backup_path = os.path.join(RESULT_DIR, f"ten_build_backup_{self.run_id}.json")
         self.result_path = os.path.join(RESULT_DIR, f"ten_build_webui_hil_{self.run_id}.json")
         self.results = []
-        write_json(self.backup_path, {"hardware": self.original_hw, "config": self.original_cfg})
+        write_json(self.backup_path, self.original_ecu)
 
     def note_config_patch(self, changes) -> None:
-        """Remember only original leaves a campaign is about to modify.
+        """Record original leaves for campaign diagnostics.
 
-        Replaying an entire settings document is both unnecessary and costly on
-        Classic ESP32. A narrow restore also avoids reintroducing fields that a
-        temporary hardware topology correctly sanitized while it was active.
+        Cleanup uses the full canonical snapshot, including rules and counters;
+        these notes are not a substitute for exact engine-file restoration.
         """
         def capture(original, changed, destination):
             if not isinstance(changed, dict) or not isinstance(original, dict):
@@ -326,6 +326,10 @@ class TenBuildRunner:
 
     def patch_fast_config(self) -> None:
         patch = {
+            # Timed fixture profiles must not inherit the user's automatic
+            # idle selection or automation references to removed devices.
+            "dynamic_idle": {"fuel_mode": 0},
+            "rules": [],
             "tools": TOOLS_FAST,
             "throttle": {
                 "fuel_pump_min_pct": 10,
@@ -1247,7 +1251,6 @@ class TenBuildRunner:
             previous_boot_count = self.dut.data().get("boot_count")
         except Exception:
             previous_boot_count = None
-        classic_target = os.environ.get("OTBENCH_TARGET", "s3").strip().lower() == "classic"
         # A settings transaction from the final recovery step can still own
         # the apply gate for a few control ticks. Treat that documented 409 as
         # a short-lived ordering condition and retry the identical restore;
@@ -1255,20 +1258,15 @@ class TenBuildRunner:
         # cleanup result.
         deadline = time.time() + 5.0
         while True:
-            code, resp = self.dut._post("/api/hardware", self.original_hw)
+            code, resp = self.dut._post("/api/ecu_config", self.original_ecu)
             if code != 409 or "configuration update" not in str(resp).lower() or time.time() >= deadline:
                 break
             time.sleep(0.1)
         if code != 200:
-            self.log(f"WARNING: original hardware restore failed: HTTP {code} {resp}")
+            self.log(f"WARNING: original engine-file restore failed: HTTP {code} {resp}")
             return False
         if not self.wait_dut_ready_after_hardware_save(previous_boot_count=previous_boot_count):
             self.log("WARNING: DUT did not return after original hardware restore")
-            return False
-        restore_patch = self._restore_config_patch or self.original_cfg
-        ok, resp = self.dc.patch_cfg(restore_patch)
-        if not ok:
-            self.log(f"WARNING: original config restore failed: {resp}")
             return False
         try:
             self.safe_standby()
@@ -1296,8 +1294,11 @@ class TenBuildRunner:
             self.log("WARNING: restored ECU identity could not be verified")
             return False
         self.firmware_after = identity.get("firmware_version", "unknown")
-        self.restored = True
-        return self.firmware_after == self.firmware_before
+        restored_ecu = self.dut._get("/api/ecu_config")
+        self.restored = restored_ecu == self.original_ecu
+        if not self.restored:
+            self.log("WARNING: restored engine file differs from the original snapshot")
+        return self.restored and self.firmware_after == self.firmware_before
 
     def close(self):
         try:

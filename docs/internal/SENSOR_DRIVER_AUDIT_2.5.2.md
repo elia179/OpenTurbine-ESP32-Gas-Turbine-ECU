@@ -165,6 +165,12 @@ The installed Classic pages passed the live warning-navigation audit, including 
 
 ## Sources
 
+The subsequent two-board regression, including Classic as the main DUT and S3
+as the alternate DUT, is recorded in [HARDWARE_REGRESSION_2.5.2.md](HARDWARE_REGRESSION_2.5.2.md).
+It covers real browser transfers, three engine profiles on each target,
+physical I/O and protection checks. Its dry-bench scope and remaining engine
+qualification requirements are stated separately from these driver audits.
+
 
 
 - [TI TCA9554 datasheet](https://www.ti.com/lit/ds/symlink/tca9554.pdf)

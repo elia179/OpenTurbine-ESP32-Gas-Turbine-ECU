@@ -1,7 +1,7 @@
-"""Physical shared-I2C HIL using OTBench 0.12 and the existing switch jumpers.
+"""Physical shared-I2C HIL using OTBench 0.12+ and existing harness jumpers.
 
-The classic tester temporarily makes DUT GPIO13/15 an I2C bus and emulates one
-supported accessory at a time. The campaign proves discovery, assignment
+The tester temporarily uses DUT GPIO13/15 (S3) or GPIO13/4 (Classic) as an I2C
+bus and emulates one supported accessory at a time. It proves discovery, assignment
 truth, live input conversion, TCA output writes, disconnect/reconnect health,
 and NAU7802 torque/thrust calibration. Original hardware/config are restored.
 """
@@ -36,6 +36,9 @@ class I2cQualification:
         self.serial_thread.start()
         self.r = TenBuildRunner(port=os.environ.get("OTBENCH_PORT", "COM3"))
         self.dut, self.t = self.r.dut, self.r.t
+        self.original_ecu = self.dut._get("/api/ecu_config")
+        self.device = self.dut.device_info()
+        self.tester_version = self.t.ping()
         self.rows: list[dict] = []
 
     def _capture_serial(self):
@@ -55,7 +58,8 @@ class I2cQualification:
     def reset_i2c_tester(self):
         """Reset the synthetic slave before changing its I2C address."""
         self.t._reset_board()
-        if not self.t.ping().startswith("OK OTBench 0.12"):
+        version = self.t.ping().split()[-1]
+        if tuple(int(part) for part in version.split('.')) < (0, 12):
             raise RuntimeError("OTBench did not return after I2C emulator reset")
 
     def start_tca(self, input_value: int):
@@ -80,8 +84,15 @@ class I2cQualification:
         # The hardware schema intentionally requires dedicated physical
         # START/STOP inputs. Park them on otherwise-unused harness pins while
         # their normal jumpers carry the temporary I2C bus.
-        hw["controls"].update(start_pin=12, stop_pin=21)
-        hw["i2c"].update(enabled=True, sda_pin=13, scl_pin=15,
+        classic = os.environ.get("OTBENCH_TARGET", "s3").lower() == "classic"
+        hw["platform"] = "esp32" if classic else "esp32s3"
+        hw["controls"].update(start_pin=-1 if classic else 12,
+                              stop_pin=26 if classic else 21,
+                              stop_active_h=False, stop_pullup=True,
+                              stop_pulldown=False)
+        # OTBench's slave uses GPIO13/14 on either chip. In the reversed
+        # loom S3 GPIO14 is the N1 wire to Classic GPIO4.
+        hw["i2c"].update(enabled=True, sda_pin=13, scl_pin=4 if classic else 15,
                          interrupt_pin=-1, frequency_hz=100000)
 
     def wait_device(self, address, type_name, present=True, timeout=12):
@@ -329,8 +340,17 @@ class I2cQualification:
             self.t.raw("I2CEMU OFF 0")
         except Exception:
             pass
-        restored = self.r.restore_original()
-        firmware_after = self.r.firmware_after
+        self.t.set("START", 0)
+        self.t.set("STOP", 0)
+        self.t.set("N1", 0)
+        self.dut.stop()
+        self.dut.ensure_mode_standby()
+        previous_boot = self.dut.data().get("boot_count")
+        code, response = self.dut._post("/api/ecu_config", self.original_ecu)
+        restored = code == 200 and self.r.dc._wait_reboot(previous_boot)
+        if restored:
+            restored = self.dut._get("/api/ecu_config") == self.original_ecu
+        firmware_after = self.dut.device_info().get("firmware_version", "unknown")
         self.r.close()
         self.serial_stop.set()
         self.serial_thread.join(timeout=1)
@@ -339,6 +359,9 @@ class I2cQualification:
 
 
 def main():
+    # Boot serial streams may contain arbitrary bytes; Windows' legacy stdout
+    # encoding must not terminate the diagnostic capture thread.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     q = I2cQualification()
     error = None
     restored = False
@@ -356,6 +379,8 @@ def main():
     result = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "firmware": q.r.firmware_before,
+        "device": q.device,
+        "tester": q.tester_version,
         "firmware_after": firmware_after,
         "rows": q.rows, "restored": restored, "error": error,
         "serial_tail": q.serial_lines[-300:],

@@ -8,7 +8,7 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
-## [2.5.2] — Unreleased
+## [2.5.2] — 2026-10-13
 
 - Disable P1/P2 pressure and torque hard trips when their sensors are removed from the saved Hardware configuration, avoiding orphaned hard-trip warnings. Retain protection when configured sensors merely lose their signal.
 - Respect a channel's configured purpose when resolving built-in IDs, preventing a repurposed sensor or output from also retaining its former assignment and producing an invalid saved setup.
@@ -59,6 +59,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 - Recover engine-file restore controls after browser file-read errors, cancellation or exceptions, allowing the same file to be selected again without sending unreadable data to the ECU.
 - Keep engine-file restore locked across telemetry updates until its attempt completes, preventing overlapping restores while a response or reboot is pending.
 - Clear failed throttle/idle endpoint recaptures, lock capture/save controls while averaging, and discard endpoints when the input type changes so old captures cannot be reused in different units.
+
+- Verify Classic and S3 browser pages, complete engine-file uploads/downloads and three engine profiles on the two-board fixture. Repeated physical START/STOP, measured fuel-isolation and temperature protection checks pass on Classic; S3 protection and I2C campaigns pass. These are dry bench checks; real sensors and powered actuator loads still require installation-specific verification.
 
 ## [2.5.1] — 2026-10-13
 

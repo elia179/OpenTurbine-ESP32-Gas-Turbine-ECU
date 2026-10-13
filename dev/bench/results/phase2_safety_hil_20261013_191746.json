@@ -1,0 +1,323 @@
+{
+  "timestamp": "2026-10-13T19:17:46",
+  "firmware": "2.5.2",
+  "firmware_after": "2.5.2",
+  "firmware_match": true,
+  "rows": [
+    {
+      "name": "HOT_START",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.717,
+      "detail": "{'ok': False, 'error': 'START blocked: selected EGT above pre-start limit'}",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "STANDBY",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "STARTUP_OVERTEMP",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 1.33,
+      "detail": "Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "SHARED_REDUCED_POWER_CAP",
+      "ok": true,
+      "detail": {
+        "command": {
+          "code": 200,
+          "response": {
+            "ok": true
+          }
+        },
+        "full_effective": 0.823,
+        "manual_effective": 0.3,
+        "automatic_effective": 0.3,
+        "manual_pulse": {
+          "us": 1299,
+          "hz": 50.0,
+          "duty": 0.065,
+          "level": 1
+        },
+        "automatic_pulse": {
+          "us": 1299,
+          "hz": 50.0,
+          "duty": 0.065,
+          "level": 1
+        }
+      }
+    },
+    {
+      "name": "OVERSPEED",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.539,
+      "detail": "Engine over-speed: RPM exceeded the safety limit.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "N2_OVERSPEED",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.567,
+      "detail": "N2 over-speed: power-turbine RPM exceeded its hard shutdown limit.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "OVERTEMP",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.405,
+      "detail": "Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "LOW_OIL",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.599,
+      "detail": "Low oil pressure during operation.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "OIL_ZERO",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.249,
+      "detail": "Oil pressure read near zero - possible pump failure or broken fitting.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "FLAMEOUT",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.802,
+      "detail": "Combustion-loss shutdown: the independent monitor confirmed loss for its configured time.",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    },
+    {
+      "name": "PHYSICAL_STOP",
+      "ok": true,
+      "safe_side": true,
+      "tripped": true,
+      "matched": true,
+      "elapsed_s": 0.949,
+      "detail": "Seq: TimedDelay",
+      "safe_cut": true,
+      "safe_cut_detail": {
+        "mode": "SHUTDOWN",
+        "fuel": {
+          "level": 0
+        },
+        "igniter": {
+          "level": 0
+        },
+        "throttle": {
+          "us": 1000,
+          "hz": 50.0,
+          "duty": 0.05,
+          "level": 1
+        },
+        "telemetry": {
+          "fuel_sol_open": false,
+          "igniter_on": false,
+          "throttle_effective": 0
+        }
+      }
+    }
+  ],
+  "restored": true,
+  "error": null,
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.2",
+    "build_id": "a654abe9953b34ad",
+    "target": "esp32s3dev",
+    "chip": "ESP32-S3",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "tester": "OK OTBench 0.14",
+  "identity_verified_after": true,
+  "authoritative_config_restored_separately": true
+}
