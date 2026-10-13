@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
   <div class="sensor-row" id="thrust-cal-row" style="display:none">
-    <div class="sensor-name">Thrust</div>
+    <div class="sensor-name"><span id="thrust-h-cal" class="dot"></span> Thrust</div>
     <div class="sensor-vals">
       <div class="sv-item"><div class="sv-label">Thrust</div><div class="sv-val" id="cal-thrust">—</div></div>
       <div class="sv-item"><div class="sv-label" id="thrust-raw-label">Raw load-cell count</div><div class="sv-val" id="cal-thrust-raw">—</div></div>
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Torque Sensor (shown only when torque sensor is fitted) -->
   <div class="sensor-row" id="torque-cal-row" style="display:none">
-    <div class="sensor-name">Torque</div>
+    <div class="sensor-name"><span id="torque-h-cal" class="dot"></span> Torque</div>
     <div class="sensor-vals">
       <div class="sv-item"><div class="sv-label">Torque</div><div class="sv-val" id="cal-torque">—</div></div>
       <div class="sv-item"><div class="sv-label" id="torque-raw-label">ADC pin voltage</div><div class="sv-val" id="cal-torque-raw">—</div></div>
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         For HX711 load cells, zero offset and scale factor are set directly on the
         <a href="/hardware.html" style="color:var(--accent)">Hardware Settings</a> page.<br>
         <span style="color:var(--dim)">Zero count: raw HX711 count at no load.
-        Scale: Nm per raw count (e.g. apply a known load and divide by the live raw count).</span>
+        Scale: Nm per raw count = known torque in Nm / (loaded raw count − zero count). Capture the zero with all load removed, then apply the known torque.</span>
       </div>
       <div id="torque-hx711-status" style="font-size:.75rem;color:var(--dim)"></div>
     </div>
@@ -1321,17 +1321,19 @@ window.applyData = function(d) {
     bar('bar-battvolt', d.batt_voltage, 0, 16, true);
   }
   if (hasTorque && d.torque !== undefined) {
+    setDot('torque-h-cal', d.torque_healthy, 'Torque sensor');
     setText('cal-torque',     Number(d.torque).toFixed(1) + ' Nm');
     const torqueChannel = registryChannelByPurpose(cfg.hardware || {}, 'inputs', 'torque');
     const torqueIsLoadCell = Number(torqueChannel?.driver) === 10 ||
       Number(torqueChannel?.torque_interface || 0) === 1;
     const torqueIsPhase = Number(torqueChannel?.torque_interface || 0) === 2;
     setText('cal-torque-raw', torqueIsPhase ?
-      (Number.isFinite(Number(d.torque_raw)) ? (Number(d.torque_raw)/1000000).toFixed(4) + '°' : '—') :
+      (typeof d.torque_raw === 'number' && Number.isFinite(d.torque_raw) ? (d.torque_raw/1000000).toFixed(4) + '°' : '—') :
       (torqueIsLoadCell ? (d.torque_raw ?? '—') : adcMvText(d.torque_raw)));
-    bar('bar-torque', d.torque, 0, parseFloat(document.getElementById('torque-fullscale')?.value || '100'), true);
+    bar('bar-torque', d.torque, 0, parseFloat(document.getElementById('torque-fullscale')?.value || '100'), d.torque_healthy);
   }
   if (hasThrust && d.thrust !== undefined) {
+    setDot('thrust-h-cal', d.thrust_healthy, 'Thrust sensor');
     setText('cal-thrust', Number(d.thrust).toFixed(1) + ' N');
     const thrustChannel = registryChannelByPurpose(cfg.hardware || {}, 'inputs', 'thrust');
     setText('cal-thrust-raw', Number(thrustChannel?.driver) === 10

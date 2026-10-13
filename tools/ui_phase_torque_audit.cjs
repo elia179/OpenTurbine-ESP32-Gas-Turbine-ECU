@@ -354,6 +354,25 @@ function installedBrowser() {
     });
     assert.deepEqual(rawGuards,{valid:100,missingText:'—',missingPhase:null,
       missing:true,outside:true,disconnected:true});
+    const calibrationHealth = await page.evaluate(() => {
+      applyData({mode:'STANDBY',has_torque:true,torque:12,torque_raw:null,torque_healthy:false,
+        has_thrust:true,thrust:10,thrust_raw:500,thrust_healthy:false});
+      const fault = document.getElementById('bar-torque').classList.contains('fault');
+      const torqueFault = document.getElementById('torque-h-cal').className;
+      const thrustFault = document.getElementById('thrust-h-cal').className;
+      applyData({has_torque:true,torque:12,torque_raw:500,torque_healthy:true,
+        has_thrust:true,thrust:10,thrust_raw:500,thrust_healthy:true});
+      return {fault,torqueFault,thrustFault,
+        recovered:!document.getElementById('bar-torque').classList.contains('fault'),
+        torqueHealthy:document.getElementById('torque-h-cal').className,
+        thrustHealthy:document.getElementById('thrust-h-cal').className,
+        instructions:document.getElementById('torque-hx711-wizard').textContent};
+    });
+    assert.equal(calibrationHealth.fault,true);
+    assert.equal(calibrationHealth.recovered,true);
+    assert.notEqual(calibrationHealth.torqueFault,calibrationHealth.torqueHealthy);
+    assert.notEqual(calibrationHealth.thrustFault,calibrationHealth.thrustHealthy);
+    assert.match(calibrationHealth.instructions,/loaded raw count − zero count/);
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {

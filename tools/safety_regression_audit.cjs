@@ -1524,7 +1524,8 @@ expect('calibration live fields use compact telemetry without repeated full snap
   webApp.includes('idle_input_us:v[16]') &&
   webApp.includes('ab_flame_raw:v[72]') &&
   calibrationHtml.includes('async function nextCalibrationFrame()') &&
-  calibrationHtml.includes('return live || {};') &&
+  calibrationHtml.includes('return calibrationConnected() ? (live || {}) : {};') &&
+  calibrationHtml.includes("classList.contains('connected') === true") &&
   !/function _captureInputAverage[\s\S]{0,500}fetch\('\/api\/data'\)/.test(calibrationHtml));
 expect('compact percentages retain the displayed tenth-percent digit',
   web.includes('ed.mainFuelAppliedDemand * 1000.0f') &&

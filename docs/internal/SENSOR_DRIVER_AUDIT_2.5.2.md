@@ -20,6 +20,8 @@ TLA2528 settings also accepted reversed/out-of-ADC raw ranges and unbounded conv
 
 The load-cell calibration wizard now requires a connected, healthy signed 24-bit sample. It rejects missing raw data rather than treating null as zero, clears the captured zero when the channel changes or disappears, and rejects nonfinite calibration scales. Browser regressions cover faulted/disconnected samples and channel replacement.
 
+The HX711 scale instructions now divide known Nm by (loaded count minus zero count), rather than the loaded count alone. Calibration shows torque/thrust health and faults the torque bar when unhealthy.
+
 The broader UI review also rejects missing/disconnected readings during ADC, phase and throttle calibration, hides uninstalled analog switches, displays missing ADC data as unavailable, and restores switch capture controls after errors. ADC calibration does not require an already-correct calibrated physical value; it accepts connected raw counts so calibration can repair invalid scaling.
 
 ## Other drivers reviewed
@@ -33,9 +35,9 @@ The broader UI review also rejects missing/disconnected readings during ADC, pha
 
 ## Verification and limits
 
-New native tests include the actual `I2CDeviceManager`, `MAX31856TempSensor` and `DS18B20TempSensor` headers, with register/GPIO/OneWire models. They exercise failed setup, peripheral reset, alternate ADC channels, fault recovery, stuck-low scratchpads, and a genuine 85 C reading. They are part of the normal required native gate, rather than only testing a copied decoder.
+New native tests include the actual `I2CDeviceManager`, `MAX31856TempSensor`, `MAX31855TempSensor`, `MAX6675TempSensor`, `DS18B20TempSensor` and `HX711Sensor` headers, with register/GPIO/OneWire models. They exercise failed setup, peripheral reset, alternate ADC channels, fault recovery, stuck-low scratchpads, and a genuine 85 C reading. They are part of the normal required native gate, rather than only testing a copied decoder.
 
-The local NAU7802 regression ran successfully. New native test sources compile locally, but Windows Application Control blocked the new executables (WinError 4551); their execution must be confirmed by the development-branch GitHub check. Local Classic/S3 firmware builds and size budgets are checked separately. No release tag or publication is authorized for this future update.
+The local NAU7802 regression ran successfully. Windows Application Control blocked the new local native executables (WinError 4551), so execution was verified by [development-branch GitHub run 38347513857](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/38347513857): all actual-driver models, the complete canonical gate, both firmware/filesystem targets, budgets and package validation passed. The subsequent calibration UI changes pass all 18 local browser audit programs and all 316 safety checks; a final combined GitHub check follows. Local Classic/S3 ECU and tester 0.12 builds pass. No release tag or publication is authorized for this future update.
 
 No physical TCA9554, TLA2528, MAX31856, DS18B20, or HX711 module is attached to this bench. Datasheet review and protocol models cannot establish real breakout-board wiring, excitation, electrical noise or calibration accuracy. A DS18B20 absent during initial ROM discovery still requires a reboot after connection; runtime discovery is deliberately avoided because a ROM search can block the ECU loop. Parasite-powered DS18B20 operation remains unsupported and requires external VDD. MAX31855/HX711 cannot distinguish every possible wiring failure from a valid zero reading.
 
