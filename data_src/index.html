@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>document.documentElement.setAttribute('data-dashboard-accents','on');try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261017d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261017d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
   <!-- Commissioning banner (shown on first run, STANDBY, not yet dismissed) -->
-  <div id="getting-started-banner" class="gs-banner" style="display:none">
+  <div id="getting-started-banner" data-dashboard-label="Commissioning checklist" class="gs-banner" style="display:none">
     <div class="gs-header">
       <span class="gs-title">Commissioning checklist</span>
       <button class="gs-dismiss" onclick="dismissGettingStarted()" title="Hide this setup guide">Hide guide</button>
@@ -220,7 +220,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>
     </div>
     <div class="card" id="flame-card" style="display:none" title="Combustion flame sensor (optical or ionisation). The bar compares its live signal with the configured detection threshold; the green dot means flame is confirmed. It can verify ignition during startup and detect combustion loss while running.">
-      <div class="label">Flame <span id="flame-dot" class="dot"></span></div>
+      <div class="label"><span id="lbl-flame">Flame</span> <span id="flame-dot" class="dot"></span></div>
       <div class="flame-bar-wrap">
         <div class="flame-bar-track">
           <div class="flame-bar-fill" id="flame-bar-fill" style="width:0%"></div>
@@ -261,40 +261,40 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <canvas class="sparkline" id="oil-temp-sparkline"></canvas>
     </div>
     <div class="card" id="batt-card" style="display:none">
-      <div class="label">Battery V <span id="batt-health" class="dot"></span></div>
+      <div class="label"><span id="lbl-batt">Battery</span> V <span id="batt-health" class="dot"></span></div>
       <div class="value small" id="batt-voltage">—</div>
       <div class="peak-val">max <span id="max-batt-voltage">—</span> · min limit: <span id="batt-volt-min">—</span> V</div>
       <canvas class="sparkline" id="batt-sparkline"></canvas>
     </div>
     <div class="card" id="torque-card" style="display:none">
-      <div class="label">Torque Nm <span id="torque-health" class="dot"></span></div>
+      <div class="label"><span id="lbl-torque">Torque</span> Nm <span id="torque-health" class="dot"></span></div>
       <div class="value small" id="torque">—</div>
       <div class="peak-val" id="torque-speed-row" style="display:none">speed: <span id="torque-speed">—</span> RPM</div>
       <div class="peak-val" id="torque-power-row" style="display:none" title="Shaft power = torque × angular speed from this torque sensor's own reference pickup.">shaft power: <span id="turbo-power">—</span> kW</div>
       <canvas class="sparkline" id="torque-sparkline"></canvas>
     </div>
     <div class="card" id="thrust-card" style="display:none">
-      <div class="label">Thrust N <span id="thrust-health" class="dot"></span></div>
+      <div class="label"><span id="lbl-thrust">Thrust</span> N <span id="thrust-health" class="dot"></span></div>
       <div class="value small" id="thrust">—</div>
       <div class="sub">Calibrated load-cell thrust</div>
     </div>
     <div class="card" id="glow-current-card" style="display:none">
-      <div class="label">Glow Plug Current <span id="glow-hot-dot" class="dot" title="Hot"></span></div>
+      <div class="label"><span data-output-name="glow_plug">Glow Plug</span> Current <span id="glow-hot-dot" class="dot" title="Hot"></span></div>
       <div class="value small" id="glow-current-val">—</div>
       <div class="peak-val">A &nbsp;·&nbsp; <span id="glow-hot-label" style="color:var(--dim)">—</span></div>
     </div>
     <div class="card" id="igniter-current-card" style="display:none">
-      <div class="label">Igniter 1 / Coil Current</div>
+      <div class="label"><span data-output-name="igniter">Igniter 1 / Coil</span> Current</div>
       <div class="value small" id="igniter-current-val">—</div>
       <div class="peak-val">A</div>
     </div>
     <div class="card" id="igniter2-current-card" style="display:none">
-      <div class="label">Secondary Igniter Current</div>
+      <div class="label"><span data-output-name="ab_igniter">Secondary Igniter</span> Current</div>
       <div class="value small" id="igniter2-current-val">—</div>
       <div class="peak-val">A</div>
     </div>
     <div class="card" id="oilpump-current-card" style="display:none">
-      <div class="label">Oil Pump Current <span id="oilpump-oc-dot" class="dot" title="Overcurrent"></span></div>
+      <div class="label"><span data-output-name="oil_pump">Oil Pump</span> Current <span id="oilpump-oc-dot" class="dot" title="Overcurrent"></span></div>
       <div class="value small" id="oilpump-current-val">—</div>
       <div class="peak-val">A &nbsp;·&nbsp; <span id="oilpump-oc-label" style="color:var(--dim)">—</span></div>
     </div>
@@ -336,8 +336,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <!-- Governor status (shown only when governor enabled) -->
   <section id="governor-section" style="display:none;margin-bottom:.5rem">
     <div class="card small" id="governor-card">
-      <div class="label">Automatic N2 Speed Control <span id="gov-mode" style="display:none;font-size:.6rem;padding:.05rem .4rem;border-radius:999px;border:1px solid var(--border);color:var(--dim);vertical-align:middle;letter-spacing:.03em"></span></div>
-      <div class="oil-sub">N2 target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
+      <div class="label">Automatic <span data-input-name="n2_speed">N2 Speed</span> Control <span id="gov-mode" style="display:none;font-size:.6rem;padding:.05rem .4rem;border-radius:999px;border:1px solid var(--border);color:var(--dim);vertical-align:middle;letter-spacing:.03em"></span></div>
+      <div class="oil-sub"><span data-input-name="n2_speed">N2</span> target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
     </div>
   </section>
 
@@ -347,25 +347,25 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label">Actuator Outputs</div>
       <div style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.78rem;color:var(--dim)">
         <div id="adv-starter" style="display:none">
-          Starter <span id="starter-pct" style="color:var(--text);font-weight:600">0</span><span id="starter-unit">%</span>
+          <span data-output-name="starter">Starter</span> <span id="starter-pct" style="color:var(--text);font-weight:600">0</span><span id="starter-unit">%</span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="starter-gauge-bar" style="width:0%"></div>
           </div>
         </div>
         <div id="adv-starter-en" style="display:none">
-          Starter enable <span id="starter-en-state" style="font-weight:600">OFF</span>
+          <span data-output-name="starter_enable">Starter enable</span> <span id="starter-en-state" style="font-weight:600">OFF</span>
         </div>
         <div id="adv-fuel-sol" style="display:none">
-          Main fuel shutoff <span id="fuel-sol-state" style="font-weight:600">CLOSED</span>
+          <span data-output-name="fuel_shutoff">Main fuel shutoff</span> <span id="fuel-sol-state" style="font-weight:600">CLOSED</span>
         </div>
         <div id="adv-igniter" style="display:none">
-          Igniter 1 <span id="igniter-state" style="font-weight:600">OFF</span>
+          <span data-output-name="igniter">Igniter 1</span> <span id="igniter-state" style="font-weight:600">OFF</span>
         </div>
         <div id="adv-igniter2" style="display:none">
-          Secondary Igniter <span id="igniter2-state" style="font-weight:600">OFF</span>
+          <span data-output-name="ab_igniter">Secondary Igniter</span> <span id="igniter2-state" style="font-weight:600">OFF</span>
         </div>
         <div id="adv-glow" style="display:none">
-          Glow plug <span id="glow-pct" style="color:var(--text);font-weight:600">0</span><span id="glow-unit">%</span>
+          <span data-output-name="glow_plug">Glow plug</span> <span id="glow-pct" style="color:var(--text);font-weight:600">0</span><span id="glow-unit">%</span>
           <span id="wet-glow-fuel-wrap" style="display:none"> &middot; wet fuel <span id="wet-glow-fuel-pct" style="color:var(--text);font-weight:600">0</span><span id="wet-glow-fuel-unit">%</span>
             <span class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem"><span class="gauge-bar" id="wet-glow-fuel-gauge-bar" style="display:block;width:0%"></span></span>
           </span>
@@ -374,34 +374,34 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
           </div>
         </div>
         <div id="adv-bleed" style="display:none">
-          Bleed valve <span id="bleed-state" style="font-weight:600">CLOSED</span><span id="bleed-unit"></span>
+          <span data-output-name="bleed_valve">Bleed valve</span> <span id="bleed-state" style="font-weight:600">CLOSED</span><span id="bleed-unit"></span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="bleed-gauge-bar" style="width:0%"></div>
           </div>
         </div>
         <div id="adv-pitch" style="display:none">
-          Prop pitch <span id="pitch-pct" style="color:var(--text);font-weight:600">0</span><span id="pitch-unit">%</span>
+          <span data-output-name="prop_pitch">Prop pitch</span> <span id="pitch-pct" style="color:var(--text);font-weight:600">0</span><span id="pitch-unit">%</span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="pitch-gauge-bar" style="width:0%"></div>
           </div>
         </div>
         <div id="adv-fp2" style="display:none">
-          Secondary / auxiliary fuel pump <span id="fp2-pct" style="color:var(--text);font-weight:600">0</span><span id="fp2-unit">%</span>
+          <span data-output-name="fuel_pump">Secondary / auxiliary fuel pump</span> <span id="fp2-pct" style="color:var(--text);font-weight:600">0</span><span id="fp2-unit">%</span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="fp2-gauge-bar" style="width:0%"></div>
           </div>
         </div>
         <div id="adv-coolfan" style="display:none">
-          Cool fan <span id="coolfan-state" style="font-weight:600">OFF</span><span id="coolfan-unit"></span>
+          <span data-output-name="cooling_fan">Cool fan</span> <span id="coolfan-state" style="font-weight:600">OFF</span><span id="coolfan-unit"></span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="coolfan-gauge-bar" style="width:0%"></div>
           </div>
         </div>
         <div id="adv-airstarter" style="display:none">
-          Air starter valve <span id="airstarter-state" style="font-weight:600">CLOSED</span>
+          <span data-output-name="air_starter">Air starter valve</span> <span id="airstarter-state" style="font-weight:600">CLOSED</span>
         </div>
         <div id="adv-scavenge" style="display:none">
-          Scavenge pump <span id="scavenge-state" style="font-weight:600">OFF</span><span id="scavenge-unit"></span>
+          <span data-output-name="scavenge_pump">Scavenge pump</span> <span id="scavenge-state" style="font-weight:600">OFF</span><span id="scavenge-unit"></span>
           <div class="gauge-bar-wrap" style="width:80px;display:inline-block;vertical-align:middle;margin-left:.3rem">
             <div class="gauge-bar" id="scavenge-gauge-bar" style="width:0%"></div>
           </div>
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </section>
 
   <!-- Mode + controls -->
-  <section class="mode-row">
+  <section class="mode-row" id="dashboard-controls-card" data-dashboard-label="Engine controls">
     <div id="mode-badge" class="mode-badge">STANDBY</div>
     <div class="controls-wrap">
       <div class="controls">
@@ -455,10 +455,10 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <!-- Telemetry cards -->
   <section class="grid-2 telemetry" id="dashboard-secondary-cards">
     <div class="card small" id="throttle-output-card" title="Actual commanded fuel-metering output after applying its calibrated minimum reliable output. During startup the idle-input command range starts at this minimum.">
-      <div class="label">Main Fuel Metering Output</div>
+      <div class="label"><span id="lbl-throttle-output">Main Fuel Metering Output</span></div>
       <div class="value small" id="throttle-demand">—</div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="throttle-gauge-bar" style="width:0%"></div></div>
-      <div class="oil-sub" id="throttle-feedback-inhibit-note" style="display:none;color:var(--yellow)">Throttle increase limited: fitted RPM/EGT feedback is unhealthy. Fix the sensor/calibration before live running; Bench Mode is only for dry actuator tests.</div>
+      <div class="oil-sub dashboard-card-warning" id="throttle-feedback-inhibit-note" style="display:none;color:var(--yellow)">Throttle increase limited: fitted RPM/EGT feedback is unhealthy. Fix the sensor/calibration before live running; Bench Mode is only for dry actuator tests.</div>
       <div class="oil-sub operator-input-summary" id="operator-input-row" style="display:none">
         <span id="operator-throttle-wrap" style="display:none">throttle input: <span id="registry-input-value-operator_throttle">???</span>%</span>
         <span id="operator-idle-wrap" style="display:none">idle/minimum input: <span id="registry-input-value-operator_idle">???</span>%</span>
@@ -471,13 +471,13 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="throttle-command-details">Owner unavailable</div></details>
     </div>
     <div class="card small" id="oil-output-card" title="Actual oil-pump PWM output. Controller Minimum Duty is a closed-loop floor, not a maximum; sequence steps such as Oil Pump On may command 100%.">
-      <div class="label">Oil Pump Output</div>
+      <div class="label"><span id="lbl-oil-output">Oil Pump Output</span></div>
       <div class="value small" id="oil-pct">—</div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="oil-output-gauge-bar" style="width:0%"></div></div>
       <div class="oil-sub" id="oil-startup-setting-note" style="display:none">startup oil-pump command: <span id="oil-startup-setting">—</span>% (Sequence)</div>
-      <div class="oil-sub" id="oil-failsafe-note" style="display:none;color:var(--red)">⚠ sensor failsafe</div>
-      <div class="oil-sub" id="oil-flow-warning-note" style="display:none;color:var(--warning)">⚠ monitored oil flow low or unavailable</div>
-      <div class="oil-sub" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
+      <div class="oil-sub dashboard-card-warning" id="oil-failsafe-note" style="display:none;color:var(--red)">⚠ sensor failsafe</div>
+      <div class="oil-sub dashboard-card-warning" id="oil-flow-warning-note" style="display:none;color:var(--warning)">⚠ monitored oil flow low or unavailable</div>
+      <div class="oil-sub dashboard-card-warning" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
       <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="oil-command-details">Owner unavailable</div></details>
     </div>
     <div class="card small" id="last-event-card" style="grid-column:1/-1" title="Most recent state transition or ECU event. Full event history with timestamps is available on the Log page.">

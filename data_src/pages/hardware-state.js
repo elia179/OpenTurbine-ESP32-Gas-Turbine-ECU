@@ -657,6 +657,9 @@ const setSerialEnabled = setProfileSerialEnabled;
 function setLabel(key, val) {
   if (!cfg.labels) cfg.labels = {};
   cfg.labels[key] = val;
+  const purpose = {start:'start_switch',stop:'stop_switch'}[key];
+  const channels = purpose ? (cfg.channel_registry?.inputs || []).filter(c=>c.installed!==false && c.purpose===purpose) : [];
+  if (channels.length === 1) channels[0].name = val;
   dirty();
 }
 async function setDiChannel(idx, key, val) {

@@ -4108,6 +4108,27 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     mavlinkIntervalMs = mvl["interval_ms"] | mavlinkIntervalMs;
     PcbProfileResolver::applyFixedPeripherals();
 
+    // Legacy labels are fallbacks; fitted registry display names take precedence.
+    if (doc["labels"].is<JsonObjectConst>()) {
+        auto lbld = doc["labels"].as<JsonObjectConst>();
+        auto cpylbl = [](char* dst, size_t sz, const char* src) {
+            if (src && src[0]) { strncpy(dst, src, sz-1); dst[sz-1]='\0'; }
+        };
+        cpylbl(labelTot,       sizeof(labelTot),       lbld["tot"]        | "");
+        cpylbl(labelTit,       sizeof(labelTit),       lbld["tit"]        | "");
+        cpylbl(labelN1,        sizeof(labelN1),        lbld["n1"]         | "");
+        cpylbl(labelN2,        sizeof(labelN2),        lbld["n2"]         | "");
+        cpylbl(labelOilPress,  sizeof(labelOilPress),  lbld["oil_press"]  | "");
+        cpylbl(labelOilTemp,   sizeof(labelOilTemp),   lbld["oil_temp"]   | "");
+        cpylbl(labelP1,        sizeof(labelP1),        lbld["p1"]         | "");
+        cpylbl(labelP2,        sizeof(labelP2),        lbld["p2"]         | "");
+        cpylbl(labelFuelPress, sizeof(labelFuelPress), lbld["fuel_press"] | "");
+        cpylbl(labelFuelFlow,  sizeof(labelFuelFlow),  lbld["fuel_flow"]  | "");
+        cpylbl(labelStop,      sizeof(labelStop),      lbld["stop"]       | "");
+        cpylbl(labelStart,     sizeof(labelStart),     lbld["start"]      | "");
+        cpylbl(labelAbArm,     sizeof(labelAbArm),     lbld["ab_arm"]     | "");
+    }
+
     if (doc["channel_registry"].is<JsonObjectConst>()) {
         // The registry is the fitted-hardware authority. Legacy objects below
         // retain electrical/calibration details for existing runtime drivers,
@@ -4319,6 +4340,19 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         if (!n2Registry) n2Registry = byIdOrRole(ChannelRegistry::Input, "primary_n2", nullptr);
         applySpeed(n1Registry, hasN1Rpm, n1RpmPin, n1RpmPpr);
         applySpeed(n2Registry, hasN2Rpm, n2RpmPin, n2RpmPpr);
+        auto copyInputName = [&](char* label, size_t size, const char* id,
+                                 const ChannelRegistry::Channel* selected = nullptr) {
+            const auto* channel = selected ? selected : byIdOrRole(ChannelRegistry::Input, id, nullptr);
+            if (channel && channel->name[0]) strlcpy(label, channel->name, size);
+        };
+        copyInputName(labelN1, sizeof(labelN1), "n1_main", n1Registry);
+        copyInputName(labelN2, sizeof(labelN2), "n2_main", n2Registry);
+        copyInputName(labelTot, sizeof(labelTot), "tot_main");
+        copyInputName(labelTit, sizeof(labelTit), "tit_main");
+        copyInputName(labelOilPress, sizeof(labelOilPress), "oil_pressure_main");
+        copyInputName(labelOilTemp, sizeof(labelOilTemp), "oil_temperature");
+        copyInputName(labelFuelPress, sizeof(labelFuelPress), "fuel_pressure");
+        copyInputName(labelFuelFlow, sizeof(labelFuelFlow), "fuel_flow");
         // Temperature registry cards carry their calibrated analog value directly
         // into EngineData.  Do not overload the legacy SPI CS fields with an ADC
         // pin: those fields remain meaningful for thermocouple configurations.
@@ -4922,26 +4956,6 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     sanitizeSequenceBlocks(shutdownSeq, shutdownSeqLen, shutdownDelayMs, shutdownIgnitionTarget, shutdownDeviceTarget, shutdownWaitInputs, shutdownEnterActions, shutdownExitActions);
     sanitizeSequenceBlocks(abSeq, abSeqLen, abDelayMs, abIgnitionTarget, abDeviceTarget, abWaitInputs, abEnterActions, abExitActions);
     sanitizeSequenceBlocks(abShutSeq, abShutSeqLen, abShutDelayMs, abShutIgnitionTarget, abShutDeviceTarget, abShutWaitInputs, abShutEnterActions, abShutExitActions);
-
-    if (doc["labels"].is<JsonObjectConst>()) {
-        auto lbld = doc["labels"].as<JsonObjectConst>();
-        auto cpylbl = [](char* dst, size_t sz, const char* src) {
-            if (src && src[0]) { strncpy(dst, src, sz-1); dst[sz-1]='\0'; }
-        };
-        cpylbl(labelTot,       sizeof(labelTot),       lbld["tot"]        | "");
-        cpylbl(labelTit,       sizeof(labelTit),       lbld["tit"]        | "");
-        cpylbl(labelN1,        sizeof(labelN1),        lbld["n1"]         | "");
-        cpylbl(labelN2,        sizeof(labelN2),        lbld["n2"]         | "");
-        cpylbl(labelOilPress,  sizeof(labelOilPress),  lbld["oil_press"]  | "");
-        cpylbl(labelOilTemp,   sizeof(labelOilTemp),   lbld["oil_temp"]   | "");
-        cpylbl(labelP1,        sizeof(labelP1),        lbld["p1"]         | "");
-        cpylbl(labelP2,        sizeof(labelP2),        lbld["p2"]         | "");
-        cpylbl(labelFuelPress, sizeof(labelFuelPress), lbld["fuel_press"] | "");
-        cpylbl(labelFuelFlow,  sizeof(labelFuelFlow),  lbld["fuel_flow"]  | "");
-        cpylbl(labelStop,      sizeof(labelStop),      lbld["stop"]       | "");
-        cpylbl(labelStart,     sizeof(labelStart),     lbld["start"]      | "");
-        cpylbl(labelAbArm,     sizeof(labelAbArm),     lbld["ab_arm"]     | "");
-    }
 
     if (doc["di_channels"].is<JsonArrayConst>()) {
         for (int j = 0; j < MAX_DI; ++j) diCh[j] = DiChannel{};

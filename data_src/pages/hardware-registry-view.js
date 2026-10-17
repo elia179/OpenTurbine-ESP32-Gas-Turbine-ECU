@@ -690,7 +690,7 @@ function renderBuiltinInputSummary() {
     activeHigh,
     pullup,
     pulldown,
-    label: labels[key] || '',
+    label: switchName(key === 'stop' ? 'stop_switch' : 'start_switch', labels[key] || ''),
     defaultLabel: key === 'stop' ? 'Stop' : 'Start',
     pinSet: `setNested('controls','${key}_pin',+this.value)`,
     polSet: `setNested('controls','${key}_active_h',this.value==='1')`,
@@ -698,8 +698,12 @@ function renderBuiltinInputSummary() {
     pullDownSet: `setControlPull('${key}','down',this.checked)`,
     labelSet: `setLabel('${key}',this.value)`
   });
-  addSwitch('stop', labels.stop || 'Stop switch', controls.stop_pin, !!controls.stop_active_h, controls.stop_pullup, controls.stop_pulldown, 'Hard stop / shutdown command');
-  addSwitch('start', labels.start || 'Start switch', controls.start_pin, !!controls.start_active_h, controls.start_pullup, controls.start_pulldown, 'Start command input');
+  const switchName = (purpose, fallback) => {
+    const channels=(cfg.channel_registry?.inputs || []).filter(c=>c.installed!==false && c.purpose===purpose);
+    return channels.length===1 ? registryDisplayName('input',channels[0],fallback) : fallback;
+  };
+  addSwitch('stop', switchName('stop_switch', labels.stop || 'Stop switch'), controls.stop_pin, !!controls.stop_active_h, controls.stop_pullup, controls.stop_pulldown, 'Hard stop / shutdown command');
+  addSwitch('start', switchName('start_switch', labels.start || 'Start switch'), controls.start_pin, !!controls.start_active_h, controls.start_pullup, controls.start_pulldown, 'Start command input');
   (cfg.di_channels || []).forEach((ch, i) => {
     if (!ch) return;
     const role = ch.role || 'none';
@@ -853,7 +857,7 @@ function oilLoopInlineEditor() {
     return `<div class="hw-item-card" style="grid-column:1/-1"><div class="registry-card-summary"><div><strong>Oil pressure loop ${i+1}</strong><div class="hw-desc">${binary?'On/off oil-pressure control. Requires a suitable accumulator or relief arrangement.':'Proportional oil-pump pressure control.'}</div></div>${loops.length>1?`<button class="btn-sm danger" onclick="removeOilLoop(${i})">Remove</button>`:''}</div><div class="registry-card-editor" style="display:grid">
       ${pressures.length>1?`<label class="hw-field"><span class="hw-label">Pressure input</span><select onchange="updateOilLoop(${i},'pressure_input',this.value)">${options(pressures,loop.pressure_input)}</select></label>`:''}
       ${pumps.length>1?`<label class="hw-field"><span class="hw-label">Pump output</span><select onchange="updateOilLoop(${i},'pump_output',this.value)">${options(pumps,loop.pump_output)}</select></label>`:''}
-      <label class="hw-field"><span class="hw-label">Pressure target source</span><select onchange="updateOilLoop(${i},'target_source',+this.value)"><option value="0"${source===0?' selected':''}>Fixed pressure</option><option value="1"${source===1?' selected':''}>Effective core-fuel demand</option>${hasN1?`<option value="2"${source===2?' selected':''}>N1 shaft speed</option>`:''}${hasN2?`<option value="3"${source===3?' selected':''}>N2 shaft speed</option>`:''}</select></label>
+      <label class="hw-field"><span class="hw-label">Pressure target source</span><select onchange="updateOilLoop(${i},'target_source',+this.value)"><option value="0"${source===0?' selected':''}>Fixed pressure</option><option value="1"${source===1?' selected':''}>Effective core-fuel demand</option>${hasN1?`<option value="2"${source===2?' selected':''}>${escapeHtmlText(registryDisplayName('input',(cfg.channel_registry?.inputs || []).find(c=>c.purpose==='n1_speed') || {}))} (N1 shaft speed)</option>`:''}${hasN2?`<option value="3"${source===3?' selected':''}>${escapeHtmlText(registryDisplayName('input',(cfg.channel_registry?.inputs || []).find(c=>c.purpose==='n2_speed') || {}))} (N2 shaft speed)</option>`:''}</select></label>
       ${num(i,'target_bar',source===0?'Pressure target (bar)':'Low pressure target (bar)',loop.target_bar??2.5,.01)}
       ${source!==0?num(i,'target_high_bar','High pressure target (bar)',loop.target_high_bar??loop.target_bar??2.5,.01):''}
       ${source>=2?num(i,'speed_min_rpm','Low shaft speed (RPM)',loop.speed_min_rpm??0,100):''}

@@ -33,7 +33,7 @@ const BLOCKS = {
     label:'Build Oil Pressure', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('oil_pump'),
     condition: hw => sensorEnabled('oil_press')
-      ? `Until oil ≥ ${hw.oil_arm_min_bar ?? 1.5} bar`
+      ? `Until ${sequenceSensorLabel('oil_press','Oil pressure')} ≥ ${hw.oil_arm_min_bar ?? 1.5} bar`
       : `Timed run (no sensor)`,
     timeout_action:'abort',
     desc:'Runs the oil pump before ignition. With pressure feedback, waits for the minimum pressure and aborts if it is not reached. Without a pressure sensor, runs for the configured time. A fitted pressure sensor with the oil-control loop Off still uses fixed pump demand while checking pressure.',
@@ -63,7 +63,7 @@ const BLOCKS = {
   StarterSpin: {
     label:'Set Starter', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('starter') && sensorEnabled('n1_rpm'),
-    condition: hw => `Until N1 ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
     timeout_action:'fault',
     desc:'Asserts the starter-enable output when fitted, then drives the starter until N1 reaches the pre-ignition target. A relay switches fully on; a proportional starter can ramp to its requested demand. The device enable delay is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
     hwWarnings:[
@@ -115,7 +115,7 @@ const BLOCKS = {
   FlameConfirm: {
     label:'Confirm Combustion by Flame Sensor', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('flame'),
-    condition: hw => `Until ${hw.flame_required_count ?? 3} flame detections`,
+    condition: hw => `Until ${hw.flame_required_count ?? 3} ${sequenceSensorLabel('flame','flame')} detections`,
     timeout_action:'abort',
     desc:'Waits until the flame sensor reports the required consecutive detections. Confirms that combustion is self-sustained. Timeout aborts startup. On exit it can release only the ignition devices energized by dedicated ignition blocks in this sequence.',
     hwWarnings:[
@@ -136,7 +136,7 @@ const BLOCKS = {
   TempConfirm: {
     label:'Confirm Combustion by Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `Until EGT ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
     timeout_action:'abort',
     desc:'Waits until selected engine temperature (TOT or TIT) rises above the configured threshold. Use as an alternative to or alongside FlameConfirm when a flame sensor is not fitted. On timeout -> ABORT. Does NOT change any actuator state.',
     hwWarnings:[
@@ -181,7 +181,7 @@ const BLOCKS = {
   Spool: {
     label:'Accelerate to Idle', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorHasProportionalOutput('throttle') && sensorEnabled('n1_rpm'),
-    condition: hw => `Until N1 ≥ ${hw.rpm_target ?? 32000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} ≥ ${hw.rpm_target ?? 32000} rpm`,
     timeout_action:'fault',
     desc:'Sets main fuel demand to the calibrated minimum reliable metering output and holds until N1 reaches the idle-entry target. Flame monitoring is active; loss of combustion causes a fault shutdown. The running oil-pressure minimum is enforced from this block onward.',
     hwWarnings:[
@@ -365,7 +365,7 @@ const BLOCKS = {
   },
   RPMDrop: {
     label:'Wait for Rotor to Slow', type:'while', badgeClass:'badge-while',
-    condition: hw => `Until N1 < ${hw.rpm_drop_threshold ?? 5000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} < ${hw.rpm_drop_threshold ?? 5000} rpm`,
     timeout_action:'continue',
     desc:'Waits for N1 to fall below the threshold RPM before proceeding to cooldown. Ensures the starter motor is not fighting against residual turbine spin. On timeout -> continues anyway. No actuator changes.',
     hwWarnings:[
@@ -379,7 +379,7 @@ const BLOCKS = {
   },
   CooldownSpin: {
     label:'Cooldown', type:'while', badgeClass:'badge-while',
-    condition: hw => `Until EGT < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
     timeout_action:'continue',
     desc:'Spin starter and/or run oil pump to cool EGT below target. Skipped if fuel was never opened. Proceeds on timeout. With oil pressure sensor: pump is regulated to target pressure; without: runs at fixed %.',
     hwWarnings:[
@@ -419,7 +419,7 @@ const BLOCKS = {
   FinalStop: {
     label:'Wait for Complete Stop', type:'while', badgeClass:'badge-while',
     condition: hw => sensorEnabled('n1_rpm')
-      ? `Until N1 ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
+      ? `Until ${sequenceSensorLabel('n1_rpm','N1')} ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
       : `Timed run (no N1 sensor)`,
     timeout_action:'continue',
     desc:'Wait for complete stop. With healthy N1 feedback, the main oil pump cuts when speed reaches the stop threshold. If N1 is missing or unhealthy, the block waits for the full timeout as a conservative spool-down delay. A fitted scavenge pump can then continue to flush hot oil from bearings.',
@@ -449,7 +449,7 @@ const BLOCKS = {
   WaitTOTCool: {
     label:'Wait for Safe Restart Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `Until EGT ≤ ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} ≤ ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
     timeout_action:null,
     desc:'Holds until selected EGT is healthy and below the target. In STARTUP, an unhealthy/hot timeout aborts the start. In SHUTDOWN, timeout permits completion so shutdown cannot hang indefinitely.',
     params:[

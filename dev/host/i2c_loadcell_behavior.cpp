@@ -115,5 +115,32 @@ int main() {
     Wire.conversionsStuck = true; advance(510); assert(!input(0,180));
     Wire.samples[0] = 30000; Wire.conversionsStuck = false;
     advance(2); assert(input(0,300));
-    std::cout << "NAU7802 behavior passed: analog startup, nonblocking settling, write retry, calibration errors/timeouts, both-channel calibration, signed force/torque, stale-channel discard, saturation rejection and fresh filter recovery\n";
+    // Reproduce a zero/400 N thrust calibration across both bridge polarities,
+    // signed ADC zero crossings and byte boundaries. Low loads must retain
+    // their sign and magnitude on both loading and unloading, including with
+    // the default smoothing. A mechanical reversal is not modeled here.
+    for (const int polarity : {-1, 1}) {
+        for (const float alpha : {1.0f, 0.25f}) {
+            auto calibrated = registry();
+            auto& c = calibrated.inputs[0];
+            c.loadCellZero = -polarity * 1234567;
+            c.loadCellNPerCount = polarity * 0.0001f;
+            c.filterAlpha = alpha;
+            Wire = FakeWire{};
+            Wire.samples[0] = c.loadCellZero;
+            start(calibrated);
+            advance(800);
+            for (const int force : {-20, 0, 1, 10, 50, 100, 150, 300, 400,
+                                     300, 150, 100, 50, 10, 1, 0}) {
+                const int32_t expectedRaw = c.loadCellZero + polarity * force * 10000;
+                Wire.samples[0] = expectedRaw;
+                advance(200); // Let each simulated steady load settle.
+                float value; int32_t raw; uint32_t seq, sampleMs;
+                assert(I2CDeviceManager::input(0, value, raw, seq, sampleMs));
+                assert(raw == expectedRaw);
+                assert(std::fabs(value - force) < 0.01f);
+            }
+        }
+    }
+    std::cout << "NAU7802 behavior passed: analog startup, nonblocking settling, write retry, calibration errors/timeouts, both-channel calibration, signed force/torque, stale-channel discard, saturation rejection, fresh filter recovery and zero/400 N load sweeps in both polarities\n";
 }

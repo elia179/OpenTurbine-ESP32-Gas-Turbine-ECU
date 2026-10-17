@@ -258,7 +258,7 @@ function installedBrowser() {
       has_n2: true, max_n2: 24900
     }, 65000));
     assert.match(await text(page, '#run-summary-stats'), /Peak N2:\s+24,900 RPM/);
-    await page.locator('#run-summary-card button').click();
+    await page.locator('#run-summary-card button[title="Dismiss"]').click();
     assert.equal(await page.evaluate(() =>
       ['oil-card', 'oil-temp-card', 'oilpump-current-card'].every(id =>
         document.querySelector('#speed-cards').contains(document.getElementById(id)))), true);
@@ -282,8 +282,10 @@ function installedBrowser() {
     assert.deepEqual(await page.evaluate(() => [
       formatTelemetryAge(5900), formatTelemetryAge(65400), formatTelemetryAge(3723000)
     ]), ['5 s', '1m 5s', '1h 2m 3s']);
-    await page.evaluate(() => setTelemetryStale(true, 4200));
     const staleGeometry = await page.evaluate(() => {
+      // Measure in the same task so a healthy telemetry tick cannot clear
+      // this deliberately injected stale state between the two operations.
+      setTelemetryStale(true, 4200);
       const nav = document.querySelector('nav').getBoundingClientRect();
       const banner = document.getElementById('telemetry-stale-banner').getBoundingClientRect();
       return { navBottom: nav.bottom, bannerTop: banner.top, bannerBottom: banner.bottom };
@@ -350,10 +352,10 @@ function installedBrowser() {
       'default dashboard should keep its named groups');
     await page.locator('#dashboard-arrange-btn').click();
     assert.equal(await page.locator('#dashboard-custom-section').isVisible(), true);
-    assert.equal(await page.locator('#dashboard-custom-cards > .dashboard-customizable-card').count(), 30);
+    assert.equal(await page.locator('#dashboard-custom-cards > .dashboard-customizable-card').count(),
+      await page.evaluate(() => dashboardCardIds().filter(id => document.getElementById(id)).length));
     assert.equal(await page.locator('.mode-row').evaluate(el =>
-      !!(el.compareDocumentPosition(document.getElementById('dashboard-custom-section'))
-        & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'engine controls stay ahead of user layout');
+      el.parentElement.id === 'dashboard-custom-cards'), true, 'engine controls join the user layout');
     const uptimeBefore = await page.locator('#uptime-card').evaluate(el =>
       [...el.parentElement.children].indexOf(el));
     await page.locator('#uptime-card .dashboard-drag-handle').focus();
@@ -425,7 +427,7 @@ function installedBrowser() {
     assert.equal(startBlockVisibility.disabled, true);
     assert.equal(startBlockVisibility.visible, true);
     assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
-    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261013d');
+    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261017d');
     assert.equal(startBlockVisibility.stopVisible, true);
     assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
@@ -737,7 +739,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261013d"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261017d"]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');
@@ -1095,7 +1097,10 @@ function installedBrowser() {
     assert.match(await page.locator('#ot-dialog-message').textContent(), /energize.*5 s[\s\S]*safe test state[\s\S]*moving hardware is clear/i);
     await page.locator('#ot-dialog-check').check();
     await page.locator('#ot-dialog-confirm').click();
-    await page.waitForTimeout(100);
+    await page.waitForFunction(async () => {
+      const current = await (await fetch('/__sim/state')).json();
+      return current.commands.at(-1)?.cmd === 'OIL_PRIME';
+    });
     saved = await state(page);
     assert.equal(saved.commands.at(-1).cmd, 'OIL_PRIME');
     assert.equal(await page.evaluate(() => localStorage.getItem('ot_tool_confirmations_skip_all')), '1');
@@ -1659,7 +1664,8 @@ function installedBrowser() {
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/status').length, 1);
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/list').length, 1);
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/log').length, 1);
-    assert.equal(sessionRequests.some(pathname => ['/api/data','/api/config','/api/hardware'].includes(pathname)), false);
+    assert.equal(sessionRequests.filter(pathname => pathname === '/api/hardware').length, 1, 'Names load Hardware once per page visit');
+    assert.equal(sessionRequests.some(pathname => ['/api/data','/api/config'].includes(pathname)), false);
     assert.equal(await page.locator('[data-bit="p1"]').count(), 1);
     assert.equal(await page.locator('[data-bit="p2"]').count(), 1);
     await page.locator('#session-log-interval').fill('750');

@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013d');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261017d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261017d');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -361,7 +361,7 @@ const BLOCKS = {
     label:'Build Oil Pressure', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('oil_pump'),
     condition: hw => sensorEnabled('oil_press')
-      ? `Until oil ≥ ${hw.oil_arm_min_bar ?? 1.5} bar`
+      ? `Until ${sequenceSensorLabel('oil_press','Oil pressure')} ≥ ${hw.oil_arm_min_bar ?? 1.5} bar`
       : `Timed run (no sensor)`,
     timeout_action:'abort',
     desc:'Runs the oil pump before ignition. With pressure feedback, waits for the minimum pressure and aborts if it is not reached. Without a pressure sensor, runs for the configured time. A fitted pressure sensor with the oil-control loop Off still uses fixed pump demand while checking pressure.',
@@ -391,7 +391,7 @@ const BLOCKS = {
   StarterSpin: {
     label:'Set Starter', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorEnabled('starter') && sensorEnabled('n1_rpm'),
-    condition: hw => `Until N1 ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} ≥ ${hw.pre_ign_rpm ?? 5000} rpm`,
     timeout_action:'fault',
     desc:'Asserts the starter-enable output when fitted, then drives the starter until N1 reaches the pre-ignition target. A relay switches fully on; a proportional starter can ramp to its requested demand. The device enable delay is applied first. Normal completion preserves starter demand for the next block; timeout causes a fault shutdown and cuts the starter.',
     hwWarnings:[
@@ -443,7 +443,7 @@ const BLOCKS = {
   FlameConfirm: {
     label:'Confirm Combustion by Flame Sensor', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('flame'),
-    condition: hw => `Until ${hw.flame_required_count ?? 3} flame detections`,
+    condition: hw => `Until ${hw.flame_required_count ?? 3} ${sequenceSensorLabel('flame','flame')} detections`,
     timeout_action:'abort',
     desc:'Waits until the flame sensor reports the required consecutive detections. Confirms that combustion is self-sustained. Timeout aborts startup. On exit it can release only the ignition devices energized by dedicated ignition blocks in this sequence.',
     hwWarnings:[
@@ -464,7 +464,7 @@ const BLOCKS = {
   TempConfirm: {
     label:'Confirm Combustion by Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `Until EGT ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
     timeout_action:'abort',
     desc:'Waits until selected engine temperature (TOT or TIT) rises above the configured threshold. Use as an alternative to or alongside FlameConfirm when a flame sensor is not fitted. On timeout -> ABORT. Does NOT change any actuator state.',
     hwWarnings:[
@@ -509,7 +509,7 @@ const BLOCKS = {
   Spool: {
     label:'Accelerate to Idle', type:'while', badgeClass:'badge-while',
     visibleIf: hw => actuatorHasProportionalOutput('throttle') && sensorEnabled('n1_rpm'),
-    condition: hw => `Until N1 ≥ ${hw.rpm_target ?? 32000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} ≥ ${hw.rpm_target ?? 32000} rpm`,
     timeout_action:'fault',
     desc:'Sets main fuel demand to the calibrated minimum reliable metering output and holds until N1 reaches the idle-entry target. Flame monitoring is active; loss of combustion causes a fault shutdown. The running oil-pressure minimum is enforced from this block onward.',
     hwWarnings:[
@@ -693,7 +693,7 @@ const BLOCKS = {
   },
   RPMDrop: {
     label:'Wait for Rotor to Slow', type:'while', badgeClass:'badge-while',
-    condition: hw => `Until N1 < ${hw.rpm_drop_threshold ?? 5000} rpm`,
+    condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} < ${hw.rpm_drop_threshold ?? 5000} rpm`,
     timeout_action:'continue',
     desc:'Waits for N1 to fall below the threshold RPM before proceeding to cooldown. Ensures the starter motor is not fighting against residual turbine spin. On timeout -> continues anyway. No actuator changes.',
     hwWarnings:[
@@ -707,7 +707,7 @@ const BLOCKS = {
   },
   CooldownSpin: {
     label:'Cooldown', type:'while', badgeClass:'badge-while',
-    condition: hw => `Until EGT < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
     timeout_action:'continue',
     desc:'Spin starter and/or run oil pump to cool EGT below target. Skipped if fuel was never opened. Proceeds on timeout. With oil pressure sensor: pump is regulated to target pressure; without: runs at fixed %.',
     hwWarnings:[
@@ -747,7 +747,7 @@ const BLOCKS = {
   FinalStop: {
     label:'Wait for Complete Stop', type:'while', badgeClass:'badge-while',
     condition: hw => sensorEnabled('n1_rpm')
-      ? `Until N1 ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
+      ? `Until ${sequenceSensorLabel('n1_rpm','N1')} ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
       : `Timed run (no N1 sensor)`,
     timeout_action:'continue',
     desc:'Wait for complete stop. With healthy N1 feedback, the main oil pump cuts when speed reaches the stop threshold. If N1 is missing or unhealthy, the block waits for the full timeout as a conservative spool-down delay. A fitted scavenge pump can then continue to flush hot oil from bearings.',
@@ -777,7 +777,7 @@ const BLOCKS = {
   WaitTOTCool: {
     label:'Wait for Safe Restart Temperature', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
-    condition: hw => `Until EGT ≤ ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
+    condition: hw => `Until ${sequenceTemperatureLabel()} ≤ ${fmtSeqTemp(hw.wait_tot_target ?? 150)}`,
     timeout_action:null,
     desc:'Holds until selected EGT is healthy and below the target. In STARTUP, an unhealthy/hot timeout aborts the start. In SHUTDOWN, timeout permits completion so shutdown cannot hang indefinitely.',
     params:[
@@ -1307,8 +1307,7 @@ function actuatorHasProportionalOutput(key) {
   return !!registry && [5,6].includes(Number(registry.driver));
 }
 function registryLabel(c, fallback) {
-  const name = (c?.name && c.name.trim()) || c?.id || fallback;
-  return String(name || '').includes('_') ? plainRegistryName(name, fallback) : name;
+  return String(c?.name || '').trim() || plainRegistryName(c?.id, fallback);
 }
 function hasIgnitionOutput(hw = hwCfg) {
   return !!(registryOutputPurpose('igniter') || registryOutputPurpose('ab_igniter') || registryOutputPurpose('glow_plug'));
@@ -1772,6 +1771,7 @@ function clearTrackedIgnitionPreviewState(state, trackedTargets) {
 function buildFinalStateCard(tab, seq, idleRaw) {
   if (!seq || seq.length === 0) return null;
   const hasAct = key => actuatorEnabled(key);
+  const outputLabel = (key, fallback) => getEnabledActuators().find(a => a.key === key)?.label || fallback;
 
   const state = {
     throttle:  '0%',
@@ -1914,13 +1914,13 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       applySideActionsToState(tab, i, 'exit', abState);
     }
     const abRows = [
-      hasAct('ab_sol') ? { label:'Afterburner Fuel Valve', val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:'AB Fuel Pump', val: abState.abPump } : null,
-      hasAct('igniter2') ? { label:'AB Igniter', val:abState.igniter2 === 'off' ? 'off  (fired during sequence)' : abState.igniter2 } : null,
+      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val:abState.abSol } : null,
+      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: abState.abPump } : null,
+      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'), val:abState.igniter2 === 'off' ? 'off  (fired during sequence)' : abState.igniter2 } : null,
       { label:'Main Fuel Offset',   val: offStr },
     ].filter(Boolean);
     const rowsHtml2 = abRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
     ).join('');
     const card2 = document.createElement('div');
     card2.className = 'final-state-card';
@@ -1935,13 +1935,13 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       applySideActionsToState(tab, i, 'exit', abState);
     }
     const abOffRows = [
-      hasAct('ab_sol') ? { label:'Afterburner Fuel Valve',  val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:'AB Fuel Pump', val:abState.abPump } : null,
-      hasAct('igniter2') ? { label:'AB Igniter',   val:abState.igniter2 } : null,
+      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'),  val:abState.abSol } : null,
+      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val:abState.abPump } : null,
+      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'),   val:abState.igniter2 } : null,
       { label:'Main engine',  val:'continues running normally' },
     ].filter(Boolean);
     const rowsHtml3 = abOffRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
     ).join('');
     const card3 = document.createElement('div');
     card3.className = 'final-state-card';
@@ -1951,28 +1951,28 @@ function buildFinalStateCard(tab, seq, idleRaw) {
   }
 
   const rows = [
-    hasAct('throttle') ? { label:'Main Fuel Metering Output', val: state.throttle } : null,
-    hasAct('fuel_sol') ? { label:'Main Fuel Shutoff',   val: state.fuelSol } : null,
-    hasAct('igniter') ? { label:'Igniter',              val: state.igniter } : null,
-    hasAct('igniter2') ? { label:'Secondary Igniter', val: state.igniter2 } : null,
-    hasAct('starter') ? { label:'Starter',              val: state.starter } : null,
-    hasAct('starter_en') ? { label:'Starter Enable',    val: state.starterEn } : null,
-    hasAct('oil_pump') ? { label:'Oil Pump',            val: state.oilPump } : null,
-    hasAct('oil_scavenge_pump') ? { label:'Scavenge Pump', val: state.oilScav } : null,
-    hasAct('airstarter_sol') ? { label:'Air Starter Valve', val: state.airstarter } : null,
-    hasAct('cool_fan') ? { label:'Cooling Fan',         val: state.coolFan } : null,
-    hasAct('bleed_valve') ? { label:'Bleed Valve',      val: state.bleed } : null,
-    hasAct('drain_valve') ? { label:'Drain Valve',      val: state.drainValve || 'closed' } : null,
-    hasAct('glow_plug') ? { label:'Glow Plug',          val: state.glow } : null,
-    hasAct('fuel_pump2') ? { label:'Secondary / Auxiliary Fuel Pump',   val: state.fuelPump2 } : null,
-    hasAct('prop_pitch') ? { label:'Prop Pitch',         val: state.propPitch } : null,
-    hasAct('ab_sol') ? { label:'Afterburner Fuel Valve', val: state.abSol } : null,
-    hasAct('ab_pump') ? { label:'AB Fuel Pump', val: state.abPump } : null,
+    hasAct('throttle') ? { label:outputLabel('throttle', 'Main Fuel Metering Output'), val: state.throttle } : null,
+    hasAct('fuel_sol') ? { label:outputLabel('fuel_sol', 'Main Fuel Shutoff'),   val: state.fuelSol } : null,
+    hasAct('igniter') ? { label:outputLabel('igniter', 'Igniter'),              val: state.igniter } : null,
+    hasAct('igniter2') ? { label:outputLabel('igniter2', 'Secondary Igniter'), val: state.igniter2 } : null,
+    hasAct('starter') ? { label:outputLabel('starter', 'Starter'),              val: state.starter } : null,
+    hasAct('starter_en') ? { label:outputLabel('starter_en', 'Starter Enable'),    val: state.starterEn } : null,
+    hasAct('oil_pump') ? { label:outputLabel('oil_pump', 'Oil Pump'),            val: state.oilPump } : null,
+    hasAct('oil_scavenge_pump') ? { label:outputLabel('oil_scavenge_pump', 'Scavenge Pump'), val: state.oilScav } : null,
+    hasAct('airstarter_sol') ? { label:outputLabel('airstarter_sol', 'Air Starter Valve'), val: state.airstarter } : null,
+    hasAct('cool_fan') ? { label:outputLabel('cool_fan', 'Cooling Fan'),         val: state.coolFan } : null,
+    hasAct('bleed_valve') ? { label:outputLabel('bleed_valve', 'Bleed Valve'),      val: state.bleed } : null,
+    hasAct('drain_valve') ? { label:outputLabel('drain_valve', 'Drain Valve'),      val: state.drainValve || 'closed' } : null,
+    hasAct('glow_plug') ? { label:outputLabel('glow_plug', 'Glow Plug'),          val: state.glow } : null,
+    hasAct('fuel_pump2') ? { label:outputLabel('fuel_pump2', 'Secondary / Auxiliary Fuel Pump'),   val: state.fuelPump2 } : null,
+    hasAct('prop_pitch') ? { label:outputLabel('prop_pitch', 'Prop Pitch'),         val: state.propPitch } : null,
+    hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val: state.abSol } : null,
+    hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: state.abPump } : null,
   ].filter(Boolean);
   if (!rows.length) return null;
 
   const rowsHtml = rows.map(r =>
-    `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+    `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
   ).join('');
 
   const card = document.createElement('div');
@@ -2152,6 +2152,25 @@ function setOutputAction(tab, idx) {
   return hwCfg[actionKey(tab, 'enter')]?.[idx]?.[0] || null;
 }
 
+function sequenceDigitalInputLabel(index) {
+  return String(hwCfg.di_channels?.[index]?.label || '').trim() || `DI-${Number(index)+1}`;
+}
+function sequenceSensorLabel(key, fallback) {
+  return getEnabledSensors().find(s=>s.key===key)?.label || fallback || key;
+}
+function sequenceTemperatureLabel() {
+  const source=Number(cfg?.safety?.egt_source || 0);
+  return sequenceSensorLabel(source===2 ? 'tit' : source===1 || registryInputPurpose('tot') ? 'tot' : 'tit','EGT');
+}
+function sequenceParamLabel(param) {
+  const key=param.key;
+  let sensor = key.startsWith('final_check_p1') ? 'p1' : key.startsWith('final_check_p2') ? 'p2'
+    : key.startsWith('final_check_n1') ? 'n1_rpm' : key.startsWith('final_check_n2') ? 'n2_rpm'
+    : key.startsWith('final_check_flame') ? 'flame' : key.startsWith('final_check_oil') ? 'oil_press' : '';
+  const name=key.startsWith('final_check_egt') ? sequenceTemperatureLabel() : sensor ? sequenceSensorLabel(sensor) : '';
+  return name ? `${name} — ${param.label}` : param.label;
+}
+
 function sequenceBlockLabel(bname, tab, idx) {
   if (bname !== 'SetOutput') return (BLOCKS[bname] || customBlocks[bname])?.label ?? bname;
   const meta = sideActionMeta(setOutputAction(tab, idx));
@@ -2174,7 +2193,7 @@ function buildCard(bname, idx, tab) {
     ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
-    : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
+    : inputWait ? `Until ${sequenceDigitalInputLabel(Number(inputWait.channel))} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -2541,7 +2560,7 @@ function buildParamsHtml(bname, idx, tab) {
     const wait = hwCfg[waitInputSeqKey(tab)][idx];
     const channels = Array.from({length:4}, (_, channel) => {
       const fitted = Number(hwCfg.di_channels?.[channel]?.pin ?? -1) >= 0;
-      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>DI-${channel + 1}${fitted ? '' : ' — not fitted'}</option>`;
+      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>${esc(sequenceDigitalInputLabel(channel))}${fitted ? '' : ' — not fitted'}</option>`;
     }).join('');
     const state = bname === 'WaitForInputOff' ? '' : `<div class="param-field"><span class="param-label">Wait until</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'active',this.value==='1')"><option value="1"${wait.active ? ' selected' : ''}>Active</option><option value="0"${wait.active ? '' : ' selected'}>Inactive</option></select></div>`;
     return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}
@@ -2574,7 +2593,7 @@ function buildParamsHtml(bname, idx, tab) {
       const displayVal   = starterOn ? 'Yes (required by starter)' : (val ? 'Yes' : 'No');
       const boolDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${p.label}</span>
+        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
         ${boolDescHtml}<div style="display:flex;align-items:center;gap:.45rem;padding:.32rem 0">
           <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked} ${disabledAttr}
             onchange="onParamChangeBool('${bname}','${p.key}','${p.configKey??''}',this.checked)">
@@ -2588,7 +2607,7 @@ function buildParamsHtml(bname, idx, tab) {
       ).join('');
       const selDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${p.label}</span>
+        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
         ${selDescHtml}<select class="param-input" id="p-${tab}-${idx}-${bname}-${p.key}"
           onchange="onParamChangeSelect('${bname}','${p.key}','${p.configKey??''}',this.value)">${opts}</select>
       </div>`;
@@ -2597,7 +2616,7 @@ function buildParamsHtml(bname, idx, tab) {
     const displayVal = seqDisplayValue(p, val);
     const unitLabel = seqUnitLabel(p);
     return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-      <span class="param-label">${p.label}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
+      <span class="param-label">${esc(sequenceParamLabel(p))}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
       ${descHtml}<input class="param-input" type="number" id="p-${tab}-${idx}-${bname}-${p.key}"
         min="${seqDisplayAttr(p, p.min)}" max="${seqDisplayAttr(p, p.max)}" step="${seqDisplayStep(p)}" value="${displayVal}"
         oninput="onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
@@ -3055,13 +3074,13 @@ function getEnabledSensors() {
                                   list.push({key:'ab_input', source:sourceFor('ab_command'), label:'AB Input', unit:'%', def:50, step:1});
   const a = hw.actuators || {};
   if (registryOutputPurpose('glow_plug') && a.glow_plug?.has_current)
-                                  list.push({key:'glow_current', label:'Glow Current',   unit:'A',    def:1,    step:0.1});
+                                  list.push({key:'glow_current', label:registryLabel(registryOutputPurpose('glow_plug'), 'Glow') + ' current',   unit:'A',    def:1,    step:0.1});
   if (registryOutputPurpose('igniter') && a.igniter?.has_current)
-                                  list.push({key:'igniter_current', label:'Igniter 1 Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'igniter_current', label:registryLabel(registryOutputPurpose('igniter'), 'Igniter 1') + ' current', unit:'A', def:1, step:0.1});
   if (registryOutputPurpose('ab_igniter') && a.igniter2?.has_current)
-                                  list.push({key:'igniter2_current', label:'Secondary Igniter Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'igniter2_current', label:registryLabel(registryOutputPurpose('ab_igniter'), 'Secondary Igniter') + ' current', unit:'A', def:1, step:0.1});
   if (registryOutputPurpose('oil_pump') && a.oil_pump?.has_current)
-                                  list.push({key:'oil_pump_current', label:'Oil Pump Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'oil_pump_current', label:registryLabel(registryOutputPurpose('oil_pump'), 'Oil Pump') + ' current', unit:'A', def:1, step:0.1});
   if ((hw.controls?.start_pin ?? -1) >= 0 || registryInputPurpose('start_switch'))
                                   list.push({key:'start_switch', source:sourceFor('start_switch'), label:'Start Switch', unit:'', def:1, bool:true});
   if ((hw.controls?.stop_pin ?? -1) >= 0 || registryInputPurpose('stop_switch'))
@@ -3077,6 +3096,8 @@ function getEnabledSensors() {
   });
   const outputs = hwCfg.channel_registry?.outputs || [];
   return list.map(meta => ({...meta,
+    label: meta.source ? registryLabel(
+      (hw.channel_registry?.inputs || []).find(c => c.id === meta.source), meta.label) : meta.label,
     actuator:ACT_ENUM[meta.key] ?? (64 + outputs.findIndex(c => String(c?.id || '') === String(meta.target || '')))
   }));
 }
@@ -3110,7 +3131,7 @@ function getEnabledActuators() {
   if (registryOutputPurpose('air_starter')) list.push({key:'airstarter_sol', target:targetFor('air_starter'), label:outputName('air_starter', 'Air Starter Valve'), mode:'relay'});
   if (registryOutputPurpose('cooling_fan')) list.push({key:'cool_fan', target:targetFor('cooling_fan'), label:outputName('cooling_fan', 'Cooling Fan'), mode:'relay'});
   if (registryOutputPurpose('scavenge_pump')) list.push({key:'oil_scavenge_pump', target:targetFor('scavenge_pump'), label:outputName('scavenge_pump', 'Oil Scavenge Pump'), mode:'relay'});
-  if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:outputName('bleed_valve', 'Bleed Valve'), mode:'relay'});
+  if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:registryLabel(registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve'), 'Bleed Valve'), mode:'relay'});
   if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:'relay', ignition:true});
   const fuelPump2Act = effectiveAct(a.fuel_pump2, 'fuel_pump');
   if (fuelPump2Act) list.push({key:'fuel_pump2', target:targetFor('fuel_pump'), label:outputName('fuel_pump', 'Secondary / Auxiliary Fuel Pump'), mode:isOnOff(fuelPump2Act) ? 'relay':'pct'});
@@ -3195,7 +3216,7 @@ function _buildCondSensorSelect(selectedKey) {
   const missing = selectedKey && !selectedExists
     ? `<option value="${esc(selectedKey)}" data-source="${esc(selectedKey)}" selected>Missing input: ${esc(selectedKey)}</option>` : '';
   sel.innerHTML = sensors.length || missing
-    ? missing + sensors.map(s => `<option value="${s.key}" data-source="${esc(s.source || '')}" ${s.key===selectedKey || s.source===selectedKey?'selected':''}>${esc(s.label)}</option>`).join('')
+    ? missing + sensors.map(s => `<option value="${esc(s.key)}" data-source="${esc(s.source || '')}" ${s.key===selectedKey || s.source===selectedKey?'selected':''}>${esc(s.label)}</option>`).join('')
     : '<option value="">No sensors enabled</option>';
   updateCustomCondUI();
 }
@@ -3268,13 +3289,13 @@ function _renderStepRows() {
         <span style="font-size:.7rem;color:var(--dim);align-self:center">ms</span>
         <button class="cblk-rm-btn" onclick="removeStep(${i})">x</button>`;
     } else {
-      const act = acts.find(a => a.key === step.act);
+      const act = acts.find(a => step.target ? a.target === step.target : a.key === step.act);
       const mode = act?.mode ?? 'relay';
       const missingKey = step.target || step.act;
       const missing = !act && missingKey
         ? `<option value="${esc(step.act || missingKey)}" data-target="${esc(step.target || missingKey)}" selected>Missing output: ${esc(missingKey)}</option>` : '';
       const actOpts = missing + acts.map(a =>
-        `<option value="${a.key}" data-target="${esc(a.target || '')}" ${a.key===step.act?'selected':''}>${a.label}</option>`
+        `<option value="${esc(a.key)}" data-target="${esc(a.target || '')}" ${a===act?'selected':''}>${esc(a.label)}</option>`
       ).join('');
       const valCtrl = mode === 'relay'
         ? `<select onchange="updateStepVal(${i},+this.value)" style="max-width:80px">
@@ -3337,8 +3358,9 @@ function buildRuntimeBlockDef(key, def) {
   const acts     = getEnabledActuators();
   let condFn = null;
   if (def.condition) {
-    const s = sensors.find(s => s.key === def.condition.sensor);
-    const sLabel = s ? s.label : def.condition.sensor;
+    const s = sensors.find(s => def.condition.source
+      ? s.source === def.condition.source : s.key === def.condition.sensor);
+    const sLabel = s ? s.label : `Missing input: ${def.condition.source || def.condition.sensor}`;
     const unit   = s?.unit ?? '';
     condFn = () => `${sLabel} ${def.condition.op} ${def.condition.value}${unit?' '+unit:''}`;
   } else if (def.type === 'wait') {
@@ -3349,9 +3371,9 @@ function buildRuntimeBlockDef(key, def) {
   const rawSteps = def.type === 'wait' ? [] : (def.steps || []);
   const stepLines = rawSteps.map((s, idx) => {
     if (s.type === 'delay_ms') return `${idx+1}. DELAY ${s.val} ms`;
-    const a = acts.find(a => a.key === s.act);
+    const a = acts.find(a => s.target ? a.target === s.target : a.key === s.act);
     const valStr = a?.mode === 'relay' ? (s.val ? 'ON' : 'OFF') : `${s.val}%`;
-    return `${idx+1}. SET ${a?.label ?? s.act} -> ${valStr}`;
+    return `${idx+1}. SET ${a?.label ?? ('Missing output: ' + (s.target || s.act))} -> ${valStr}`;
   });
   const fullDesc = [def.desc, ...stepLines].filter(Boolean).join('\n');
   return {

@@ -278,7 +278,7 @@ function _getFieldLabel(el) {
     if (lbl) {
       const clean = lbl.cloneNode(true);
       clean.querySelectorAll('.live-val').forEach(node => node.remove());
-      const label = clean.textContent.trim().replace(/\s*\(.*?\)\s*$/, '');
+      const label = clean.textContent.trim().replace(/\s*\([^()]*\)\s*$/, '');
       const section = p.closest('.cfg-section')?.dataset.section;
       return section ? `${section} / ${label}` : label;
     }

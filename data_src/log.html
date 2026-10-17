@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261017d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261017d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -735,6 +735,47 @@ function _renderRegistryLogInputs(channels, selectedIds) {
     }).join('') + '</div>';
 }
 
+let _sessionChannelNames = null;
+function loadSessionChannelNames() {
+  // Fetch configuration once per visit, never on the telemetry polling path.
+  if (!_sessionChannelNames) _sessionChannelNames = fetchJsonWithRetry('/api/hardware', 2)
+    .then(hw => hw.channel_registry || {}).catch(() => { _sessionChannelNames = null; return {}; });
+  return _sessionChannelNames;
+}
+function applySessionChannelNames(registry) {
+  const mappings = {
+    n1:['inputs','n1_speed','n1',' RPM',' kRPM'], n2:['inputs','n2_speed','n2',' RPM',' kRPM'],
+    tot:['inputs','tot','tot',' °C',''], tit:['inputs','tit','tit',' °C',''],
+    oil_temp:['inputs','oil_temperature','oilt',' °C',''], oil:['inputs','oil_pressure','oil',' bar',' bar ×100'],
+    p1:['inputs','p1_pressure','p1',' bar',' bar ×100'], p2:['inputs','p2_pressure','p2',' bar',' bar ×100'],
+    torque:['inputs','torque','torque',' Nm + shaft power W',' Nm'], thrust:['inputs','thrust','thrust',' N',' N'],
+    batt:['inputs','battery_voltage','batt',' V',' V ×10'], fuel_press:['inputs','fuel_pressure','fp',' bar',' bar ×100'],
+    fuel_flow:['inputs','fuel_flow',null,'',''], throttle:['outputs','main_fuel','thr',' %',' %'],
+    starter:['outputs','starter',null,' %',''], oil_pct:['outputs','oil_pump','oilp',' %',' %'],
+    glow:['outputs','glow_plug','glow',' %',' %'], wet_glow:['outputs','wet_glow','wetg',' %',' %'],
+    fp2:['outputs','fuel_pump','fp2',' %',' %'], prop:['outputs','prop_pitch','prop',' %',' %'],
+    glow_current:['outputs','glow_plug','gcur',' current A',' current A ×10'],
+    ign_current:['outputs','igniter','icur',' current A',' current A ×10'],
+    ign2_current:['outputs','ab_igniter','i2cur',' current A',' current A ×10'],
+    oil_current:['outputs','oil_pump','ocur',' current A',' current A ×10'],
+  };
+  for (const [bit,[direction,purpose,chart,suffix,chartSuffix]] of Object.entries(mappings)) {
+    const rows = (registry[direction] || []).filter(c => c.installed !== false && !c.mirror_of && c.purpose === purpose);
+    // Legacy combined fields must not pretend to identify one of several devices.
+    if (rows.length !== 1 || !String(rows[0].name || '').trim()) continue;
+    const name = rows[0].name.trim();
+    const label = document.querySelector(`[data-bit="${bit}"]`)?.closest('label');
+    const text = label && [...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE);
+    if (text) text.nodeValue = name + suffix;
+    const legend = chart && document.querySelector(`#chart-lbl-${chart} > span`);
+    if (legend) {
+      const temperature = legend.querySelector('.chart-tunit');
+      if (temperature) legend.firstChild.nodeValue = name + ' ';
+      else legend.textContent = name + chartSuffix;
+    }
+  }
+}
+
 function loadSessionCfg() {
   _sessionSettingsLoaded = false;
   SLOG_BITS.forEach(bit => {
@@ -742,7 +783,7 @@ function loadSessionCfg() {
     if (el) el.disabled = true;
   });
   _applySessionSettingsLock();
-  return loadSessionCfgJson().then(status => {
+  return loadSessionCfgJson().then(async status => {
     _sessionSettingsLocked = !!status.locked;
     const sl = status.session_log || {};
     _loadedRegistryLogIds = Array.isArray(sl.registry_inputs) ? sl.registry_inputs.map(String) : [];
@@ -759,6 +800,7 @@ function loadSessionCfg() {
     _renderRegistryLogInputs(status.registry_inputs, _loadedRegistryLogIds);
     _sessionSettingsLoaded = true;
     _applyLogAvailability(status.available || {}, status.labels || {});
+    applySessionChannelNames(await loadSessionChannelNames());
     _applySessionSettingsLock();
     renderPersistenceHealth(status);
     return status;
@@ -777,6 +819,10 @@ function loadSessionCfg() {
 function _applyLogAvailability(available, labels) {
   const pressure1Name = String(labels.p1 || 'Pressure 1').trim() || 'Pressure 1';
   const pressure2Name = String(labels.p2 || 'Pressure 2').trim() || 'Pressure 2';
+  for (const [key, name] of [['p1',pressure1Name],['p2',pressure2Name]]) {
+    const legend = document.querySelector('#chart-lbl-' + key + ' span');
+    if (legend) legend.textContent = name + ' bar ×100';
+  }
   // Human-readable name for the tooltip
   const hwLabel = {
     n1: 'N1 RPM sensor', n2: 'N2 RPM sensor',

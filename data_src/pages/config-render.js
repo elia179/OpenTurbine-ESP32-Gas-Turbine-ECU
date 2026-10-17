@@ -72,9 +72,37 @@ function controllerChannelName(row) {
     request_shutdown:'Request Normal Shutdown'
   };
   const raw = String(row.name || '').trim();
-  const internalLooking = !raw || raw === 'Main Fuel Pump' || raw === String(row.id || '') ||
-    /^(operator|primary|generic)_[a-z0-9_]+$/i.test(raw);
-  return internalLooking ? (purposeNames[row.purpose] || 'Configured channel') : raw;
+  return raw || purposeNames[row.purpose] || 'Configured channel';
+}
+
+// Fixed firmware enums still identify fitted channels by their user names.
+function controllerPurposeNames(purposes) {
+  return [...new Set(purposes.flatMap(p => controllerInputs(p).map(controllerChannelName)).filter(Boolean))].join(' / ');
+}
+function controllerTemperaturePurposes() {
+  const source = Number(cfg?.safety?.egt_source || 0);
+  return source === 1 ? ['tot'] : source === 2 ? ['tit']
+    : controllerInputs('tot').length ? ['tot'] : ['tit'];
+}
+function configuredFieldLabel(field) {
+  return field.label.replace(/Pressure ([12])/g, (role, number) => {
+    const name=controllerPurposeNames([`p${number}_pressure`]);
+    return name && name!==role ? `${name} (P${number})` : role;
+  });
+}
+function configuredSourceOptionLabel(key, option) {
+  const value = Number(option.v), egt = controllerTemperaturePurposes();
+  const sources = {
+    eg_src: {0:controllerInputs('tot').length ? ['tot'] : ['tit'],1:['tot'],2:['tit']},
+    di_src: {0:['n1_speed'],1:['n2_speed'],2:['p1_pressure'],3:['p2_pressure']},
+    so_src: {0:['n1_speed'],1:['n2_speed'],2:['n1_speed','n2_speed']},
+    sf_fs: {0:['flame','n1_speed',...egt],1:['flame'],2:['n1_speed'],3:egt},
+    rl_ts: {0:['flame','n1_speed',...egt],1:['flame'],2:['n1_speed'],3:egt},
+    rl_cs: {1:['flame'],2:['n1_speed'],3:egt},
+    ab_pcm: {1:['throttle'],2:['ab_command']},
+  };
+  const names = controllerPurposeNames(sources[key]?.[value] || []);
+  return names ? `${names} — ${option.l}` : option.l;
 }
 
 function _resolveControllerChannelId(value, rows, kind, numericValue) {
@@ -292,7 +320,7 @@ function _mountControllerLocalSettings(outputs) {
     card.innerHTML = `<summary><span><span class="protection-card-title">Oil Pressure Control</span><span class="protection-card-desc">${binary?'On/off pressure regulation':'Variable pressure regulation'}</span></span><span class="protection-card-chevron">›</span></summary><div class="controller-subcard-content"><div class="controller-card-actions"><label class="controller-enabled"><input aria-label="Oil pressure controller enabled" type="checkbox" ${hwCfg.controllers?.oil_loop !== false && loop.enabled !== false?'checked':''} onchange="updateControllerOilLoop(${loopIndex},'enabled',this.checked)"> Enabled</label></div><div class="cfg-grid">
       <label class="cfg-field"><span class="cfg-label">Pressure feedback</span><select onchange="updateControllerOilLoop(${loopIndex},'pressure_input',this.value)">${options(pressures,loop.pressure_input)}</select></label>
       <label class="cfg-field"><span class="cfg-label">Controlled pump</span><select onchange="updateControllerOilLoop(${loopIndex},'pump_output',this.value)">${options(pumps,loop.pump_output)}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Pressure target set by</span><select onchange="updateControllerOilLoop(${loopIndex},'target_source',+this.value)"><option value="0"${source===0?' selected':''}>Fixed pressure</option><option value="1"${source===1?' selected':''}>Main fuel demand</option>${controllerInputs('n1_speed').length?`<option value="2"${source===2?' selected':''}>N1 speed</option>`:''}${controllerInputs('n2_speed').length?`<option value="3"${source===3?' selected':''}>N2 speed</option>`:''}</select></label>
+      <label class="cfg-field"><span class="cfg-label">Pressure target set by</span><select onchange="updateControllerOilLoop(${loopIndex},'target_source',+this.value)"><option value="0"${source===0?' selected':''}>Fixed pressure</option><option value="1"${source===1?' selected':''}>Main fuel demand</option>${controllerInputs('n1_speed').length?`<option value="2"${source===2?' selected':''}>${_escHtml(controllerPurposeNames(['n1_speed']))} (N1 speed)</option>`:''}${controllerInputs('n2_speed').length?`<option value="3"${source===3?' selected':''}>${_escHtml(controllerPurposeNames(['n2_speed']))} (N2 speed)</option>`:''}</select></label>
       ${pressure('target_bar',source===0?'Pressure target':'Low pressure target',loop.target_bar??2.5,.01)}
       ${source!==0?pressure('target_high_bar','High pressure target',loop.target_high_bar??2.5,.01):''}
       ${source>=2?number('speed_min_rpm','Low shaft speed (RPM)',loop.speed_min_rpm??0,100,0,1000000):''}
@@ -381,7 +409,8 @@ function automaticIdleRequirements() {
   const fuel = registryOutputByPurpose('main_fuel');
   const source = Number(cfg?.dynamic_idle?.source || 0);
   const purpose = ['n1_speed','n2_speed','p1_pressure','p2_pressure'][source];
-  const name = ['N1 speed','N2 speed','Pressure 1','Pressure 2'][source] || 'selected feedback';
+  const name = controllerChannelName(controllerInputs(purpose)[0]) ||
+    ['N1 speed','N2 speed','Pressure 1','Pressure 2'][source] || 'selected feedback';
   const missing = [];
   if (!fuel || ![5,6].includes(Number(fuel.driver))) missing.push('a proportional Main Fuel output (PWM or servo/ESC)');
   if (!controllerInputs(purpose).length) missing.push(`a fitted ${name} input`);
@@ -399,7 +428,9 @@ function configuredIdleSource() {
     return {active:effective > 0,title:`Fixed · ${effective}% fuel`,description:`${effective !== selected ? `Selected ${selected}%; raised to the reliable pump minimum. ` : ''}Applies only in Running, replacing retained startup idle. Throttle can demand more; STOP, faults and shutdown can still cut fuel.`};
   }
   if (mode === 4 || (mode === 0 && hwCfg?.controllers?.dynamic_idle)) {
-    const feedback = ['N1','N2','Pressure 1','Pressure 2'][Number(cfg?.dynamic_idle?.source || 0)];
+    const source = Number(cfg?.dynamic_idle?.source || 0);
+    const feedback = controllerChannelName(controllerInputs(['n1_speed','n2_speed','p1_pressure','p2_pressure'][source])[0]) ||
+      ['N1','N2','Pressure 1','Pressure 2'][source];
     const missing = automaticIdleRequirements();
     const multiplier = Number(cfg?.dynamic_idle?.max_multiplier ?? 1.5);
     const multiplied = maximum * multiplier;
@@ -1320,17 +1351,17 @@ function renderForm(preserveControllerOpenState = false) {
   const allOilPumpsBinary = configuredOilPumps.length > 0 && configuredOilPumps.every(oilPumpIsBinary);
   const mixedOilPumpDrivers = configuredOilPumps.some(oilPumpIsBinary) && configuredOilPumps.some(channel => !oilPumpIsBinary(channel));
   const protectionGroups = [
-    {id:'n1', title:'N1 core speed', desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
+    {id:'n1', title:`${controllerPurposeNames(['n1_speed']) || 'N1'} · core speed`, desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
       keys:['pb_n1e','pb_n1s','pb_n1h','rpm_limit','min_rpm'], advanced:['pb_n1l','pb_n1str','rl_ramp','rl_zone','rl_acc']},
-    {id:'n2', title:'N2 output-shaft speed', desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
+    {id:'n2', title:`${controllerPurposeNames(['n2_speed']) || 'N2'} · output-shaft speed`, desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
       keys:['pb_n2e','pb_n2s','pb_n2h','n2_rpm_limit'], advanced:['pb_n2l','pb_n2str']},
-    {id:'egt', title:'Turbine temperature', desc:'Select TOT/TIT, set running and startup Dashboard references, and optionally enable fuel limiting or overtemperature shutdown.',
+    {id:'egt', title:`${controllerPurposeNames(controllerTemperaturePurposes()) || 'Turbine temperature'} · temperature protection`, desc:'Select TOT/TIT, set running and startup Dashboard references, and optionally enable fuel limiting or overtemperature shutdown.',
       keys:['eg_src','pb_egte','pb_egts','pb_egth','tot_limit','sf_tit','sf_st','tot_safe_margin'], advanced:['pb_egtl','pb_egtstr']},
     {id:'p1', title:`${controllerChannelName(controllerInputs('p1_pressure')[0]) || 'Pressure 1'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
       keys:['pb_p1e','pb_p1s','pb_p1h','sf_p1t','sf_p1d'], advanced:['pb_p1l','pb_p1str']},
     {id:'p2', title:`${controllerChannelName(controllerInputs('p2_pressure')[0]) || 'Pressure 2'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
       keys:['pb_p2e','pb_p2s','pb_p2h','sf_p2t','sf_p2d'], advanced:['pb_p2l','pb_p2str']},
-    {id:'torque', title:'Shaft torque', desc:'Gradual fuel reduction followed by an optional over-torque shutdown.',
+    {id:'torque', title:`${controllerPurposeNames(['torque']) || 'Shaft torque'} · torque protection`, desc:'Gradual fuel reduction followed by an optional over-torque shutdown.',
       keys:['pb_tqe','pb_tqs','pb_tqh','sf_tqt','sf_tqd'], advanced:['pb_tql','pb_tqstr']},
   ];
   const gradualSection = SCHEMA.find(section => section.title === 'Gradual Fuel Limit Protection');
@@ -1356,7 +1387,7 @@ function renderForm(preserveControllerOpenState = false) {
     if (binaryOilFallback) val = Number(val) > 0 ? 100 : 0;
     const idleRange = ['fi_low','fi_high'].includes(f.key);
     const idleUnit = idleRange ? controllerInputDisplay(cfg?.dynamic_idle?.input_id).unit : '';
-    const fieldLabel = binaryOilFallback ? 'Pump State After Pressure-Sensor Failure' : f.label + (idleUnit ? ` (${idleUnit})` : '');
+    const fieldLabel = binaryOilFallback ? 'Pump State After Pressure-Sensor Failure' : configuredFieldLabel(f) + (idleUnit ? ` (${idleUnit})` : '');
     const fieldDesc = f.key === 'oil_fp' && mixedOilPumpDrivers
       ? `${f.desc} Binary pumps use 0% as Off and any positive value as On.`
       : f.desc;
@@ -1384,7 +1415,7 @@ function renderForm(preserveControllerOpenState = false) {
           group = nextGroup;
           if (group) html += `<optgroup label="${_escHtml(group)}">`;
         }
-        html += `<option value="${_escHtml(o.v)}"${val == o.v ? ' selected' : ''}${o.hidden ? ' hidden disabled' : ''}>${_escHtml(o.l)}</option>`;
+        html += `<option value="${_escHtml(o.v)}"${val == o.v ? ' selected' : ''}${o.hidden ? ' hidden disabled' : ''}>${_escHtml(configuredSourceOptionLabel(f.key, o))}</option>`;
       });
       if (group) html += '</optgroup>';
       return html;
@@ -1399,7 +1430,7 @@ function renderForm(preserveControllerOpenState = false) {
     const level = f.basic ? 'essential' : 'advanced';
     const searchText = `${f.key} ${fieldLabel} ${fieldDesc} ${sec.title} ${sec.sectionNote || ''} ${group.title}`.toLowerCase();
     return `<div class="cfg-field"${wid} data-key="${f.key}" data-level="${level}" data-search="${_escHtml(searchText)}">
-      <div class="cfg-field-head"><div class="cfg-label">${fieldLabel}${unitSuffix}</div>
+      <div class="cfg-field-head"><div class="cfg-label">${_escHtml(fieldLabel)}${unitSuffix}</div>
         ${level === 'advanced' ? '<span class="field-level">Advanced</span>' : ''}</div>
       ${inp}
       <details class="cfg-help"><summary>About this setting</summary><div class="cfg-desc">${fieldDesc}</div></details>
@@ -1441,13 +1472,17 @@ function renderForm(preserveControllerOpenState = false) {
       ]
     }[sec.title] || [];
     const localSafetyHtml = localSafety.length ? `<div class="protection-stack">${localSafety.map(item => {
+      const sourcePurposes = {low_oil:['oil_pressure','low_oil_switch'],oil_zero:['oil_pressure','oil_zero_switch'],
+        flameout:['flame','n1_speed',...controllerTemperaturePurposes()],hot_start:controllerTemperaturePurposes(),
+        oil_temp_high:['oil_temperature'],fuel_press_low:['fuel_pressure'],batt_low:['battery_voltage'],surge:['n1_speed']};
+      const fittedNames = controllerPurposeNames(sourcePurposes[item.key] || []);
       const fields = item.keys.map(key => sec.fields.find(field => field.key === key)).filter(Boolean);
       const toggle = item.key ? controllerSafetyToggle(item.key,item.label,item.available,item.requirement,isLocked) : '';
       const active = item.key && hwCfg?.safety?.[item.key] && item.available;
       const attention = item.key && hwCfg?.safety?.[item.key] && !item.available;
       const summaryState = active ? '<b class="controller-state controller-state-ok">● ACTIVE</b>' : attention ? '<b class="controller-state controller-state-warn">● CHECK</b>' : '';
       return `<details class="protection-card" data-protection="${item.key || item.id || item.label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
-        <summary><span><span class="protection-card-title">${item.label}</span><span class="protection-card-desc">${item.available ? item.desc : item.requirement}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
+        <summary><span><span class="protection-card-title">${item.label}</span><span class="protection-card-desc">${_escHtml(item.available ? item.desc : item.requirement)}${fittedNames ? ' · Fitted inputs: ' + _escHtml(fittedNames) : ''}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
         ${toggle}<div class="cfg-grid">${fields.map(field => renderField(field, sec, group)).join('')}</div>
       </details>`;
     }).join('')}</div>` : '';
@@ -1463,7 +1498,7 @@ function renderForm(preserveControllerOpenState = false) {
           const summaryState = safetyKey && hwCfg?.safety?.[safetyKey]
             ? `<b class="controller-state ${safetyAvailable?'controller-state-ok':'controller-state-warn'}">● ${safetyAvailable?'ACTIVE':'CHECK'}</b>` : '';
           return `<details class="protection-card" data-protection="${card.id}">
-            <summary><span><span class="protection-card-title">${card.title}</span><span class="protection-card-desc">${card.desc}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
+            <summary><span><span class="protection-card-title">${_escHtml(card.title)}</span><span class="protection-card-desc">${card.desc}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
             ${safety}<div class="cfg-grid">${fields.map(field => renderField(field, sec, group)).join('')}</div>
             ${advancedFields.length ? `<div class="cfg-grid protection-predictive-fields" data-predictive-for="${card.id}">${advancedFields.map(field => renderField(field, sec, group)).join('')}</div>` : ''}
           </details>`;

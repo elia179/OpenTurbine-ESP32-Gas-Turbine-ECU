@@ -1,3 +1,3 @@
 #pragma once
-#define OT_VERSION    "2.5.2"
+#define OT_VERSION    "2.5.3"
 #define OT_BUILD_DATE __DATE__

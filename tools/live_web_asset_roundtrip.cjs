@@ -7,6 +7,7 @@ const {execFileSync} = require('node:child_process');
 
 if (!process.argv.includes('--allow-write')) throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(arg => /^http/.test(arg)) || 'http://192.168.4.1';
+const wifiProfile = process.env.OT_WIFI_PROFILE || 'OpenTurbine';
 const root = path.resolve(__dirname, '..');
 const names = ['calibration.html.gz','controllers.html.gz','hardware.html.gz','index.html.gz',
   'log.html.gz','sequence.html.gz','app.js.gz','style.css.gz','system.html.gz',
@@ -57,7 +58,7 @@ async function snapshot() {
   let after;
   for (let attempt=0; attempt<40; attempt++) {
     if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-      try {execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'});} catch (_) {}
+      try {execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'});} catch (_) {}
     }
     try {
       after = await snapshot();

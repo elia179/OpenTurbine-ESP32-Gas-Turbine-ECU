@@ -34,8 +34,8 @@ function plainRegistryName(raw, fallback = '') {
   return out || fallback || text;
 }
 function registryDisplayName(c, fallback = 'Output') {
-  const name = (c?.name && String(c.name).trim()) || c?.id || fallback;
-  return String(name || '').includes('_') ? plainRegistryName(name, fallback) : name;
+  // A display name is user text, including underscores and acronyms.
+  return String(c?.name || '').trim() || plainRegistryName(c?.id, fallback);
 }
 function configuredRegistryOutput(d, purposes, ids = []) {
   const purposeSet = new Set(Array.isArray(purposes) ? purposes : [purposes]);
@@ -196,14 +196,29 @@ function organizeDashboardCards() {
 
 const DASHBOARD_CARD_PREF_KEY = 'ot_dashboard_hidden_cards_v1';
 const DASHBOARD_ORDER_PREF_KEY = 'ot_dashboard_card_order_v1';
+const DASHBOARD_VIEW_PREF_KEY = 'ot_dashboard_card_views_v1';
 const DASHBOARD_CUSTOM_CARD_IDS = [
   'n1-card','n2-card','tot-card','tit-card','oil-card','oil-temp-card','oilpump-current-card',
   'flame-card','fuel-press-card','fuel-flow-card','p1-card','p2-card','batt-card','torque-card',
   'thrust-card','glow-current-card','igniter-current-card','igniter2-current-card',
   'throttle-output-card','oil-output-card','switch-inputs-card','governor-card',
   'actuator-outputs-card','afterburner-card','last-event-card','uptime-card',
-  'hour-meter-card','relight-card','extra-cooldown-card','system-card'
+  'hour-meter-card','relight-card','extra-cooldown-card','system-card',
+  'dashboard-controls-card','getting-started-banner','run-summary-card','seq-progress-section'
 ];
+const dashboardCardIdAllowed = id => DASHBOARD_CUSTOM_CARD_IDS.includes(id) ||
+  /^registry-(?:output-)?card-[a-zA-Z0-9_-]{1,64}$/.test(id);
+function dashboardCardIds() {
+  return [...DASHBOARD_CUSTOM_CARD_IDS, ...Array.from(document.querySelectorAll('.registry-input-card[id], .registry-output-card[id]'), card => card.id)];
+}
+let _dashboardCardViews = (() => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DASHBOARD_VIEW_PREF_KEY) || '{}');
+    return Object.fromEntries(Object.entries(parsed || {}).filter(([id, value]) =>
+      dashboardCardIdAllowed(id) && value && ['normal','reduced','minimal'].includes(value.detail) &&
+      ['auto','small','medium','wide'].includes(value.size)));
+  } catch (_) { return {}; }
+})();
 const DASHBOARD_LIMIT_FIELDS = {
   'n1-card':'rpm_limit', 'n2-card':'n2_rpm_limit',
   'tot-card':'tot_limit', 'tit-card':'sf_tit',
@@ -213,19 +228,23 @@ const DASHBOARD_LIMIT_FIELDS = {
 let _dashboardHiddenCards = (() => {
   try {
     const value = JSON.parse(localStorage.getItem(DASHBOARD_CARD_PREF_KEY) || '[]');
-    return new Set(Array.isArray(value) ? value.filter(id => DASHBOARD_CUSTOM_CARD_IDS.includes(id)) : []);
+    return new Set(Array.isArray(value) ? value.filter(id => dashboardCardIdAllowed(id) && id !== 'dashboard-controls-card') : []);
   } catch (_) { return new Set(); }
 })();
 let _dashboardCustomOrder = (() => {
   try {
     const value = JSON.parse(localStorage.getItem(DASHBOARD_ORDER_PREF_KEY) || 'null');
-    return Array.isArray(value) && value.length
-      ? [...new Set(value.filter(id => DASHBOARD_CUSTOM_CARD_IDS.includes(id)))] : null;
+    if (!Array.isArray(value) || !value.length) return null;
+    const order = [...new Set(value.filter(dashboardCardIdAllowed))];
+    // Older personal layouts kept these blocks above the movable cards.
+    // Preserve that placement until the user chooses a different order.
+    return order.includes('dashboard-controls-card') ? order :
+      ['getting-started-banner','seq-progress-section','run-summary-card','dashboard-controls-card',...order];
   } catch (_) { return null; }
 })();
 
 function dashboardCardLabel(card) {
-  return (card.querySelector('.label')?.textContent || card.id)
+  return (card.dataset.dashboardLabel || card.querySelector('.label')?.textContent || card.id)
     .replace(/\s+/g, ' ').trim() || card.id;
 }
 
@@ -234,7 +253,7 @@ function saveDashboardCardPrefs() {
 }
 
 function refreshDashboardCardVisibility() {
-  DASHBOARD_CUSTOM_CARD_IDS.forEach(id => {
+  dashboardCardIds().forEach(id => {
     document.getElementById(id)?.classList.toggle('dashboard-user-hidden', _dashboardHiddenCards.has(id));
   });
   document.querySelectorAll('.telemetry-group').forEach(group => {
@@ -254,7 +273,7 @@ function refreshDashboardCardVisibility() {
   const arrange = document.getElementById('dashboard-arrange-btn');
   if (arrange) arrange.hidden = !editing || !!_dashboardCustomOrder;
   const reset = document.getElementById('dashboard-reset-btn');
-  if (reset) reset.hidden = !editing || (!_dashboardCustomOrder && !_dashboardHiddenCards.size);
+  if (reset) reset.hidden = !editing || (!_dashboardCustomOrder && !_dashboardHiddenCards.size && !Object.keys(_dashboardCardViews).length);
   if (!restore) return;
   restore.replaceChildren();
   restore.hidden = !editing || _dashboardHiddenCards.size === 0;
@@ -278,10 +297,12 @@ function refreshDashboardCardVisibility() {
 }
 
 function initializeDashboardCardEditing() {
-  DASHBOARD_CUSTOM_CARD_IDS.forEach(id => {
+  dashboardCardIds().forEach(id => {
     const card = document.getElementById(id);
-    if (!card || card.querySelector('.dashboard-hide-card')) return;
+    if (!card || card.classList.contains('dashboard-customizable-card')) return;
     card.classList.add('dashboard-customizable-card');
+    card._dashboardHome = document.createComment('dashboard home: ' + id);
+    card.before(card._dashboardHome);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'dashboard-hide-card';
@@ -294,7 +315,7 @@ function initializeDashboardCardEditing() {
       saveDashboardCardPrefs();
       refreshDashboardCardVisibility();
     });
-    card.appendChild(button);
+    if (id !== 'dashboard-controls-card') card.appendChild(button);
     const drag = document.createElement('button');
     drag.type = 'button';
     drag.className = 'dashboard-drag-handle';
@@ -303,6 +324,45 @@ function initializeDashboardCardEditing() {
     drag.innerHTML = '<span class="drag-grip" aria-hidden="true"></span>';
     wireDashboardDragHandle(card, drag);
     card.appendChild(drag);
+    const primary = card.querySelector(':scope > .value, :scope > .flame-raw-val');
+    if (primary) {
+      primary.classList.add('dashboard-primary-value');
+      const unit = document.createElement('span');
+      unit.className = 'dashboard-minimal-unit';
+      const units = {'n1-card':'RPM','n2-card':'RPM','tot-card':'temp','tit-card':'temp',
+        'oil-temp-card':'temp','oil-card':'press','p1-card':'press','p2-card':'press',
+        'fuel-press-card':'press','batt-card':'V','torque-card':'Nm','thrust-card':'N',
+        'glow-current-card':'A','igniter-current-card':'A','igniter2-current-card':'A',
+        'oilpump-current-card':'A','fuel-flow-card':'L/min','throttle-output-card':'%',
+        'oil-output-card':'%'};
+      const kind = units[id];
+      if (kind === 'temp' || kind === 'press') unit.dataset.unit = kind;
+      unit.textContent = kind === 'temp' ? dispTempUnit() : kind === 'press' ? dispPressUnit()
+        : kind || card.dataset.dashboardUnit || '';
+      primary.after(unit);
+    }
+    const settings = document.createElement('div');
+    settings.className = 'dashboard-card-settings';
+    const addSelect = (key, title, options) => {
+      const label = document.createElement('label');
+      label.append(title + ' ');
+      const select = document.createElement('select');
+      select.setAttribute('aria-label', title + ' for ' + dashboardCardLabel(card));
+      select.dataset.dashboardSetting = key;
+      options.forEach(([value, text]) => select.add(new Option(text, value)));
+      select.addEventListener('change', () => {
+        _dashboardCardViews[id] = {...{detail:'normal',size:'auto'}, ..._dashboardCardViews[id], [key]:select.value};
+        try { localStorage.setItem(DASHBOARD_VIEW_PREF_KEY, JSON.stringify(_dashboardCardViews)); } catch (_) {}
+        if (key === 'size' && !_dashboardCustomOrder) activateDashboardCustomLayout();
+        applyDashboardCardView(card);
+        refreshDashboardCardVisibility();
+      });
+      label.appendChild(select); settings.appendChild(label);
+    };
+    if (primary) addSelect('detail', 'Detail', [['normal','Normal'],['reduced','Reduced'],['minimal','Minimal']]);
+    addSelect('size', 'Size', [['auto','Original'],['small','Small'],['medium','Medium'],['wide','Wide']]);
+    card.appendChild(settings);
+    applyDashboardCardView(card);
     const limitField = DASHBOARD_LIMIT_FIELDS[id];
     if (limitField) {
       const links = document.createElement('div');
@@ -325,6 +385,15 @@ function initializeDashboardCardEditing() {
   refreshDashboardCardVisibility();
 }
 
+function applyDashboardCardView(card) {
+  const view = _dashboardCardViews[card.id] || {detail:'normal',size:'auto'};
+  card.dataset.dashboardDetail = view.detail;
+  card.dataset.dashboardSize = view.size;
+  card.querySelectorAll('[data-dashboard-setting]').forEach(select => {
+    select.value = view[select.dataset.dashboardSetting];
+  });
+}
+
 function saveDashboardCardOrder() {
   const grid = document.getElementById('dashboard-custom-cards');
   if (!grid) return;
@@ -336,7 +405,7 @@ function activateDashboardCustomLayout(save = true) {
   const section = document.getElementById('dashboard-custom-section');
   const grid = document.getElementById('dashboard-custom-cards');
   if (!section || !grid) return;
-  const cards = DASHBOARD_CUSTOM_CARD_IDS.map(id => document.getElementById(id)).filter(Boolean);
+  const cards = dashboardCardIds().map(id => document.getElementById(id)).filter(Boolean);
   const saved = _dashboardCustomOrder;
   if (saved) {
     const rank = new Map(saved.map((id, index) => [id, index]));
@@ -345,6 +414,7 @@ function activateDashboardCustomLayout(save = true) {
     cards.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
   }
   cards.forEach(card => grid.appendChild(card));
+  document.querySelector('.dashboard-view-controls')?.insertAdjacentElement('afterend', section);
   section.hidden = false;
   document.body.classList.add('dashboard-custom-layout');
   if (save) saveDashboardCardOrder();
@@ -355,13 +425,20 @@ window.activateDashboardCustomLayout = activateDashboardCustomLayout;
 function resetDashboardLayout() {
   _dashboardCustomOrder = null;
   _dashboardHiddenCards.clear();
+  _dashboardCardViews = {};
   try {
     localStorage.removeItem(DASHBOARD_ORDER_PREF_KEY);
     localStorage.removeItem(DASHBOARD_CARD_PREF_KEY);
+    localStorage.removeItem(DASHBOARD_VIEW_PREF_KEY);
   } catch (_) {}
   document.body.classList.remove('dashboard-custom-layout');
   const section = document.getElementById('dashboard-custom-section');
   if (section) section.hidden = true;
+  dashboardCardIds().forEach(id => {
+    const card = document.getElementById(id);
+    if (card?._dashboardHome?.parentNode) card._dashboardHome.after(card);
+    if (card) applyDashboardCardView(card);
+  });
   organizeDashboardCards();
   refreshDashboardCardVisibility();
 }
@@ -521,7 +598,9 @@ function pushSparkline(arr, val) {
 
 function drawSparkline(canvasId, data, color, scale = null) {
   const c = document.getElementById(canvasId);
-  if (!c) return;
+  // Hidden trends keep their tiny browser history, but do no canvas work.
+  if (!c || !c.getClientRects().length ||
+      c.closest('[data-dashboard-detail="reduced"], [data-dashboard-detail="minimal"]')) return;
   const ctx = c.getContext('2d');
   const w = c.width = c.offsetWidth || 200;
   const h = c.height = 36;
@@ -1094,6 +1173,45 @@ function applyData(d) {
     sl('lbl-p2',         lbl('p2'));
     sl('lbl-fuel-press', lbl('fuel_press'));
     sl('lbl-fuel-flow',  lbl('fuel_flow'));
+    // These cards have no legacy label field. Use the fitted channel's
+    // display name directly, without changing its purpose or control binding.
+    const names = [
+      ['n1','n1_speed',lbl('n1')], ['n2','n2_speed',lbl('n2')],
+      ['tot','tot',lbl('tot')], ['tit','tit',lbl('tit')],
+      ['oil','oil_pressure',lbl('oil_press')], ['oil-temp','oil_temperature',lbl('oil_temp')],
+      ['p1','p1_pressure',lbl('p1')], ['p2','p2_pressure',lbl('p2')],
+      ['fuel-press','fuel_pressure',lbl('fuel_press')], ['fuel-flow','fuel_flow',lbl('fuel_flow')],
+      ['batt','battery_voltage','Battery'], ['torque','torque','Torque'],
+      ['thrust','thrust','Thrust'], ['flame','flame','Flame'],
+      ['throttle-output','main_fuel','Main Fuel Metering Output','registry_outputs'],
+      ['oil-output','oil_pump','Oil Pump Output','registry_outputs']
+    ];
+    names.forEach(([key, purpose, fallback, collection = 'registry_inputs']) => {
+      const channels = (d[collection] || []).filter(ch => ch.installed !== false && ch.purpose === purpose);
+      sl('lbl-' + key, (channels.length === 1 ? registryDisplayName(channels[0],fallback) : fallback) + (['n1','n2'].includes(key) ? ' RPM' : ''));
+      if (collection === 'registry_inputs' && channels.length === 1) {
+        const labelKey = {oil:'oil_press','oil-temp':'oil_temp','fuel-press':'fuel_press','fuel-flow':'fuel_flow'}[key] || key;
+        _labels[labelKey] = registryDisplayName(channels[0],fallback);
+      }
+    });
+    document.querySelectorAll('[data-input-name]').forEach(label => {
+      if (!label.dataset.defaultName) label.dataset.defaultName = label.textContent;
+      const channels = (d.registry_inputs || []).filter(ch => ch.installed !== false && ch.purpose === label.dataset.inputName);
+      label.textContent = channels.length === 1 ? registryDisplayName(channels[0],label.dataset.defaultName) : label.dataset.defaultName;
+    });
+    document.querySelectorAll('[data-output-name]').forEach(label => {
+      if (!label.dataset.defaultName) label.dataset.defaultName = label.textContent;
+      const channels = (d.registry_outputs || []).filter(ch =>
+        ch.installed !== false && ch.purpose === label.dataset.outputName);
+      label.textContent = channels.length === 1
+        ? registryDisplayName(channels[0],label.dataset.defaultName) : label.dataset.defaultName;
+    });
+    document.querySelectorAll('.dashboard-customizable-card').forEach(card => {
+      card.querySelector('.dashboard-hide-card')?.setAttribute('aria-label','Hide ' + dashboardCardLabel(card));
+      card.querySelector('.dashboard-drag-handle')?.setAttribute('aria-label','Drag to reorder ' + dashboardCardLabel(card) + '; use arrow keys');
+      card.querySelectorAll('[data-dashboard-setting]').forEach(select =>
+        select.setAttribute('aria-label',(select.dataset.dashboardSetting === 'detail' ? 'Detail' : 'Size') + ' for ' + dashboardCardLabel(card)));
+    });
   }
   // Coerce to Number so formatting works even if JSON sent as int
   setText('n1',  d.n1  !== undefined ? fmtInt(d.n1)  : '—');
@@ -1453,7 +1571,7 @@ function applyData(d) {
       sbr.textContent = '⚠ START unavailable: ' + startBlock;
       if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261013d';
+        link.href = '/sequence.html?v=20261017d';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1547,7 +1665,7 @@ function applyData(d) {
     if (warn) {
       const show = n1Limit > 0 && pct >= 85;
       warn.style.display = show ? '' : 'none';
-      if (show) warn.textContent = (n1LimitActive ? '⚠ N1 at ' : 'Advisory only — N1 at ')
+      if (show) warn.textContent = (n1LimitActive ? '⚠ ' : 'Advisory only — ') + lbl('n1') + ' at '
         + pct.toFixed(0) + '% — '
         + fmtInt(d.n1) + ' / ' + fmtInt(n1Limit) + ' RPM';
     }
@@ -1567,7 +1685,7 @@ function applyData(d) {
     if (warn) {
       const show = n2Limit > 0 && pct >= 85;
       warn.style.display = show ? '' : 'none';
-      if (show) warn.textContent = (n2LimitActive ? '⚠ N2 at ' : 'Advisory only — N2 at ')
+      if (show) warn.textContent = (n2LimitActive ? '⚠ ' : 'Advisory only — ') + lbl('n2') + ' at '
         + pct.toFixed(0) + '% of configured limit — '
         + fmtInt(d.n2) + ' / ' + fmtInt(n2Limit) + ' RPM';
     }
@@ -1612,7 +1730,7 @@ function applyData(d) {
       if (warn) {
         const low = Number(d.oil) < oilMin * 1.2;
         warn.style.display = low ? '' : 'none';
-        if (low) warn.textContent = (oilLimitActive ? '⚠ Oil ' : 'Advisory only — Oil ')
+        if (low) warn.textContent = (oilLimitActive ? '⚠ ' : 'Advisory only — ') + lbl('oil_press') + ' '
           + toDispPress(Number(d.oil)).toFixed(1)
           + ' ' + dispPressUnit() + ' — near min ' + toDispPress(oilMin).toFixed(1) + ' ' + dispPressUnit();
       }
@@ -1926,6 +2044,9 @@ function applyData(d) {
   const govSection = document.getElementById('governor-section');
   if (govSection) {
     govSection.style.display = d.has_governor ? '' : 'none';
+    // Personal ordering can move the card outside its original section.
+    const capabilityCard = document.getElementById('governor-card');
+    if (capabilityCard) capabilityCard.style.display = d.has_governor ? '' : 'none';
     if (d.has_governor) {
       setText('gov-target-rpm', d.governor_target_rpm !== undefined ? fmtInt(d.governor_target_rpm) : '—');
       setText('gov-n2-actual',  d.n2 !== undefined ? fmtInt(d.n2) : '—');
@@ -1953,6 +2074,9 @@ function applyData(d) {
                 || d.has_igniter2  || d.has_glow_plug  || d.has_bleed_valve || d.has_prop_pitch || d.has_fuel_pump2
                 || d.has_cool_fan  || d.has_airstarter  || d.has_oil_scavenge;
     advActSection.style.display = anyAdv ? '' : 'none';
+    // Personal ordering can move the card outside its original section.
+    const capabilityCard = document.getElementById('actuator-outputs-card');
+    if (capabilityCard) capabilityCard.style.display = anyAdv ? '' : 'none';
     const actuatorIsRelay = type => Number(type) === 2;
     const updateConfiguredDemand = ({purposes, ids, fallbackDemand, binaryActive, fallbackRelay = true,
       valueId, unitId, barId, onLabel = 'ON', offLabel = 'OFF'}) => {
@@ -2156,6 +2280,9 @@ function applyData(d) {
     const hasAB = !!(d.has_ab_pump || d.has_ab_sol || d.has_ab_flame ||
       d.ab_trigger_source > 0 || d.ab_input_fitted);
     abSection.style.display = hasAB ? '' : 'none';
+    // Personal ordering can move the card outside its original section.
+    const capabilityCard = document.getElementById('afterburner-card');
+    if (capabilityCard) capabilityCard.style.display = hasAB ? '' : 'none';
     if (hasAB) {
       const abMode = d.ab_mode || 'Off';
       const modeEl = document.getElementById('ab-mode-val');
@@ -2347,12 +2474,12 @@ function _showRunSummary(d, durationMs) {
 
   const stats = [
     { label: 'Duration', value: durStr },
-    (d.has_n1 && d.max_n1 !== undefined) ? { label: 'Peak N1',  value: fmtInt(d.max_n1) + ' RPM' } : null,
-    (d.has_n2 && d.max_n2 !== undefined) ? { label: 'Peak N2',  value: fmtInt(d.max_n2) + ' RPM' } : null,
-    (d.has_tot && d.max_tot !== undefined) ? { label: 'Peak TOT', value: toDispTemp(Number(d.max_tot)).toFixed(0) + ' ' + dispTempUnit() } : null,
-    (d.has_tit && d.max_tit !== undefined) ? { label: 'Peak TIT', value: toDispTemp(Number(d.max_tit)).toFixed(0) + ' ' + dispTempUnit() } : null,
+    (d.has_n1 && d.max_n1 !== undefined) ? { label: 'Peak ' + lbl('n1'),  value: fmtInt(d.max_n1) + ' RPM' } : null,
+    (d.has_n2 && d.max_n2 !== undefined) ? { label: 'Peak ' + lbl('n2'),  value: fmtInt(d.max_n2) + ' RPM' } : null,
+    (d.has_tot && d.max_tot !== undefined) ? { label: 'Peak ' + lbl('tot'), value: toDispTemp(Number(d.max_tot)).toFixed(0) + ' ' + dispTempUnit() } : null,
+    (d.has_tit && d.max_tit !== undefined) ? { label: 'Peak ' + lbl('tit'), value: toDispTemp(Number(d.max_tit)).toFixed(0) + ' ' + dispTempUnit() } : null,
     (d.has_oil_press && d.min_oil !== undefined && d.min_oil !== null)
-      ? { label: 'Minimum oil pressure', value: toDispPress(Number(d.min_oil)).toFixed(1) + ' ' + dispPressUnit() } : null,
+      ? { label: 'Minimum ' + lbl('oil_press'), value: toDispPress(Number(d.min_oil)).toFixed(1) + ' ' + dispPressUnit() } : null,
   ].filter(Boolean);
 
   const statsEl = document.getElementById('run-summary-stats');
@@ -2920,29 +3047,58 @@ function renderRegistryInputCards(d, sampleSparklines = false) {
   const hasIdleInput = updateOperatorInput('idle', 'Idle Input');
   if (operatorRow) operatorRow.style.display = hasThrottleInput || hasIdleInput ? '' : 'none';
   if (!cardRows.length) {
+    document.querySelectorAll('.registry-input-card[id]').forEach(card => {
+      card._dashboardHome?.remove(); card.remove();
+    });
     host.innerHTML = '';
     // Operator inputs live compactly under Main Fuel Metering and binary
     // inputs have their own switch strip. Neither should expose an otherwise
     // empty full-size auxiliary-sensor group.
     return 0;
   }
-  host.innerHTML = cardRows.map((ch, i) => {
+  const wanted = new Set(cardRows.map(ch => 'registry-card-' + ch.id));
+  document.querySelectorAll('.registry-input-card[id]').forEach(card => {
+    if (!wanted.has(card.id)) { card._dashboardHome?.remove(); card.remove(); }
+  });
+  let added = false;
+  cardRows.forEach((ch, i) => {
     const safeId = String(ch.id || `input_${i}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cardId = 'registry-card-' + safeId;
     const name = registryDisplayName(ch, 'Input');
     const display = registryInputDisplay(ch);
     const range = registryInputRangeText(ch);
     const health = ch.healthy === false ? ' bad' : '';
-    return `<div class="card small registry-input-card" data-registry-input-id="${escapeHtmlText(safeId)}" title="${escapeHtmlText(name)} live value. ${escapeHtmlText(range)}.">
+    let card = document.getElementById(cardId);
+    if (!card) {
+      card = document.createElement('div');
+      card.id = cardId;
+      card.className = 'card small registry-input-card';
+      card.dataset.registryInputId = safeId;
+      card.innerHTML = `
       <div class="label">${escapeHtmlText(name)} <span class="dot${health}" title="${ch.healthy === false ? 'Unhealthy' : 'Healthy'}"></span></div>
       <div class="value small" id="registry-input-value-${escapeHtmlText(safeId)}">${escapeHtmlText(display.value)}</div>
       <div class="peak-val">${escapeHtmlText(display.unit || range)}</div>
-      <canvas class="sparkline" id="regin-spark-${escapeHtmlText(safeId)}"></canvas>
-    </div>`;
-  }).join('');
+      <canvas class="sparkline" id="regin-spark-${escapeHtmlText(safeId)}"></canvas>`;
+      card.dataset.dashboardUnit = display.unit || '';
+      host.appendChild(card); added = true;
+    }
+    card.title = `${name} live value. ${range}.`;
+    card.querySelector('.label').firstChild.textContent = name + ' ';
+    card.querySelector('.dot').className = 'dot' + health;
+    card.querySelector('.dot').title = ch.healthy === false ? 'Unhealthy' : 'Healthy';
+    card.querySelector('.value').textContent = display.value;
+    card.querySelector('.peak-val').textContent = display.unit || range;
+    const unit = card.querySelector('.dashboard-minimal-unit');
+    if (unit) unit.textContent = display.unit || '';
+  });
+  if (added) {
+    initializeDashboardCardEditing();
+    if (_dashboardCustomOrder) activateDashboardCustomLayout(false);
+  }
   cardRows.forEach((ch, i) => {
     const safeId = String(ch.id || `input_${i}`).replace(/[^a-zA-Z0-9_-]/g, '_');
     const display = registryInputDisplay(ch);
-    const card = host.querySelector(`[data-registry-input-id="${safeId}"]`);
+    const card = document.getElementById('registry-card-' + safeId);
     renderSensorView(card,'registry:'+String(ch.id),registryDisplayName(ch,'Input'),
       display.numeric,ch.healthy,String(ch.role || 'generic'),sampleSparklines,0,'regin-spark-'+safeId);
     if (ch.healthy === false) card.querySelector('.value').textContent = '—';
@@ -2954,6 +3110,9 @@ function renderSwitchInputStrip(rows) {
   const host = document.getElementById('di-state-items');
   if (!wrap || !host) return;
   wrap.style.display = rows.length ? '' : 'none';
+    // Personal ordering can move the card outside its original section.
+    const capabilityCard = document.getElementById('switch-inputs-card');
+    if (capabilityCard) capabilityCard.style.display = rows.length ? '' : 'none';
   host.innerHTML = rows.map(row => {
     const cls = !row.on ? '' : row.semantic === 'danger' ? ' is-alarm'
       : row.semantic === 'caution' ? ' is-caution' : ' is-on';
@@ -2982,11 +3141,12 @@ function renderRegistryOutputCards(d) {
   }
   const rows = (Array.isArray(d.registry_outputs) ? d.registry_outputs : [])
     .filter(ch => ch && ch.id && !registryOutputAlreadyHasCoreCard(ch));
-  if (!rows.length) {
-    host.innerHTML = '';
-    return;
-  }
-  host.innerHTML = rows.map((ch, i) => {
+  const wanted = new Set(rows.map(ch => 'registry-output-card-' + ch.id));
+  document.querySelectorAll('.registry-output-card[id]').forEach(card => {
+    if (!wanted.has(card.id)) { card._dashboardHome?.remove(); card.remove(); }
+  });
+  let added = false;
+  rows.forEach((ch, i) => {
     const driver = Number(ch.driver);
     const relay = registryOutputIsRelay(ch);
     const demand = Math.max(0, Math.min(1, Number(ch.demand || 0)));
@@ -2997,17 +3157,45 @@ function renderRegistryOutputCards(d) {
     const valueClass = relay ? (active ? ' binary-state-active' : ' binary-state-inactive') : '';
     const name = registryDisplayName(ch);
     const range = registryOutputRangeText(ch);
-    const current = ch.has_current
-      ? `<div class="oil-sub">current: ${Number.isFinite(Number(ch.current_amps)) ? Number(ch.current_amps).toFixed(2) + ' A' : '—'}${ch.current_healthy === false ? ' ⚠' : ''}</div>`
-      : '';
-    return `<div class="card small registry-output-card" data-registry-output-id="${escapeHtmlText(id)}" title="${escapeHtmlText(name)} current command. ${escapeHtmlText(range)}.">
+    let card = document.getElementById('registry-output-card-' + id);
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'registry-output-card-' + id;
+      card.className = 'card small registry-output-card';
+      card.dataset.registryOutputId = id;
+      card.innerHTML = `
       <div class="label">${escapeHtmlText(name)}</div>
       <div class="value small${valueClass}">${value}</div>
-      ${relay ? '' : `<div class="gauge-bar-wrap"><div class="gauge-bar" style="width:${pct}%"></div></div>`}
-      <div class="oil-sub">${escapeHtmlText(range)}</div>
-      ${current}
-    </div>`;
-  }).join('');
+      ${relay ? '' : '<div class="gauge-bar-wrap"><div class="gauge-bar"></div></div>'}
+      <div class="oil-sub output-range"></div>
+      <div class="oil-sub output-current"></div>`;
+      host.appendChild(card); added = true;
+    }
+    card.title = `${name} current command. ${range}.`;
+    card.querySelector('.label').textContent = name;
+    const number = card.querySelector('.value');
+    number.textContent = value;
+    number.className = 'value small dashboard-primary-value' + valueClass;
+    let gauge = card.querySelector('.gauge-bar-wrap');
+    if (relay) gauge?.remove();
+    else {
+      if (!gauge) {
+        gauge = document.createElement('div'); gauge.className = 'gauge-bar-wrap';
+        gauge.innerHTML = '<div class="gauge-bar"></div>';
+        card.querySelector('.output-range').before(gauge);
+      }
+      gauge.firstChild.style.width = pct + '%';
+    }
+    card.querySelector('.output-range').textContent = range;
+    const current = card.querySelector('.output-current');
+    current.classList.toggle('dashboard-card-warning',!!ch.has_current && ch.current_healthy === false);
+    current.hidden = !ch.has_current;
+    current.textContent = ch.has_current ? `current: ${ch.current_healthy !== false && Number.isFinite(Number(ch.current_amps)) ? Number(ch.current_amps).toFixed(2) + ' A' : '— ⚠'}` : '';
+  });
+  if (added) {
+    initializeDashboardCardEditing();
+    if (_dashboardCustomOrder) activateDashboardCustomLayout(false);
+  }
 }
 window.startTelemetryBoot = startTelemetryBoot;
 function scheduleTelemetryBoot() {

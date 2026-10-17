@@ -38,8 +38,7 @@ function actuatorHasProportionalOutput(key) {
   return !!registry && [5,6].includes(Number(registry.driver));
 }
 function registryLabel(c, fallback) {
-  const name = (c?.name && c.name.trim()) || c?.id || fallback;
-  return String(name || '').includes('_') ? plainRegistryName(name, fallback) : name;
+  return String(c?.name || '').trim() || plainRegistryName(c?.id, fallback);
 }
 function hasIgnitionOutput(hw = hwCfg) {
   return !!(registryOutputPurpose('igniter') || registryOutputPurpose('ab_igniter') || registryOutputPurpose('glow_plug'));
@@ -503,6 +502,7 @@ function clearTrackedIgnitionPreviewState(state, trackedTargets) {
 function buildFinalStateCard(tab, seq, idleRaw) {
   if (!seq || seq.length === 0) return null;
   const hasAct = key => actuatorEnabled(key);
+  const outputLabel = (key, fallback) => getEnabledActuators().find(a => a.key === key)?.label || fallback;
 
   const state = {
     throttle:  '0%',
@@ -645,13 +645,13 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       applySideActionsToState(tab, i, 'exit', abState);
     }
     const abRows = [
-      hasAct('ab_sol') ? { label:'Afterburner Fuel Valve', val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:'AB Fuel Pump', val: abState.abPump } : null,
-      hasAct('igniter2') ? { label:'AB Igniter', val:abState.igniter2 === 'off' ? 'off  (fired during sequence)' : abState.igniter2 } : null,
+      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val:abState.abSol } : null,
+      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: abState.abPump } : null,
+      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'), val:abState.igniter2 === 'off' ? 'off  (fired during sequence)' : abState.igniter2 } : null,
       { label:'Main Fuel Offset',   val: offStr },
     ].filter(Boolean);
     const rowsHtml2 = abRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
     ).join('');
     const card2 = document.createElement('div');
     card2.className = 'final-state-card';
@@ -666,13 +666,13 @@ function buildFinalStateCard(tab, seq, idleRaw) {
       applySideActionsToState(tab, i, 'exit', abState);
     }
     const abOffRows = [
-      hasAct('ab_sol') ? { label:'Afterburner Fuel Valve',  val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:'AB Fuel Pump', val:abState.abPump } : null,
-      hasAct('igniter2') ? { label:'AB Igniter',   val:abState.igniter2 } : null,
+      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'),  val:abState.abSol } : null,
+      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val:abState.abPump } : null,
+      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'),   val:abState.igniter2 } : null,
       { label:'Main engine',  val:'continues running normally' },
     ].filter(Boolean);
     const rowsHtml3 = abOffRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
     ).join('');
     const card3 = document.createElement('div');
     card3.className = 'final-state-card';
@@ -682,28 +682,28 @@ function buildFinalStateCard(tab, seq, idleRaw) {
   }
 
   const rows = [
-    hasAct('throttle') ? { label:'Main Fuel Metering Output', val: state.throttle } : null,
-    hasAct('fuel_sol') ? { label:'Main Fuel Shutoff',   val: state.fuelSol } : null,
-    hasAct('igniter') ? { label:'Igniter',              val: state.igniter } : null,
-    hasAct('igniter2') ? { label:'Secondary Igniter', val: state.igniter2 } : null,
-    hasAct('starter') ? { label:'Starter',              val: state.starter } : null,
-    hasAct('starter_en') ? { label:'Starter Enable',    val: state.starterEn } : null,
-    hasAct('oil_pump') ? { label:'Oil Pump',            val: state.oilPump } : null,
-    hasAct('oil_scavenge_pump') ? { label:'Scavenge Pump', val: state.oilScav } : null,
-    hasAct('airstarter_sol') ? { label:'Air Starter Valve', val: state.airstarter } : null,
-    hasAct('cool_fan') ? { label:'Cooling Fan',         val: state.coolFan } : null,
-    hasAct('bleed_valve') ? { label:'Bleed Valve',      val: state.bleed } : null,
-    hasAct('drain_valve') ? { label:'Drain Valve',      val: state.drainValve || 'closed' } : null,
-    hasAct('glow_plug') ? { label:'Glow Plug',          val: state.glow } : null,
-    hasAct('fuel_pump2') ? { label:'Secondary / Auxiliary Fuel Pump',   val: state.fuelPump2 } : null,
-    hasAct('prop_pitch') ? { label:'Prop Pitch',         val: state.propPitch } : null,
-    hasAct('ab_sol') ? { label:'Afterburner Fuel Valve', val: state.abSol } : null,
-    hasAct('ab_pump') ? { label:'AB Fuel Pump', val: state.abPump } : null,
+    hasAct('throttle') ? { label:outputLabel('throttle', 'Main Fuel Metering Output'), val: state.throttle } : null,
+    hasAct('fuel_sol') ? { label:outputLabel('fuel_sol', 'Main Fuel Shutoff'),   val: state.fuelSol } : null,
+    hasAct('igniter') ? { label:outputLabel('igniter', 'Igniter'),              val: state.igniter } : null,
+    hasAct('igniter2') ? { label:outputLabel('igniter2', 'Secondary Igniter'), val: state.igniter2 } : null,
+    hasAct('starter') ? { label:outputLabel('starter', 'Starter'),              val: state.starter } : null,
+    hasAct('starter_en') ? { label:outputLabel('starter_en', 'Starter Enable'),    val: state.starterEn } : null,
+    hasAct('oil_pump') ? { label:outputLabel('oil_pump', 'Oil Pump'),            val: state.oilPump } : null,
+    hasAct('oil_scavenge_pump') ? { label:outputLabel('oil_scavenge_pump', 'Scavenge Pump'), val: state.oilScav } : null,
+    hasAct('airstarter_sol') ? { label:outputLabel('airstarter_sol', 'Air Starter Valve'), val: state.airstarter } : null,
+    hasAct('cool_fan') ? { label:outputLabel('cool_fan', 'Cooling Fan'),         val: state.coolFan } : null,
+    hasAct('bleed_valve') ? { label:outputLabel('bleed_valve', 'Bleed Valve'),      val: state.bleed } : null,
+    hasAct('drain_valve') ? { label:outputLabel('drain_valve', 'Drain Valve'),      val: state.drainValve || 'closed' } : null,
+    hasAct('glow_plug') ? { label:outputLabel('glow_plug', 'Glow Plug'),          val: state.glow } : null,
+    hasAct('fuel_pump2') ? { label:outputLabel('fuel_pump2', 'Secondary / Auxiliary Fuel Pump'),   val: state.fuelPump2 } : null,
+    hasAct('prop_pitch') ? { label:outputLabel('prop_pitch', 'Prop Pitch'),         val: state.propPitch } : null,
+    hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val: state.abSol } : null,
+    hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: state.abPump } : null,
   ].filter(Boolean);
   if (!rows.length) return null;
 
   const rowsHtml = rows.map(r =>
-    `<div class="fs-row"><span class="fs-label">${r.label}</span><span class="fs-val">${r.val}</span></div>`
+    `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
   ).join('');
 
   const card = document.createElement('div');

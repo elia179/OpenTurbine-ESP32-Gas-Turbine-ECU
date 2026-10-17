@@ -146,7 +146,7 @@ const setups = [
       sensors: { throttle_input: { enabled: true, rc_pwm: true }, idle_input: { enabled: true, rc_pwm: true } },
       channel_registry: merge(clone(baseRegistry), {
         inputs: [
-          regIn('operator_throttle', 'operator_thrott', 'throttle', 'operator', 3, 4),
+          regIn('operator_throttle', 'Cockpit_Throttle', 'throttle', 'operator', 3, 4),
           regIn('generic_pwm_duty_input', 'PWM Duty Input', 'generic', 'generic', 7, 18, { invert: true })
         ],
         outputs: [regOut('generic_pwm_output', 'Telemetry Fan', 'generic', 'generic', 5, 25)]
@@ -538,7 +538,7 @@ const setups = [
           'servo pulse endpoints should share a baseline');
         const mainFuelUsage = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
-          const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));
+          const card = document.querySelector('#registry-outputs .registry-card[data-registry-id="main_fuel"]');
           return card ? card.innerText : '';
         });
         assert.match(mainFuelUsage, /Controller: fuel response & limit protection/, 'main fuel should name its automatic protection user');
@@ -546,7 +546,7 @@ const setups = [
         assert.doesNotMatch(mainFuelUsage, /Core firmware|registry binding|custom controller reference/, 'usage summary should not leak internal bindings');
         const removeDialogText = await page.evaluate(() => {
           const cards = Array.from(document.querySelectorAll('#registry-outputs .registry-card'));
-          const card = cards.find(card => /^Main Fuel Metering$/i.test((card.querySelector('strong')?.textContent || '').trim()));
+          const card = document.querySelector('#registry-outputs .registry-card[data-registry-id="main_fuel"]');
           const remove = Array.from(card?.querySelectorAll('button') || []).find(btn => /remove/i.test(btn.textContent || ''));
           remove?.click();
           const text = document.querySelector('#registry-remove-modal')?.innerText || '';
@@ -568,7 +568,7 @@ const setups = [
       }
       if (setup.id === 'rc_pwm_generic_rules') {
         const hwText = (await page.locator('#registry-inputs .registry-card-summary, #registry-outputs .registry-card-summary').allTextContents()).join(' ');
-        assert.match(hwText, /Throttle Input/, 'internal throttle ID should render as plain label');
+        assert.match(hwText, /Cockpit_Throttle/, 'the configured throttle name must be preserved');
         assert.match(hwText, /PWM Duty Input/, 'generic PWM input should render as plain label');
         assert.match(hwText, /Telemetry Fan/, 'generic output should render its user-facing name');
         assert.match(hwText, /Used by: .*Controller:|Monitoring only|Available to controllers and sequences/, 'registry cards should show actual named use or a truthful available/monitoring state');

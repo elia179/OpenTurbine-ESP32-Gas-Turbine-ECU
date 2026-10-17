@@ -155,7 +155,8 @@ const {chromium} = require('playwright');
       await page.locator('#cf-di_src').selectOption('2');
       assert.ok(await page.locator('#cf-di_tp').isVisible());
       assert.equal(await page.locator('#cf-di_tr').isVisible(),false);
-      assert.match(await page.locator('[data-configured-idle-source]').innerText(),/Automatic Idle · Pressure 1/);
+      const p1Name = await page.evaluate(()=>hwCfg.channel_registry.inputs.find(c=>c.purpose==='p1_pressure').name);
+      assert.ok((await page.locator('[data-configured-idle-source]').innerText()).includes('Automatic Idle · '+p1Name));
       assert.ok(await page.getByRole('heading',{name:'Feedback control',exact:true}).isVisible());
       for (const theme of ['carbon','ember','slate','midnight','contrast','daylight']) {
         await page.evaluate(theme=>OTTheme.set(theme),theme);

@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261013d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261013d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261017d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261017d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -873,6 +873,31 @@ document.addEventListener('DOMContentLoaded', () => {
   c.hardware = hw;
   configureAdcVoltageControls();
   renderAdcSwitchCalibration();
+  // Keep fitted channel names on the calibration rows while preserving their
+  // live health dots. Purpose names remain in the explanatory field labels.
+  for (const [row, purpose] of [
+    ['oil-press','oil_pressure'],['flame','flame'],['ab-flame','ab_flame'],['fuelpress','fuel_pressure'],
+    ['oiltemp','oil_temperature'],['battvolt','battery_voltage'],['torque','torque'],
+    ['thrust','thrust'],['throttle','throttle'],['idle','idle'],['fuelflow','fuel_flow']
+  ]) {
+    const channel = registryChannelByPurpose(hw, 'inputs', purpose);
+    const header = document.querySelector(`#${row}-cal-row .sensor-name`);
+    if (!header || !String(channel?.name || '').trim()) continue;
+    header.title = header.textContent.trim();
+    [...header.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).forEach(node => node.remove());
+    const name = document.createElement('span');
+    name.className = 'configured-channel-name'; name.textContent = channel.name;
+    header.appendChild(name);
+    document.querySelectorAll(`#${row}-cal-row .wizard-title`).forEach(title => { title.textContent = channel.name + ' · ' + title.textContent; });
+  }
+  for (const [row,purpose] of [['fuelpump-min','main_fuel'],['glow-current','glow_plug'],['oilpump-current','oil_pump'],['igniter-current','igniter'],['igniter2-current','ab_igniter']]) {
+    const channels=(hw.channel_registry?.outputs || []).filter(c=>c.installed!==false && !c.mirror_of && c.purpose===purpose);
+    if(channels.length!==1 || !String(channels[0].name || '').trim()) continue;
+    const name=channels[0].name.trim();
+    const header=document.querySelector(`#${row}-cal-row .sensor-name`);
+    if(header) header.textContent=name + (row==='fuelpump-min' ? ' · Minimum Reliable Fuel-Metering Output' : ' current');
+    document.querySelectorAll(`#${row}-cal-row .wizard-title`).forEach(title=>{title.textContent=name+' · '+title.textContent;});
+  }
   for (const [purpose, key, fallback] of [
     ['p1_pressure', 'p1', 'Pressure 1'],
     ['p2_pressure', 'p2', 'Pressure 2']
@@ -2537,7 +2562,7 @@ function renderLoadCellWizard(kind, channel) {
   _loadCellCal[kind].mode = mode;
   const torque = kind === 'torque';
   box.innerHTML = `<div class="wizard">
-    <div class="wizard-title">${torque?'Torque':'Thrust'} ${mode==='analog'?'Sensor (Analog)':'Load Cell ('+(mode==='hx'?'HX711':'NAU7802')+')'}</div>
+    <div class="wizard-title">${escapeHtmlText(channel.name || (torque?'Torque':'Thrust'))} · ${torque?'Torque':'Thrust'} ${mode==='analog'?'Sensor (Analog)':'Load Cell ('+(mode==='hx'?'HX711':'NAU7802')+')'}</div>
     <div class="wizard-steps">1. Remove all load, wait for a steady reading, and capture zero.<br>2. Apply a trusted known load, wait for a steady reading, enter it below, and save. Known loads are converted to newtons.${torque?' Enter the perpendicular lever arm; torque is force × lever arm.':''}</div>
     <div style="display:flex;gap:.5rem;align-items:end;flex-wrap:wrap;margin:.6rem 0">
       <label>Known load <input id="${kind}-lc-known" title="Enter the trusted calibration load currently applied to the sensor." type="number" min="0.000001" step="0.001" style="width:8rem"></label>

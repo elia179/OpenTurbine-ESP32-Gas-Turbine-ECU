@@ -431,10 +431,7 @@ function registryNameLooksInternal(name) {
 }
 function registryDisplayName(direction, c, fallback) {
   const raw = String(c?.name || '').trim();
-  if (direction === 'output' && registryDerivedPurpose(direction, c) === 'main_fuel' &&
-      ['Main Fuel Pump','Main Fuel Meteri'].includes(raw)) return 'Main Fuel Metering';
-  if (raw && !registryNameLooksInternal(raw)) return raw;
-  if (raw) return registryHumanizeIdentifier(raw, direction);
+  if (raw) return raw;
   const purpose = registryPurposeLabel(direction, c);
   if (purpose && purpose !== 'Generic channel') return purpose;
   return registryHumanizeIdentifier(c?.id || fallback || (direction === 'input' ? 'Input' : 'Output'), direction);

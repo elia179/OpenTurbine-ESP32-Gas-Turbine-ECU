@@ -116,9 +116,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(gs, /Calibrate/i);
     assert.match(gs, /not physical verification/i);
     assert.doesNotMatch(gs, /completed on this browser/i);
-    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20261013d"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20261013d"]').count(), 1);
-    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20261013d"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/hardware.html?v=20261017d"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/controllers.html?v=20261017d"]').count(), 1);
+    assert.equal(await page.locator('#getting-started-banner a[href="/calibration.html?v=20261017d"]').count(), 1);
     await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1',
       JSON.stringify({ hardware: Date.now(), tools: Date.now() })));
     await page.reload();
@@ -157,7 +157,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     const migratedOutputs = await text(page, '#registry-outputs');
     for (const name of ['N1 Speed', 'N2 Speed', 'Main TOT', 'Fuel Pressure', 'Oil Temp', 'AB Flame'])
       assert.match(migratedInputs, new RegExp(name));
-    for (const name of ['Main Fuel Metering', 'Starter', 'Fuel Shutoff', 'AB Igniter', 'AB Fuel Valve', 'AB Fuel Pump', 'Glow Plug'])
+    for (const name of ['Main Fuel Pump', 'Starter', 'Fuel Shutoff', 'AB Igniter', 'AB Fuel Valve', 'AB Fuel Pump', 'Glow Plug'])
       assert.match(migratedOutputs, new RegExp(name));
     assert.match(await text(page, '#builtin-inputs'), /Afterburner trigger and arm.*Manual \/ browser command/is);
     const oilTempStatus = await page.locator('#registry-inputs .registry-card').evaluateAll(cards =>
@@ -168,7 +168,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
 
     await goto(page, 'calibration.html', '#calibration-jump');
     const calibrationTargets = await page.locator('#calibration-jump option').allTextContents();
-    for (const expected of ['Minimum Reliable Fuel-Metering Output', 'Oil Pressure', 'Flame / Ignition', 'Throttle Input', 'Battery Voltage'])
+    for (const expected of ['Minimum Reliable Fuel-Metering Output', 'Oil Pressure', 'Flame', 'Throttle Input', 'Battery'])
       assert.ok(calibrationTargets.some(label => label.includes(expected)), `calibration jump list should include ${expected}`);
     await page.locator('#calibration-jump').selectOption('oil-press-cal-row');
     assert.equal(await page.locator('#oil-press-cal-row').evaluate(row => row.classList.contains('deep-link-target')), true);
@@ -228,9 +228,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await oilPumpCard.locator('button', {hasText:'Edit'}).click();
     assert.match((await oilPumpCard.textContent()).trim(), /Flow sensing & monitoring.*Main oil-pump flow sensor.*Pulses \/ litre.*Minimum flow.*Safety & Limits.*Oil Pressure Safety/is);
     assert.match((await oilPumpCard.textContent()).trim(), /Current sensing.*Calibration page/is);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261013d#cf-oil_mm"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261013d#cf-so_en"]').count(), 1);
-    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20261013d#tab-startup"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261017d#cf-oil_mm"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/controllers.html?v=20261017d#cf-so_en"]').count(), 1);
+    assert.equal(await oilPumpCard.locator('a[href="/sequence.html?v=20261017d#tab-startup"]').count(), 1);
     results.push('add-device catalog reserves singleton checks for sensors while multi-instance outputs and pump-owned monitoring remain clear');
 
     const savedHardware = await page.evaluate(() => structuredClone(cfg));
@@ -509,7 +509,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     results.push('output re-purpose and removal keep explicit ownership and surviving numeric references attached to the same card');
 
     const mainFuelCard = page.locator('#registry-outputs .registry-card').first();
-    assert.match(await mainFuelCard.locator('strong').first().textContent(), /Main Fuel Metering/);
+    assert.equal(await mainFuelCard.locator('strong').first().textContent(), 'Main Fuel Pump');
     assert.equal(await mainFuelCard.locator('button', { hasText: 'Add mirrored output' }).count(), 1,
       'core-purpose outputs can explicitly add a second electrical endpoint for the same command');
     const mirrorBehavior = await page.evaluate(() => {
@@ -1145,7 +1145,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await throttleCard.textContent(), /RC pulse calibration.*1075.*1925.*Calibration page.*authoritative/is);
     assert.equal(await throttleCard.locator('input[oninput*="updateRegistryRangeField"]').count(), 0,
       'Hardware must not expose RC endpoints that the ECU does not consume');
-    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20261013d#throttle-cal-row"]').count() >= 1);
+    assert.ok(await throttleCard.locator('a[href="/calibration.html?v=20261017d#throttle-cal-row"]').count() >= 1);
     results.push('canonical RC operator endpoints have one visible authority on the Calibration page');
 
     await reset(page);

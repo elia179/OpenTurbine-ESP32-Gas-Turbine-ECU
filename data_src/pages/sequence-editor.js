@@ -11,6 +11,25 @@ function setOutputAction(tab, idx) {
   return hwCfg[actionKey(tab, 'enter')]?.[idx]?.[0] || null;
 }
 
+function sequenceDigitalInputLabel(index) {
+  return String(hwCfg.di_channels?.[index]?.label || '').trim() || `DI-${Number(index)+1}`;
+}
+function sequenceSensorLabel(key, fallback) {
+  return getEnabledSensors().find(s=>s.key===key)?.label || fallback || key;
+}
+function sequenceTemperatureLabel() {
+  const source=Number(cfg?.safety?.egt_source || 0);
+  return sequenceSensorLabel(source===2 ? 'tit' : source===1 || registryInputPurpose('tot') ? 'tot' : 'tit','EGT');
+}
+function sequenceParamLabel(param) {
+  const key=param.key;
+  let sensor = key.startsWith('final_check_p1') ? 'p1' : key.startsWith('final_check_p2') ? 'p2'
+    : key.startsWith('final_check_n1') ? 'n1_rpm' : key.startsWith('final_check_n2') ? 'n2_rpm'
+    : key.startsWith('final_check_flame') ? 'flame' : key.startsWith('final_check_oil') ? 'oil_press' : '';
+  const name=key.startsWith('final_check_egt') ? sequenceTemperatureLabel() : sensor ? sequenceSensorLabel(sensor) : '';
+  return name ? `${name} — ${param.label}` : param.label;
+}
+
 function sequenceBlockLabel(bname, tab, idx) {
   if (bname !== 'SetOutput') return (BLOCKS[bname] || customBlocks[bname])?.label ?? bname;
   const meta = sideActionMeta(setOutputAction(tab, idx));
@@ -33,7 +52,7 @@ function buildCard(bname, idx, tab) {
     ? (ensureWaitInputSlots(tab), hwCfg[waitInputSeqKey(tab)][idx]) : null;
   const condText = bname === 'TimedDelay'
     ? `Wait ${seqRound(timedDelayValue(tab, idx) / 1000)} s`
-    : inputWait ? `Until DI-${Number(inputWait.channel) + 1} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
+    : inputWait ? `Until ${sequenceDigitalInputLabel(Number(inputWait.channel))} ${bname === 'WaitForInputOff' ? 'inactive' : inputWait.active ? 'active' : 'inactive'}`
     : (def ? (def.condition ? def.condition(hw) : null) : null);
 
   // Timeout badge
@@ -400,7 +419,7 @@ function buildParamsHtml(bname, idx, tab) {
     const wait = hwCfg[waitInputSeqKey(tab)][idx];
     const channels = Array.from({length:4}, (_, channel) => {
       const fitted = Number(hwCfg.di_channels?.[channel]?.pin ?? -1) >= 0;
-      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>DI-${channel + 1}${fitted ? '' : ' — not fitted'}</option>`;
+      return `<option value="${channel}"${Number(wait.channel) === channel ? ' selected' : ''}>${esc(sequenceDigitalInputLabel(channel))}${fitted ? '' : ' — not fitted'}</option>`;
     }).join('');
     const state = bname === 'WaitForInputOff' ? '' : `<div class="param-field"><span class="param-label">Wait until</span><select class="param-input" onchange="setWaitInputField('${tab}',${idx},'active',this.value==='1')"><option value="1"${wait.active ? ' selected' : ''}>Active</option><option value="0"${wait.active ? '' : ' selected'}>Inactive</option></select></div>`;
     return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}
@@ -433,7 +452,7 @@ function buildParamsHtml(bname, idx, tab) {
       const displayVal   = starterOn ? 'Yes (required by starter)' : (val ? 'Yes' : 'No');
       const boolDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${p.label}</span>
+        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
         ${boolDescHtml}<div style="display:flex;align-items:center;gap:.45rem;padding:.32rem 0">
           <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked} ${disabledAttr}
             onchange="onParamChangeBool('${bname}','${p.key}','${p.configKey??''}',this.checked)">
@@ -447,7 +466,7 @@ function buildParamsHtml(bname, idx, tab) {
       ).join('');
       const selDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${p.label}</span>
+        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
         ${selDescHtml}<select class="param-input" id="p-${tab}-${idx}-${bname}-${p.key}"
           onchange="onParamChangeSelect('${bname}','${p.key}','${p.configKey??''}',this.value)">${opts}</select>
       </div>`;
@@ -456,7 +475,7 @@ function buildParamsHtml(bname, idx, tab) {
     const displayVal = seqDisplayValue(p, val);
     const unitLabel = seqUnitLabel(p);
     return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-      <span class="param-label">${p.label}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
+      <span class="param-label">${esc(sequenceParamLabel(p))}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
       ${descHtml}<input class="param-input" type="number" id="p-${tab}-${idx}-${bname}-${p.key}"
         min="${seqDisplayAttr(p, p.min)}" max="${seqDisplayAttr(p, p.max)}" step="${seqDisplayStep(p)}" value="${displayVal}"
         oninput="onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
@@ -914,13 +933,13 @@ function getEnabledSensors() {
                                   list.push({key:'ab_input', source:sourceFor('ab_command'), label:'AB Input', unit:'%', def:50, step:1});
   const a = hw.actuators || {};
   if (registryOutputPurpose('glow_plug') && a.glow_plug?.has_current)
-                                  list.push({key:'glow_current', label:'Glow Current',   unit:'A',    def:1,    step:0.1});
+                                  list.push({key:'glow_current', label:registryLabel(registryOutputPurpose('glow_plug'), 'Glow') + ' current',   unit:'A',    def:1,    step:0.1});
   if (registryOutputPurpose('igniter') && a.igniter?.has_current)
-                                  list.push({key:'igniter_current', label:'Igniter 1 Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'igniter_current', label:registryLabel(registryOutputPurpose('igniter'), 'Igniter 1') + ' current', unit:'A', def:1, step:0.1});
   if (registryOutputPurpose('ab_igniter') && a.igniter2?.has_current)
-                                  list.push({key:'igniter2_current', label:'Secondary Igniter Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'igniter2_current', label:registryLabel(registryOutputPurpose('ab_igniter'), 'Secondary Igniter') + ' current', unit:'A', def:1, step:0.1});
   if (registryOutputPurpose('oil_pump') && a.oil_pump?.has_current)
-                                  list.push({key:'oil_pump_current', label:'Oil Pump Current', unit:'A', def:1, step:0.1});
+                                  list.push({key:'oil_pump_current', label:registryLabel(registryOutputPurpose('oil_pump'), 'Oil Pump') + ' current', unit:'A', def:1, step:0.1});
   if ((hw.controls?.start_pin ?? -1) >= 0 || registryInputPurpose('start_switch'))
                                   list.push({key:'start_switch', source:sourceFor('start_switch'), label:'Start Switch', unit:'', def:1, bool:true});
   if ((hw.controls?.stop_pin ?? -1) >= 0 || registryInputPurpose('stop_switch'))
@@ -936,6 +955,8 @@ function getEnabledSensors() {
   });
   const outputs = hwCfg.channel_registry?.outputs || [];
   return list.map(meta => ({...meta,
+    label: meta.source ? registryLabel(
+      (hw.channel_registry?.inputs || []).find(c => c.id === meta.source), meta.label) : meta.label,
     actuator:ACT_ENUM[meta.key] ?? (64 + outputs.findIndex(c => String(c?.id || '') === String(meta.target || '')))
   }));
 }
@@ -969,7 +990,7 @@ function getEnabledActuators() {
   if (registryOutputPurpose('air_starter')) list.push({key:'airstarter_sol', target:targetFor('air_starter'), label:outputName('air_starter', 'Air Starter Valve'), mode:'relay'});
   if (registryOutputPurpose('cooling_fan')) list.push({key:'cool_fan', target:targetFor('cooling_fan'), label:outputName('cooling_fan', 'Cooling Fan'), mode:'relay'});
   if (registryOutputPurpose('scavenge_pump')) list.push({key:'oil_scavenge_pump', target:targetFor('scavenge_pump'), label:outputName('scavenge_pump', 'Oil Scavenge Pump'), mode:'relay'});
-  if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:outputName('bleed_valve', 'Bleed Valve'), mode:'relay'});
+  if (registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve')?.id === 'bleed_valve') list.push({key:'bleed_valve', target:targetFor('bleed_valve') || targetFor('valve'), label:registryLabel(registryOutputPurpose('bleed_valve') || registryOutputPurpose('valve'), 'Bleed Valve'), mode:'relay'});
   if (registryOutputPurpose('glow_plug')) list.push({key:'glow_plug', target:targetFor('glow_plug'), label:outputName('glow_plug', 'Glow Plug'), mode:'relay', ignition:true});
   const fuelPump2Act = effectiveAct(a.fuel_pump2, 'fuel_pump');
   if (fuelPump2Act) list.push({key:'fuel_pump2', target:targetFor('fuel_pump'), label:outputName('fuel_pump', 'Secondary / Auxiliary Fuel Pump'), mode:isOnOff(fuelPump2Act) ? 'relay':'pct'});
@@ -1054,7 +1075,7 @@ function _buildCondSensorSelect(selectedKey) {
   const missing = selectedKey && !selectedExists
     ? `<option value="${esc(selectedKey)}" data-source="${esc(selectedKey)}" selected>Missing input: ${esc(selectedKey)}</option>` : '';
   sel.innerHTML = sensors.length || missing
-    ? missing + sensors.map(s => `<option value="${s.key}" data-source="${esc(s.source || '')}" ${s.key===selectedKey || s.source===selectedKey?'selected':''}>${esc(s.label)}</option>`).join('')
+    ? missing + sensors.map(s => `<option value="${esc(s.key)}" data-source="${esc(s.source || '')}" ${s.key===selectedKey || s.source===selectedKey?'selected':''}>${esc(s.label)}</option>`).join('')
     : '<option value="">No sensors enabled</option>';
   updateCustomCondUI();
 }
@@ -1127,13 +1148,13 @@ function _renderStepRows() {
         <span style="font-size:.7rem;color:var(--dim);align-self:center">ms</span>
         <button class="cblk-rm-btn" onclick="removeStep(${i})">x</button>`;
     } else {
-      const act = acts.find(a => a.key === step.act);
+      const act = acts.find(a => step.target ? a.target === step.target : a.key === step.act);
       const mode = act?.mode ?? 'relay';
       const missingKey = step.target || step.act;
       const missing = !act && missingKey
         ? `<option value="${esc(step.act || missingKey)}" data-target="${esc(step.target || missingKey)}" selected>Missing output: ${esc(missingKey)}</option>` : '';
       const actOpts = missing + acts.map(a =>
-        `<option value="${a.key}" data-target="${esc(a.target || '')}" ${a.key===step.act?'selected':''}>${a.label}</option>`
+        `<option value="${esc(a.key)}" data-target="${esc(a.target || '')}" ${a===act?'selected':''}>${esc(a.label)}</option>`
       ).join('');
       const valCtrl = mode === 'relay'
         ? `<select onchange="updateStepVal(${i},+this.value)" style="max-width:80px">
@@ -1196,8 +1217,9 @@ function buildRuntimeBlockDef(key, def) {
   const acts     = getEnabledActuators();
   let condFn = null;
   if (def.condition) {
-    const s = sensors.find(s => s.key === def.condition.sensor);
-    const sLabel = s ? s.label : def.condition.sensor;
+    const s = sensors.find(s => def.condition.source
+      ? s.source === def.condition.source : s.key === def.condition.sensor);
+    const sLabel = s ? s.label : `Missing input: ${def.condition.source || def.condition.sensor}`;
     const unit   = s?.unit ?? '';
     condFn = () => `${sLabel} ${def.condition.op} ${def.condition.value}${unit?' '+unit:''}`;
   } else if (def.type === 'wait') {
@@ -1208,9 +1230,9 @@ function buildRuntimeBlockDef(key, def) {
   const rawSteps = def.type === 'wait' ? [] : (def.steps || []);
   const stepLines = rawSteps.map((s, idx) => {
     if (s.type === 'delay_ms') return `${idx+1}. DELAY ${s.val} ms`;
-    const a = acts.find(a => a.key === s.act);
+    const a = acts.find(a => s.target ? a.target === s.target : a.key === s.act);
     const valStr = a?.mode === 'relay' ? (s.val ? 'ON' : 'OFF') : `${s.val}%`;
-    return `${idx+1}. SET ${a?.label ?? s.act} -> ${valStr}`;
+    return `${idx+1}. SET ${a?.label ?? ('Missing output: ' + (s.target || s.act))} -> ${valStr}`;
   });
   const fullDesc = [def.desc, ...stepLines].filter(Boolean).join('\n');
   return {

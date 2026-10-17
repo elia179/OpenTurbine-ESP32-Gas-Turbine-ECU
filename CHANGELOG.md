@@ -8,6 +8,17 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.3] — 2026-10-17
+
+- Add browser-local Normal, Reduced and Minimal detail presets per dashboard reading, plus Small, Medium and Wide card sizes. Preserve the current appearance by default.
+- Include engine controls, sequence progress, run summaries, the commissioning guide and auxiliary inputs in dashboard ordering. Keep active fault banners visible and prevent hiding START/STOP controls.
+- Preserve configured channel display names instead of overwriting them with legacy purpose labels. Keep literal user names, including underscores and lowercase text, in Dashboard, Hardware, Controllers, Calibration, Sequence and Tools; identify fitted outputs in bench-test descriptions.
+- Keep optional afterburner, governor, actuator and switch panels hidden when their hardware is absent, including in personal dashboard layouts.
+- Use configured channel names in custom-block sensor selectors, condition previews, saved block summaries, output steps and sequence final-state previews. Resolve saved source/target IDs before legacy aliases.
+- Identify fitted channel names in fixed Controllers feedback/safety source choices and Log Session Data selections/legends, preserving enum values, units, historical event records and CSV keys.
+- Complete the display-name audit for legacy digital-input waits, standard sequence conditions/final-startup checks, current cards, calibration wizard headings and safety input context. Preserve explicit legacy-looking fuel names and named bleed-valve compatibility outputs.
+- Skip drawing hidden sparklines and reuse auxiliary input cards between telemetry updates. Dashboard customization adds no ECU requests or firmware history buffers.
+
 ## [2.5.2] — 2026-10-13
 
 - Disable P1/P2 pressure and torque hard trips when their sensors are removed from the saved Hardware configuration, avoiding orphaned hard-trip warnings. Retain protection when configured sensors merely lose their signal.

@@ -888,6 +888,8 @@ async function optionDisabled(page, selector, value) {
       hwCfg.channel_registry.inputs = oldInputs;
       return {loopOff, loopOn, relayTargets, relayStarterControls, p1OnlyAllowed,
         ignitionModes:getEnabledActuators().filter(a => ['igniter','igniter2','glow_plug'].includes(a.key)).map(a => a.mode),
+        coolName:hwCfg.channel_registry.inputs.find(c=>c.purpose==='tot').name,
+        speedName:hwCfg.channel_registry.inputs.find(c=>c.purpose==='n1_speed').name,
         coolCondition:BLOCKS.WaitTOTCool.condition(flattenHw()),
         starterCondition:BLOCKS.StarterSpin.condition(flattenHw())};
     });
@@ -904,8 +906,8 @@ async function optionDisabled(page, selector, value) {
       'sequence ignition commands must be On/Off; Hardware owns output level and ramp');
     assert.equal(sequenceCardContract.p1OnlyAllowed, true,
       'Final Startup Checks must accept a fitted P1-only profile without a false N1/oil warning');
-    assert.match(sequenceCardContract.coolCondition, /^Until EGT ≤ /);
-    assert.match(sequenceCardContract.starterCondition, /^Until N1 ≥ /);
+    assert.ok(sequenceCardContract.coolCondition.startsWith('Until '+sequenceCardContract.coolName+' ≤ '));
+    assert.ok(sequenceCardContract.starterCondition.startsWith('Until '+sequenceCardContract.speedName+' ≥ '));
     assert.match(await page.locator('#list-startup .block-card[data-block="TimedDelay"] .block-cond').first().textContent(), /^Wait \d/,
       'Timed Delay cards should state that their duration is a wait');
     const independentInputCards = await page.evaluate(() => {
@@ -925,6 +927,7 @@ async function optionDisabled(page, selector, value) {
         const spec = hwCfg.shutdown_wait_inputs[idx];
         return {
           channel:spec.channel,
+          name:hwCfg.di_channels?.[spec.channel]?.label || `DI-${spec.channel+1}`,
           timeout:spec.timeout_ms,
           condition:card.querySelector('.block-cond')?.textContent
         };
@@ -932,7 +935,7 @@ async function optionDisabled(page, selector, value) {
     });
     assert.deepEqual(independentInputCards.map(row => [row.channel, row.timeout]), [[2,4500],[1,9000]],
       'each input-wait card must keep its own channel and timeout when reordered');
-    assert.match(independentInputCards[1].condition, /DI-2 inactive/);
+    assert.equal(independentInputCards[1].condition, 'Until '+independentInputCards[1].name+' inactive');
     for (const key of ['OilPrime', 'StarterSpin', 'TimedDelay', 'FuelPumpIdle']) {
       assert.ok(sequenceFull.startup.includes(key), `full startup should include ${key}`);
     }
