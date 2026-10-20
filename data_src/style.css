@@ -2345,3 +2345,6 @@ body.dashboard-awaiting-snapshot main .telemetry-group,
 body.dashboard-awaiting-snapshot #adv-act-section {
   display: none !important;
 }
+
+.hw-bias-unavailable { opacity: .45; }
+#dashboard-fullscreen-btn[hidden] { display:none!important; }

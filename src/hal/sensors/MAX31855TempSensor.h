@@ -1,4 +1,5 @@
 #pragma once
+#include "../GpioInputBias.h"
 #include "ISensor.h"
 #include "SoftwareSpiRead.h"
 #include <Arduino.h>
@@ -33,7 +34,7 @@ public:
         digitalWrite(_clk, LOW);
         // A real converter overrides this weak pull-up; without a converter,
         // it prevents floating SPI data from appearing as hot exhaust.
-        pinMode(_miso, INPUT_PULLUP);
+        pinMode(_miso, GpioInputBias::safeMode(_miso, INPUT_PULLUP, INPUT));
         _temp    = 0;
         _healthy = false;
         _lastMs  = 0;

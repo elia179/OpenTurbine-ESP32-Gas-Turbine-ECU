@@ -5,6 +5,7 @@
 #include "pcb/PcbProfileManager.h"
 #include "pcb/PcbProfileResolver.h"
 #include "HardwareConfigInternal.h"
+#include "DigitalInputMirror.h"
 #include "../engine/EngineData.h"
 #include <LittleFS.h>
 #include <cstring>
@@ -2101,18 +2102,19 @@ bool validatePlatformPins(const JsonDocument& doc,
             !docHasDiRoleInMode("ab_arm", 1u << 2) &&
             !addPin(jsonPin(abTrigger, "arm_pin"))) return false;
     }
-    for (JsonVariantConst ch : doc["di_channels"].as<JsonArrayConst>())
-        if (!addPin(jsonPin(ch, "pin"))) return false;
-    auto registryMirrorsDiChannel = [&](const ChannelRegistry::Channel& ch) {
-        if (ch.driver != ChannelRegistry::Digital || ch.pin < 0) return false;
-        if (strncmp(ch.id, "di_", 3) != 0) return false;
-        for (JsonVariantConst di : doc["di_channels"].as<JsonArrayConst>()) {
-            if (jsonPin(di, "pin") != ch.pin) continue;
-            const char* diRole = di["role"] | "none";
-            if (!strcmp(diRole, ch.role) || !strcmp(diRole, ch.purpose)) return true;
+    for (JsonVariantConst di : doc["di_channels"].as<JsonArrayConst>()) {
+        bool mirrored = false;
+        if (parsedRegistry) for (uint8_t i = 0; i < parsedRegistry->inputCount; ++i) {
+            if (registryMirrorsDigitalInput(parsedRegistry->inputs[i],
+                    jsonPin(di, "pin"), di["role"] | "none", di["active_h"] | false)) {
+                mirrored = true;
+                break;
+            }
         }
-        return false;
-    };
+        // Claim the canonical registry channel below. Do not skip registry
+        // claims: two real channels sharing this pin must still be rejected.
+        if (!mirrored && !addPin(jsonPin(di, "pin"))) return false;
+    }
     auto registryMirrorsLegacyPin = [&](const ChannelRegistry::Channel& ch) {
         if (ch.pin < 0) return false;
         auto sensorPin = [&](const char* key) {
@@ -2223,7 +2225,6 @@ bool validatePlatformPins(const JsonDocument& doc,
             } else if (!gpioAllowed(ch.pin)) {
                 return false;
             }
-            if (registryMirrorsDiChannel(ch)) continue;
             if (registryMirrorsLegacyPin(ch)) continue;
             if (!addPin(ch.pin)) return false;
         }
@@ -2850,6 +2851,7 @@ void HardwareConfig::load() {
         return;
     }
     // Use the exact same complete validation path as POST /api/hardware.
+    reconcileRegistryDigitalInputs(workDoc);
     if (!validateJson(workDoc)) {
         inhibitStartForHardwareConfigFailure(
             "Cannot start: stored hardware configuration is invalid or unsafe.");
@@ -3652,6 +3654,7 @@ bool HardwareConfig::fromJson(char* json, size_t len,
     // Validate the already-parsed document once; the web path filters its I2C
     // comparison parses to the registry only, leaving room for this complete
     // validation workspace on Classic ESP32.
+    reconcileRegistryDigitalInputs(doc);
     if (!validateJson(doc, validationWorkspace)) return false;
     _fromDoc(doc);
     return true;

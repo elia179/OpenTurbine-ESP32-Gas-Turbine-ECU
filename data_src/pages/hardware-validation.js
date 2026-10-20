@@ -195,7 +195,39 @@ function _changedFieldCount() {
   return count;
 }
 
+function normalizeUnavailableInputBias() {
+  (cfg.channel_registry?.inputs || []).forEach(channel => {
+    if ([0,2].includes(Number(channel.driver)) && pinHasNoInternalPull(channel.pin)) {
+      channel.pullup = false;
+      channel.pulldown = false;
+    }
+  });
+  for (const which of ['start','stop']) {
+    if (pinHasNoInternalPull(cfg.controls?.[which + '_pin'])) {
+      cfg.controls[which + '_pullup'] = false;
+      cfg.controls[which + '_pulldown'] = false;
+    }
+  }
+}
+function reconcileRegistryDigitalInputs() {
+  const inputs = cfg.channel_registry?.inputs;
+  if (!Array.isArray(inputs)) return;
+  (cfg.di_channels || []).forEach(di => {
+    if (!di.registry_id) return;
+    const source = inputs.find(channel => channel.id === di.registry_id);
+    if (source && source.installed !== false && Number(source.driver) === 0 &&
+        Number(source.pin ?? -1) >= 0 && ['fault','estop','inhibit_start','low_oil_switch',
+          'oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode'].includes(source.role)) {
+      Object.assign(di, {pin:source.pin,role:source.role,active_h:source.active_high !== false,label:source.name || source.id});
+    } else {
+      for (const key of Object.keys(di)) delete di[key];
+      Object.assign(di, {pin:-1,role:'none'});
+    }
+  });
+}
 function dirty() {
+  normalizeUnavailableInputBias();
+  reconcileRegistryDigitalInputs();
   _hwDirty = true;
   document.getElementById('save-msg').textContent = 'Unsaved changes — save to apply';
   const changed = _changedFieldCount();

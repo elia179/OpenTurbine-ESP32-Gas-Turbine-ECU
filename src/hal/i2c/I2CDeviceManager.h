@@ -1,4 +1,5 @@
 #pragma once
+#include "../GpioInputBias.h"
 #include "../actuators/RelayDemand.h"
 #include "LossRecheck.h"
 #include "../AdcThreshold.h"
@@ -48,7 +49,7 @@ public:
         // accommodates the user-selectable 10 kHz minimum bus rate.
         Wire.setTimeOut(5);
         _interruptPin = interruptPin;
-        if (_interruptPin >= 0) pinMode(_interruptPin, INPUT_PULLUP);
+        if (_interruptPin >= 0) pinMode(_interruptPin, GpioInputBias::safeMode(_interruptPin, INPUT_PULLUP, INPUT));
         // A separately powered expander may retain an active output while the
         // ESP resets. Park configured relay channels before spending time
         // probing every possible accessory address.

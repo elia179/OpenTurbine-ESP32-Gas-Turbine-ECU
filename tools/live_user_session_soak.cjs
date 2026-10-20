@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const wifiProfile = process.env.OT_WIFI_PROFILE || 'OpenTurbine';
 const { chromium, request } = require('playwright');
 
 function installedBrowser() {
@@ -350,6 +351,13 @@ async function json(response, label) {
 
   async function exerciseDashboard() {
     await navigate('/');
+    const fullscreen = page.locator('#dashboard-fullscreen-btn');
+    if (await fullscreen.count() && await fullscreen.isVisible()) {
+      await fullscreen.click();
+      await page.waitForFunction(() => !!document.fullscreenElement, null, {timeout:5000});
+      await fullscreen.click();
+      await page.waitForFunction(() => !document.fullscreenElement, null, {timeout:5000});
+    }
     const temp = page.locator('#unit-temp-btn');
     if (await temp.count()) { await temp.click(); await page.waitForTimeout(350); await temp.click(); }
   }
@@ -480,7 +488,7 @@ async function json(response, label) {
     try {
       for (let attempt = 0; attempt < 60; attempt++) {
         if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-          try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+          try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
           catch (_) {}
         }
         await page.waitForTimeout(500);
@@ -516,7 +524,7 @@ async function json(response, label) {
         if (reconnectAttempt++ % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
           // Rejoining the fixture AP is part of the expected reboot workflow.
           // Ordinary browsing still must preserve the exact boot counter.
-          try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+          try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
           catch (_) {}
         }
         let telemetry;
@@ -718,7 +726,7 @@ async function json(response, label) {
             throw new Error(`HTTP ${response?.status()}`);
           for (let attempt = 0; attempt < 40; attempt++) {
             if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-              try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+              try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
               catch (_) {}
             }
             await page.waitForTimeout(750);

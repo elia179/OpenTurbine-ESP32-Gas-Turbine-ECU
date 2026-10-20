@@ -615,10 +615,10 @@ function digitalSwitchEditor(row) {
       <div class="hw-field"><span class="hw-label">Display label</span><input class="${controlFieldClass(row.key,'label')}" data-control-field="${row.key}_label" type="text" maxlength="31" placeholder="${escapeHtmlText(row.defaultLabel)}" value="${labelValue}" onchange="${row.labelSet}"></div>
       <div class="hw-field"><span class="hw-label">GPIO pin</span><span class="hw-desc">Strap pins can prevent boot if held at the wrong level during reset. UART0 pins can interfere with flashing or serial diagnostics; ordinary GPIO is preferred.</span><select class="${controlFieldClass(row.key,'pin')}" data-control-field="${row.key}_pin" onchange="${row.pinSet}">${pinOptions}</select></div>
       <div class="hw-field"><span class="hw-label">Active polarity</span><select class="${controlFieldClass(row.key,'active_h')}" data-control-field="${row.key}_active_h" onchange="${row.polSet}"><option value="0"${activeLow}>Active LOW</option><option value="1"${activeHigh}>Active HIGH</option></select></div>
-      <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
+      ${pinHasNoInternalPull(row.pin) ? unavailableInputBias(row.pin) : `<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
         <label class="hw-toggle"><input class="${controlFieldClass(row.key,'pullup')}" data-control-field="${row.key}_pullup" type="checkbox" ${pull} onchange="${row.pullSet}"><span></span> Pull-up</label>
         <label class="hw-toggle"><input class="${controlFieldClass(row.key,'pulldown')}" data-control-field="${row.key}_pulldown" type="checkbox" ${pullDown} onchange="${row.pullDownSet}"><span></span> Pull-down</label>
-      </div></div>
+      </div></div>`}
     </div>
   </div>`;
 }

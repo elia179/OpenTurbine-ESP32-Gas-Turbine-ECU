@@ -18,7 +18,8 @@ static bool hxReady=false;
 static unsigned hxPulses=0;
 static uint32_t hxFrame=0;
 static int hxBit=HIGH;
-inline void pinMode(int,int) {}
+static std::array<int,49> pinModes{};
+inline void pinMode(int pin,int mode) { if(pin>=0 && pin<49) pinModes[pin]=mode; }
 inline void delayMicroseconds(unsigned) {}
 inline void noInterrupts() {}
 inline void interrupts() {}
@@ -165,5 +166,11 @@ int main() {
     hxSample(0x7FFFFF); hxSample(0x7FFFFF); hxSample(0x7FFFFF);
     assert(!hx.isHealthy());
     hxSample(-200); assert(hx.isHealthy() && hx.rawCounts()==-200);
+    MAX6675TempSensor classic6675(1,2,35,"Classic 6675"); classic6675.begin();
+    assert(pinModes[35]==INPUT);
+    MAX31855TempSensor classic31855(1,2,35,"Classic 31855"); classic31855.begin();
+    assert(pinModes[35]==INPUT);
+    MAX31856TempSensor classic31856(1,2,35,4,"K","Classic 31856"); classic31856.begin();
+    assert(pinModes[35]==INPUT);
     std::cout<<"HX711 signed samples, 25-clock selection, stale/saturated recovery and old-median rejection passed\n";
 }

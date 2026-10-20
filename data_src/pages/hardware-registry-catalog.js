@@ -792,6 +792,7 @@ function registryInputOptionsEditor(direction, c, index) {
   const pulldownClass = registryFieldChangedClass(direction, index, 'pulldown');
   const pullConflict = c.pullup && c.pulldown ? ' field-error' : '';
   const polarity = d === 0 ? `<div class="hw-field"><span class="hw-label">Active polarity</span><select class="${polarityClass}" onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>Active HIGH</option><option value="0"${c.active_high === false ? ' selected' : ''}>Active LOW</option></select></div>` : '';
+  if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
   return `${polarity}
           <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch or pulse sensor. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
             <label class="hw-toggle"><input class="${pullupClass}${pullConflict}" type="checkbox" ${c.pullup ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Pull-up</label>
@@ -1274,6 +1275,7 @@ function registryProfileInputTuningEditor(direction, c, index) {
   if (!isSwitch) return '';
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
+    if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
     const pullConflict = c.pullup && c.pulldown ? ' field-error' : '';
     return `${polarity}<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Choose an internal pull-up, pull-down, or leave both off when the connected signal provides its own bias.</span><div class="hw-toggle-row">
       <label class="hw-toggle"><input class="${pullConflict}" type="checkbox" ${c.pullup ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Pull-up</label>

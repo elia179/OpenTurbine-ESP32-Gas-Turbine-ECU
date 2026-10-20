@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium, request } = require('playwright');
 const {execFileSync} = require('node:child_process');
+const wifiProfile = process.env.OT_WIFI_PROFILE || 'OpenTurbine';
 
 if (!process.argv.includes('--allow-write')) throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(arg => /^http/.test(arg)) || 'http://192.168.4.1';
@@ -42,7 +43,7 @@ function registryMatches(actual, expected, suppliedFile) {
 async function waitForProfile(expected, beforeBoot, suppliedFile = false, beforeUptime = 0) {
   for (let attempt = 0; attempt < 55; attempt++) {
     if (process.platform === 'win32' && attempt % 5 === 0)
-      execFileSync('netsh',['wlan','connect','name=OpenTurbine'],{stdio:'ignore'});
+      execFileSync('netsh',['wlan','connect','name='+wifiProfile],{stdio:'ignore'});
     try {
       const info = await readJson('/api/device_info');
       const actual = await readJson('/api/ecu_config');

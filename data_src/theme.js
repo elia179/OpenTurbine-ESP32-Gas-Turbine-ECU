@@ -219,6 +219,36 @@
     throw new Error('Hardware was saved, but the ECU did not reconnect. Settings remain unsaved; reconnect and retry Save.');
   };
 
+  function initializeFullscreen() {
+    var button = document.getElementById('dashboard-fullscreen-btn');
+    var root = document.documentElement;
+    if (!button || button._otFullscreenReady) return;
+    var enter = root.requestFullscreen || root.webkitRequestFullscreen;
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!enter || !exit || document.fullscreenEnabled === false || document.webkitFullscreenEnabled === false) return;
+    button._otFullscreenReady = true;
+    button.hidden = false;
+    function update() {
+      var active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      button.textContent = active ? 'Exit fullscreen' : 'Fullscreen';
+      button.setAttribute('aria-pressed', String(active));
+    }
+    button.addEventListener('click', function () {
+      function failed() {
+        update();
+        window.alert('This browser could not change fullscreen mode. Open the ECU directly in Chrome or another browser that supports fullscreen.');
+      }
+      try {
+        // Call directly within the tap handler to retain user activation.
+        var result = document.fullscreenElement || document.webkitFullscreenElement
+          ? exit.call(document) : enter.call(root);
+        if (result && result.catch) result.catch(failed);
+      } catch (_) { failed(); }
+    });
+    document.addEventListener('fullscreenchange', update);
+    document.addEventListener('webkitfullscreenchange', update);
+    update();
+  }
   apply(get());
   // Classic ESP32 cannot reliably serve four cold browser requests in
   // parallel. theme.js is the one parser-blocking bootstrap; it then loads
@@ -323,6 +353,7 @@
           (bootScript && bootScript.getAttribute('data-ot-app') === 'true' && !window.OTSaveConfigPatch)) return false;
       reconcileFromDevice();
       renderPicker(document.getElementById('appearance-picker'));
+      initializeFullscreen();
       document.documentElement.classList.add('ot-theme-ready');
       document.documentElement.removeAttribute('data-ot-assets-retrying');
       return true;

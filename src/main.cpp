@@ -4,6 +4,8 @@
 #include "platform/esp32/PlatformInit.h"
 #include "system/Config.h"
 #include "system/HardwareConfig.h"
+#include "system/DigitalInputMirror.h"
+#include "hal/GpioInputBias.h"
 #include "system/HardwareCapabilities.h"
 #include "system/ClusterSerial.h"
 #include "system/FlightRecorder.h"
@@ -4196,9 +4198,11 @@ void setup() {
     {
         auto& hcfg = HardwareConfig::instance();
         if (hcfg.stopPin >= 0)
-            pinMode(hcfg.stopPin, hcfg.stopPullup ? INPUT_PULLUP : (hcfg.stopPulldown ? INPUT_PULLDOWN : INPUT));
+            pinMode(hcfg.stopPin, GpioInputBias::safeMode(hcfg.stopPin,
+                hcfg.stopPullup ? INPUT_PULLUP : (hcfg.stopPulldown ? INPUT_PULLDOWN : INPUT), INPUT));
         if (hcfg.startPin >= 0)
-            pinMode(hcfg.startPin, hcfg.startPullup ? INPUT_PULLUP : (hcfg.startPulldown ? INPUT_PULLDOWN : INPUT));
+            pinMode(hcfg.startPin, GpioInputBias::safeMode(hcfg.startPin,
+                hcfg.startPullup ? INPUT_PULLUP : (hcfg.startPulldown ? INPUT_PULLDOWN : INPUT), INPUT));
     }
 
     Config::load();
@@ -4303,9 +4307,20 @@ void setup() {
         auto& hdi = HardwareConfig::instance();
         for (int i = 0; i < HardwareConfig::MAX_DI; i++) {
             if (hdi.diCh[i].pin < 0) continue;
-            // Active-low channels use pullup; active-high use floating input.
+            // Registry slots retain their explicit bias. Do not overwrite a
+            // driven/external-biased input with the legacy active-low default.
+            unsigned inputMode = hdi.diCh[i].activeH ? INPUT : INPUT_PULLUP;
+            for (uint8_t j = 0; j < hdi.channelRegistry.inputCount; ++j) {
+                const auto& channel = hdi.channelRegistry.inputs[j];
+                if (registryMirrorsDigitalInput(channel, hdi.diCh[i].pin,
+                        hdi.diCh[i].role, hdi.diCh[i].activeH)) {
+                    inputMode = channel.pullup ? INPUT_PULLUP :
+                        (channel.pulldown ? INPUT_PULLDOWN : INPUT);
+                    break;
+                }
+            }
             pinMode(hdi.diCh[i].pin,
-                    hdi.diCh[i].activeH ? INPUT : INPUT_PULLUP);
+                GpioInputBias::safeMode(hdi.diCh[i].pin, inputMode, INPUT));
             bool state = (digitalRead(hdi.diCh[i].pin) ==
                           (hdi.diCh[i].activeH ? HIGH : LOW));
             _diRawLast[i]    = state;

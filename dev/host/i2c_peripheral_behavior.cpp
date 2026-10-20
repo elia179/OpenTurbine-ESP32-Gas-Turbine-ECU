@@ -4,7 +4,7 @@
 using std::max;
 using std::min;
 using std::isfinite;
-static constexpr int INPUT_PULLUP = 2, LOW = 0;
+static constexpr int INPUT = 0, INPUT_PULLUP = 2, LOW = 0;
 inline void pinMode(int, int) {}
 inline int digitalRead(int) { return 1; }
 #include "../../src/hal/i2c/I2CDeviceManager.h"

@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261017d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261017d');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020b');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -213,10 +213,10 @@ const GPIO_DB_ESP32 = {
   27: {a2:1, label:'GPIO27'},
   32: {adc1:1, label:'GPIO32'},
   33: {adc1:1, label:'GPIO33'},
-  34: {adc1:1, i:1, label:'GPIO34 (input only)'},
-  35: {adc1:1, i:1, label:'GPIO35 (input only)'},
-  36: {adc1:1, i:1, label:'GPIO36 (input only)'},
-  39: {adc1:1, i:1, label:'GPIO39 (input only)'},
+  34: {adc1:1, i:1, noPull:1, label:'GPIO34 (input only)'},
+  35: {adc1:1, i:1, noPull:1, label:'GPIO35 (input only)'},
+  36: {adc1:1, i:1, noPull:1, label:'GPIO36 (input only)'},
+  39: {adc1:1, i:1, noPull:1, label:'GPIO39 (input only)'},
 };
 
 const GPIO_DB_ESP32S3 = {
@@ -257,6 +257,20 @@ const GPIO_DB_ESP32S3 = {
 };
 
 let GPIO_DB = GPIO_DB_ESP32;
+
+function pinHasNoInternalPull(pin) {
+  return !!GPIO_DB?.[Number(pin)]?.noPull;
+}
+function unavailableInputBias(pin) {
+  if (!pinHasNoInternalPull(pin)) return '';
+  return `<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">GPIO ${Number(pin)} has no internal pull-up or pull-down. Use an external resistor to 3.3 V or ground, or a driven signal.</span><div class="hw-toggle-row hw-bias-unavailable"><label class="hw-toggle"><input type="checkbox" disabled><span></span> Pull-up</label><label class="hw-toggle"><input type="checkbox" disabled><span></span> Pull-down</label></div></div>`;
+}
+function registryIsLegacyDiMirror(channel, di) {
+  return channel?.installed !== false && !channel?.mirror_of && Number(channel?.driver) === 0 &&
+    Number(di?.pin ?? -1) >= 0 && Number(channel.pin) === Number(di.pin) &&
+    (channel.active_high !== false) === !!di.active_h &&
+    [channel.role, channel.purpose].includes(di.role);
+}
 
 function pinShareGroupForMode(mode) {
   if (mode === 'spi-clk') return 'spi-clk';
@@ -340,7 +354,10 @@ function collectPinUsage() {
     add(abt.input_pin, 'AB input');
     if (abt.source !== 0 && abt.requires_arm) add(abt.arm_pin, 'AB arm');
   }
-  (cfg.di_channels || []).forEach((ch, i) => add(ch.pin, ch.label || `DI channel ${i + 1}`));
+  (cfg.di_channels || []).forEach((ch, i) => {
+    if (!(cfg.channel_registry?.inputs || []).some(channel => registryIsLegacyDiMirror(channel, ch)))
+      add(ch.pin, ch.label || `DI channel ${i + 1}`);
+  });
   const r = registryRoot();
   const addProfilePortPin = (ch, direction) => {
     if (!profileActive || !ch.physical_port || !ch.physical_mode) return false;
@@ -675,7 +692,7 @@ function renderDiChannels(channels) {
         </div>
         <div class="hw-field">
           <span class="hw-label">Active polarity</span>
-          <span class="hw-desc">Active LOW uses the internal pull-up. ⚠ Active HIGH leaves the pin floating — it REQUIRES an external pulldown resistor or a permanently driven signal, or noise will trigger it.</span>
+          <span class="hw-desc">${pinHasNoInternalPull(ch.pin) ? 'This GPIO has no internal pull-up or pull-down. Use an external resistor or a driven signal.' : 'Active LOW uses the internal pull-up. Active HIGH requires an external pulldown resistor or a driven signal.'}</span>
           <select onchange="setDiChannel(${i},'active_h',this.value==='1')">
             <option value="0" ${!ch.active_h?'selected':''}>Active LOW (GND = active)</option>
             <option value="1" ${ch.active_h?'selected':''}>Active HIGH (3.3 V = active)</option>
@@ -2543,6 +2560,7 @@ function registryInputOptionsEditor(direction, c, index) {
   const pulldownClass = registryFieldChangedClass(direction, index, 'pulldown');
   const pullConflict = c.pullup && c.pulldown ? ' field-error' : '';
   const polarity = d === 0 ? `<div class="hw-field"><span class="hw-label">Active polarity</span><select class="${polarityClass}" onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>Active HIGH</option><option value="0"${c.active_high === false ? ' selected' : ''}>Active LOW</option></select></div>` : '';
+  if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
   return `${polarity}
           <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch or pulse sensor. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
             <label class="hw-toggle"><input class="${pullupClass}${pullConflict}" type="checkbox" ${c.pullup ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Pull-up</label>
@@ -3025,6 +3043,7 @@ function registryProfileInputTuningEditor(direction, c, index) {
   if (!isSwitch) return '';
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
+    if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
     const pullConflict = c.pullup && c.pulldown ? ' field-error' : '';
     return `${polarity}<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Choose an internal pull-up, pull-down, or leave both off when the connected signal provides its own bias.</span><div class="hw-toggle-row">
       <label class="hw-toggle"><input class="${pullConflict}" type="checkbox" ${c.pullup ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Pull-up</label>
@@ -3682,10 +3701,10 @@ function digitalSwitchEditor(row) {
       <div class="hw-field"><span class="hw-label">Display label</span><input class="${controlFieldClass(row.key,'label')}" data-control-field="${row.key}_label" type="text" maxlength="31" placeholder="${escapeHtmlText(row.defaultLabel)}" value="${labelValue}" onchange="${row.labelSet}"></div>
       <div class="hw-field"><span class="hw-label">GPIO pin</span><span class="hw-desc">Strap pins can prevent boot if held at the wrong level during reset. UART0 pins can interfere with flashing or serial diagnostics; ordinary GPIO is preferred.</span><select class="${controlFieldClass(row.key,'pin')}" data-control-field="${row.key}_pin" onchange="${row.pinSet}">${pinOptions}</select></div>
       <div class="hw-field"><span class="hw-label">Active polarity</span><select class="${controlFieldClass(row.key,'active_h')}" data-control-field="${row.key}_active_h" onchange="${row.polSet}"><option value="0"${activeLow}>Active LOW</option><option value="1"${activeHigh}>Active HIGH</option></select></div>
-      <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
+      ${pinHasNoInternalPull(row.pin) ? unavailableInputBias(row.pin) : `<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
         <label class="hw-toggle"><input class="${controlFieldClass(row.key,'pullup')}" data-control-field="${row.key}_pullup" type="checkbox" ${pull} onchange="${row.pullSet}"><span></span> Pull-up</label>
         <label class="hw-toggle"><input class="${controlFieldClass(row.key,'pulldown')}" data-control-field="${row.key}_pulldown" type="checkbox" ${pullDown} onchange="${row.pullDownSet}"><span></span> Pull-down</label>
-      </div></div>
+      </div></div>`}
     </div>
   </div>`;
 }
@@ -4558,8 +4577,18 @@ function updateRegistryChannel(direction, index, key, value) {
       renderRegistryInventory(); return;
     }
     const oldPurpose = registryDerivedPurpose(direction,c);
+    const oldCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
     c.purpose = def.value;
     c.role = def.role;
+    // Retire the old singleton adapter just as removal does. Otherwise a
+    // repurposed flame sensor still reserves its GPIO during backend validation.
+    const newCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
+    if (oldCoreKey && oldCoreKey !== newCoreKey &&
+        !(r[direction + 's'] || []).some(row => row !== c && row.installed !== false &&
+          (direction === 'input' ? registryCoreSensorKey(row) : registryCoreActuatorKey(row)) === oldCoreKey)) {
+      const adapters = direction === 'input' ? cfg.sensors : cfg.actuators;
+      if (adapters?.[oldCoreKey]) adapters[oldCoreKey].enabled = false;
+    }
     c.calibration_points = [];
     if (direction === 'output' && ['oil_pump','scavenge_pump'].includes(oldPurpose) && oldPurpose !== def.value) {
       removePumpFlowInput({...c, purpose:oldPurpose});
@@ -6062,7 +6091,39 @@ function _changedFieldCount() {
   return count;
 }
 
+function normalizeUnavailableInputBias() {
+  (cfg.channel_registry?.inputs || []).forEach(channel => {
+    if ([0,2].includes(Number(channel.driver)) && pinHasNoInternalPull(channel.pin)) {
+      channel.pullup = false;
+      channel.pulldown = false;
+    }
+  });
+  for (const which of ['start','stop']) {
+    if (pinHasNoInternalPull(cfg.controls?.[which + '_pin'])) {
+      cfg.controls[which + '_pullup'] = false;
+      cfg.controls[which + '_pulldown'] = false;
+    }
+  }
+}
+function reconcileRegistryDigitalInputs() {
+  const inputs = cfg.channel_registry?.inputs;
+  if (!Array.isArray(inputs)) return;
+  (cfg.di_channels || []).forEach(di => {
+    if (!di.registry_id) return;
+    const source = inputs.find(channel => channel.id === di.registry_id);
+    if (source && source.installed !== false && Number(source.driver) === 0 &&
+        Number(source.pin ?? -1) >= 0 && ['fault','estop','inhibit_start','low_oil_switch',
+          'oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode'].includes(source.role)) {
+      Object.assign(di, {pin:source.pin,role:source.role,active_h:source.active_high !== false,label:source.name || source.id});
+    } else {
+      for (const key of Object.keys(di)) delete di[key];
+      Object.assign(di, {pin:-1,role:'none'});
+    }
+  });
+}
 function dirty() {
+  normalizeUnavailableInputBias();
+  reconcileRegistryDigitalInputs();
   _hwDirty = true;
   document.getElementById('save-msg').textContent = 'Unsaved changes — save to apply';
   const changed = _changedFieldCount();
@@ -6588,6 +6649,8 @@ function _releaseInactivePinConflicts() {
 }
 
 async function saveHardware() {
+  normalizeUnavailableInputBias();
+  reconcileRegistryDigitalInputs();
   _releaseInactivePinConflicts();
   syncSharedSpiChannels();
   // v2.3 briefly stored wet-glow links on registry outputs. Wet glow now owns

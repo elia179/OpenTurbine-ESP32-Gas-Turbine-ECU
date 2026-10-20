@@ -1,5 +1,6 @@
 #pragma once
 #include "ISensor.h"
+#include "../GpioInputBias.h"
 #include <Arduino.h>
 
 // Minimal non-blocking HX711 reader for torque load cells, channel A/gain 128.
@@ -32,12 +33,7 @@ public:
         // A real HX711 still drives DOUT; leave those pads unbiased instead of
         // issuing an invalid pull-up request on every boot. Other GPIOs keep
         // the useful disconnected-module HIGH bias.
-#if defined(CONFIG_IDF_TARGET_ESP32)
-        pinMode(_doutPin, (_doutPin >= 34 && _doutPin <= 39)
-            ? INPUT : INPUT_PULLUP);
-#else
-        pinMode(_doutPin, INPUT_PULLUP);
-#endif
+        pinMode(_doutPin, GpioInputBias::safeMode(_doutPin, INPUT_PULLUP, INPUT));
         pinMode(_clockPin, OUTPUT);
         digitalWrite(_clockPin, LOW);
     }

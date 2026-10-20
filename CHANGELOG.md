@@ -8,6 +8,16 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.4] — 2026-10-20
+
+- Add a Dashboard fullscreen toggle for supported browsers, including Android Chrome. Keep the exit control available and follow browser-initiated exits.
+- Retire the old singleton sensor/output assignment when changing a channel purpose, including converting a flame sensor into an oil-pressure safety switch.
+- Keep registry-backed safety slots synchronized when moving, renaming, reversing polarity, removing or repurposing the device. Preserve debounce settings, mode masks, slot indexes and independent legacy inputs.
+- Fix repeated hardware saves counting a registry safety switch and its legacy digital-input adapter as two devices on the same GPIO. Preserve detection of real collisions and mismatched polarity.
+- Preserve registry switch bias when initializing legacy safety slots. Clamp unavailable pulls in Classic input initialization, including switch controls, thermocouple MISO and I2C interrupts. Keep sensor protocols unchanged.
+- Recover rejected hardware updates from the committed engine file at reboot on S3 as well as Classic, avoiding a failed in-place reload exposing compiled defaults.
+- Grey out internal pull-up/down controls on Classic input-only pins and explain the need for external bias. Clear impossible pull settings from edited drafts without changing switch polarity.
+
 ## [2.5.3] — 2026-10-17
 
 - Add browser-local Normal, Reduced and Minimal detail presets per dashboard reading, plus Small, Medium and Wide card sizes. Preserve the current appearance by default.

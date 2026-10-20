@@ -4,6 +4,7 @@
 #include "../version.h"
 #include "../Config.h"
 #include "../HardwareConfig.h"
+#include "../DigitalInputMirror.h"
 #include "../HardwareCapabilities.h"
 #include "../ConfigApplyGate.h"
 #include "../FeedbackRequirements.h"
@@ -4652,33 +4653,25 @@ void WebServer::_setupRoutes() {
                 req->send(409, "application/json", "{\"error\":\"engine left STANDBY before calibration update\"}");
                 return;
             }
+            reconcileRegistryDigitalInputs(current);
             if (!HardwareConfig::validateJson(current, &HardwareConfig::channelRegistry)) {
                 char rejection[160];
                 strlcpy(rejection, HardwareConfig::lastValidationError(), sizeof(rejection));
                 current.clear();
                 current.shrinkToFit();
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-                HardwareConfig::load();
-#else
-                // validateJson may use the live registry as its bounded Classic
-                // workspace. If validation rejects it, restore from the atomic
+                // Validation uses the live registry as bounded workspace on
+                // both targets. If it rejects, restore from the atomic
                 // committed file at boot rather than allocating another large
-                // tree in the same fragmented request context.
+                // tree in the same fragmented request context. Even S3 can
+                // fail that reload and expose compiled defaults until reboot.
                 _scheduleRestart("hardware validation rollback");
-#endif
                 ConfigApplyGate::release();
                 // ClassicRxWorkspaceLoan may have returned the large receive
                 // workspace to the heap, so it is invalid here. The bounded
                 // transmit workspace remains owned for this small reply.
                 snprintf(g_webTxBuf, sizeof(g_webTxBuf),
-                    "{\"ok\":false,\"error\":\"hardware patch rejected\",\"detail\":\"%s\",\"rebooting\":%s}",
-                    rejection,
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-                    "false"
-#else
-                    "true"
-#endif
-                );
+                    "{\"ok\":false,\"error\":\"hardware patch rejected\",\"detail\":\"%s\",\"rebooting\":true}",
+                    rejection);
                 req->send(400, "application/json", g_webTxBuf);
                 return;
             }
@@ -4734,25 +4727,15 @@ void WebServer::_setupRoutes() {
             // has explicit overflow checks and installs the file atomically.
             const bool saved = HardwareConfig::saveUnified(preserveStoredSettings);
             if (!saved) {
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-                // S3 has sufficient headroom to restore in place.
-                HardwareConfig::load();
-                Config::load();
-#else
-                // On Classic, the failed writer has already demonstrated that
+                // The failed writer has already demonstrated that
                 // this request no longer has a safe contiguous JSON workspace.
                 // Reloading here can fail and replace the live map with defaults.
                 // Keep START locked and boot the still-authoritative committed
                 // file instead; atomic save never replaced it on failure.
                 _scheduleRestart("hardware save rollback");
-#endif
                 ConfigApplyGate::release();
                 req->send(500, "application/json",
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-                    "{\"ok\":false,\"error\":\"failed to write hardware config\",\"rebooting\":false}"
-#else
                     "{\"ok\":false,\"error\":\"failed to write hardware config; restoring the previous setup\",\"rebooting\":true}"
-#endif
                 );
                 return;
             }
@@ -5073,6 +5056,7 @@ void WebServer::_setupRoutes() {
             // restore is STANDBY-only, all physical demands are zero, and the
             // committed engine file remains the rollback image until the final
             // atomic rename. This avoids a second large contiguous allocation.
+            reconcileRegistryDigitalInputs(*hwDoc);
             if (!HardwareConfig::validateJson(*hwDoc, &HardwareConfig::channelRegistry)) {
                 char rejection[160];
                 strlcpy(rejection, HardwareConfig::lastValidationError(), sizeof(rejection));

@@ -371,6 +371,8 @@ function _releaseInactivePinConflicts() {
 }
 
 async function saveHardware() {
+  normalizeUnavailableInputBias();
+  reconcileRegistryDigitalInputs();
   _releaseInactivePinConflicts();
   syncSharedSpiChannels();
   // v2.3 briefly stored wet-glow links on registry outputs. Wet glow now owns

@@ -1,4 +1,5 @@
 #pragma once
+#include "../GpioInputBias.h"
 #include "ISensor.h"
 #include <Arduino.h>
 
@@ -41,7 +42,7 @@ public:
         pinMode(_clk,  OUTPUT); digitalWrite(_clk,  HIGH);  // CPOL=1 idle high
         // A real converter overrides this weak pull-up; without a converter,
         // it prevents floating SPI data from becoming a valid temperature.
-        pinMode(_miso, INPUT_PULLUP);
+        pinMode(_miso, GpioInputBias::safeMode(_miso, INPUT_PULLUP, INPUT));
         if (_mosi >= 0) { pinMode(_mosi, OUTPUT); digitalWrite(_mosi, LOW); }
 
         _configOk = _configure();

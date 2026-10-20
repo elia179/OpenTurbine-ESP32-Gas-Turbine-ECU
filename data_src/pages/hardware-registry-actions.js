@@ -186,8 +186,18 @@ function updateRegistryChannel(direction, index, key, value) {
       renderRegistryInventory(); return;
     }
     const oldPurpose = registryDerivedPurpose(direction,c);
+    const oldCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
     c.purpose = def.value;
     c.role = def.role;
+    // Retire the old singleton adapter just as removal does. Otherwise a
+    // repurposed flame sensor still reserves its GPIO during backend validation.
+    const newCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
+    if (oldCoreKey && oldCoreKey !== newCoreKey &&
+        !(r[direction + 's'] || []).some(row => row !== c && row.installed !== false &&
+          (direction === 'input' ? registryCoreSensorKey(row) : registryCoreActuatorKey(row)) === oldCoreKey)) {
+      const adapters = direction === 'input' ? cfg.sensors : cfg.actuators;
+      if (adapters?.[oldCoreKey]) adapters[oldCoreKey].enabled = false;
+    }
     c.calibration_points = [];
     if (direction === 'output' && ['oil_pump','scavenge_pump'].includes(oldPurpose) && oldPurpose !== def.value) {
       removePumpFlowInput({...c, purpose:oldPurpose});

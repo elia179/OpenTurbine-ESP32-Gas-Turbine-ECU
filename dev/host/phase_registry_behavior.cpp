@@ -1,4 +1,5 @@
 #include "../../src/system/ChannelRegistry.h"
+#include "../../src/system/DigitalInputMirror.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -217,5 +218,59 @@ int main() {
     cell.minValue=0; cell.maxValue=5000; assert(!cells.validate());
     cell.maxValue=4095; cell.analogMvPerUnit=INFINITY; assert(!cells.validate());
     cell.analogMvPerUnit=1000; cell.minValue=NAN; assert(!cells.validate());
+    // A registry switch creates a legacy safety slot with its pin/role. Its
+    // stable ID may be a former flame sensor ID or any user-independent ID.
+    for (const char* id : {"low_oil_switch", "flame_main", "di_1"}) {
+        ChannelRegistry switches;
+        switches.inputCount = 1;
+        auto& c = switches.inputs[0];
+        c.installed = true; c.direction = ChannelRegistry::Input;
+        c.driver = ChannelRegistry::Digital; c.pin = 35; c.activeHigh = false;
+        std::strcpy(c.id, id); std::strcpy(c.role, "low_oil_switch");
+        std::strcpy(c.purpose, "low_oil_switch");
+        assert(switches.validate());
+        JsonDocument snapshot; switches.toJson(snapshot.to<JsonObject>());
+        ChannelRegistry reloaded; assert(reloaded.fromJson(snapshot.as<JsonObjectConst>()));
+        const auto& loaded = reloaded.inputs[0];
+        assert(registryMirrorsDigitalInput(loaded, 35, "low_oil_switch", false));
+        assert(!registryMirrorsDigitalInput(loaded, 35, "low_oil_switch", true));
+        assert(!registryMirrorsDigitalInput(loaded, 34, "low_oil_switch", false));
+        assert(!registryMirrorsDigitalInput(loaded, 35, "oil_zero_switch", false));
+        assert(!registryMirrorsDigitalInput(loaded, -1, "low_oil_switch", false));
+        c.driver = ChannelRegistry::Analog;
+        assert(!registryMirrorsDigitalInput(c, 35, "low_oil_switch", false));
+        c.driver = ChannelRegistry::Digital; c.installed = false;
+        assert(!registryMirrorsDigitalInput(c, 35, "low_oil_switch", false));
+    }
+    // Move, rename and reverse polarity through a saved runtime adapter, then
+    // repurpose/remove it. Preserve independent legacy channels and timing.
+    JsonDocument adapters;
+    auto adapterInputs = adapters["channel_registry"]["inputs"].to<JsonArray>();
+    auto source = adapterInputs.add<JsonObject>();
+    source["id"] = "flame_main"; source["name"] = "Oil safety";
+    source["role"] = "low_oil_switch"; source["purpose"] = "low_oil_switch";
+    source["driver"] = 0; source["pin"] = 35; source["active_high"] = false;
+    auto slots = adapters["di_channels"].to<JsonArray>();
+    auto adapter = slots.add<JsonObject>();
+    adapter["registry_id"] = "flame_main"; adapter["pin"] = 34;
+    adapter["role"] = "fault"; adapter["active_h"] = true;
+    adapter["debounce_ms"] = 75; adapter["active_modes"] = 4;
+    auto independent = slots.add<JsonObject>();
+    independent["pin"] = 33; independent["role"] = "estop";
+    reconcileRegistryDigitalInputs(adapters);
+    assert(adapter["pin"].as<int>() == 35);
+    assert(!adapter["active_h"].as<bool>());
+    assert(!std::strcmp(adapter["role"].as<const char*>(), "low_oil_switch"));
+    assert(adapter["debounce_ms"].as<int>() == 75 && adapter["active_modes"].as<int>() == 4);
+    source["pin"] = 32; source["active_high"] = true;
+    reconcileRegistryDigitalInputs(adapters);
+    assert(adapter["pin"].as<int>() == 32 && adapter["active_h"].as<bool>());
+    source["role"] = "flame"; source["driver"] = 1;
+    reconcileRegistryDigitalInputs(adapters);
+    assert(adapter["pin"].as<int>() == -1 && adapter["registry_id"].isNull());
+    assert(independent["pin"].as<int>() == 33);
+    adapter["registry_id"] = "removed_switch"; adapter["pin"] = 35;
+    reconcileRegistryDigitalInputs(adapters);
+    assert(adapter["pin"].as<int>() == -1);
     std::cout << "phase registry, speed ownership, named switches, long binding round-trip and load-cell calibration validation vectors passed\n";
 }

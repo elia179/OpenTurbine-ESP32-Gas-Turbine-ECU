@@ -19,6 +19,7 @@
 
 #include "../hardware_profile.h"
 #include "system/HardwareConfig.h"
+#include "hal/GpioInputBias.h"
 #include "system/OutputActivity.h"
 #include "soc/soc_caps.h"
 #include <new>
@@ -860,7 +861,8 @@ namespace Hardware {
             g_registryAnalogSwitchState[i] = !c.activeHigh;
             g_registryAnalogSwitchConfig[i] = registryThresholdConfigKey(c);
             if (!ed.registryInputHealthy[i]) continue;
-            uint8_t inputMode = c.pullup ? INPUT_PULLUP : (c.pulldown ? INPUT_PULLDOWN : INPUT);
+            uint8_t inputMode = GpioInputBias::safeMode(c.pin,
+                c.pullup ? INPUT_PULLUP : (c.pulldown ? INPUT_PULLDOWN : INPUT), INPUT);
             if (c.driver == ChannelRegistry::Digital) {
                 pinMode(c.pin, inputMode);
             } else if (c.driver == ChannelRegistry::Pulse) {
@@ -2216,9 +2218,11 @@ namespace Hardware {
             g_sensorAbInput.setHealthyRawRange(0, 4095);
         }
         if (hw.abRequiresArmSwitch && hw.abArmSwitchPin >= 0)
-            pinMode(hw.abArmSwitchPin, hw.abArmSwitchActiveH ? INPUT_PULLDOWN : INPUT_PULLUP);
+            pinMode(hw.abArmSwitchPin, GpioInputBias::safeMode(hw.abArmSwitchPin,
+                hw.abArmSwitchActiveH ? INPUT_PULLDOWN : INPUT_PULLUP, INPUT));
         if (hw.abTriggerSource == 2 && hw.abSwitchPin >= 0)
-            pinMode(hw.abSwitchPin, hw.abSwitchActiveH ? INPUT_PULLDOWN : INPUT_PULLUP);
+            pinMode(hw.abSwitchPin, GpioInputBias::safeMode(hw.abSwitchPin,
+                hw.abSwitchActiveH ? INPUT_PULLDOWN : INPUT_PULLUP, INPUT));
         if (hw.hasGlowCurrentSensor && hw.glowCurrentPin >= 0) {
             g_sensorGlowCurrent.begin(hw.glowCurrentPin);
             applyCurrentSensorCal(g_sensorGlowCurrent, hw.glowCurrentZeroV, hw.glowCurrentMvPerA);

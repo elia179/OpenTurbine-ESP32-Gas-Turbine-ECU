@@ -30,10 +30,10 @@ const GPIO_DB_ESP32 = {
   27: {a2:1, label:'GPIO27'},
   32: {adc1:1, label:'GPIO32'},
   33: {adc1:1, label:'GPIO33'},
-  34: {adc1:1, i:1, label:'GPIO34 (input only)'},
-  35: {adc1:1, i:1, label:'GPIO35 (input only)'},
-  36: {adc1:1, i:1, label:'GPIO36 (input only)'},
-  39: {adc1:1, i:1, label:'GPIO39 (input only)'},
+  34: {adc1:1, i:1, noPull:1, label:'GPIO34 (input only)'},
+  35: {adc1:1, i:1, noPull:1, label:'GPIO35 (input only)'},
+  36: {adc1:1, i:1, noPull:1, label:'GPIO36 (input only)'},
+  39: {adc1:1, i:1, noPull:1, label:'GPIO39 (input only)'},
 };
 
 const GPIO_DB_ESP32S3 = {
@@ -74,6 +74,20 @@ const GPIO_DB_ESP32S3 = {
 };
 
 let GPIO_DB = GPIO_DB_ESP32;
+
+function pinHasNoInternalPull(pin) {
+  return !!GPIO_DB?.[Number(pin)]?.noPull;
+}
+function unavailableInputBias(pin) {
+  if (!pinHasNoInternalPull(pin)) return '';
+  return `<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">GPIO ${Number(pin)} has no internal pull-up or pull-down. Use an external resistor to 3.3 V or ground, or a driven signal.</span><div class="hw-toggle-row hw-bias-unavailable"><label class="hw-toggle"><input type="checkbox" disabled><span></span> Pull-up</label><label class="hw-toggle"><input type="checkbox" disabled><span></span> Pull-down</label></div></div>`;
+}
+function registryIsLegacyDiMirror(channel, di) {
+  return channel?.installed !== false && !channel?.mirror_of && Number(channel?.driver) === 0 &&
+    Number(di?.pin ?? -1) >= 0 && Number(channel.pin) === Number(di.pin) &&
+    (channel.active_high !== false) === !!di.active_h &&
+    [channel.role, channel.purpose].includes(di.role);
+}
 
 function pinShareGroupForMode(mode) {
   if (mode === 'spi-clk') return 'spi-clk';
@@ -157,7 +171,10 @@ function collectPinUsage() {
     add(abt.input_pin, 'AB input');
     if (abt.source !== 0 && abt.requires_arm) add(abt.arm_pin, 'AB arm');
   }
-  (cfg.di_channels || []).forEach((ch, i) => add(ch.pin, ch.label || `DI channel ${i + 1}`));
+  (cfg.di_channels || []).forEach((ch, i) => {
+    if (!(cfg.channel_registry?.inputs || []).some(channel => registryIsLegacyDiMirror(channel, ch)))
+      add(ch.pin, ch.label || `DI channel ${i + 1}`);
+  });
   const r = registryRoot();
   const addProfilePortPin = (ch, direction) => {
     if (!profileActive || !ch.physical_port || !ch.physical_mode) return false;
@@ -492,7 +509,7 @@ function renderDiChannels(channels) {
         </div>
         <div class="hw-field">
           <span class="hw-label">Active polarity</span>
-          <span class="hw-desc">Active LOW uses the internal pull-up. ⚠ Active HIGH leaves the pin floating — it REQUIRES an external pulldown resistor or a permanently driven signal, or noise will trigger it.</span>
+          <span class="hw-desc">${pinHasNoInternalPull(ch.pin) ? 'This GPIO has no internal pull-up or pull-down. Use an external resistor or a driven signal.' : 'Active LOW uses the internal pull-up. Active HIGH requires an external pulldown resistor or a driven signal.'}</span>
           <select onchange="setDiChannel(${i},'active_h',this.value==='1')">
             <option value="0" ${!ch.active_h?'selected':''}>Active LOW (GND = active)</option>
             <option value="1" ${ch.active_h?'selected':''}>Active HIGH (3.3 V = active)</option>

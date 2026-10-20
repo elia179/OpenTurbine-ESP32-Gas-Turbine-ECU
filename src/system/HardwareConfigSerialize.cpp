@@ -1,6 +1,7 @@
 #include "HardwareConfig.h"
 #include "Config.h"
 #include "HardwareConfigInternal.h"
+#include "DigitalInputMirror.h"
 #include "pcb/PcbProfileManager.h"
 
 // ── _toDoc ────────────────────────────────────────────────────
@@ -436,6 +437,14 @@ void HardwareConfig::_toDoc(JsonObject doc) {
         // Only 5 SysMode bits exist — never serialize a value validators
         // would flag (a raw 0xFF here used to brick the next boot).
         ch["active_modes"] = (uint8_t)(diCh[i].activeModes & 0x1F);
+        for (uint8_t j = 0; j < channelRegistry.inputCount; ++j) {
+            const auto& channel = channelRegistry.inputs[j];
+            if (registryRuntimeDiRole(diCh[i].role) && registryMirrorsDigitalInput(
+                    channel, diCh[i].pin, diCh[i].role, diCh[i].activeH)) {
+                ch["registry_id"] = channel.id;
+                break;
+            }
+        }
     }
     auto registry = doc["channel_registry"].to<JsonObject>();
     registry["version"] = CHANNEL_REGISTRY_VERSION;

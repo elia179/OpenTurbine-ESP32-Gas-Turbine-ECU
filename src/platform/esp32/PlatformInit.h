@@ -1,4 +1,5 @@
 #pragma once
+#include "../../hal/GpioInputBias.h"
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <Preferences.h>
@@ -121,9 +122,9 @@ public:
         // Generic dev-board switch defaults. Profile-backed Start/Stop ports
         // are initialized from the resolved runtime hardware configuration.
         if (genericDevBoardMode) {
-            pinMode(OT_STOP_PIN, INPUT_PULLUP);
+            pinMode(OT_STOP_PIN, GpioInputBias::safeMode(OT_STOP_PIN, INPUT_PULLUP, INPUT));
 #ifdef OT_START_PIN
-            pinMode(OT_START_PIN, INPUT_PULLUP);
+            pinMode(OT_START_PIN, GpioInputBias::safeMode(OT_START_PIN, INPUT_PULLUP, INPUT));
 #endif
         }
 

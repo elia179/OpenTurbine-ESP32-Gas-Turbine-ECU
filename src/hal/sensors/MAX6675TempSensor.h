@@ -1,4 +1,5 @@
 #pragma once
+#include "../GpioInputBias.h"
 #include "ISensor.h"
 #include "SensorProtocolDecode.h"
 #include "SoftwareSpiRead.h"
@@ -34,7 +35,7 @@ public:
         digitalWrite(_clkPin, LOW);
         // An absent converter otherwise leaves MISO floating and may appear
         // as a plausible turbine temperature.
-        pinMode(_misoPin, INPUT_PULLUP);
+        pinMode(_misoPin, GpioInputBias::safeMode(_misoPin, INPUT_PULLUP, INPUT));
         _filled  = 0;
         _idx     = 0;
         _temp    = 0;
