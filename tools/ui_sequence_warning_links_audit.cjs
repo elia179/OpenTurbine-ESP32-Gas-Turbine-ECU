@@ -15,8 +15,12 @@ const { chromium } = require('playwright');
     process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google/Chrome/Application/chrome.exe'),
     process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'], 'Microsoft/Edge/Application/msedge.exe')
   ].filter(Boolean);
-  const browser = await chromium.launch({headless:true, executablePath:candidates.find(p => fs.existsSync(p))});
+  const browser = await chromium.launch({headless:true, executablePath:process.argv.includes('--bundled-browser')
+    ? undefined : candidates.find(p => fs.existsSync(p))});
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    document.addEventListener('ot:config-loaded', () => { window.__warningAuditConfigReady = true; });
+  });
   const base = liveBase || 'http://127.0.0.1:8779';
   try {
     if (!liveBase) await page.request.post(base + '/__sim/scenario/full');
@@ -86,8 +90,11 @@ const { chromium } = require('playwright');
     await page.goto(base + '/system.html?v=20261020b#system-backup-restore');
     await page.locator('#cfg-backup-btn').waitFor({state:'visible'});
     await page.goto(base + '/controllers.html?v=20261020b');
-    await page.waitForFunction(() => !!document.getElementById('cf-pb_n1h'));
+    // Controls can exist before the asynchronous config/hardware load finishes.
+    // Wait for its completion event so loading cannot overwrite this fixture.
+    await page.waitForFunction(() => window.__warningAuditConfigReady === true);
     await page.evaluate(() => {
+      if (!hasRegistryInput('n1_speed')) throw new Error('N1 warning fixture requires a fitted N1 source');
       document.getElementById('cf-pb_n1e').value = '1';
       document.getElementById('cf-pb_n1h').value = String(Number(document.getElementById('cf-rpm_limit').value) + 1000);
       runValidation();
@@ -97,7 +104,8 @@ const { chromium } = require('playwright');
     await page.locator('#cf-pb_n1e').waitFor({state:'visible'});
     assert.equal(await page.locator('[data-protection="n1"]').getAttribute('open'), '');
     await page.goto(base + '/hardware.html?v=20261020b');
-    await page.waitForFunction(() => typeof cfg !== 'undefined' && !!cfg.controls);
+    await page.waitForFunction(() => typeof cfg !== 'undefined' && !!cfg.controls &&
+      /Loaded.*no unsaved changes/.test(document.querySelector('#save-msg')?.textContent || ''));
     for (const [purpose,field,label] of [['p1_pressure','p1_trip_bar','P1 pressure'],['p2_pressure','p2_trip_bar','P2 pressure'],['torque','torque_trip_nm','Torque']]) {
       await page.evaluate(({purpose,field}) => {
         settingsCfg.safety ||= {}; settingsCfg.safety[field] = 3;
