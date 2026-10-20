@@ -6,6 +6,7 @@ const {chromium,request}=require('playwright');
 const base=process.argv[2]||'http://192.168.4.1';
 const expectedTarget=process.argv[3]||'esp32dev';
 const out=process.argv[4]||'artifacts/v254-qualification';
+const expectedVersion=fs.readFileSync('src/system/version.h','utf8').match(/#define\s+OT_VERSION\s+"([^"]+)"/)[1];
 (async()=>{
   const api=await request.newContext({baseURL:base,extraHTTPHeaders:{Connection:'close'}});
   const get=async route=>{
@@ -17,7 +18,7 @@ const out=process.argv[4]||'artifacts/v254-qualification';
     throw last;
   };
   const info=await(await get('/api/device_info')).json();
-  assert.equal(info.target,expectedTarget);assert.equal(info.firmware_version,'2.5.4');
+  assert.equal(info.target,expectedTarget);assert.equal(info.firmware_version,expectedVersion);
   assert.equal(info.state,'STANDBY');assert.equal(info.outputs_active,false);
   const before=await(await get('/api/data')).json();
   const browser=await chromium.launch({headless:true});

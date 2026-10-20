@@ -8,6 +8,16 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.5] — 2026-10-20
+
+- Add a movable, full-width Warnings area to Dashboard layout editing. Its thin placeholder appears only while editing; active warnings appear at the saved position and cannot be hidden or minimized. Preserve existing warning text, severity, links and actions.
+- Restore visible config-schema and engine-name mismatch warnings when active; their CSS defaults no longer override the telemetry show state.
+- Recognize wet-glow pilot-fuel timing, signal, pin, polarity and output-range edits in Hardware's save review without requiring a rename or unrelated change.
+- Include ignition mode/dwell/rest/current/ramp settings, dedicated actuator current sensing, phase-torque calibration and pulse-input bias in save-review changes and counts.
+- Keep I2C/SPI wiring, speed and interrupt edits reviewable after the shared-bus editor is closed, without duplicate bus rows.
+- Include PCB connection and mode changes in Hardware's save review, including assignments that retain the same GPIO and signal type.
+- Preserve small calibration and sensitivity values in the before/after review instead of rounding both sides to zero.
+
 ## [2.5.4] — 2026-10-20
 
 - Add a Dashboard fullscreen toggle for supported browsers, including Android Chrome. Keep the exit control available and follow browser-initiated exits.

@@ -322,7 +322,13 @@ function installedBrowser() {
       let index = 0;
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,40));
-        const sample = frames[index++ % frames.length];
+        // These injected frames model a connected stream; background page
+        // heartbeat timing must not disconnect the controlled fixture.
+        document.getElementById('conn').className = 'conn-dot connected';
+        // Exercise every invalid frame, then keep healthy samples flowing.
+        // Cycling seven invalid frames for each valid one made the four-sample
+        // assertion depend on near-perfect 40 ms scheduling on the host.
+        const sample = frames[Math.min(index++, frames.length - 1)];
         return {registry_inputs:sample ? [{id:'switch_live',...sample}] : []};
       };
       const samples = await sampleAdcSwitchRaw('switch_live');
@@ -377,12 +383,14 @@ function installedBrowser() {
       let index = 0;
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,20));
-        const raw = pulseWidths[index++ % pulseWidths.length];
+        document.getElementById('conn').className = 'conn-dot connected';
+        const raw = pulseWidths[Math.min(index++, pulseWidths.length - 1)];
         return {throttle_input_us:raw,rc_throttle_valid:raw !== 1000};
       };
       const pulse = await _captureInputAverage('throttle_input_us');
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,20));
+        document.getElementById('conn').className = 'conn-dot connected';
         return {throttle_input_us:1000,rc_throttle_valid:false,throttle_input_raw:0};
       };
       let missing = '';
@@ -390,6 +398,7 @@ function installedBrowser() {
       let idleMissing = '';
       nextCalibrationFrame = async () => {
         await new Promise(resolve => setTimeout(resolve,20));
+        document.getElementById('conn').className = 'conn-dot connected';
         return {idle_input_us:1200,rc_idle_valid:false,throttle_input_raw:0};
       };
       try { await _captureInputAverage('idle_input_us'); } catch (error) { idleMissing = error.message; }

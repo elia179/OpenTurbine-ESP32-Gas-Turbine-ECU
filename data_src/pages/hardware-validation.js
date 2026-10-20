@@ -125,6 +125,10 @@ function checkPinConflicts() {
 let _fieldSnap = {};
 let _workflowSnap = {controllers:{}, safety:{}, devices:{}, controls:{}, labels:{}, ab_trigger:{}};
 
+function _hardwareFieldUsesModelReview(el) {
+  return /^(?:en-(?:i2c|spi)$|f-(?:i2c|spi)-)/.test(el.id);
+}
+
 function _snapshotFields() {
   _fieldSnap = {};
   document.querySelectorAll(
@@ -136,7 +140,9 @@ function _snapshotFields() {
   _workflowSnap = JSON.parse(JSON.stringify({
     controllers: cfg.controllers || {},
     safety: cfg.safety || {},
+    actuators: cfg.actuators || {},
     devices: {
+      i2c: cfg.i2c || {}, spi: cfg.spi || {},
       cluster_serial: cfg.cluster_serial || {},
       mavlink: cfg.mavlink || {},
       status_led: cfg.actuators?.status_led || {},
@@ -184,6 +190,7 @@ function _changedFieldCount() {
   document.querySelectorAll(
     'input[id^="f-"], select[id^="f-"], textarea[id^="f-"], input[id^="en-"]'
   ).forEach(el => {
+    if (_hardwareFieldUsesModelReview(el)) return;
     if (!(el.id in _fieldSnap)) return;
     if (el.offsetParent === null) return;
     const cur = (el.type === 'checkbox') ? el.checked : el.value;
@@ -191,7 +198,7 @@ function _changedFieldCount() {
   });
   count += _registryDiffRows('input').length + _registryDiffRows('output').length +
     _registryBindingDiffRows().length + _workflowDiffRows().length + _deviceDiffRows().length +
-    _controlDiffRows().length + _abTriggerDiffRows().length;
+    _controlDiffRows().length + _abTriggerDiffRows().length + _actuatorDetailDiffRows().length;
   return count;
 }
 

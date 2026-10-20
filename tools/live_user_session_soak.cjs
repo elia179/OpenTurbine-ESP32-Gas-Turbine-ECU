@@ -64,6 +64,7 @@ async function json(response, label) {
   let rampEdited = false;
   let classicStandbySaveReboots = false;
   let saves = 0;
+  let dashboardWarningChecks = 0;
   let navigations = 0;
   let navigationEpoch = 0;
   const requestEpoch = new WeakMap();
@@ -351,6 +352,20 @@ async function json(response, label) {
 
   async function exerciseDashboard() {
     await navigate('/');
+    const warnings = page.locator('#dashboard-warnings-card');
+    if (await warnings.count()) {
+      await page.locator('#dashboard-card-edit-btn').click();
+      assert.ok(await warnings.isVisible(), 'Edit mode lost the warnings slot');
+      assert.equal(await warnings.locator('.dashboard-hide-card,[data-dashboard-setting]').count(), 0);
+      const arrange = page.locator('#dashboard-arrange-btn');
+      if (await arrange.isVisible()) await arrange.click();
+      await warnings.locator('.dashboard-drag-handle').focus();
+      await page.keyboard.press('ArrowDown');
+      const order = await page.evaluate(() => JSON.parse(localStorage.getItem('ot_dashboard_card_order_v1')));
+      assert.equal(order.filter(id => id === 'dashboard-warnings-card').length, 1);
+      await page.locator('#dashboard-card-edit-btn').click();
+      dashboardWarningChecks++;
+    }
     const fullscreen = page.locator('#dashboard-fullscreen-btn');
     if (await fullscreen.count() && await fullscreen.isVisible()) {
       await fullscreen.click();
@@ -670,7 +685,7 @@ async function json(response, label) {
     fs.writeFileSync(path.join(outDir, `${label.toLowerCase()}-result.json`), JSON.stringify({
       passed: true, target: info.target, version: info.firmware_version,
       build_id: info.build_id, duration_s: Math.round((Date.now() - started) / 1000),
-      navigations, saves, original_ramp_ms: originalRamp, restored,
+      navigations, saves, dashboard_warning_checks: dashboardWarningChecks, original_ramp_ms: originalRamp, restored,
       soak_boot_count: soakBootCount, final_boot_count: finalTelemetry.boot_count,
       failures, httpErrors, recovered_get_resets: recoveredGetResets.length,
       recovered_config_reads: recoveredConfigReadBackpressure.length

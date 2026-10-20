@@ -415,6 +415,13 @@ body.dashboard-card-editing .dashboard-customizable-card{padding-top:2.5rem}
   body.dashboard-card-editing #dashboard-custom-cards > .dashboard-customizable-card{grid-column:1/-1!important;padding-top:2.5rem}
 }
 .dashboard-user-hidden{display:none!important}
+.dashboard-warnings-card{min-width:0;margin-bottom:1rem}
+.dashboard-warnings-placeholder{display:none}
+body.dashboard-card-editing #dashboard-warnings-card{min-height:44px;padding:.65rem .8rem .65rem 2.8rem!important;border:1px dashed var(--border-light);border-radius:var(--r-md);background:var(--surface)}
+body.dashboard-card-editing .dashboard-warnings-placeholder{display:block;color:var(--dim);font-size:.8rem}
+#dashboard-custom-cards > #dashboard-warnings-card{grid-column:1/-1!important}
+#dashboard-warnings-content{min-width:0;overflow-wrap:anywhere}
+#dashboard-warnings-content > :last-child{margin-bottom:0!important}
 .dashboard-group-user-empty{display:none!important}
 section:has(> .dashboard-user-hidden:only-child){display:none!important}
 .dashboard-hidden-cards{flex:1 1 100%;justify-content:flex-end;align-items:center;gap:.35rem;flex-wrap:wrap;padding-top:.1rem}

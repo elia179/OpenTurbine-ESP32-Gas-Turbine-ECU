@@ -204,8 +204,9 @@ const DASHBOARD_CUSTOM_CARD_IDS = [
   'throttle-output-card','oil-output-card','switch-inputs-card','governor-card',
   'actuator-outputs-card','afterburner-card','last-event-card','uptime-card',
   'hour-meter-card','relight-card','extra-cooldown-card','system-card',
-  'dashboard-controls-card','getting-started-banner','run-summary-card','seq-progress-section'
+  'dashboard-controls-card','getting-started-banner','run-summary-card','seq-progress-section','dashboard-warnings-card'
 ];
+const dashboardCardCanHide = id => !['dashboard-controls-card','dashboard-warnings-card'].includes(id);
 const dashboardCardIdAllowed = id => DASHBOARD_CUSTOM_CARD_IDS.includes(id) ||
   /^registry-(?:output-)?card-[a-zA-Z0-9_-]{1,64}$/.test(id);
 function dashboardCardIds() {
@@ -215,7 +216,7 @@ let _dashboardCardViews = (() => {
   try {
     const parsed = JSON.parse(localStorage.getItem(DASHBOARD_VIEW_PREF_KEY) || '{}');
     return Object.fromEntries(Object.entries(parsed || {}).filter(([id, value]) =>
-      dashboardCardIdAllowed(id) && value && ['normal','reduced','minimal'].includes(value.detail) &&
+      dashboardCardIdAllowed(id) && id !== 'dashboard-warnings-card' && value && ['normal','reduced','minimal'].includes(value.detail) &&
       ['auto','small','medium','wide'].includes(value.size)));
   } catch (_) { return {}; }
 })();
@@ -228,7 +229,7 @@ const DASHBOARD_LIMIT_FIELDS = {
 let _dashboardHiddenCards = (() => {
   try {
     const value = JSON.parse(localStorage.getItem(DASHBOARD_CARD_PREF_KEY) || '[]');
-    return new Set(Array.isArray(value) ? value.filter(id => dashboardCardIdAllowed(id) && id !== 'dashboard-controls-card') : []);
+    return new Set(Array.isArray(value) ? value.filter(id => dashboardCardIdAllowed(id) && dashboardCardCanHide(id)) : []);
   } catch (_) { return new Set(); }
 })();
 let _dashboardCustomOrder = (() => {
@@ -238,8 +239,11 @@ let _dashboardCustomOrder = (() => {
     const order = [...new Set(value.filter(dashboardCardIdAllowed))];
     // Older personal layouts kept these blocks above the movable cards.
     // Preserve that placement until the user chooses a different order.
-    return order.includes('dashboard-controls-card') ? order :
+    const migrated = order.includes('dashboard-controls-card') ? order :
       ['getting-started-banner','seq-progress-section','run-summary-card','dashboard-controls-card',...order];
+    // Warnings previously stayed above even a personal layout. Preserve that
+    // position until the user explicitly moves the new warnings slot.
+    return migrated.includes('dashboard-warnings-card') ? migrated : ['dashboard-warnings-card',...migrated];
   } catch (_) { return null; }
 })();
 
@@ -253,7 +257,9 @@ function saveDashboardCardPrefs() {
 }
 
 function refreshDashboardCardVisibility() {
+  refreshDashboardWarnings();
   dashboardCardIds().forEach(id => {
+    if (!dashboardCardCanHide(id)) _dashboardHiddenCards.delete(id);
     document.getElementById(id)?.classList.toggle('dashboard-user-hidden', _dashboardHiddenCards.has(id));
   });
   document.querySelectorAll('.telemetry-group').forEach(group => {
@@ -296,6 +302,16 @@ function refreshDashboardCardVisibility() {
   });
 }
 
+function refreshDashboardWarnings() {
+  const card = document.getElementById('dashboard-warnings-card');
+  const content = document.getElementById('dashboard-warnings-content');
+  if (!card || !content) return;
+  // Existing telemetry code owns the banners' display states. Inspect those
+  // states without polling, cloning banners or adding a mutation observer.
+  const active = Array.from(content.children).some(banner => banner.style.display !== 'none' && !banner.hidden);
+  card.style.display = active || document.body.classList.contains('dashboard-card-editing') ? '' : 'none';
+}
+
 function initializeDashboardCardEditing() {
   dashboardCardIds().forEach(id => {
     const card = document.getElementById(id);
@@ -315,7 +331,7 @@ function initializeDashboardCardEditing() {
       saveDashboardCardPrefs();
       refreshDashboardCardVisibility();
     });
-    if (id !== 'dashboard-controls-card') card.appendChild(button);
+    if (dashboardCardCanHide(id)) card.appendChild(button);
     const drag = document.createElement('button');
     drag.type = 'button';
     drag.className = 'dashboard-drag-handle';
@@ -360,8 +376,8 @@ function initializeDashboardCardEditing() {
       label.appendChild(select); settings.appendChild(label);
     };
     if (primary) addSelect('detail', 'Detail', [['normal','Normal'],['reduced','Reduced'],['minimal','Minimal']]);
-    addSelect('size', 'Size', [['auto','Original'],['small','Small'],['medium','Medium'],['wide','Wide']]);
-    card.appendChild(settings);
+    if (id !== 'dashboard-warnings-card') addSelect('size', 'Size', [['auto','Original'],['small','Small'],['medium','Medium'],['wide','Wide']]);
+    if (settings.childElementCount) card.appendChild(settings);
     applyDashboardCardView(card);
     const limitField = DASHBOARD_LIMIT_FIELDS[id];
     if (limitField) {
@@ -386,7 +402,8 @@ function initializeDashboardCardEditing() {
 }
 
 function applyDashboardCardView(card) {
-  const view = _dashboardCardViews[card.id] || {detail:'normal',size:'auto'};
+  const view = card.id === 'dashboard-warnings-card' ? {detail:'normal',size:'wide'}
+    : _dashboardCardViews[card.id] || {detail:'normal',size:'auto'};
   card.dataset.dashboardDetail = view.detail;
   card.dataset.dashboardSize = view.size;
   card.querySelectorAll('[data-dashboard-setting]').forEach(select => {
@@ -1571,7 +1588,7 @@ function applyData(d) {
       sbr.textContent = '⚠ START unavailable: ' + startBlock;
       if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261020b';
+        link.href = '/sequence.html?v=20261020c';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1629,12 +1646,12 @@ function applyData(d) {
   const mismatchBanner = document.getElementById('profile-mismatch-banner');
   if (mismatchBanner) {
     const mismatch = d.profile_match === false;
-    mismatchBanner.style.display = mismatch ? '' : 'none';
+    mismatchBanner.style.display = mismatch ? 'block' : 'none';
   }
 
   // ── Config version mismatch banner ────────────────────────
   const verBanner = document.getElementById('config-version-banner');
-  if (verBanner) verBanner.style.display = d.config_version_mismatch ? '' : 'none';
+  if (verBanner) verBanner.style.display = d.config_version_mismatch ? 'block' : 'none';
 
   // ── Hour meter ────────────────────────────────────────────
   if (d.start_attempt_count !== undefined) setText('hour-start-count', fmtInt(d.start_attempt_count));

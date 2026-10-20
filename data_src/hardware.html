@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020b');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020c');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -6021,6 +6021,10 @@ function checkPinConflicts() {
 let _fieldSnap = {};
 let _workflowSnap = {controllers:{}, safety:{}, devices:{}, controls:{}, labels:{}, ab_trigger:{}};
 
+function _hardwareFieldUsesModelReview(el) {
+  return /^(?:en-(?:i2c|spi)$|f-(?:i2c|spi)-)/.test(el.id);
+}
+
 function _snapshotFields() {
   _fieldSnap = {};
   document.querySelectorAll(
@@ -6032,7 +6036,9 @@ function _snapshotFields() {
   _workflowSnap = JSON.parse(JSON.stringify({
     controllers: cfg.controllers || {},
     safety: cfg.safety || {},
+    actuators: cfg.actuators || {},
     devices: {
+      i2c: cfg.i2c || {}, spi: cfg.spi || {},
       cluster_serial: cfg.cluster_serial || {},
       mavlink: cfg.mavlink || {},
       status_led: cfg.actuators?.status_led || {},
@@ -6080,6 +6086,7 @@ function _changedFieldCount() {
   document.querySelectorAll(
     'input[id^="f-"], select[id^="f-"], textarea[id^="f-"], input[id^="en-"]'
   ).forEach(el => {
+    if (_hardwareFieldUsesModelReview(el)) return;
     if (!(el.id in _fieldSnap)) return;
     if (el.offsetParent === null) return;
     const cur = (el.type === 'checkbox') ? el.checked : el.value;
@@ -6087,7 +6094,7 @@ function _changedFieldCount() {
   });
   count += _registryDiffRows('input').length + _registryDiffRows('output').length +
     _registryBindingDiffRows().length + _workflowDiffRows().length + _deviceDiffRows().length +
-    _controlDiffRows().length + _abTriggerDiffRows().length;
+    _controlDiffRows().length + _abTriggerDiffRows().length + _actuatorDetailDiffRows().length;
   return count;
 }
 
@@ -6311,6 +6318,7 @@ function _formatValue(el, rawVal) {
 function _registryFieldLabel(key) {
   return ({
     id:'Stable ID', name:'Display name', purpose:'Purpose', role:'Purpose family', driver:'Signal type', pin:'GPIO pin',
+    physical_port:'PCB connection', physical_mode:'PCB connection mode',
     min:'Minimum mapped value', max:'Maximum mapped value', pulses_per_unit:'Pulse scale',
     analog_zero_mv:'Analog zero offset', analog_mv_per_unit:'Analog mV per unit', analog_divider:'Voltage divider ratio',
     calibration_points:'Multi-point calibration curve', i2c_address:'I2C address', device_channel:'Device channel',
@@ -6329,6 +6337,8 @@ function _registryFieldLabel(key) {
     current_zero_v:'Current zero voltage', current_max_a:'Current limit', current_ready_a:'Glow hot-status current', current_trip_delay_ms:'Overcurrent confirmation',
     ignition_mode:'Ignition mode', ignition_dwell_ms:'Ignition dwell', ignition_rest_ms:'Ignition rest',
     ignition_coil_sat_a:'Coil saturation current', ignition_on_demand:'Ignition On level', ignition_ramp_ms:'Ignition ramp-up time',
+    phase_pin:'Torque pickup GPIO', phase_pulses_per_unit:'Torque pickup pulses per revolution',
+    phase_speed_source:'Shaft speed source', phase_zero_deg:'Zero-torque phase', phase_deg_per_nm:'Phase sensitivity',
     has_flow_monitor:'Flow monitoring', minimum_flow_l_min:'Minimum oil flow', flow_input:'Flow sensor'
   })[key] || key.replace(/_/g, ' ');
 }
@@ -6342,8 +6352,12 @@ function _registryFieldValue(key, value, direction) {
   if (key === 'calibration_points') return Array.isArray(value)
     ? (value.length ? value.map(p => `${Number(p.raw)} -> ${Number(p.value)}`).join(', ') : 'Linear calibration')
     : 'Linear calibration';
-  if (key === 'safe_demand') return (Number(value) * 100).toFixed(0) + '%';
-  if (typeof value === 'number') return Number.isFinite(value) ? value.toFixed(2) : String(value);
+  if (key === 'safe_demand') return Number((Number(value) * 100).toPrecision(12)) + '%';
+  if (key === 'phase_speed_source') return ['Off','N1 speed','N2 speed','Torque shaft speed'][Number(value)] || String(value);
+  if (key === 'ignition_mode') return ['Simple On/Off','Dwell / rest PWM cycle','Current-limited coil dwell'][Number(value)] || String(value);
+  // Calibration and phase sensitivity can be far below 0.01. Rounding both
+  // sides to two decimals conceals the actual change in the review dialog.
+  if (typeof value === 'number') return String(value);
   return String(value);
 }
 function _registryChannelsById(rows) {
@@ -6355,7 +6369,7 @@ function _registryAddedSummary(direction, channel) {
   return `Added ${registryRoleLabel(direction, channel.role)} / ${registrySignalSummary(channel)} / ${registryPinSummary(channel)}`;
 }
 function _registryFieldRelevant(direction, channel, key) {
-  const common = new Set(['id','name','purpose','role','driver','pin','min','max']);
+  const common = new Set(['id','name','purpose','role','driver','pin','min','max','physical_port','physical_mode']);
   if (common.has(key)) return true;
   const driver = Number(channel?.driver ?? (direction === 'input' ? 0 : 4));
   if (['i2c_address','device_channel'].includes(key)) return driver >= 8;
@@ -6366,7 +6380,7 @@ function _registryFieldRelevant(direction, channel, key) {
     if (key === 'active_high') return driver === 0 || driver === 8 ||
       ([1,9].includes(driver) && ['flame','ab_flame'].includes(registryDerivedPurpose(direction, channel))) ||
       ([1,9].includes(driver) && (registryIsSwitchRole(channel?.role) || ['start_switch','stop_switch'].includes(channel?.purpose)));
-    if (['pullup','pulldown'].includes(key)) return driver === 0;
+    if (['pullup','pulldown'].includes(key)) return [0,2].includes(driver);
     if (key === 'pulses_per_unit') return driver === 2;
     const role = String(channel?.role || '');
     if (key === 'analog_divider') return [1,9].includes(driver) && role === 'voltage';
@@ -6377,7 +6391,7 @@ function _registryFieldRelevant(direction, channel, key) {
     if (['digital_threshold_raw','digital_hysteresis_raw'].includes(key))
       return ([1,9].includes(driver) && ['flame','ab_flame'].includes(registryDerivedPurpose(direction, channel))) ||
         ([1,9].includes(driver) && (registryIsSwitchRole(channel?.role) || ['start_switch','stop_switch'].includes(channel?.purpose)));
-    if (key === 'filter_alpha') return [9,10].includes(driver);
+    if (key === 'filter_alpha') return [9,10].includes(driver) || Number(channel?.torque_interface) === 2;
     if (['loadcell_gain','loadcell_rate_sps','loadcell_zero','loadcell_n_per_count','lever_arm_m'].includes(key)) return driver === 10;
     const tempInterface = Number(channel?.temp_interface || 0);
     if (key === 'temp_interface') return channel?.role === 'temperature';
@@ -6387,19 +6401,27 @@ function _registryFieldRelevant(direction, channel, key) {
     const torqueInterface = Number(channel?.torque_interface || 0);
     if (key === 'torque_interface') return ['torque','thrust'].includes(String(channel?.role || ''));
     if (['hx711_clk','hx711_scale','hx711_zero'].includes(key)) return torqueInterface === 1;
+    if (['phase_pin','phase_pulses_per_unit','phase_speed_source','phase_zero_deg','phase_deg_per_nm'].includes(key)) return torqueInterface === 2;
     return false;
   }
   if (key === 'invert') return true;
   if (['safe_demand','mirror_of','force_safe_on_fault','min_run_demand'].includes(key)) return true;
   if (['pwm_freq_hz','pwm_res_bits'].includes(key)) return driver === 5;
   if (key === 'has_current') return true;
-  if (['current_pin','current_mv_a','current_zero_v','current_max_a','current_trip_delay_ms'].includes(key)) return !!channel?.has_current;
+  if (['current_pin','current_mv_a','current_zero_v','current_max_a','current_trip_delay_ms','current_ready_a'].includes(key)) return !!channel?.has_current;
+  const ignition = ['igniter','ab_igniter','glow_plug'].includes(registryDerivedPurpose(direction, channel));
+  if (key === 'ignition_mode') return ignition;
+  if (['ignition_dwell_ms','ignition_rest_ms'].includes(key)) return ignition && Number(channel?.ignition_mode) > 0;
+  if (key === 'ignition_coil_sat_a') return ignition && Number(channel?.ignition_mode) === 2;
+  if (['ignition_on_demand','ignition_ramp_ms'].includes(key)) return ignition && !outputDriverIsOnOff(driver) && !Number(channel?.ignition_mode || 0);
   if (key === 'has_flow_monitor') return ['oil_pump','scavenge_pump'].includes(String(channel?.purpose || ''));
   if (['minimum_flow_l_min','flow_input'].includes(key)) return !!channel?.has_flow_monitor;
   return false;
 }
-function _registryEffectiveValue(key, value) {
+function _registryEffectiveValue(key, value, channel) {
   if (value !== undefined && value !== null && value !== '') return value;
+  if (key === 'phase_pulses_per_unit') return Number(channel?.pulses_per_unit ?? 1);
+  if (key === 'filter_alpha' && (Number(channel?.driver) === 10 || Number(channel?.torque_interface) === 2)) return 0.25;
   const defaults = {
     pulses_per_unit:1, analog_zero_mv:0, analog_mv_per_unit:1000, analog_divider:1,
     calibration_points:[], i2c_address:0, device_channel:0, i2c_reference_mv:3300,
@@ -6415,7 +6437,8 @@ function _registryEffectiveValue(key, value) {
     pulldown:false, has_current:false, current_pin:-1, current_mv_a:100,
     current_zero_v:1.65, current_max_a:0, current_ready_a:3, current_trip_delay_ms:5000, has_flow_monitor:false,
     minimum_flow_l_min:0, flow_input:'', ignition_mode:0, ignition_dwell_ms:6,
-    ignition_rest_ms:3, ignition_coil_sat_a:8, ignition_on_demand:1, ignition_ramp_ms:0
+    ignition_rest_ms:3, ignition_coil_sat_a:8, ignition_on_demand:1, ignition_ramp_ms:0,
+    phase_pin:-1, phase_speed_source:0, phase_zero_deg:0, phase_deg_per_nm:1
   };
   return Object.prototype.hasOwnProperty.call(defaults, key) ? defaults[key] : value;
 }
@@ -6437,8 +6460,8 @@ function _registryDiffRows(direction) {
     Array.from(new Set([...Object.keys(prev || {}), ...Object.keys(c || {})]))
       .filter(k => k !== 'installed' && (_registryFieldRelevant(direction, prev, k) || _registryFieldRelevant(direction, c, k)))
       .forEach(k => {
-      const a = _registryEffectiveValue(k, prev?.[k]);
-      const b = _registryEffectiveValue(k, c?.[k]);
+      const a = _registryEffectiveValue(k, prev?.[k], prev);
+      const b = _registryEffectiveValue(k, c?.[k], c);
       if (JSON.stringify(a) === JSON.stringify(b)) return;
       rows.push({label:`${label} / ${_registryFieldLabel(k)}`, was:_registryFieldValue(k, a, direction), now:_registryFieldValue(k, b, direction)});
     });
@@ -6510,12 +6533,14 @@ function _abTriggerDiffRows() {
 function _deviceDiffRows() {
   const before = _workflowSnap.devices || {};
   const after = {
+    i2c: cfg.i2c || {}, spi: cfg.spi || {},
     cluster_serial: cfg.cluster_serial || {},
     mavlink: cfg.mavlink || {},
     status_led: cfg.actuators?.status_led || {},
     buzzer: cfg.buzzer || {}
   };
   const deviceLabels = {
+    i2c:'Shared I2C bus', spi:'Shared SPI bus',
     cluster_serial:'OT Cluster serial', mavlink:'MAVLink telemetry',
     status_led:'Status LED', buzzer:'Buzzer'
   };
@@ -6523,11 +6548,13 @@ function _deviceDiffRows() {
     enabled:'Installed', tx_pin:'TX GPIO', rx_pin:'RX GPIO', pin:'GPIO pin',
     baud:'Baud rate', interval_ms:'Update interval', type:'LED type', mode:'LED mode',
     blink_color:'Blink color', standby_color:'Standby color', startup_color:'Startup color',
-    running_color:'Running color', shutdown_color:'Shutdown color'
+    running_color:'Running color', shutdown_color:'Shutdown color',
+    sda_pin:'SDA GPIO', scl_pin:'SCL GPIO', interrupt_pin:'Interrupt GPIO', frequency_hz:'Bus speed (Hz)',
+    sck_pin:'SCK GPIO', miso_pin:'MISO GPIO', mosi_pin:'MOSI GPIO'
   };
   const format = (key, value) => {
     if (key === 'enabled') return value ? 'Enabled' : 'Disabled';
-    if (['pin','tx_pin','rx_pin'].includes(key)) return Number(value) >= 0 ? `GPIO${value}` : 'Not assigned';
+    if (key === 'pin' || key.endsWith('_pin')) return Number(value) >= 0 ? `GPIO${value}` : 'Not assigned';
     if (value === undefined || value === null || value === '') return '(empty)';
     return String(value);
   };
@@ -6542,6 +6569,54 @@ function _deviceDiffRows() {
         label:`${deviceLabels[device]} / ${fieldLabels[key] || key.replaceAll('_',' ')}`,
         was:format(key, was), now:format(key, now)
       });
+    }
+  }
+  return rows;
+}
+
+// Registry subcards also edit dedicated actuator configuration. These controls
+// have no legacy f-* IDs, and their values are not all registry properties.
+function _actuatorDetailDiffRows() {
+  const rows = [];
+  const currentFields = {
+    has_current:['Current sensing',false], current_pin:['Current sensor GPIO',-1],
+    current_mv_a:['Current sensitivity (mV/A)',100], current_zero_v:['Zero-current voltage (V)',1.65],
+    current_max_a:['Overcurrent shutdown (A)',0], current_trip_delay_ms:['Overcurrent confirmation (ms)',5000]
+  };
+  const glowFields = {
+    type:['Glow-plug type',0], current_ready_a:['Hot-status current (A)',3],
+    fuel_pin:['Pilot-fuel GPIO',-1], fuel_type:['Pilot-fuel signal',0],
+    fuel_active_h:['Pilot-fuel active state',true], fuel_delay_ms:['Pilot-fuel delay (seconds)',8000],
+    fuel_freq_hz:['Pilot-fuel PWM frequency (Hz)',1000], fuel_res_bits:['Pilot-fuel PWM resolution (bits)',10],
+    fuel_pwm_min_pct:['Pilot-fuel minimum PWM duty (%)',0], fuel_pwm_max_pct:['Pilot-fuel maximum PWM duty (%)',100],
+    fuel_min_us:['Pilot-fuel minimum pulse (us)',1000], fuel_max_us:['Pilot-fuel maximum pulse (us)',2000],
+    fuel_demand_pct:['Pilot-fuel command (%)',100]
+  };
+  const format = (key, value) => {
+    if (key === 'type') return Number(value) === 2 ? 'Wet glow plug' : 'Normal glow plug';
+    if (key === 'fuel_type') return ['Relay / on-off','PWM','Servo / ESC'][Number(value)] || String(value);
+    if (key === 'fuel_active_h') return value ? 'Active HIGH' : 'Active LOW';
+    if (key === 'fuel_delay_ms') return String(Number(value) / 1000);
+    if (key.endsWith('_pin')) return Number(value) >= 0 ? `GPIO${value}` : 'Not assigned';
+    if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled';
+    return String(value);
+  };
+  for (const [actKey, fallback] of Object.entries({oil_pump:'Oil pump',glow_plug:'Glow plug',igniter:'Igniter',igniter2:'Afterburner igniter'})) {
+    const before = _workflowSnap.actuators?.[actKey] || {};
+    const after = cfg.actuators?.[actKey] || {};
+    const owner = registryRoot().outputs.find(c => registryCoreActuatorKey(c) === actKey);
+    const oldOwner = _registrySnap?.outputs?.find(c => c.id === owner?.id);
+    const fields = {...currentFields, ...(actKey === 'glow_plug' ? glowFields : {})};
+    for (const [key, [label, defaultValue]] of Object.entries(fields)) {
+      const defaultForDevice = key === 'current_mv_a' && actKey === 'glow_plug' ? 185 : defaultValue;
+      const was = before[key] ?? defaultForDevice, now = after[key] ?? defaultForDevice;
+      if (JSON.stringify(was) === JSON.stringify(now)) continue;
+      // A synchronized registry value already has its own review row.
+      if (owner && oldOwner && (_registryFieldRelevant('output',owner,key) || _registryFieldRelevant('output',oldOwner,key)) &&
+          JSON.stringify(_registryEffectiveValue(key,oldOwner[key])) !== JSON.stringify(_registryEffectiveValue(key,owner[key])) &&
+          JSON.stringify(owner[key]) === JSON.stringify(now)) continue;
+      const name = owner ? registryDisplayName('output',owner,fallback) : fallback;
+      rows.push({label:`Output ${name} / ${label}`,was:format(key,was),now:format(key,now)});
     }
   }
   return rows;
@@ -6583,6 +6658,7 @@ function _buildChanges() {
   document.querySelectorAll(
     'input[id^="f-"], select[id^="f-"], textarea[id^="f-"], input[id^="en-"]'
   ).forEach(el => {
+    if (_hardwareFieldUsesModelReview(el)) return;
     if (!(el.id in _fieldSnap)) return;
     const cur  = (el.type === 'checkbox') ? el.checked : el.value;
     const snap = _fieldSnap[el.id];
@@ -6597,7 +6673,7 @@ function _buildChanges() {
   });
   changes.push(..._registryDiffRows('input'), ..._registryDiffRows('output'),
     ..._registryBindingDiffRows(), ..._workflowDiffRows(), ..._deviceDiffRows(),
-    ..._controlDiffRows(), ..._abTriggerDiffRows());
+    ..._controlDiffRows(), ..._abTriggerDiffRows(), ..._actuatorDetailDiffRows());
   return changes;
 }
 
