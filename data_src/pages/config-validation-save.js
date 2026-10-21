@@ -542,6 +542,7 @@ function collectConfigFields() {
 
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
+  if (_cfgSavePending) return;
   if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
   collectConfigFields();
 
@@ -605,9 +606,32 @@ async function saveConfig() {
 }
 
 function _cancelSaveRecap() {
+  if (_cfgSavePending) return;
   document.getElementById('save-recap-modal').style.display = 'none';
   const cb = document.getElementById('save-recap-confirm-btn');
   if (cb) cb.disabled = false;
+}
+
+// These page-owned Hardware writes also require an explicit acknowledgement.
+async function _saveConfigHardwarePatch(source, patch) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch('/api/hardware?source=' + source, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(patch), signal:controller.signal
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.ok === false)
+      throw new Error(result?.detail || result?.error || `Hardware HTTP ${response.status}`);
+    if (result?.ok !== true)
+      throw new Error('Hardware save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
+    return result;
+  } catch (error) {
+    if (controller.signal.aborted || error instanceof TypeError)
+      throw new Error('Hardware save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 
 async function _saveControllerChanges(payload, saveMsg, confirmButton) {
@@ -618,11 +642,7 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     safety: JSON.parse(JSON.stringify(hwCfg.safety || {})),
     oil_loops: JSON.parse(JSON.stringify(hwCfg.oil_loops || []))
   };
-  const response = await fetch('/api/hardware?source=controllers', {
-    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result.ok === false) throw new Error(result.detail || result.error || `HTTP ${response.status}`);
+  await _saveConfigHardwarePatch('controllers', hardwarePatch);
   // Finish the Hardware reboot before sending the second page-owned write.
   if (Object.keys(payload).length) {
     saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
@@ -630,7 +650,7 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const {response: settingsResponse, data} = await window.OTSaveConfigPatch(payload);
-    if (!settingsResponse?.ok || data?.ok === false)
+    if (!settingsResponse?.ok || data?.ok !== true)
       throw new Error(data?.error || data?.reason || `Settings HTTP ${settingsResponse?.status || 0}`);
   }
   _clearDirty();
@@ -650,12 +670,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
       const value = getPath(hwCfg, path.split('.'));
       if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
     }
-    const response = await fetch('/api/hardware?source=system', {
-      method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.ok === false)
-      throw new Error(result.detail || result.error || `Hardware HTTP ${response.status}`);
+    await _saveConfigHardwarePatch('system', hardwarePatch);
   }
   if (Object.keys(payload).length) {
     if (_systemHardwareDirty) {
@@ -665,7 +680,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const {response, data} = await window.OTSaveConfigPatch(payload);
-    if (!response?.ok || data?.ok === false)
+    if (!response?.ok || data?.ok !== true)
       throw new Error(data?.error || data?.reason || `Settings HTTP ${response?.status || 0}`);
     settingsReboot = data?.reboot === true;
   }
@@ -680,8 +695,40 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   else if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
 }
 
+// A durable save owns both editing surfaces until its acknowledgement arrives.
+// Inert also protects controls recreated by telemetry/dependency rerenders.
+function _setConfigSavePending(pending) {
+  _cfgSavePending = pending;
+  for (const id of ['cfg-form', 'controller-overview']) {
+    const surface = document.getElementById(id);
+    if (surface) { surface.inert = pending; surface.setAttribute('aria-busy', String(pending)); }
+  }
+  document.querySelector('.cfg-workspace')?.toggleAttribute('inert', pending);
+  const save = document.getElementById('btn-save');
+  const discard = document.getElementById('btn-discard');
+  if (save) save.disabled = pending || isLocked || !_cfgDirty;
+  if (discard) discard.disabled = pending || !_cfgDirty;
+}
+
 // Stage 2: user confirmed — actually send to device.
-function _doSave() {
+async function _doSave() {
+  if (_cfgSavePending) return;
+  if (isLocked) {
+    document.getElementById('save-msg').textContent = 'Settings are locked — stop the engine before saving.';
+    return;
+  }
+  _setConfigSavePending(true);
+  try { await _performConfigSave(); }
+  catch (error) {
+    const msg = document.getElementById('save-msg');
+    msg.textContent = '✗ ' + (error?.message || error);
+    msg.style.color = '#f55';
+    const confirm = document.getElementById('save-recap-confirm-btn');
+    if (confirm) confirm.disabled = false;
+  } finally { _setConfigSavePending(false); }
+}
+
+async function _performConfigSave() {
   const cb = document.getElementById('save-recap-confirm-btn');
   if (cb) cb.disabled = true;
   document.getElementById('save-recap-modal').style.display = 'none';
@@ -709,22 +756,20 @@ function _doSave() {
     payload.controller_schema = Number(cfg.controller_schema || 1);
   }
   if (_controllerHardwareDirty) {
-    _saveControllerChanges(payload, saveMsg, cb).catch(error => {
+    return _saveControllerChanges(payload, saveMsg, cb).catch(error => {
       saveMsg.textContent = '✗ ' + (error?.message || error);
       saveMsg.style.color = '#f55';
       if (cb) cb.disabled = false;
       if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
     });
-    return;
   }
   if (_systemHardwareDirty) {
-    _saveSystemChanges(payload, saveMsg, cb).catch(error => {
+    return _saveSystemChanges(payload, saveMsg, cb).catch(error => {
       saveMsg.textContent = '✗ ' + (error?.message || error);
       saveMsg.style.color = '#f55';
       if (cb) cb.disabled = false;
       if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
     });
-    return;
   }
   // A Classic ESP32 can be close to its largest-contiguous-block limit while
   // a live REST response owns its transmit buffer. Pause new polling briefly
@@ -734,7 +779,7 @@ function _doSave() {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const { response, data } = await window.OTSaveConfigPatch(payload);
-    if (response?.ok && data?.ok !== false) return data;
+    if (response?.ok && data?.ok === true) return data;
     throw new Error(data?.error || data?.reason || ('HTTP ' + (response?.status || 0)));
   };
   const finishSave = () => sendSave().then(async d => {
@@ -782,20 +827,24 @@ function _doSave() {
   if (pauseTelemetry) {
     const idle = typeof window.OTWaitForTelemetryIdle === 'function'
       ? window.OTWaitForTelemetryIdle(1600) : Promise.resolve(true);
-    idle.finally(async () => {
-      stopGlobalTelemetry();
-      // TCP acknowledgement/destruction can trail a completed response briefly
-      // on Classic. Wait for a useful contiguous block instead of racing
-      // LittleFS and returning a low-memory save error. This is bounded so a
-      // status fault cannot hang Save.
-      for (let attempt = 0; attempt < 16; attempt++) {
+    await idle.catch(() => {});
+    stopGlobalTelemetry();
+    // TCP acknowledgement/destruction can trail a completed response briefly
+    // on Classic. Wait for a useful contiguous block instead of racing
+    // LittleFS and returning a low-memory save error. This is bounded so a
+    // status fault cannot hang Save.
+    for (let attempt = 0; attempt < 16; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 750);
+        let status;
         try {
-          const status = await fetch('/api/status', { cache:'no-store' }).then(r => r.ok ? r.json() : null);
-          if (status && Number(status.max_alloc_heap) >= 12000) break;
-        } catch (_) {}
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-      finishSave();
-    });
-  } else finishSave();
+          status = await fetch('/api/status', { cache:'no-store', signal:controller.signal }).then(r => r.ok ? r.json() : null);
+        } finally { clearTimeout(timeout); }
+        if (status && Number(status.max_alloc_heap) >= 12000) break;
+      } catch (_) {}
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    return finishSave();
+  } else return finishSave();
 }

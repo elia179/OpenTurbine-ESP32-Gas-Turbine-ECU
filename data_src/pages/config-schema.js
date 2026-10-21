@@ -509,14 +509,16 @@ function _clearChangedBorders() {
   document.querySelectorAll('.group-changed').forEach(group => group.classList.remove('group-changed'));
 }
 
+let _cfgSavePending = false;
+
 function _markDirty() {
   _cfgDirty = true;
   const btn  = document.getElementById('btn-save');
   const discard = document.getElementById('btn-discard');
   const bar  = document.querySelector('.save-bar');
   const msg  = document.getElementById('save-msg');
-  if (btn) { btn.disabled = isLocked; btn.classList.add('primary'); }
-  if (discard) discard.disabled = false;
+  if (btn) { btn.disabled = isLocked || _cfgSavePending; btn.classList.add('primary'); }
+  if (discard) discard.disabled = _cfgSavePending;
   if (bar) bar.classList.add('is-dirty');
   if (msg && !msg.textContent.startsWith('✓')) msg.textContent = 'Unsaved changes';
   _refreshChangedBorders();
@@ -543,6 +545,7 @@ function _clearDirty() {
 }
 
 async function reloadConfigPage() {
+  if (_cfgSavePending) return;
   if (_cfgDirty && !await OTDialog.confirm('Discard every unsaved configuration change?', {
     title:'Discard changes', confirmLabel:'Discard', danger:true
   })) return;

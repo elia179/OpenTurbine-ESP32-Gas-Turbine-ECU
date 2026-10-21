@@ -21,6 +21,7 @@
 #include "system/HardwareConfig.h"
 #include "hal/GpioInputBias.h"
 #include "system/OutputActivity.h"
+#include "hal/actuators/WetGlowControl.h"
 #include "soc/soc_caps.h"
 #include <new>
 
@@ -735,6 +736,16 @@ namespace Hardware {
         }
     }
 
+    inline uint8_t pulseInputMode(const ChannelRegistry::Channel& channel, int pin) {
+        return GpioInputBias::safeMode(pin, channel.pullup ? INPUT_PULLUP :
+            (channel.pulldown ? INPUT_PULLDOWN : INPUT), INPUT);
+    }
+
+    inline uint8_t corePulseInputMode(const char* purpose, int pin) {
+        const int8_t index = registryPurposeInputIndex(purpose);
+        return index >= 0 ? pulseInputMode(HardwareConfig::channelRegistry.inputs[index], pin) : INPUT;
+    }
+
     inline void initRegistryInputs() {
         auto& reg = HardwareConfig::channelRegistry;
         auto& ed = EngineData::instance();
@@ -848,7 +859,7 @@ namespace Hardware {
                         hardLimit = Config::n2RpmLimit > 0.0f ? Config::n2RpmLimit : Config::rpmLimit;
                     if (!isfinite(hardLimit) || hardLimit <= 0.0f) hardLimit = 60000.0f;
                     g_registryPcnt[pcntCount].rpmLimit = hardLimit * 2.0f;
-                    g_registryPcnt[pcntCount++].begin(c.pin, c.pulsesPerUnit);
+                    g_registryPcnt[pcntCount++].begin(c.pin, c.pulsesPerUnit, pulseInputMode(c, c.pin));
                 }
                 ed.registryInputHealthy[i] = false;
                 continue;
@@ -2090,11 +2101,11 @@ namespace Hardware {
             Serial.printf("[HW] %s\n", ed.hardwareFault);
         }
         if (hw.hasN1Rpm && !n1RegistryAnalog && phaseSpeedSource != 1 && g_pcntResourcePlanValid) {
-            g_sensorN1Rpm.begin(hw.n1RpmPin, hw.n1RpmPpr);
+            g_sensorN1Rpm.begin(hw.n1RpmPin, hw.n1RpmPpr, corePulseInputMode("n1_speed", hw.n1RpmPin));
             if (!g_sensorN1Rpm.hardwareReady()) { ed.hardwareReady = false; strlcpy(ed.hardwareFault, "N1 PCNT initialization failed", sizeof(ed.hardwareFault)); }
         }
         if (hw.hasN2Rpm && !n2RegistryAnalog && phaseSpeedSource != 2 && g_pcntResourcePlanValid) {
-            g_sensorN2Rpm.begin(hw.n2RpmPin, hw.n2RpmPpr);
+            g_sensorN2Rpm.begin(hw.n2RpmPin, hw.n2RpmPpr, corePulseInputMode("n2_speed", hw.n2RpmPin));
             if (!g_sensorN2Rpm.hardwareReady()) { ed.hardwareReady = false; strlcpy(ed.hardwareFault, "N2 PCNT initialization failed", sizeof(ed.hardwareFault)); }
         }
         _accelLastN1Ms = 0; _accelLastN2Ms = 0;
@@ -2184,7 +2195,7 @@ namespace Hardware {
         if (hw.hasFuelFlow) {
             if (hw.fuelFlowType == 1) {
                 // Pulse / frequency type — reuse PCNT infrastructure (pulsesPerRev=1 → RPM = pulses/min)
-                if (g_pcntResourcePlanValid) g_sensorFuelFlowPulse.begin(hw.fuelFlowPin, 1.0f);
+                if (g_pcntResourcePlanValid) g_sensorFuelFlowPulse.begin(hw.fuelFlowPin, 1.0f, corePulseInputMode("fuel_flow", hw.fuelFlowPin));
             } else if (!fuelFlowRegistryAnalog) {
                 // Analog voltage type
                 g_sensorFuelFlow.begin(hw.fuelFlowPin);
@@ -3252,24 +3263,14 @@ namespace Hardware {
                     g_glowRampActive, g_glowRampStartMs));
             }
             if (hw.glowPlugType == 2 && g_actWetGlowFuel) {
-                bool commandOn = RelayDemand::requested(glowDemand);
-                if (commandOn && !g_wetGlowActive) {
-                    g_wetGlowActive = true;
-                    g_wetGlowOnMs = millis();
-                    ed.wetGlowFuelDemand = 0.0f;
-                    if (g_actWetGlowFuel) g_actWetGlowFuel->off();
-                } else if (!commandOn) {
-                    g_wetGlowActive = false;
-                    g_wetGlowOnMs = 0;
-                    ed.wetGlowFuelDemand = 0.0f;
-                    if (g_actWetGlowFuel) g_actWetGlowFuel->off();
-                }
-                if (commandOn && g_wetGlowActive &&
-                    (millis() - g_wetGlowOnMs) >= (unsigned long)hw.wetGlowFuelDelayMs) {
-                    float fuelDemand = hw.wetGlowFuelType == 0 ? 1.0f : (hw.wetGlowFuelDemandPct / 100.0f);
-                    ed.wetGlowFuelDemand = constrain(fuelDemand, 0.0f, 1.0f);
-                    if (g_actWetGlowFuel) g_actWetGlowFuel->set(ed.wetGlowFuelDemand);
-                }
+                const uint8_t selection = (ed.mode == SysMode::STANDBY || ed.mode == SysMode::FAULT)
+                    ? ed.glowTestSelection : uint8_t(WetGlowControl::Combined);
+                const float fuelDemand = hw.wetGlowFuelType == 0 ? 1.0f : hw.wetGlowFuelDemandPct / 100.0f;
+                ed.wetGlowFuelDemand = WetGlowControl::fuelDemand(selection,
+                    RelayDemand::requested(glowDemand), constrain(fuelDemand, 0.0f, 1.0f),
+                    millis(), hw.wetGlowFuelDelayMs, g_wetGlowActive, g_wetGlowOnMs);
+                if (ed.wetGlowFuelDemand > 0.0f) g_actWetGlowFuel->set(ed.wetGlowFuelDemand);
+                else g_actWetGlowFuel->off();
             } else {
                 ed.wetGlowFuelDemand = 0.0f;
             }
@@ -3280,6 +3281,7 @@ namespace Hardware {
     // ── Emergency all-off ─────────────────────────────────────
     inline void allOff() {
         auto& hw = HardwareConfig::instance();
+        EngineData::instance().glowTestSelection = WetGlowControl::Combined;
         g_glowRampActive = false;
         g_glowRampStartMs = 0;
         g_igniterRampActive = false;

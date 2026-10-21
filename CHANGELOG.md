@@ -8,6 +8,25 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.5.6] — 2026-10-21
+
+- Decode and validate compact v2 telemetry in Tools before judging connection state, so real-device actuator controls remain usable while malformed frames still lock starts.
+
+- Explicitly configure native pulse-counter GPIOs as inputs before attaching PCNT, preventing remapped RPM/flow inputs from retaining a previous GPIO role and reading zero. Apply the saved, chip-supported input bias for N1, N2, pulse flow and additional speed channels.
+
+- Prevent edits and duplicate requests during Controllers/System saves so a delayed acknowledgement cannot discard a newer edit. Keep failed drafts unsaved, require explicit success acknowledgements and bound stalled save/status requests without automatic retries.
+
+- Report a lost engine-file restore response as unconfirmed instead of treating Wi-Fi reconnection as success. Bound stalled uploads without automatic retries, lock duplicate confirmations and recheck engine mode before restoring.
+
+- Add individual heating-element and pilot-fuel pump/valve tests beneath the combined wet-glow test in Tools. Each uses the existing timed test ownership, STOP handling and interlocks.
+- Match Tools' duration and output-percentage validation to the ECU, with field-specific explanations before sending invalid settings.
+- Match generic actuator tests to firmware ownership and fitted state; explain linked outputs instead of offering ineffective independent mirror tests.
+- Keep an older completed test's delayed display reset from overwriting a restarted test, and prevent repeated output-name suffixes after settings changes.
+- Lock repeated Tools commands while awaiting the ECU, recheck test conditions after confirmation, and prevent editing test settings during active commands/tests. Bound acknowledgement waits without automatic retries; report uncertain output state after a lost reply and lock starts until fresh telemetry returns.
+- Cancel remaining fuel-pump calibration restart cycles and delayed oil-zero captures after Stop/cancellation. Pause manual pump refresh during restart tests and cancel browser calibration workers on STOP or engine-mode changes.
+- Wait for the metering-output stop acknowledgement before saving its minimum; retain clear save/stop failure feedback and reject malformed calibration-command acknowledgements.
+- Ignore superseded Log session-list/current-file replies, preserve the selected past-run preview, and show invalid list responses as errors rather than an empty history.
+
 ## [2.5.5] — 2026-10-20
 
 - Add a movable, full-width Warnings area to Dashboard layout editing. Its thin placeholder appears only while editing; active warnings appear at the saved position and cannot be hidden or minimized. Preserve existing warning text, severity, links and actions.

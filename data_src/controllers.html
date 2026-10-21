@@ -61,7 +61,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -652,14 +652,16 @@ function _clearChangedBorders() {
   document.querySelectorAll('.group-changed').forEach(group => group.classList.remove('group-changed'));
 }
 
+let _cfgSavePending = false;
+
 function _markDirty() {
   _cfgDirty = true;
   const btn  = document.getElementById('btn-save');
   const discard = document.getElementById('btn-discard');
   const bar  = document.querySelector('.save-bar');
   const msg  = document.getElementById('save-msg');
-  if (btn) { btn.disabled = isLocked; btn.classList.add('primary'); }
-  if (discard) discard.disabled = false;
+  if (btn) { btn.disabled = isLocked || _cfgSavePending; btn.classList.add('primary'); }
+  if (discard) discard.disabled = _cfgSavePending;
   if (bar) bar.classList.add('is-dirty');
   if (msg && !msg.textContent.startsWith('✓')) msg.textContent = 'Unsaved changes';
   _refreshChangedBorders();
@@ -686,6 +688,7 @@ function _clearDirty() {
 }
 
 async function reloadConfigPage() {
+  if (_cfgSavePending) return;
   if (_cfgDirty && !await OTDialog.confirm('Discard every unsaved configuration change?', {
     title:'Discard changes', confirmLabel:'Discard', danger:true
   })) return;
@@ -1581,8 +1584,8 @@ function _updateWorkspaceState() {
   const save = document.getElementById('btn-save');
   if (state) state.textContent = count ? `${count} unsaved` : 'Saved';
   if (saveCount) saveCount.textContent = count ? `${count} unsaved change${count === 1 ? '' : 's'}` : 'No unsaved changes';
-  if (discard) discard.disabled = !count;
-  if (save) save.disabled = isLocked || !count;
+  if (discard) discard.disabled = _cfgSavePending || !count;
+  if (save) save.disabled = _cfgSavePending || isLocked || !count;
 }
 
 function applyView() {
@@ -2085,7 +2088,7 @@ function renderForm(preserveControllerOpenState = false) {
   initWorkspaceControls();
   _restoreControllerOpenState(controllerOpenState);
 
-  document.getElementById('btn-save').disabled = isLocked || !_cfgDirty;
+  document.getElementById('btn-save').disabled = _cfgSavePending || isLocked || !_cfgDirty;
   document.getElementById('lock-warn').style.display = isLocked ? '' : 'none';
 
   // Inject live sensor badges next to relevant fields
@@ -2699,6 +2702,7 @@ function collectConfigFields() {
 
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
+  if (_cfgSavePending) return;
   if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
   collectConfigFields();
 
@@ -2762,9 +2766,32 @@ async function saveConfig() {
 }
 
 function _cancelSaveRecap() {
+  if (_cfgSavePending) return;
   document.getElementById('save-recap-modal').style.display = 'none';
   const cb = document.getElementById('save-recap-confirm-btn');
   if (cb) cb.disabled = false;
+}
+
+// These page-owned Hardware writes also require an explicit acknowledgement.
+async function _saveConfigHardwarePatch(source, patch) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch('/api/hardware?source=' + source, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(patch), signal:controller.signal
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.ok === false)
+      throw new Error(result?.detail || result?.error || `Hardware HTTP ${response.status}`);
+    if (result?.ok !== true)
+      throw new Error('Hardware save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
+    return result;
+  } catch (error) {
+    if (controller.signal.aborted || error instanceof TypeError)
+      throw new Error('Hardware save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 
 async function _saveControllerChanges(payload, saveMsg, confirmButton) {
@@ -2775,11 +2802,7 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     safety: JSON.parse(JSON.stringify(hwCfg.safety || {})),
     oil_loops: JSON.parse(JSON.stringify(hwCfg.oil_loops || []))
   };
-  const response = await fetch('/api/hardware?source=controllers', {
-    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result.ok === false) throw new Error(result.detail || result.error || `HTTP ${response.status}`);
+  await _saveConfigHardwarePatch('controllers', hardwarePatch);
   // Finish the Hardware reboot before sending the second page-owned write.
   if (Object.keys(payload).length) {
     saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
@@ -2787,7 +2810,7 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const {response: settingsResponse, data} = await window.OTSaveConfigPatch(payload);
-    if (!settingsResponse?.ok || data?.ok === false)
+    if (!settingsResponse?.ok || data?.ok !== true)
       throw new Error(data?.error || data?.reason || `Settings HTTP ${settingsResponse?.status || 0}`);
   }
   _clearDirty();
@@ -2807,12 +2830,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
       const value = getPath(hwCfg, path.split('.'));
       if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
     }
-    const response = await fetch('/api/hardware?source=system', {
-      method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.ok === false)
-      throw new Error(result.detail || result.error || `Hardware HTTP ${response.status}`);
+    await _saveConfigHardwarePatch('system', hardwarePatch);
   }
   if (Object.keys(payload).length) {
     if (_systemHardwareDirty) {
@@ -2822,7 +2840,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const {response, data} = await window.OTSaveConfigPatch(payload);
-    if (!response?.ok || data?.ok === false)
+    if (!response?.ok || data?.ok !== true)
       throw new Error(data?.error || data?.reason || `Settings HTTP ${response?.status || 0}`);
     settingsReboot = data?.reboot === true;
   }
@@ -2837,8 +2855,40 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   else if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
 }
 
+// A durable save owns both editing surfaces until its acknowledgement arrives.
+// Inert also protects controls recreated by telemetry/dependency rerenders.
+function _setConfigSavePending(pending) {
+  _cfgSavePending = pending;
+  for (const id of ['cfg-form', 'controller-overview']) {
+    const surface = document.getElementById(id);
+    if (surface) { surface.inert = pending; surface.setAttribute('aria-busy', String(pending)); }
+  }
+  document.querySelector('.cfg-workspace')?.toggleAttribute('inert', pending);
+  const save = document.getElementById('btn-save');
+  const discard = document.getElementById('btn-discard');
+  if (save) save.disabled = pending || isLocked || !_cfgDirty;
+  if (discard) discard.disabled = pending || !_cfgDirty;
+}
+
 // Stage 2: user confirmed — actually send to device.
-function _doSave() {
+async function _doSave() {
+  if (_cfgSavePending) return;
+  if (isLocked) {
+    document.getElementById('save-msg').textContent = 'Settings are locked — stop the engine before saving.';
+    return;
+  }
+  _setConfigSavePending(true);
+  try { await _performConfigSave(); }
+  catch (error) {
+    const msg = document.getElementById('save-msg');
+    msg.textContent = '✗ ' + (error?.message || error);
+    msg.style.color = '#f55';
+    const confirm = document.getElementById('save-recap-confirm-btn');
+    if (confirm) confirm.disabled = false;
+  } finally { _setConfigSavePending(false); }
+}
+
+async function _performConfigSave() {
   const cb = document.getElementById('save-recap-confirm-btn');
   if (cb) cb.disabled = true;
   document.getElementById('save-recap-modal').style.display = 'none';
@@ -2866,22 +2916,20 @@ function _doSave() {
     payload.controller_schema = Number(cfg.controller_schema || 1);
   }
   if (_controllerHardwareDirty) {
-    _saveControllerChanges(payload, saveMsg, cb).catch(error => {
+    return _saveControllerChanges(payload, saveMsg, cb).catch(error => {
       saveMsg.textContent = '✗ ' + (error?.message || error);
       saveMsg.style.color = '#f55';
       if (cb) cb.disabled = false;
       if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
     });
-    return;
   }
   if (_systemHardwareDirty) {
-    _saveSystemChanges(payload, saveMsg, cb).catch(error => {
+    return _saveSystemChanges(payload, saveMsg, cb).catch(error => {
       saveMsg.textContent = '✗ ' + (error?.message || error);
       saveMsg.style.color = '#f55';
       if (cb) cb.disabled = false;
       if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
     });
-    return;
   }
   // A Classic ESP32 can be close to its largest-contiguous-block limit while
   // a live REST response owns its transmit buffer. Pause new polling briefly
@@ -2891,7 +2939,7 @@ function _doSave() {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
     const { response, data } = await window.OTSaveConfigPatch(payload);
-    if (response?.ok && data?.ok !== false) return data;
+    if (response?.ok && data?.ok === true) return data;
     throw new Error(data?.error || data?.reason || ('HTTP ' + (response?.status || 0)));
   };
   const finishSave = () => sendSave().then(async d => {
@@ -2939,22 +2987,26 @@ function _doSave() {
   if (pauseTelemetry) {
     const idle = typeof window.OTWaitForTelemetryIdle === 'function'
       ? window.OTWaitForTelemetryIdle(1600) : Promise.resolve(true);
-    idle.finally(async () => {
-      stopGlobalTelemetry();
-      // TCP acknowledgement/destruction can trail a completed response briefly
-      // on Classic. Wait for a useful contiguous block instead of racing
-      // LittleFS and returning a low-memory save error. This is bounded so a
-      // status fault cannot hang Save.
-      for (let attempt = 0; attempt < 16; attempt++) {
+    await idle.catch(() => {});
+    stopGlobalTelemetry();
+    // TCP acknowledgement/destruction can trail a completed response briefly
+    // on Classic. Wait for a useful contiguous block instead of racing
+    // LittleFS and returning a low-memory save error. This is bounded so a
+    // status fault cannot hang Save.
+    for (let attempt = 0; attempt < 16; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 750);
+        let status;
         try {
-          const status = await fetch('/api/status', { cache:'no-store' }).then(r => r.ok ? r.json() : null);
-          if (status && Number(status.max_alloc_heap) >= 12000) break;
-        } catch (_) {}
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-      finishSave();
-    });
-  } else finishSave();
+          status = await fetch('/api/status', { cache:'no-store', signal:controller.signal }).then(r => r.ok ? r.json() : null);
+        } finally { clearTimeout(timeout); }
+        if (status && Number(status.max_alloc_heap) >= 12000) break;
+      } catch (_) {}
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    return finishSave();
+  } else return finishSave();
 }
 
 // Source: data_src/pages/config-runtime.js
@@ -3047,7 +3099,7 @@ window.applyData = function(d) {
       revealConfigDeepLink();
     }
     const saveButton = document.getElementById('btn-save');
-    if (saveButton) saveButton.disabled = locked || !_cfgDirty;
+    if (saveButton) saveButton.disabled = _cfgSavePending || locked || !_cfgDirty;
     runValidation();
   }
 
@@ -3313,26 +3365,46 @@ async function restoreConfig(input) {
     input.value = '';
     return;
   }
-  if (!await OTDialog.confirm('Restore complete engine file from "' + file.name + '"?\n\nThis replaces hardware assignments, settings, sequences, calibration, profile/Wi-Fi details, and runtime statistics, then reboots. Current event and session logs remain on this ECU.\n\nDownload the current engine file first if it may be needed.', {
-    title: 'Restore complete engine file?', confirmText: 'Restore and reboot', danger: true
-  })) {
-    input.value = '';
-    return;
-  }
+  // Own the operation before opening an asynchronous confirmation dialog.
   _engineFileRestoreBusy = true;
   if (btn) btn.disabled = true;
+  let confirmed = false;
+  try {
+    confirmed = await OTDialog.confirm('Restore complete engine file from "' + file.name + '"?\n\nThis replaces hardware assignments, settings, sequences, calibration, profile/Wi-Fi details, and runtime statistics, then reboots. Current event and session logs remain on this ECU.\n\nDownload the current engine file first if it may be needed.', {
+      title: 'Restore complete engine file?', confirmText: 'Restore and reboot', danger: true
+    });
+  } finally {
+    if (!confirmed) {
+      _engineFileRestoreBusy = false;
+      if (btn) btn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+      input.value = '';
+    }
+  }
+  if (!confirmed) return;
+  // Telemetry can change while the confirmation is open.
+  if (!['STANDBY', 'FAULT'].includes(runtimeMode)) {
+    _engineFileRestoreBusy = false;
+    input.value = '';
+    if (state) { state.textContent = 'Blocked'; state.className = 'tool-state fault'; }
+    if (msg) {
+      msg.textContent = 'Engine must be in STANDBY (or FAULT) to restore an engine file.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = '';
+    }
+    return;
+  }
   if (state) {
     state.textContent = 'Restoring…';
     state.className   = 'tool-state active';
   }
-  const failRestore = message => {
+  const failRestore = (message, unconfirmed = false) => {
     _engineFileRestoreBusy = false;
     if (state) {
-      state.textContent = 'Error';
+      state.textContent = unconfirmed ? 'Unconfirmed' : 'Error';
       state.className = 'tool-state fault';
     }
     if (msg) {
-      msg.textContent = 'Restore failed: ' + message;
+      msg.textContent = (unconfirmed ? '' : 'Restore failed: ') + message;
       msg.style.color = 'var(--red)';
       msg.style.display = '';
     }
@@ -3345,31 +3417,23 @@ async function restoreConfig(input) {
   reader.onload = ev => {
     const postRestore = async () => {
       const payload = compactEngineFileForRestore(ev.target.result);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         return await fetch('/api/ecu_config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: payload
+          body: payload,
+          signal: controller.signal
         });
-      } catch (error) {
-        if (state) state.textContent = 'Checking after ECU restart…';
-        let sawDisconnect = false;
-        for (let attempt = 0; attempt < 45; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          try {
-            const status = await fetch('/api/status', {cache:'no-store'});
-            if (status.ok && sawDisconnect) {
-              return new Response(JSON.stringify({ok:true,reboot:true,recovered:true}), {
-                status:200, headers:{'Content-Type':'application/json'}
-              });
-            }
-          } catch (_) {
-            sawDisconnect = true;
-          }
-        }
-        throw new Error(sawDisconnect
-          ? 'The ECU restarted but did not reconnect. Rejoin its Wi-Fi and verify the engine file before trying again.'
-          : 'The restore response was lost. The file was not sent again because repeating a restore may reboot the ECU twice. Reconnect and verify the current engine file.');
+      } catch (_) {
+        // Reconnection alone cannot prove that the uploaded file was applied.
+        // Never repeat an uncertain restore automatically.
+        const error = new Error('Restore outcome is unconfirmed because the ECU response was lost. The file was not sent again. Reconnect and download the current engine file to verify it before retrying.');
+        error.restoreUnconfirmed = true;
+        throw error;
+      } finally {
+        clearTimeout(timeout);
       }
     };
     postRestore()
@@ -3398,7 +3462,7 @@ async function restoreConfig(input) {
         throw new Error(d.error || 'Unknown error');
       }
     })
-    .catch(e => failRestore(e.message));
+    .catch(e => failRestore(e.message, e.restoreUnconfirmed));
     input.value = '';
   };
   try { reader.readAsText(file); }

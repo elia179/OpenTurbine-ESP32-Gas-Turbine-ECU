@@ -548,7 +548,11 @@ static const char* _missingHardwareForCommand(const OTPacket& pkt) {
         case OTCommand::COOL_FAN_TEST: return HardwareConfig::hasCoolFan ? nullptr : "Cooling fan is not configured";
         case OTCommand::AIRSTARTER_TEST: return HardwareConfig::hasAirstarterSol ? nullptr : "Airstarter solenoid is not configured";
         case OTCommand::BLEED_VALVE_TEST: return HardwareConfig::hasBleedValve ? nullptr : "Bleed valve is not configured";
-        case OTCommand::GLOW_TEST: return HardwareConfig::hasGlowPlug ? nullptr : "Glow plug is not configured";
+        case OTCommand::GLOW_TEST:
+            if (pkt.iParam < 0 || pkt.iParam > 2) return "Invalid glow-test selection";
+            if (!HardwareConfig::hasGlowPlug) return "Glow plug is not configured";
+            return pkt.iParam == 2 && (HardwareConfig::glowPlugType != 2 || HardwareConfig::wetGlowFuelPin < 0)
+                ? "Wet-glow fuel output is not configured" : nullptr;
         case OTCommand::FUEL_PUMP2_TEST: return HardwareConfig::hasFuelPump2 ? nullptr : "Secondary / auxiliary fuel pump is not configured";
         case OTCommand::AB_SOL_TEST:
             return (HardwareConfig::hasAfterburner && HardwareConfig::hasAbSol) ? nullptr : "Afterburner solenoid is not configured";

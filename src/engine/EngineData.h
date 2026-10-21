@@ -150,6 +150,7 @@ struct EngineData {
     volatile bool     surgeDetected   = false;  // compressor surge detected (N1 oscillation)
     volatile float    glowPlugDemand  = 0;      // 0.0–1.0 heat level for glow-plug ramp
     volatile float    wetGlowFuelDemand = 0;    // 0.0-1.0 wet-glow fuel output demand
+    uint8_t glowTestSelection = 0;             // temporary Tools ownership; 0=combined, 1=heater, 2=fuel
     volatile float    glowCurrentAmps    = 0.0f;   // glow plug current (A), 0 if no sensor
     volatile bool     glowCurrentHealthy = false;
     volatile bool     glowPlugHot        = false;   // true when current dropped below ready threshold

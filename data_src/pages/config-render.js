@@ -1051,8 +1051,8 @@ function _updateWorkspaceState() {
   const save = document.getElementById('btn-save');
   if (state) state.textContent = count ? `${count} unsaved` : 'Saved';
   if (saveCount) saveCount.textContent = count ? `${count} unsaved change${count === 1 ? '' : 's'}` : 'No unsaved changes';
-  if (discard) discard.disabled = !count;
-  if (save) save.disabled = isLocked || !count;
+  if (discard) discard.disabled = _cfgSavePending || !count;
+  if (save) save.disabled = _cfgSavePending || isLocked || !count;
 }
 
 function applyView() {
@@ -1555,7 +1555,7 @@ function renderForm(preserveControllerOpenState = false) {
   initWorkspaceControls();
   _restoreControllerOpenState(controllerOpenState);
 
-  document.getElementById('btn-save').disabled = isLocked || !_cfgDirty;
+  document.getElementById('btn-save').disabled = _cfgSavePending || isLocked || !_cfgDirty;
   document.getElementById('lock-warn').style.display = isLocked ? '' : 'none';
 
   // Inject live sensor badges next to relevant fields

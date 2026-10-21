@@ -87,7 +87,7 @@ window.applyData = function(d) {
       revealConfigDeepLink();
     }
     const saveButton = document.getElementById('btn-save');
-    if (saveButton) saveButton.disabled = locked || !_cfgDirty;
+    if (saveButton) saveButton.disabled = _cfgSavePending || locked || !_cfgDirty;
     runValidation();
   }
 
@@ -353,26 +353,46 @@ async function restoreConfig(input) {
     input.value = '';
     return;
   }
-  if (!await OTDialog.confirm('Restore complete engine file from "' + file.name + '"?\n\nThis replaces hardware assignments, settings, sequences, calibration, profile/Wi-Fi details, and runtime statistics, then reboots. Current event and session logs remain on this ECU.\n\nDownload the current engine file first if it may be needed.', {
-    title: 'Restore complete engine file?', confirmText: 'Restore and reboot', danger: true
-  })) {
-    input.value = '';
-    return;
-  }
+  // Own the operation before opening an asynchronous confirmation dialog.
   _engineFileRestoreBusy = true;
   if (btn) btn.disabled = true;
+  let confirmed = false;
+  try {
+    confirmed = await OTDialog.confirm('Restore complete engine file from "' + file.name + '"?\n\nThis replaces hardware assignments, settings, sequences, calibration, profile/Wi-Fi details, and runtime statistics, then reboots. Current event and session logs remain on this ECU.\n\nDownload the current engine file first if it may be needed.', {
+      title: 'Restore complete engine file?', confirmText: 'Restore and reboot', danger: true
+    });
+  } finally {
+    if (!confirmed) {
+      _engineFileRestoreBusy = false;
+      if (btn) btn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+      input.value = '';
+    }
+  }
+  if (!confirmed) return;
+  // Telemetry can change while the confirmation is open.
+  if (!['STANDBY', 'FAULT'].includes(runtimeMode)) {
+    _engineFileRestoreBusy = false;
+    input.value = '';
+    if (state) { state.textContent = 'Blocked'; state.className = 'tool-state fault'; }
+    if (msg) {
+      msg.textContent = 'Engine must be in STANDBY (or FAULT) to restore an engine file.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = '';
+    }
+    return;
+  }
   if (state) {
     state.textContent = 'Restoring…';
     state.className   = 'tool-state active';
   }
-  const failRestore = message => {
+  const failRestore = (message, unconfirmed = false) => {
     _engineFileRestoreBusy = false;
     if (state) {
-      state.textContent = 'Error';
+      state.textContent = unconfirmed ? 'Unconfirmed' : 'Error';
       state.className = 'tool-state fault';
     }
     if (msg) {
-      msg.textContent = 'Restore failed: ' + message;
+      msg.textContent = (unconfirmed ? '' : 'Restore failed: ') + message;
       msg.style.color = 'var(--red)';
       msg.style.display = '';
     }
@@ -385,31 +405,23 @@ async function restoreConfig(input) {
   reader.onload = ev => {
     const postRestore = async () => {
       const payload = compactEngineFileForRestore(ev.target.result);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         return await fetch('/api/ecu_config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: payload
+          body: payload,
+          signal: controller.signal
         });
-      } catch (error) {
-        if (state) state.textContent = 'Checking after ECU restart…';
-        let sawDisconnect = false;
-        for (let attempt = 0; attempt < 45; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          try {
-            const status = await fetch('/api/status', {cache:'no-store'});
-            if (status.ok && sawDisconnect) {
-              return new Response(JSON.stringify({ok:true,reboot:true,recovered:true}), {
-                status:200, headers:{'Content-Type':'application/json'}
-              });
-            }
-          } catch (_) {
-            sawDisconnect = true;
-          }
-        }
-        throw new Error(sawDisconnect
-          ? 'The ECU restarted but did not reconnect. Rejoin its Wi-Fi and verify the engine file before trying again.'
-          : 'The restore response was lost. The file was not sent again because repeating a restore may reboot the ECU twice. Reconnect and verify the current engine file.');
+      } catch (_) {
+        // Reconnection alone cannot prove that the uploaded file was applied.
+        // Never repeat an uncertain restore automatically.
+        const error = new Error('Restore outcome is unconfirmed because the ECU response was lost. The file was not sent again. Reconnect and download the current engine file to verify it before retrying.');
+        error.restoreUnconfirmed = true;
+        throw error;
+      } finally {
+        clearTimeout(timeout);
       }
     };
     postRestore()
@@ -438,7 +450,7 @@ async function restoreConfig(input) {
         throw new Error(d.error || 'Unknown error');
       }
     })
-    .catch(e => failRestore(e.message));
+    .catch(e => failRestore(e.message, e.restoreUnconfirmed));
     input.value = '';
   };
   try { reader.readAsText(file); }

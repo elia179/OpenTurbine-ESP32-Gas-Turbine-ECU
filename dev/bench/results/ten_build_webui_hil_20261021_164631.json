@@ -1,0 +1,79 @@
+{
+  "run_id": "20261021_164631",
+  "firmware": "2.5.6",
+  "firmware_after": null,
+  "firmware_match": true,
+  "backup_path": "dev/bench/results/ten_build_backup_20261021_164631.json",
+  "results": [
+    {
+      "id": "turbojet",
+      "name": "turbojet",
+      "status": "error",
+      "checks": [
+        {
+          "name": "idle RC input sweep",
+          "ok": true,
+          "detail": "972->1891"
+        },
+        {
+          "name": "idle RC calibration save",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "N1 PCNT input",
+          "ok": true,
+          "detail": "6562->12000"
+        },
+        {
+          "name": "oil_pump command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "oil_pump physical output",
+          "ok": true,
+          "detail": "OILPUMP_OUT {'us': 0, 'hz': 0.0, 'duty': 1.0, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "fuel_sol command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "fuel_sol physical output",
+          "ok": true,
+          "detail": "FUEL_SOL {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "igniter command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "igniter physical output",
+          "ok": true,
+          "detail": "IGNITER {'level': 1}; pin_seen=True tel_seen=True max_registry_demand=1.0"
+        },
+        {
+          "name": "throttle command accepted",
+          "ok": true,
+          "detail": "HTTP 200 {'ok': True}"
+        },
+        {
+          "name": "throttle physical output",
+          "ok": true,
+          "detail": "THROTTLE_OUT {'us': 1500, 'hz': 50.0, 'duty': 0.075, 'level': 1}; pin_seen=True tel_seen=True max_registry_demand=0.0"
+        },
+        {
+          "name": "normal START accepted",
+          "ok": false,
+          "detail": "{'ok': False, 'error': 'Feedback used by configured control, safety, or startup logic is unhealthy or stale'}"
+        }
+      ],
+      "error": "RuntimeError: Normal START rejected\nTraceback (most recent call last):\n  File \"C:\\Users\\elial\\Documents\\Dev\\OpenTurbine-latest-20261012\\dev\\bench\\campaign\\ten_build_webui_hil.py\", line 1229, in run_profile\n    self.test_run(row[\"checks\"])\n  File \"C:\\Users\\elial\\Documents\\Dev\\OpenTurbine-latest-20261012\\dev\\bench\\campaign\\dual_target_profile_smoke.py\", line 97, in test_run\n    raise RuntimeError('Normal START rejected')\nRuntimeError: Normal START rejected\n",
+      "duration_s": 103.5
+    }
+  ],
+  "restored": false
+}

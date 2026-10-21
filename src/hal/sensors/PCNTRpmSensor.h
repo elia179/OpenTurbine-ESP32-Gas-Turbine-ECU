@@ -23,8 +23,9 @@ public:
 
     // Runtime-pin overload: update pin/ppr then initialise hardware.
     // Called by Hardware::initSensors() when runtime config is loaded.
-    void begin(int pin, float ppr) {
+    void begin(int pin, float ppr, uint8_t inputMode = INPUT) {
         _pin = pin;
+        _inputMode = inputMode;
         _ppr = ppr;
         begin();
     }
@@ -33,6 +34,8 @@ public:
         _cleanup();
         _ready = false;
         if (_pin < 0) return;
+        // Release any earlier GPIO role before routing the pad into PCNT.
+        pinMode(_pin, _inputMode);
         if (_ppr <= 0.0f) {
             Serial.printf("[%s] Invalid pulses/rev %.3f; using 1.0\n", _name, (double)_ppr);
             _ppr = 1.0f;
@@ -172,6 +175,7 @@ private:
     bool               _ready = false;
     bool               _enabled = false;
     bool               _started = false;
+    uint8_t            _inputMode = INPUT;
 
     unsigned long _nextIntervalMs() const {
         if (_rpm < 1.0f || _ppr <= 0.0f) return MAX_INTERVAL_MS;

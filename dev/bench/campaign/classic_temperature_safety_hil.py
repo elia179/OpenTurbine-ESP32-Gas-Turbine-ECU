@@ -19,7 +19,7 @@ class ClassicTemperatureSafety(ClassicSafetyHil):
         super().__init__()
         self.identity = self.dut.device_info()
         assert self.identity['target'] == 'esp32dev', self.identity
-        assert self.identity['firmware_version'] == '2.5.2', self.identity
+        assert self.identity['firmware_version'] == os.environ.get('OTBENCH_EXPECT_VERSION', '2.5.2'), self.identity
         self.result_path = Path(self.result_path).with_name(
             'classic_temperature_safety_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '.json')
 

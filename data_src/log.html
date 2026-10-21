@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1010,6 +1010,8 @@ function downloadSessionLog() {
 let _sessionHeaders = [];
 let _sessionRows    = [];
 let _sessionPreviewRequest = 0;
+let _currentSessionRequest = 0;
+let _sessionListRequest = 0;
 let _sessionPreviewRun = null;
 
 function clearSessionPreview(message = '') {
@@ -1061,6 +1063,7 @@ function refreshSessionPreview() {
 }
 
 function loadSessionPreview() {
+  const currentRequest=++_currentSessionRequest;
   _sessionPreviewRun = null;
   const request = ++_sessionPreviewRequest;
   const msg   = document.getElementById('session-preview-msg');
@@ -1074,6 +1077,7 @@ function loadSessionPreview() {
     await assertOkResponse(r, 'No session log available yet');
     return r.text();
   }).then(csv => {
+    if(currentRequest!==_currentSessionRequest)return;
     const rows = Math.max(0, csv.trim().split('\n').filter(line => line.trim()).length - 1);
     const rowEl = document.getElementById('session-rows');
     const download = document.getElementById('session-current-download');
@@ -1085,6 +1089,7 @@ function loadSessionPreview() {
       return;
     }
   }).catch(e => {
+    if(currentRequest!==_currentSessionRequest)return;
     const err = e && e.message ? e.message : '';
     const standby = e?.status === 423 || err.includes('STANDBY');
     const missing = e?.status === 404;
@@ -1333,17 +1338,20 @@ function redrawChart() {
 
 // ── Session list ──────────────────────────────────────────────
 function loadSessionList() {
+  const request=++_sessionListRequest;
   const wrap = document.getElementById('session-list-wrap');
   if (!wrap) return Promise.resolve();
   wrap.innerHTML = '<div style="font-size:.78rem;color:var(--dim)">Loading…</div>';
   return fetch('/api/session/list')
     .then(async r => {
-      const body = await r.json().catch(() => []);
+      const body = await r.json();
       if (!r.ok) throw new Error((body && body.error) || ('HTTP ' + r.status));
       return body;
     })
     .then(list => {
-      if (!Array.isArray(list) || list.length === 0) {
+      if(request!==_sessionListRequest)return;
+      if(!Array.isArray(list)||list.some(run=>!Number.isSafeInteger(run)||run<0))throw new Error('Invalid session list');
+      if (list.length === 0) {
         wrap.innerHTML = '<div style="font-size:.78rem;color:var(--dim)">No session files found</div>';
         clearSessionPreview('No session files found');
         return;
@@ -1356,6 +1364,7 @@ function loadSessionList() {
         </div>`).join('');
     })
     .catch(() => {
+      if(request!==_sessionListRequest)return;
       wrap.innerHTML = '<div style="font-size:.78rem;color:var(--red)">Failed to load session list</div>';
     });
 }

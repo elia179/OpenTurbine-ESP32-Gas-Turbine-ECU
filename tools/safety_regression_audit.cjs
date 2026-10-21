@@ -411,7 +411,8 @@ expect('independent direct HX711 inputs support both torque and thrust',
 expect('glow output owns sequence behavior and exposes its compound wet-glow hardware',
   main.includes('const float demand = on ? 1.0f : 0.0f') &&
   hardware.includes('simpleIgnitionPhysicalDemand(output, glowDemand, millis()') &&
-  hardware.includes('g_wetGlowOnMs = millis()') &&
+  hardware.includes('WetGlowControl::fuelDemand(selection,') &&
+  read('src/hal/actuators/WetGlowControl.h').includes('uint32_t(now - since) >= delayMs') &&
   hardwareCatalog.includes('Glow-plug type and ignition behavior') &&
   hardwareCatalog.includes('Wet-glow pilot fuel') &&
   hardwareCatalog.includes('Pilot-fuel GPIO') &&
@@ -505,7 +506,7 @@ expect('ignition has On/Off commands and a device-owned ramp without a Pre-Heat 
   hardware.includes('simpleIgnitionPhysicalDemand(output, glowDemand, millis()') &&
   hardware.includes('ed.igniterOn ? 1.0f : 0.0f, millis()') &&
   hardware.includes('ed.igniter2On ? 1.0f : 0.0f, millis()') &&
-  hardware.includes('g_wetGlowOnMs = millis()') &&
+  hardware.includes('WetGlowControl::fuelDemand(selection,') &&
   hardware.includes('if (!output || ChannelRegistry::driverIsOnOffOutput(output->driver)) return 1.0f'));
 expect('every forced STANDBY transition stops an active main sequence before all-off',
   main.includes('if (g_sequencer.isRunning()) g_sequencer.stopSequence();') &&

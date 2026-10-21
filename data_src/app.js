@@ -1588,7 +1588,7 @@ function applyData(d) {
       sbr.textContent = '⚠ START unavailable: ' + startBlock;
       if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261020c';
+        link.href = '/sequence.html?v=20261021a';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -3235,10 +3235,21 @@ if (_emptySeqBanner) _emptySeqBanner.style.display = 'none';
 // to System > Backup & restore.
 window.OTSaveConfigPatch = async function(patch) {
   return withGlobalTelemetryPaused(async () => {
-    const response = await fetch('/api/config', {
-      method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch)
-    });
-    const data = await response.json().catch(() => ({}));
-    return {response, data};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch('/api/config', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(patch), signal:controller.signal
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data?.ok !== true)
+        throw new Error('Save outcome is unconfirmed: the ECU did not return a valid success acknowledgement. Verify the current settings before retrying.');
+      return {response, data:data ?? {}};
+    } catch (error) {
+      if (controller.signal.aborted || error instanceof TypeError)
+        throw new Error('Save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
+      throw error;
+    } finally { clearTimeout(timeout); }
   });
 };

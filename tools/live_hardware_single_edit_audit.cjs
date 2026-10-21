@@ -20,7 +20,7 @@ async function returned(oldBoot){
 }
 (async()=>{
  fs.mkdirSync(out,{recursive:true});const info=await get('/api/device_info');
- assert.equal(info.firmware_version,'2.5.5');assert.equal(info.state,'STANDBY');assert.equal(info.outputs_active,false);
+ assert.equal(info.firmware_version,fs.readFileSync('src/system/version.h','utf8').match(/#define\s+OT_VERSION\s+"([^"]+)"/)[1]);assert.equal(info.state,'STANDBY');assert.equal(info.outputs_active,false);
  const original=await get('/api/ecu_config');
  fs.writeFileSync(`${out}/${info.target}-single-edit-original.json`,JSON.stringify(original,null,2));
  const oldMs=original.hardware.actuators?.glow_plug?.fuel_delay_ms;

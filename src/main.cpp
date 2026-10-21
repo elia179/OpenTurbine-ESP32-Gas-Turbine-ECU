@@ -1749,7 +1749,7 @@ static void checkToolTimers() {
     if (deadlineExpired(now, _coolFanTestUntilMs))    { ed.coolFanDemand = 0.0f; _coolFanTestUntilMs = 0; }
     if (deadlineExpired(now, _airstarterTestUntilMs)) { ed.airstarterOpen  = false; _airstarterTestUntilMs = 0; }
     if (deadlineExpired(now, _bleedValveTestUntilMs)) { ed.bleedValveDemand = 0.0f; _bleedValveTestUntilMs = 0; }
-    if (deadlineExpired(now, _glowTestUntilMs))       { ed.glowPlugDemand  = 0.0f;  _glowTestUntilMs       = 0; }
+    if (deadlineExpired(now, _glowTestUntilMs))       { ed.glowPlugDemand = 0.0f; ed.glowTestSelection = 0; _glowTestUntilMs = 0; }
     if (deadlineExpired(now, _fuelPump2TestUntilMs))  { ed.fuelPump2Demand = 0.0f;  _fuelPump2TestUntilMs  = 0; }
     if (deadlineExpired(now, _abSolTestUntilMs))      { ed.abSolOpen       = false; _abSolTestUntilMs      = 0; }
     if (deadlineExpired(now, _abPumpTestUntilMs))     { ed.abPumpDemand  = 0.0f;  _abPumpTestUntilMs     = 0; }
@@ -2868,6 +2868,7 @@ static void enterStandby() {
     _airstarterTestUntilMs = 0;
     _bleedValveTestUntilMs = 0;
     _glowTestUntilMs       = 0;
+    ed.glowTestSelection   = 0;
     _fuelPump2TestUntilMs  = 0;
     _abSolTestUntilMs      = 0;
     _abPumpTestUntilMs     = 0;
@@ -3888,8 +3889,13 @@ static void handleCommand(const OTPacket& pkt) {
             break;
 
         case OTCommand::GLOW_TEST:
-            if (HardwareConfig::hasGlowPlug && standbyLike && !anyToolTimerActive() && !ed.extraCooldownActive) {
-                ed.glowPlugDemand = 1.0f;
+            if (HardwareConfig::hasGlowPlug && standbyLike && !anyToolTimerActive() && !ed.extraCooldownActive &&
+                pkt.iParam >= 0 && pkt.iParam <= 2 &&
+                (pkt.iParam != 2 || (HardwareConfig::glowPlugType == 2 && HardwareConfig::wetGlowFuelPin >= 0))) {
+                ed.glowTestSelection = uint8_t(pkt.iParam);
+                ed.glowPlugDemand = pkt.iParam == 2 ? 0.0f : 1.0f;
+                Hardware::g_wetGlowActive = false;
+                Hardware::g_wetGlowOnMs = 0;
                 _glowTestUntilMs = deadlineAfter(millis(), Config::toolGlowTestMs);
             }
             break;

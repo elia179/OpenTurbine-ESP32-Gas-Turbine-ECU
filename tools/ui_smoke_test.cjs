@@ -427,7 +427,7 @@ function installedBrowser() {
     assert.equal(startBlockVisibility.disabled, true);
     assert.equal(startBlockVisibility.visible, true);
     assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
-    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261020c');
+    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261021a');
     assert.equal(startBlockVisibility.stopVisible, true);
     assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
@@ -739,7 +739,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261020c"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261021a"]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');

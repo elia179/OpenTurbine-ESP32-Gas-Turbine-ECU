@@ -109,6 +109,8 @@ def main() -> int:
                    tempfile.TemporaryDirectory(prefix="ot-native-"))
     with tmp_context as tmp:
         tests = [
+            ("pcnt_gpio_behavior", [str(ROOT / "dev" / "host" / "pcnt_gpio_behavior.cpp")], []),
+            ("wet_glow", [str(ROOT / "dev" / "host" / "wet_glow_behavior.cpp")], []),
             ("relay_demand", [str(ROOT / "dev" / "host" / "relay_demand_behavior.cpp")], []),
             ("servo_actuator", [str(ROOT / "dev" / "host" / "servo_actuator_behavior.cpp")], []),
             ("command_queue", [

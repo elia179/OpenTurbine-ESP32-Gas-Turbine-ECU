@@ -6,8 +6,11 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Tools</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
+.tool-component-tests .tool-footer{flex-wrap:wrap;gap:.5rem}
+.tool-component-tests .tool-desc{flex:1 1 100%}
+.tool-component-tests .tool-time{margin-right:auto}
 .test-settings-card{width:min(840px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:13px}
 .test-settings-head,.test-settings-foot{flex:0 0 auto;padding:1rem}
 .test-settings-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;border-bottom:1px solid color-mix(in srgb,var(--accent) 26%,var(--border));border-top:3px solid var(--accent);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 10%,transparent),transparent 100%)}.test-settings-title{font-size:.9rem;color:var(--accent)}.test-settings-subtitle{margin-top:.2rem;font-size:.72rem;color:var(--dim);line-height:1.45}.test-settings-head button{min-height:34px;padding:.25rem .65rem}
@@ -79,6 +82,8 @@ const TOOLS = [
   { id:'AIRSTARTER_TEST',  name:'Air Starter Valve Pulse', durationMs:1000, configKey:'tools.airstarter_test_ms', desc:'Opens the air starter valve for the configured duration.', visibleIf: hw => !!hw?.actuators?.airstarter_sol?.enabled },
   { id:'BLEED_VALVE_TEST', name:'Bleed Valve Test',    durationMs:1000, configKey:'tools.bleed_valve_test_ms', desc:'Opens bleed valve for configured duration.', visibleIf: hw => !!hw?.actuators?.bleed_valve?.enabled },
   { id:'GLOW_TEST',        name:'Glow Plug Test',      durationMs:10000, configKey:'tools.glow_test_ms', desc:'Runs glow plug at configured demand — confirm heating element.', visibleIf: hw => !!hw?.actuators?.glow_plug?.enabled },
+  { id:'GLOW_ONLY_TEST', name:'Glow only', cmd:'GLOW_TEST', iParam:1, parentTool:'GLOW_TEST', durationMs:10000, configKey:'tools.glow_test_ms', desc:'Tests only the heating element; pilot-fuel output stays OFF.', visibleIf: hw => !!hw?.actuators?.glow_plug?.enabled && Number(hw.actuators.glow_plug.type) === 2 },
+  { id:'WET_GLOW_FUEL_TEST', name:'Pilot-fuel pump / valve only', cmd:'GLOW_TEST', iParam:2, parentTool:'GLOW_TEST', durationMs:10000, configKey:'tools.glow_test_ms', desc:'Tests only pilot fuel; heating element stays OFF.', visibleIf: hw => !!hw?.actuators?.glow_plug?.enabled && Number(hw.actuators.glow_plug.type) === 2 && Number(hw.actuators.glow_plug.fuel_pin ?? -1) >= 0 },
   { id:'FUEL_PUMP2_TEST',  name:'Secondary / Auxiliary Fuel Pump Test', durationMs:3000, configKey:'tools.fuel_pump2_test_ms', desc:'Runs the independent secondary/auxiliary fuel pump at configured demand.', visibleIf: hw => !!hw?.actuators?.fuel_pump2?.enabled },
   { id:'AB_SOL_TEST',      name:'AB Fuel Valve Test',   durationMs:1000, configKey:'tools.ab_sol_test_ms', desc:'Opens the afterburner fuel shutoff valve for the configured duration.', visibleIf: hw => !!hw?.actuators?.ab_sol?.enabled },
   { id:'AB_PUMP_TEST',     name:'AB Fuel Pump Test',    durationMs:2000, configKey:'tools.ab_pump_test_ms', desc:'Runs the afterburner fuel pump at the configured demand.', visibleIf: hw => !!hw?.actuators?.ab_pump?.enabled },
@@ -94,6 +99,9 @@ const TOOLS = [
 let activeId    = null;
 let activeTick  = null;
 let activeStart = 0;
+const toolProgressRuns=new Map();
+let toolRequestPending=false;
+let toolsTelemetryAvailable=false;
 let engineMode  = null;
 let liveData    = {};
 let hwCfg       = {};
@@ -141,22 +149,22 @@ function extraCooldownAvailable() {
 }
 
 const TEST_OUTPUT_KEYS={START_TEST:'start_test_pct',FUEL_PUMP2_TEST:'fuel_pump2_test_pct',AB_PUMP_TEST:'ab_pump_test_pct',PROP_PITCH_TEST:'prop_pitch_test_pct'};
-const CORE_REGISTRY_OUTPUT_IDS=new Set([
-  'main_fuel_output','main_fuel','throttle',
-  'main_starter','starter','starter_main',
-  'starter_enable','starter_enable_main',
-  'oil_pump','oil_pump_main',
-  'cooling_fan','cooling_fan_main','cool_fan',
-  'oil_scavenge_main','oil_scavenge_pump','scavenge_pump',
-  'bleed_valve','bleed_valve_main',
-  'igniter','igniter_main','ab_igniter','igniter2','igniter2_main',
-  'main_fuel_shutoff','fuel_shutoff','fuel_sol','fuel_solenoid_main',
-  'ab_solenoid','ab_solenoid_main','ab_sol',
-  'air_starter','airstarter_main','airstarter_sol',
-  'fuel_pump','fuel_pump2','fuel_pump2_main',
-  'ab_pump','ab_pump_main','prop_pitch','prop_pitch_main','glow_plug','glow_plug_main'
-]);
-const CORE_REGISTRY_BINDING_KEYS=new Set(['main_fuel_output','main_fuel_shutoff','main_starter']);
+const CORE_REGISTRY_OUTPUT_IDS=new Set(["main_fuel_output", "main_fuel", "main_starter", "starter", "starter_main", "starter_enable", "oil_pump_main", "oil_pump", "cooling_fan_main", "cooling_fan", "oil_scavenge_main", "scavenge_pump", "bleed_valve_main", "bleed_valve", "igniter", "ab_igniter", "igniter2_main", "main_fuel_shutoff", "fuel_shutoff", "ab_solenoid", "air_starter", "fuel_pump", "ab_pump", "prop_pitch", "glow_plug"]);
+const CORE_REGISTRY_PURPOSE_BINDINGS={"main_fuel": "main_fuel_output", "fuel_shutoff": "main_fuel_shutoff", "starter": "main_starter", "starter_enable": "starter_enable_output", "oil_pump": "primary_oil_pump", "scavenge_pump": "primary_scavenge_pump", "cooling_fan": "primary_cooling_fan", "bleed_valve": "primary_bleed_valve", "fuel_pump": "primary_aux_fuel_pump", "igniter": "primary_igniter", "ab_igniter": "primary_secondary_igniter", "ab_valve": "primary_ab_valve", "glow_plug": "primary_glow_plug", "ab_pump": "primary_ab_pump", "prop_pitch": "primary_prop_pitch", "air_starter": "primary_air_starter"};
+const CORE_REGISTRY_BINDING_KEYS=new Set(Object.values(CORE_REGISTRY_PURPOSE_BINDINGS));
+function registryCoreOutputOwner(c,outputs){
+  const key=CORE_REGISTRY_PURPOSE_BINDINGS[c.purpose];
+  if(!key)return false;
+  const binding=(hwCfg.channel_registry?.bindings||[]).find(b=>b.key===key);
+  if(binding)return binding.channel===c.id;
+  if(CORE_REGISTRY_OUTPUT_IDS.has(c.id))return true;
+  const canonical=outputs.find(row=>row.purpose===c.purpose&&CORE_REGISTRY_OUTPUT_IDS.has(row.id));
+  if(canonical)return canonical.id===c.id;
+  return outputs.filter(row=>row.installed!==false&&!row.mirror_of&&row.purpose===c.purpose).length===1;
+}
+function toolDurationMinMs(key){
+  return ['fuel_sol_test_ms','airstarter_test_ms','bleed_valve_test_ms','ab_sol_test_ms','starter_en_test_ms'].includes(key)?50:100;
+}
 function plainRegistryToolName(raw,fallback='Output'){
   const text=String(raw||'').trim();
   const key=text.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
@@ -193,8 +201,8 @@ function syncRegistryOutputTools(){
     const hasPhysicalEndpoint=driver===11
       ? Number(c?.i2c_address)>=0x20&&Number(c?.i2c_address)<=0x27&&Number(c?.device_channel)>=0
       : c?.pin!=null&&Number(c.pin)>=0;
-    if(!c||!hasPhysicalEndpoint) return;
-    if(CORE_REGISTRY_OUTPUT_IDS.has(String(c.id||''))||coreBound.has(String(c.id||''))) return;
+    if(!c||c.installed===false||c.mirror_of||!hasPhysicalEndpoint) return;
+    if(registryCoreOutputOwner(c,outs)||coreBound.has(String(c.id||''))) return;
     const ignition=['igniter','ab_igniter','glow_plug'].includes(String(c.purpose||''));
     const relay=driver===4||driver===11||ignition;
     const displayName=registryToolDisplayName(c,i);
@@ -214,13 +222,14 @@ function syncRegistryOutputTools(){
   });
 }
 function openTestSettings(){
+  if(activeTick||toolRequestPending||!toolsTelemetryAvailable){alert('Wait for the current test and a connected ECU before editing test settings.');return;}
   if(engineMode!=='STANDBY'&&engineMode!=='FAULT'){alert('Bench-test settings can only be changed in STANDBY or FAULT.');return;}
   const body=document.getElementById('test-settings-body');
   let alwaysConfirm=true;
   try{alwaysConfirm=localStorage.getItem(TOOL_CONFIRMATION_SKIP_KEY)!=='1';}catch(_){}
   const section=(title,desc,content)=>`<section class="test-settings-section"><div class="test-settings-section-head"><b>${title}</b><span>${desc}</span></div>${content}</section>`;
   let html=section('Test safety','Confirmation behavior for every manual actuator test.',`<div class="test-confirm-row"><label for="tool-always-confirm"><b>Confirm before starting a test</b><span>Ask for confirmation before connected hardware can be energized. This preference is stored in this browser.</span></label><input id="tool-always-confirm" type="checkbox" ${alwaysConfirm?'checked':''}></div>`);
-  const visibleTimed=TOOLS.filter(t=>t.durationMs>0&&(!t.visibleIf||t.visibleIf(hwCfg)));
+  const visibleTimed=TOOLS.filter(t=>!t.parentTool&&t.durationMs>0&&(!t.visibleIf||t.visibleIf(hwCfg)));
   const groups=[
     ['Prime tests','Maximum run time for manually priming fluid systems.',t=>/PRIME/.test(t.id)],
     ['Starter tests','Output level and automatic cutoff for starter hardware.',t=>/START/.test(t.id)],
@@ -236,7 +245,10 @@ function openTestSettings(){
     const durationKey=t.configKey?.split('.')[1]; if(!durationKey)return;
     const ms=Number(cfgData?.tools?.[durationKey]??t.durationMs);
     const outKey=TEST_OUTPUT_KEYS[t.id], out=outKey?Number(cfgData?.tools?.[outKey]??100):null;
-      rows+=`<div class="test-setting-row"><b class="test-setting-name">${escHtml(t.name)}</b><span class="test-setting-help">${escHtml(t.desc||'')}</span><div class="test-setting-fields"><label class="test-setting-field">Duration (seconds)<input class="test-setting" data-key="${durationKey}" data-kind="seconds" type="number" min="0.05" max="60" step="0.05" value="${ms/1000}" title="How long this test command remains active (maximum 60 seconds)."></label>${outKey?`<label class="test-setting-field">Output (%)<input class="test-setting" data-key="${outKey}" data-kind="percent" type="number" min="0" max="100" step="1" value="${out}" title="Proportional output used by this test. Relay outputs ignore percentage."></label>`:''}</div></div>`;
+    const wetGlow=t.id==='GLOW_TEST'&&Number(hwCfg?.actuators?.glow_plug?.type)===2;
+    const settingName=wetGlow?'Wet-glow tests (combined and individual)':t.name;
+    const help=(t.desc||'')+(wetGlow?' Shared cutoff for combined, glow-only and pilot-fuel-only tests.':'');
+      rows+=`<div class="test-setting-row"><b class="test-setting-name">${escHtml(settingName)}</b><span class="test-setting-help">${escHtml(help)}</span><div class="test-setting-fields"><label class="test-setting-field">Duration (seconds)<input class="test-setting" data-key="${durationKey}" data-kind="seconds" type="number" min="${toolDurationMinMs(durationKey)/1000}" max="60" step="0.05" value="${ms/1000}" title="How long this test command remains active (maximum 60 seconds)."></label>${outKey?`<label class="test-setting-field">Output (%)<input class="test-setting" data-key="${outKey}" data-kind="percent" type="number" min="0" max="100" step="1" value="${out}" title="Proportional output used by this test. Relay outputs ignore percentage."></label>`:''}</div></div>`;
     });
     if(rows)html+=section(title,desc,`<div class="test-setting-list">${rows}</div>`);
   });
@@ -247,11 +259,17 @@ function openTestSettings(){
 }
 function closeTestSettings(){document.getElementById('test-settings-modal').style.display='none';}
 async function saveTestSettings(){
+  if(activeTick||toolRequestPending||!toolsTelemetryAvailable){document.getElementById('test-settings-status').textContent='Wait for the current test and a connected ECU before saving.';return;}
   const toolsPatch={};
   for(const el of document.querySelectorAll('.test-setting')){
-    const v=Number(el.value);
-    if(!Number.isFinite(v)||v<0||(el.dataset.kind==='seconds'&&v>60)){
-      alert('Enter valid test settings. Test duration must be between 0 and 60 seconds.');return;
+    const raw=el.value.trim(), v=Number(raw);
+    const seconds=el.dataset.kind==='seconds';
+    const minimum=seconds?toolDurationMinMs(el.dataset.key)/1000:0;
+    const maximum=seconds?60:100;
+    if(!raw||!Number.isFinite(v)||v<minimum||v>maximum){
+      const name=el.closest('.test-setting-row')?.querySelector('.test-setting-name')?.textContent||'Test';
+      document.getElementById('test-settings-status').textContent=`${name}: enter ${minimum}–${maximum}${seconds?' seconds':'%'}.`;
+      el.focus();return;
     }
     toolsPatch[el.dataset.key]=el.dataset.kind==='seconds'?Math.round(v*1000):v;
   }
@@ -264,6 +282,7 @@ async function saveTestSettings(){
   }catch(_){}
   cfgData.tools={...(cfgData.tools||{}),...toolsPatch};
   TOOLS.forEach(t=>{const k=t.configKey?.split('.')[1];if(k&&toolsPatch[k]!=null)t.durationMs=toolsPatch[k];});
+  syncDynamicToolText();
   renderTools(); document.getElementById('test-settings-status').textContent='Saved.'; setTimeout(closeTestSettings,500);
 }
 
@@ -271,14 +290,12 @@ async function saveTestSettings(){
 function renderTools() {
   let html = '';
   let dividerDone = false;
-  TOOLS.forEach(t => {
-    if (t.visibleIf && !t.visibleIf(hwCfg)) return;
+  const renderCard = t => {
     const isToggle = t.durationMs === 0;
-    if (isToggle && !dividerDone) { html += '<hr class="tool-divider">'; dividerDone = true; }
     const safeName = escHtml(t.name);
     const safeDesc = escHtml(t.desc);
     const safeTitle = escAttr(t.desc);
-    html += `
+    return `
     <div class="tool-card" id="card-${t.id}" title="${safeTitle}">
       <div class="tool-header">
         <div class="tool-name">${safeName}</div>
@@ -295,8 +312,18 @@ function renderTools() {
           ${isToggle ? 'Toggle' : 'Run'}
         </button>
       </div>
+      ${t.id === 'GLOW_TEST' && Number(hwCfg?.actuators?.glow_plug?.type) === 2 ? `<details class="tool-component-tests" style="margin-top:.75rem"><summary>Test individual components</summary><p class="tool-desc">Each test runs separately and stops automatically. Duration is shared with the combined test.</p>${TOOLS.filter(child => child.parentTool === t.id && (!child.visibleIf || child.visibleIf(hwCfg))).map(renderCard).join('')}</details>` : ''}
     </div>`;
+  };
+  TOOLS.forEach(t => {
+    if (t.parentTool || (t.visibleIf && !t.visibleIf(hwCfg))) return;
+    if (t.durationMs === 0 && !dividerDone) { html += '<hr class="tool-divider">'; dividerDone = true; }
+    html += renderCard(t);
   });
+
+  const outputs=hwCfg.channel_registry?.outputs||[];
+  const mirrors=outputs.filter(c=>c.installed!==false&&c.mirror_of);
+  if(mirrors.length)html+=`<div class="tool-card" id="linked-outputs-card"><div class="tool-header"><div class="tool-name">Linked outputs</div></div><p class="tool-desc">These outputs follow their source. Test the source output to check both; they cannot be tested independently.</p><ul class="tool-desc">${mirrors.map(c=>{const source=outputs.find(row=>row.id===c.mirror_of);return `<li>${escHtml(registryToolDisplayName(c,outputs.indexOf(c)))} → ${escHtml(source?registryToolDisplayName(source,outputs.indexOf(source)):c.mirror_of)}</li>`;}).join('')}</ul></div>`;
 
   // ── Extra Cooldown — slider-based special card ────────────
   const cooldownDesc = extraCooldownDescription();
@@ -392,22 +419,41 @@ function renderTools() {
 
 // ── Run a standard tool ───────────────────────────────────────
 async function postToolCommand(payload) {
+  const stopping=payload.cmd==='STOP'||payload.cmd==='AB_STOP'||(payload.cmd==='EXTRA_COOLDOWN'&&payload.iParam===0);
+  if(!stopping&&(toolRequestPending||!toolsTelemetryAvailable))throw new Error(toolRequestPending?'Waiting for the previous command acknowledgement.':'ECU connection unavailable. Wait for fresh telemetry before retrying.');
+  if(!stopping){toolRequestPending=true;setAllButtons(true);}
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),8000);
+  let acknowledged=false;
+  try {
   const r = await fetch('/api/command', {
     method: 'POST',
     body: JSON.stringify(payload),
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json' },signal:controller.signal
   });
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok || body.ok === false) {
+  const body = await r.json();
+  if(!r.ok){acknowledged=true;throw new Error(body.error||body.reason||('HTTP '+r.status));}
+  if(typeof body.ok!=='boolean')throw new Error('Invalid ECU acknowledgement');
+  acknowledged=true;
+  if (body.ok === false) {
     throw new Error(body.error || body.reason || ('HTTP ' + r.status));
   }
   if (window.OTSetup && !/^TOGGLE_/.test(String(payload.cmd || ''))) OTSetup.mark('tools');
   return body;
+  } catch(e) {
+    if(!acknowledged){setToolsConnection(false);throw new Error(stopping?'Stop acknowledgement lost. Output state is unconfirmed; check the ECU connection and physical STOP.':'Command acknowledgement lost. The ECU may have started the test. Reconnect and check outputs before retrying.');}
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    if(!stopping)toolRequestPending=false;
+    setAllButtons(!!activeTick);
+  }
 }
 
 async function runTool(id) {
   const tool = TOOLS.find(t => t.id === id);
   if (!tool) return;
+  if(activeTick||toolRequestPending||!toolsTelemetryAvailable)return;
 
   let skipConfirmation = false;
   try { skipConfirmation = localStorage.getItem(TOOL_CONFIRMATION_SKIP_KEY) === '1'; } catch (_) {}
@@ -428,6 +474,9 @@ async function runTool(id) {
     updateToolConfirmationReset();
   }
 
+  // Confirmation can remain open while STOP, mode or connection changes.
+  const block=tool.durationMs>0?timedToolBlockReason(tool,!!liveData.extra_cooldown_active,!!activeTick):'';
+  if(!toolsTelemetryAvailable||toolRequestPending||block){alert(block||'Wait for a connected ECU and no pending command.');return;}
   const payload = { cmd: tool.cmd || id };
   if (tool.iParam !== undefined) payload.iParam = tool.iParam;
   if (tool.registryOutput && !tool.relayOutput) {
@@ -469,6 +518,8 @@ function stopCooldown() {
 
 // ── Countdown progress bar ────────────────────────────────────
 function startProgress(tool) {
+  const run=(toolProgressRuns.get(tool.id)||0)+1;
+  toolProgressRuns.set(tool.id,run);
   if (activeTick) { clearInterval(activeTick); activeTick = null; }
   activeId    = tool.id;
   activeStart = Date.now();
@@ -492,12 +543,15 @@ function startProgress(tool) {
     if (elapsed >= runDurationMs) {
       clearInterval(activeTick); activeTick = null; activeId = null;
       if (pf) { pf.style.width = '100%'; pf.classList.remove('running'); }
-      setState(tool.id, 'Done', 'done');
+      setState(tool.id, toolsTelemetryAvailable?'Done':'Elapsed · status unavailable', toolsTelemetryAvailable?'done':'off');
       setAllButtons(false);
       setTimeout(() => {
+        if(toolProgressRuns.get(tool.id)!==run)return;
+        if(!toolsTelemetryAvailable)return;
         setState(tool.id, 'Ready', '');
         if (pf) pf.style.width = '0%';
         if (tm) tm.textContent = Number((toolRunDurationMs(tool) / 1000).toFixed(2)) + ' s';
+        refreshTimedToolLockStates();
       }, 2000);
     }
   }, 40);
@@ -546,6 +600,9 @@ function timedToolBlockReason(tool, cooldownActive, forcedOff) {
 }
 
 function setAllButtons(forcedOff) {
+  forcedOff=forcedOff||toolRequestPending||!toolsTelemetryAvailable;
+  const settings=document.getElementById('btn-test-settings');
+  if(settings)settings.disabled=forcedOff||!!activeTick||!isStandbyLike(engineMode);
   const inStandby = isStandbyLike(engineMode);
   const ecActive = !!(liveData && liveData.extra_cooldown_active);
   TOOLS.forEach(t => {
@@ -555,7 +612,8 @@ function setAllButtons(forcedOff) {
     // FAULT counts as STANDBY for per-tool mode lists.
     const effMode = engineMode === 'FAULT' ? 'STANDBY' : engineMode;
     const modeOk = t.modes ? t.modes.includes(effMode) : (isToggle || inStandby);
-    const blockReason = !isToggle ? timedToolBlockReason(t, ecActive, forcedOff) : '';
+    const blockReason = !toolsTelemetryAvailable?'ECU connection unavailable. Wait for fresh telemetry.':
+      toolRequestPending?'Waiting for ECU acknowledgement.':!isToggle ? timedToolBlockReason(t, ecActive, forcedOff) : '';
     btn.disabled = forcedOff || !modeOk || (ecActive && !isToggle) || !!blockReason;
     btn.title = blockReason;
     const card = document.getElementById('card-' + t.id);
@@ -577,13 +635,13 @@ function setAllButtons(forcedOff) {
 function refreshTimedToolLockStates() {
   const cooldownLocked = !!(liveData && liveData.extra_cooldown_active);
   const stopReason = stopToolBlockReason();
-  const locked = !isStandbyLike(engineMode) || cooldownLocked || !!stopReason;
+  const locked = !toolsTelemetryAvailable||!isStandbyLike(engineMode) || cooldownLocked || !!stopReason;
   TOOLS.filter(tool => tool.durationMs > 0).forEach(tool => {
     if (activeId === tool.id) return;
     const state = document.getElementById('state-' + tool.id);
     if (!state) return;
     if (locked) {
-      setState(tool.id, stopReason ? (liveData.stop_switch_active ? 'Locked · STOP active' : 'Locked · STOP unavailable') :
+      setState(tool.id, !toolsTelemetryAvailable?'Locked · connection unavailable':stopReason ? (liveData.stop_switch_active ? 'Locked · STOP active' : 'Locked · STOP unavailable') :
         (cooldownLocked ? 'Locked · cooldown' : `Locked · ${engineMode}`), 'off');
     } else if (state.textContent.startsWith('Locked ·')) {
       setState(tool.id, 'Ready', '');
@@ -857,6 +915,9 @@ function syncDynamicToolText() {
   const durationMs = Number(tools.glow_test_ms ?? glowTool.durationMs);
   const durationS = sec(durationMs);
   const demandText = isRelay('glow_plug') ? 'ON' : pctText(pct);
+  setDesc('GLOW_ONLY_TEST', `Output: heating element ${demandText} for ${durationS} s. Pilot-fuel output stays OFF.`);
+  const fuelDemand = Number(glow.fuel_type ?? 0) === 0 ? 'ON' : pctText(glow.fuel_demand_pct ?? 100);
+  setDesc('WET_GLOW_FUEL_TEST', `Output: pilot-fuel pump / valve ${fuelDemand} immediately for ${durationS} s, without the combined-test delay. Heating element stays OFF.`);
   if (Number(glow.type || 0) === 2) {
     glowTool.name = 'Wet Glow Test';
     const delayMs = Number(glow.fuel_delay_ms ?? 8000);
@@ -873,13 +934,15 @@ function syncDynamicToolText() {
     FUEL_PRIME:'fuel_shutoff',FUEL_SOL_TEST:'fuel_shutoff',OIL_PRIME:'oil_pump',
     IGN_TEST:'igniter',IGN2_TEST:'ab_igniter',START_TEST:'starter',IDLE_TEST:'main_fuel',
     STARTER_EN_TEST:'starter_enable',OIL_SCAV_TEST:'scavenge_pump',COOL_FAN_TEST:'cooling_fan',
-    AIRSTARTER_TEST:'air_starter',BLEED_VALVE_TEST:'bleed_valve',GLOW_TEST:'glow_plug',
+    AIRSTARTER_TEST:'air_starter',BLEED_VALVE_TEST:'bleed_valve',GLOW_TEST:'glow_plug',GLOW_ONLY_TEST:'glow_plug',
     FUEL_PUMP2_TEST:'fuel_pump',AB_SOL_TEST:'ab_valve',AB_PUMP_TEST:'ab_pump',PROP_PITCH_TEST:'prop_pitch'
   };
   TOOLS.forEach(t => {
     const matches = (hwCfg.channel_registry?.outputs || []).filter(c =>
       c.installed !== false && c.purpose === outputPurposes[t.id]);
-    if (matches.length === 1 && matches[0].name) t.desc += ` Fitted output: ${matches[0].name}.`;
+    if(t.fittedOutputSuffix&&t.desc.endsWith(t.fittedOutputSuffix))t.desc=t.desc.slice(0,-t.fittedOutputSuffix.length);
+    t.fittedOutputSuffix=matches.length===1&&matches[0].name?` Fitted output: ${matches[0].name}.`:'';
+    t.desc+=t.fittedOutputSuffix;
   });
 }
 
@@ -939,16 +1002,33 @@ async function pollToolsTelemetry() {
     // Hardware and configuration were loaded above. Tools only needs changing
     // engine state here, so never allocate the large Dashboard snapshot after
     // those two maintenance documents.
-    const d = await fetchJsonWithTimeout('/api/telemetry', 3000);
+    const frame = await fetchJsonWithTimeout('/api/telemetry', 3000);
+    if (frame?.cv !== undefined && (Number(frame.cv) !== 2 ||
+        !Array.isArray(frame.v) || frame.v.length < 73 ||
+        !Number.isInteger(frame.m) || frame.m < 0 || frame.m > 4 ||
+        !['f','g','h'].every(key => Number.isInteger(frame[key]) && frame[key] >= 0 && frame[key] <= 0xffffffff)))
+      throw new Error('Invalid compact ECU telemetry');
+    // The device sends compact v2 frames (m/v/flags), not an expanded mode key.
+    const d = decodeCompactTelemetry(frame, liveData);
+    if (!d || !['STANDBY','STARTUP','RUNNING','SHUTDOWN','FAULT'].includes(d.mode))
+      throw new Error('Invalid ECU telemetry');
     window.applyData(d);
+    setToolsConnection(true);
     // This poll owns the conn indicator here — app.js's /api/status heartbeat
     // is disabled on pages with local telemetry (hasPageLocalTelemetry).
-    setConnectionState(true, 'Connected');
   } catch (_) {
-    setConnectionState(false, 'Disconnected');
+    setToolsConnection(false);
   } finally {
     toolsTelemetryInFlight = false;
   }
+}
+
+function setToolsConnection(ok){
+  toolsTelemetryAvailable=ok;
+  setConnectionState(ok,ok?'Connected':'Disconnected');
+  if(activeId)setState(activeId,ok?'Active':'Status unavailable',ok?'active':'off');
+  setAllButtons(!!activeTick);
+  refreshTimedToolLockStates();
 }
 
 function startToolsTelemetry() {

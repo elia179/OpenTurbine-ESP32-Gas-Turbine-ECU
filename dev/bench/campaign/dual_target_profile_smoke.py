@@ -17,14 +17,14 @@ from ten_build_webui_hil import TenBuildRunner, hz
 
 
 class ProfileSmoke(TenBuildRunner):
-    def __init__(self, target, port):
+    def __init__(self, target, port, expected_version):
         self.target = target
         super().__init__(port)
         self.original_ecu = self.dut._get('/api/ecu_config')
         self.identity = self.dut.device_info()
         self.tester_version = self.t.ping()
         assert self.identity['target'] == ('esp32dev' if target == 'classic' else 'esp32s3dev'), self.identity
-        assert self.identity['firmware_version'] == '2.5.2', self.identity
+        assert self.identity['firmware_version'] == expected_version, self.identity
 
     def profile(self, hw, variant):
         for bus in ('i2c','spi'):
@@ -94,6 +94,13 @@ class ProfileSmoke(TenBuildRunner):
         code, reply = self.dut.start()
         self.check(checks, 'normal START accepted', code == 200, str(reply))
         if code != 200:
+            snapshot = {'telemetry': self.dut._get('/api/data'), 'status': self.dut.status(),
+                        'tester': self.t.state(), 'hardware': self.dut.hardware(),
+                        'settings': self.dut.config(), 'reply': reply}
+            diag_dir = Path(os.environ.get('OTBENCH_ARTIFACT_DIR', 'artifacts/bench-profile-smoke'))
+            diag_dir.mkdir(parents=True, exist_ok=True)
+            (diag_dir / f'{self.target}-start-rejection.json').write_text(json.dumps(snapshot, indent=2))
+            self.log('Start feedback: ' + str({k:v for k,v in snapshot['telemetry'].items() if 'healthy' in k or 'valid' in k or k in ('n1','n2','idle_input_raw','throttle_input_raw')}))
             raise RuntimeError('Normal START rejected')
         modes = set()
         seen = {'fuel':False, 'igniter':False, 'servo':False}
@@ -144,12 +151,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--target', choices=['classic','s3'], required=True)
     parser.add_argument('--port', required=True)
+    parser.add_argument('--expected-version', required=True)
     parser.add_argument('--allow-write', action='store_true', required=True)
     parser.add_argument('--result', type=Path, required=True)
     args = parser.parse_args()
     os.environ['OTBENCH_TARGET'] = args.target
-    runner = ProfileSmoke(args.target, args.port)
-    snapshot = HERE.parents[2] / 'artifacts' / 'hardware-test-2.5.2' / f'{args.target}-profiles-original.json'
+    runner = ProfileSmoke(args.target, args.port, args.expected_version)
+    snapshot = HERE.parents[2] / 'artifacts' / ('hardware-test-' + args.expected_version) / f'{args.target}-profiles-original.json'
     snapshot.parent.mkdir(parents=True, exist_ok=True)
     snapshot.write_text(json.dumps(runner.original_ecu, indent=2))
     try:

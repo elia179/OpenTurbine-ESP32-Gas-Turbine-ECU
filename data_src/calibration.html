@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261020c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261020c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1143,7 +1143,11 @@ if (typeof _base !== 'function' || _base._calibrationExtended) return;
 window.applyData = function(d) {
   const merged = _base(d);
   if (!merged) return;
+  const previousMode=live.mode;
   live = Object.assign(live || {}, merged, d);
+  if((previousMode&&live.mode!==previousMode)||live.stop_switch_active||
+      (live.stop_switch_configured&&live.stop_switch_healthy===false))
+    cancelCalibrationActuatorWorkers('Engine mode or STOP input changed. Restart calibration manually.');
   d = live;
   updateAdcSwitchLive(d);
   const hasFuelPress = fittedFromTelemetryOrHardware(d, 'fuel_press', 'has_fuel_press');
@@ -1539,6 +1543,9 @@ function fpClearCal() {
 // legitimate fix path). Without this guard the wizard would sample against
 // a pump/igniter that never moved and silently save a wrong calibration.
 function calStandbyGuard(action) {
+  if(live.stop_switch_active||(live.stop_switch_configured&&live.stop_switch_healthy===false)){
+    alert('Calibration output blocked: release STOP and check its input before '+action+'.');return false;
+  }
   const mode = live.mode;
   if (mode === undefined) {
     alert('No live engine data yet — wait for the connection before starting ' + action + '.');
@@ -1555,6 +1562,8 @@ function calStandbyGuard(action) {
 
 // ── Oil calibration wizard ────────────────────────────────────
 let oilCalActive = false;
+let oilCalGeneration = 0;
+let oilCalStarting = false;
 let oilFit = { a:0, b:0, c:0, d:0, x0:0, x1:4095 };
 let oilMinPctCaptured = null;
 
@@ -1568,20 +1577,20 @@ function oilGoStep(n) {
 }
 
 async function postCalCommand(payload) {
-  const r = await fetch('/api/command', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers: { 'Content-Type':'application/json' }
-  });
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok || body.ok === false) {
-    throw new Error(body.error || body.reason || ('HTTP ' + r.status));
-  }
-  return body;
+  const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),8000);
+  try{
+    const r=await fetch('/api/command',{method:'POST',body:JSON.stringify(payload),
+      headers:{'Content-Type':'application/json'},signal:controller.signal});
+    const body=await r.json();
+    if(!r.ok||body?.ok!==true)throw new Error(body?.error||body?.reason||'No valid ECU acknowledgement');
+    return body;
+  }finally{clearTimeout(timeout);}
 }
 
 function oilCalStart() {
   if (!calStandbyGuard('the oil pump calibration')) return;
+  const generation = ++oilCalGeneration;
+  oilCalStarting=true;
   const statusEl = document.getElementById('oil-zero-status');
   const startBtn = document.getElementById('btn-oil-start');
 
@@ -1591,10 +1600,13 @@ function oilCalStart() {
   startBtn.disabled = true;
 
   postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 }).then(() => {
+    if(generation!==oilCalGeneration)return;
     // Wait 3 s for pressure to settle at zero
     setTimeout(async () => {
+      if(generation!==oilCalGeneration)return;
       const raw0 = liveAdcRaw('oil_raw');
       if (!Number.isFinite(raw0)) {
+        oilCalStarting=false;
         statusEl.textContent = 'No live ADC-pin voltage — check connection.';
         startBtn.disabled = false;
         return;
@@ -1611,14 +1623,20 @@ function oilCalStart() {
       document.getElementById('oil-pump-pct2').value = '0';
       try {
         await postCalCommand({ cmd:'SET_OIL_PCT', fParam: 0 });
+        if(generation!==oilCalGeneration)return;
+        oilCalStarting=false;
         oilCalActive = true;
         oilGoStep(2);
       } catch(e) {
+        if(generation!==oilCalGeneration)return;
+        oilCalStarting=false;
         statusEl.textContent = 'Pump command failed: ' + e.message;
         startBtn.disabled = false;
       }
     }, 3000);
   }).catch(e => {
+    if(generation!==oilCalGeneration)return;
+    oilCalStarting=false;
     statusEl.textContent = 'Pump command failed: ' + e.message;
     startBtn.disabled = false;
   });
@@ -1663,6 +1681,8 @@ function oilMinimumFound() {
 }
 
 function oilCalStop() {
+  ++oilCalGeneration;
+  oilCalStarting=false;
   oilMinSweepStop(true);
   postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 })
     .catch(e => alert('Pump stop command failed: ' + e.message));
@@ -1680,13 +1700,47 @@ function oilCalStop() {
 let _fpMinKeepAlive = null;
 let _fpMinSweep = null;
 let _fpMinTestRunning = false;
+let _fpMinStopPending = false;
+let _fpMinSavePending = false;
+let _fpMinGeneration = 0;
+function fpMinCancelTimers(){
+  if (_fpMinSweep) { clearInterval(_fpMinSweep); _fpMinSweep = null; }
+  if (_fpMinKeepAlive) { clearInterval(_fpMinKeepAlive); _fpMinKeepAlive = null; }
+}
+function cancelCalibrationActuatorWorkers(reason){
+  if(_fpMinTestRunning||_fpMinStopPending||_fpMinSweep||_fpMinKeepAlive){
+    ++_fpMinGeneration;fpMinCancelTimers();_fpMinTestRunning=false;_fpMinStopPending=false;
+    document.getElementById('fp-min-slider').disabled=false;
+    document.getElementById('btn-fp-test').disabled=false;
+    document.getElementById('btn-fp-sweep').disabled=false;
+    document.getElementById('btn-fp-stop').disabled=true;
+    document.getElementById('fp-min-status').textContent=reason;
+  }
+  if(oilCalStarting||oilCalActive||_oilMinSweep){
+    ++oilCalGeneration;oilCalStarting=false;oilCalActive=false;
+    if(_oilMinSweep){clearInterval(_oilMinSweep);_oilMinSweep=null;}
+    document.getElementById('btn-oil-start').disabled=false;
+    document.getElementById('btn-oil-sweep').disabled=false;
+    document.getElementById('btn-oil-sweep-stop').disabled=true;
+    const status=document.getElementById('oil-zero-status');status.style.display='';status.textContent=reason;
+  }
+  // No actuator commands here: STOP and mode transitions are owned by the
+  // ECU. In particular, never send a calibration zero into a running engine.
+}
 function _fpMinSend() {
+  if(_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending)return;
+  const generation=_fpMinGeneration;
   const p = parseFloat(document.getElementById('fp-min-slider').value) || 0;
   postCalCommand({ cmd:'SET_THROTTLE_PCT', fParam:p }).catch(e => {
-    const s = document.getElementById('fp-min-status'); if (s) s.textContent = 'Pump command failed: ' + e.message;
+    if(generation!==_fpMinGeneration)return;
+    fpMinStop(true).then(stopped=>{
+      const s=document.getElementById('fp-min-status');
+      if(stopped&&s)s.textContent='Pump command failed: '+e.message+'. Metering output stopped; retry explicitly.';
+    });
   });
 }
 function fpMinSlide() {
+  if(_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending)return;
   const pct = parseFloat(document.getElementById('fp-min-slider').value) || 0;
   document.getElementById('fp-min-live').textContent = pct.toFixed(1) + '%';
   _fpMinSend();
@@ -1696,9 +1750,9 @@ function fpMinSlide() {
     else { clearInterval(_fpMinKeepAlive); _fpMinKeepAlive = null; }
   }, 2000);
 }
-function fpMinSweepStart() {
-  if (!calStandbyGuard('the fuel-pump sweep')) return;
-  fpMinStop(false);
+async function fpMinSweepStart() {
+  if (_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending||!calStandbyGuard('the fuel-pump sweep')) return;
+  if(!await fpMinStop(false))return;
   const sl = document.getElementById('fp-min-slider');
   sl.value = 0;
   document.getElementById('btn-fp-sweep').disabled = true;
@@ -1713,52 +1767,87 @@ function fpMinSweepStart() {
   }, 250);
 }
 function fpMinStop(keepValue = true) {
-  if (_fpMinSweep) { clearInterval(_fpMinSweep); _fpMinSweep = null; }
-  if (_fpMinKeepAlive) { clearInterval(_fpMinKeepAlive); _fpMinKeepAlive = null; }
-  const sl = document.getElementById('fp-min-slider');
-  const found = parseFloat(sl?.value) || 0;
-  document.getElementById('btn-fp-sweep').disabled = false;
-  document.getElementById('btn-fp-stop').disabled = true;
-  postCalCommand({ cmd:'SET_THROTTLE_PCT', fParam:0, iParam:0 }).catch(() => {});
-  if (keepValue) {
-    document.getElementById('fp-min-live').textContent = found.toFixed(2) + '%';
-    document.getElementById('fp-min-status').textContent = 'Stopped at ' + found.toFixed(2) + '%. Fine-adjust or test restart before saving.';
-  } else if (sl) {
-    sl.value = 0;
-    document.getElementById('fp-min-live').textContent = '0.00%';
-  }
+  const generation=++_fpMinGeneration;
+  fpMinCancelTimers();
+  _fpMinTestRunning=false;
+  _fpMinStopPending=true;
+  const sl=document.getElementById('fp-min-slider'), status=document.getElementById('fp-min-status');
+  const found=parseFloat(sl?.value)||0;
+  if(sl)sl.disabled=true;
+  document.getElementById('btn-fp-sweep').disabled=true;
+  document.getElementById('btn-fp-test').disabled=true;
+  document.getElementById('btn-fp-stop').disabled=false;
+  status.textContent='Stopping metering output…';
+  if(keepValue)document.getElementById('fp-min-live').textContent=found.toFixed(2)+'%';
+  else if(sl){sl.value=0;document.getElementById('fp-min-live').textContent='0.00%';}
+  return postCalCommand({cmd:'SET_THROTTLE_PCT',fParam:0,iParam:0}).then(()=>{
+    if(generation!==_fpMinGeneration)return false;
+    document.getElementById('btn-fp-stop').disabled=true;
+    status.textContent='Stopped at '+found.toFixed(2)+'%. Fine-adjust or test restart before saving.';
+    return true;
+  }).catch(e=>{
+    if(generation===_fpMinGeneration)status.textContent='Stop not confirmed: '+e.message+'. Check output and use physical STOP if needed.';
+    return false;
+  }).finally(()=>{
+    if(generation!==_fpMinGeneration)return;
+    _fpMinStopPending=false;
+    if(sl)sl.disabled=_fpMinSavePending;
+    document.getElementById('btn-fp-sweep').disabled=_fpMinSavePending;
+    document.getElementById('btn-fp-test').disabled=_fpMinSavePending;
+  });
 }
 async function fpMinTest() {
-  if (_fpMinTestRunning || !calStandbyGuard('the fuel-pump restart test')) return;
-  const pct = parseFloat(document.getElementById('fp-min-slider').value) || 0;
-  if (pct <= 0) { alert('Run the sweep or select a candidate percentage first.'); return; }
-  _fpMinTestRunning = true;
-  document.getElementById('btn-fp-test').disabled = true;
+  if (_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending||!calStandbyGuard('the fuel-pump restart test'))return;
+  const pct=parseFloat(document.getElementById('fp-min-slider').value)||0;
+  if(pct<=0){alert('Run the sweep or select a candidate percentage first.');return;}
+  const stopping=fpMinStop(true), generation=_fpMinGeneration;
+  if(!await stopping||generation!==_fpMinGeneration)return;
+  _fpMinTestRunning=true;
+  document.getElementById('fp-min-slider').disabled=true;
+  document.getElementById('btn-fp-test').disabled=true;
+  document.getElementById('btn-fp-sweep').disabled=true;
+  document.getElementById('btn-fp-stop').disabled=false;
+  const current=()=>generation===_fpMinGeneration;
+  const status=document.getElementById('fp-min-status');
   try {
-    for (let n=1; n<=3; n++) {
-      document.getElementById('fp-min-status').textContent = `Restart test ${n}/3 at ${pct.toFixed(2)}%…`;
-      await postCalCommand({cmd:'SET_THROTTLE_PCT', fParam:pct});
-      await new Promise(r => setTimeout(r, 1500));
-      await postCalCommand({cmd:'SET_THROTTLE_PCT', fParam:0, iParam:0});
-      await new Promise(r => setTimeout(r, 1000));
+    for(let n=1;n<=3;n++){
+      if(!current())return;
+      status.textContent=`Restart test ${n}/3 at ${pct.toFixed(2)}%…`;
+      await postCalCommand({cmd:'SET_THROTTLE_PCT',fParam:pct});
+      if(!current())return;
+      await new Promise(r=>setTimeout(r,1500));
+      if(!current())return;
+      await postCalCommand({cmd:'SET_THROTTLE_PCT',fParam:0,iParam:0});
+      await new Promise(r=>setTimeout(r,1000));
     }
-    document.getElementById('fp-min-status').textContent = 'Three restart cycles complete. Save if the pump started reliably every time.';
-  } finally {
-    _fpMinTestRunning = false;
-    document.getElementById('btn-fp-test').disabled = false;
+    if(current())status.textContent='Three restart cycles complete. Save if the pump started reliably every time.';
+  }catch(e){
+    if(current())status.textContent='Restart test failed: '+e.message;
+  }finally{
+    if(current()){
+      const message=status.textContent;
+      if(await fpMinStop(true))status.textContent=message;
+    }
   }
 }
-function fpMinSave() {
-  const pct = parseFloat(document.getElementById('fp-min-slider').value) || 0;
-  window.OTSaveConfigPatch({ throttle: { fuel_pump_min_pct: pct } })
-    .then(({response:r, data:b}) => {
-      if (!r.ok || b.ok === false) throw new Error(b.error || b.reason || ('HTTP ' + r.status));
-      return b;
-    }).then(b => {
-      document.getElementById('fp-min-saved').textContent = pct.toFixed(1);
-      document.getElementById('fp-min-status').textContent = 'Saved ' + pct.toFixed(1) + '% as the fuel-pump minimum spin.';
-      fpMinStop(true);
-    }).catch(e => { document.getElementById('fp-min-status').textContent = 'Save error: ' + e.message; });
+async function fpMinSave() {
+  if(_fpMinSavePending||_fpMinStopPending||_fpMinTestRunning||!calStandbyGuard('saving the fuel-pump minimum'))return;
+  const pct=parseFloat(document.getElementById('fp-min-slider').value)||0;
+  const status=document.getElementById('fp-min-status'), button=document.getElementById('btn-fp-min-save');
+  _fpMinSavePending=true;button.disabled=true;
+  try{
+    if(!await fpMinStop(true))return;
+    const {response:r,data:b}=await window.OTSaveConfigPatch({throttle:{fuel_pump_min_pct:pct}});
+    if(!r.ok||b.ok!==true)throw new Error(b.error||b.reason||('HTTP '+r.status));
+    document.getElementById('fp-min-saved').textContent=pct.toFixed(1);
+    status.textContent='Saved '+pct.toFixed(1)+'% as the fuel-pump minimum spin.';
+  }catch(e){status.textContent='Save error: '+e.message;}
+  finally{
+    _fpMinSavePending=false;button.disabled=false;
+    document.getElementById('fp-min-slider').disabled=_fpMinStopPending||_fpMinTestRunning;
+    document.getElementById('btn-fp-sweep').disabled=_fpMinStopPending||_fpMinTestRunning;
+    document.getElementById('btn-fp-test').disabled=_fpMinStopPending||_fpMinTestRunning;
+  }
 }
 
 function captureOilPoint() {

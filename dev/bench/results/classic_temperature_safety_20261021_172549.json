@@ -1,0 +1,110 @@
+{
+  "device": {
+    "project": "OpenTurbine",
+    "firmware_version": "2.5.6",
+    "build_id": "c1a9e528344b0625",
+    "target": "esp32dev",
+    "chip": "ESP32",
+    "state": "STANDBY",
+    "outputs_active": false,
+    "ota_allowed": true,
+    "pcb_profile": {
+      "state": "absent"
+    }
+  },
+  "tester": "OK OTBench 0.14",
+  "checks": [
+    {
+      "name": "hot start blocked",
+      "ok": true,
+      "detail": {
+        "response": {
+          "ok": false,
+          "error": "START blocked: selected EGT above pre-start limit"
+        },
+        "physical": {
+          "THROTTLE_OUT_us": 1000,
+          "THROTTLE_OUT_hz": 50.0,
+          "THROTTLE_OUT_duty": 0.05,
+          "THROTTLE_OUT_level": 1,
+          "OILPUMP_OUT_us": 0,
+          "OILPUMP_OUT_hz": 0.0,
+          "OILPUMP_OUT_duty": 0.0,
+          "OILPUMP_OUT_level": 0,
+          "FUEL_SOL": 0,
+          "IGNITER": 0,
+          "STARTER_EN": 0
+        }
+      }
+    },
+    {
+      "name": "startup overtemperature",
+      "ok": true,
+      "detail": {
+        "fault": "Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.\nWhat to do: Allow the engine to cool. Check your fuel flow, throttle calibration, and configured EGT limit. Inspect the turbine for damage if this was severe.",
+        "before": {
+          "THROTTLE_OUT_us": 1500,
+          "THROTTLE_OUT_hz": 50.0,
+          "THROTTLE_OUT_duty": 0.075,
+          "THROTTLE_OUT_level": 1,
+          "OILPUMP_OUT_us": 0,
+          "OILPUMP_OUT_hz": 0.0,
+          "OILPUMP_OUT_duty": 0.0,
+          "OILPUMP_OUT_level": 0,
+          "FUEL_SOL": 1,
+          "IGNITER": 1,
+          "STARTER_EN": 0
+        },
+        "after": {
+          "THROTTLE_OUT_us": 999,
+          "THROTTLE_OUT_hz": 50.0,
+          "THROTTLE_OUT_duty": 0.05,
+          "THROTTLE_OUT_level": 1,
+          "OILPUMP_OUT_us": 0,
+          "OILPUMP_OUT_hz": 0.0,
+          "OILPUMP_OUT_duty": 0.0,
+          "OILPUMP_OUT_level": 0,
+          "FUEL_SOL": 0,
+          "IGNITER": 0,
+          "STARTER_EN": 0
+        }
+      }
+    },
+    {
+      "name": "running overtemperature",
+      "ok": true,
+      "detail": {
+        "fault": "Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.\nWhat to do: Allow the engine to cool. Check your fuel flow, throttle calibration, and configured EGT limit. Inspect the turbine for damage if this was severe.",
+        "before": {
+          "THROTTLE_OUT_us": 1500,
+          "THROTTLE_OUT_hz": 50.0,
+          "THROTTLE_OUT_duty": 0.075,
+          "THROTTLE_OUT_level": 1,
+          "OILPUMP_OUT_us": 0,
+          "OILPUMP_OUT_hz": 0.0,
+          "OILPUMP_OUT_duty": 0.0,
+          "OILPUMP_OUT_level": 0,
+          "FUEL_SOL": 1,
+          "IGNITER": 1,
+          "STARTER_EN": 0
+        },
+        "after": {
+          "THROTTLE_OUT_us": 999,
+          "THROTTLE_OUT_hz": 50.0,
+          "THROTTLE_OUT_duty": 0.05,
+          "THROTTLE_OUT_level": 1,
+          "OILPUMP_OUT_us": 0,
+          "OILPUMP_OUT_hz": 0.0,
+          "OILPUMP_OUT_duty": 0.0,
+          "OILPUMP_OUT_level": 0,
+          "FUEL_SOL": 0,
+          "IGNITER": 0,
+          "STARTER_EN": 0
+        }
+      }
+    }
+  ],
+  "restored": true,
+  "error": null,
+  "complete": true
+}

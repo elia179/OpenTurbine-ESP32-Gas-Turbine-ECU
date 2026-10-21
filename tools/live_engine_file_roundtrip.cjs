@@ -40,7 +40,7 @@ function registryMatches(actual, expected, suppliedFile) {
   return true;
 }
 
-async function waitForProfile(expected, beforeBoot, suppliedFile = false, beforeUptime = 0) {
+async function waitForProfile(expected, beforeBoot, suppliedFile = false, beforeUptime = 0, capturedAt = performance.now()) {
   for (let attempt = 0; attempt < 55; attempt++) {
     if (process.platform === 'win32' && attempt % 5 === 0)
       execFileSync('netsh',['wlan','connect','name='+wifiProfile],{stdio:'ignore'});
@@ -49,7 +49,11 @@ async function waitForProfile(expected, beforeBoot, suppliedFile = false, before
       const actual = await readJson('/api/ecu_config');
       const live = await readJson('/api/data');
       // A supplied older engine file may restore its saved boot statistics.
-      const rebooted = suppliedFile ? live.uptime_s < beforeUptime : live.boot_count > beforeBoot;
+      // Include transfer/reconnect time: a short pre-upload uptime can already
+      // be exceeded by the time the first post-reboot read succeeds.
+      const rebooted = suppliedFile
+        ? live.boot_count !== beforeBoot || live.uptime_s < beforeUptime + (performance.now() - capturedAt) / 1000 - 3
+        : live.boot_count > beforeBoot;
       if (rebooted && info.state === 'STANDBY' && info.outputs_active === false &&
           registryMatches(actual.hardware.channel_registry, expected.hardware.channel_registry, suppliedFile) &&
           JSON.stringify(actual.hardware.startup_seq) === JSON.stringify(expected.hardware.startup_seq) &&
@@ -66,6 +70,7 @@ async function waitForProfile(expected, beforeBoot, suppliedFile = false, before
   assert.equal(beforeInfo.outputs_active, false);
   const before = await readJson('/api/ecu_config');
   const beforeLive = await readJson('/api/data');
+  const capturedAt = performance.now();
   const beforeBoot = beforeLive.boot_count;
   const candidates = [
     process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
@@ -103,7 +108,7 @@ async function waitForProfile(expected, beforeBoot, suppliedFile = false, before
     assert.match(await page.locator('#cfg-backup-state').textContent(), /rebooting/i,
       await page.locator('#cfg-backup-msg').textContent());
     console.log('Browser upload and restore accepted.');
-    await waitForProfile(expected, beforeBoot, !!restoreFile, beforeLive.uptime_s);
+    await waitForProfile(expected, beforeBoot, !!restoreFile, beforeLive.uptime_s, capturedAt);
     console.log(restoreFile
       ? 'Review engine file installed through browser restore; registry, sequence and LED setting verified, outputs inactive.'
       : 'Engine-file round-trip passed; original registry, sequence and LED setting retained, outputs inactive.');
