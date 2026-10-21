@@ -119,6 +119,7 @@ const server = http.createServer((req,res) => {
       assert.ok(searchRequests > requestsBefore,'revisiting the finder fetches a current index despite cache headers');
       await setting.click();
       assert.equal(new URL(page.url()).hash,`#field-${key}`);
+      await page.waitForFunction(key => document.querySelector(`#field-${key}`)?.closest('details')?.open, key);
       assert.equal(await page.locator(`#field-${key}`).isVisible(),true,'new idle reference opens from search');
     }
     const extendHtml = fs.readFileSync(path.join(built,'guided-builds/extend/index.html'),'utf8');

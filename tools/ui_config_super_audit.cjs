@@ -194,9 +194,9 @@ async function sectionVisible(page, title) {
         starter: { enabled: false }
       }
     });
+    await page.request.post(`${base}/__sim/data`, { data: { mode: 'STANDBY', extra_cooldown_active: false, stop_switch_active: false } });
     await page.goto(`${base}/tools.html`);
-    await page.waitForFunction(() => !!hwCfg?.actuators);
-    await page.evaluate(() => { engineMode = 'STANDBY'; });
+    await page.waitForFunction(() => !!hwCfg?.actuators && toolsTelemetryAvailable && engineMode === 'STANDBY');
     await page.locator('#btn-test-settings').click();
     for (const key of ['fuel_prime_ms', 'oil_prime_ms', 'ign_test_ms', 'start_test_ms', 'fuel_sol_test_ms']) {
       assert.equal(await page.locator(`.test-setting[data-key="${key}"]`).count(), 0,
@@ -212,9 +212,9 @@ async function sectionVisible(page, title) {
         starter: { enabled: true }
       }
     });
+    await page.request.post(`${base}/__sim/data`, { data: { mode: 'STANDBY', extra_cooldown_active: false, stop_switch_active: false } });
     await page.goto(`${base}/tools.html`);
-    await page.waitForFunction(() => !!hwCfg?.actuators);
-    await page.evaluate(() => { engineMode = 'STANDBY'; });
+    await page.waitForFunction(() => !!hwCfg?.actuators && toolsTelemetryAvailable && engineMode === 'STANDBY');
     await page.locator('#btn-test-settings').click();
     for (const key of ['fuel_prime_ms', 'oil_prime_ms', 'start_test_ms', 'fuel_sol_test_ms']) {
       assert.ok(await page.locator(`.test-setting[data-key="${key}"]`).count() > 0,
@@ -227,9 +227,9 @@ async function sectionVisible(page, title) {
     assert.ok(await page.locator('.test-setting[data-key="ign2_test_ms"]').count() > 0,
       'Igniter 2 timing should appear when Igniter 2 is fitted');
     await patchHardware(page, { actuators: { igniter: { enabled: true } } });
+    await page.request.post(`${base}/__sim/data`, { data: { mode: 'STANDBY', extra_cooldown_active: false, stop_switch_active: false } });
     await page.goto(`${base}/tools.html`);
-    await page.waitForFunction(() => !!hwCfg?.actuators);
-    await page.evaluate(() => { engineMode = 'STANDBY'; });
+    await page.waitForFunction(() => !!hwCfg?.actuators && toolsTelemetryAvailable && engineMode === 'STANDBY');
     await page.locator('#btn-test-settings').click();
     assert.ok(await page.locator('.test-setting[data-key="ign_test_ms"]').count() > 0,
       'Igniter 1 timing should appear when Igniter 1 is fitted');
