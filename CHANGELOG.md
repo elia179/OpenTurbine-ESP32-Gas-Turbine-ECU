@@ -10,6 +10,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [2.5.6] — 2026-10-21
 
+- Keep generic Tools output-percentage controls readable on narrow screens by wrapping their footer instead of squeezing the number input.
+
 - Decode and validate compact v2 telemetry in Tools before judging connection state, so real-device actuator controls remain usable while malformed frames still lock starts.
 
 - Explicitly configure native pulse-counter GPIOs as inputs before attaching PCNT, preventing remapped RPM/flow inputs from retaining a previous GPIO role and reading zero. Apply the saved, chip-supported input bias for N1, N2, pulse flow and additional speed channels.

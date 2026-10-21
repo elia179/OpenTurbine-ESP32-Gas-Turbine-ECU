@@ -8,6 +8,10 @@
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
 document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
+.tool-footer-demand{flex-wrap:wrap}
+.tool-footer-demand .tool-desc{flex:1 1 100%}
+.tool-demand{flex:0 0 auto}
+.tool-demand input{flex:0 0 4.5rem}
 .tool-component-tests .tool-footer{flex-wrap:wrap;gap:.5rem}
 .tool-component-tests .tool-desc{flex:1 1 100%}
 .tool-component-tests .tool-time{margin-right:auto}
@@ -302,9 +306,9 @@ function renderTools() {
         <div class="tool-state" id="state-${t.id}">${isToggle ? 'OFF' : 'Ready'}</div>
       </div>
       ${!isToggle ? `<div class="prog-track"><div class="prog-fill" id="prog-${t.id}"></div></div>` : ''}
-      <div class="tool-footer">
+      <div class="tool-footer${t.registryOutput && !t.relayOutput ? ' tool-footer-demand' : ''}">
         <div class="tool-desc">${safeDesc}${t.id === 'TOGGLE_LIMP_MODE' ? ' <span id="limp-cap-inline" style="color:var(--yellow)"></span>' : ''}</div>
-        ${t.registryOutput && !t.relayOutput ? `<label class="tool-time" style="display:flex;align-items:center;gap:.35rem;white-space:nowrap">Test output
+        ${t.registryOutput && !t.relayOutput ? `<label class="tool-time tool-demand" style="display:flex;align-items:center;gap:.35rem;white-space:nowrap">Test output
           <input id="demand-${t.id}" type="number" min="0" max="100" step="1" value="${Number(t.testDemandPct??50)}"
                  style="width:4.5rem;min-height:34px;padding:.25rem .4rem" aria-label="${safeName} test output percentage">%</label>` : ''}
         ${!isToggle ? `<div class="tool-time" id="time-${t.id}">${Number((toolRunDurationMs(t)/1000).toFixed(2))} s</div>` : ''}
