@@ -4,10 +4,18 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101012">
-<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
+<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}.controller-pending-list{display:grid;gap:.6rem;margin-top:.8rem}
+.controller-pending-card{display:flex;align-items:center;gap:.8rem;width:100%;padding:.75rem;text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;cursor:grab;touch-action:none}
+.controller-pending-card strong,.controller-pending-card small{display:block;overflow-wrap:anywhere}
+.controller-pending-card small{font-size:.72rem;font-weight:400;margin-top:.25rem;color:var(--dim)}
+.controller-pending-card[aria-pressed="true"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.controller-drop-slot{min-height:30px;padding:.2rem .6rem;border:1px dashed var(--accent);color:var(--accent);background:var(--surface);font-size:.72rem;text-transform:none;letter-spacing:normal}
+#controller-pending-blocks a,.fs-val a{color:var(--accent);text-decoration:underline;text-underline-offset:.15em}
+.controller-drop-target{border-style:solid;background:color-mix(in srgb,var(--accent) 20%,var(--surface))}
+</style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023q',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023q');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -57,6 +65,14 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 .block-picker-option strong,.block-picker-option small{display:block;max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .block-picker-option strong{font-size:.78rem;color:var(--text)}
 .block-picker-option small{margin-top:.2rem;font-size:.67rem;line-height:1.4;color:var(--dim);font-weight:400}
+.controller-pending-list{display:grid;gap:.6rem;margin-top:.8rem}
+.controller-pending-card{display:flex;align-items:center;gap:.8rem;width:100%;padding:.75rem;text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;cursor:grab;touch-action:none}
+.controller-pending-card strong,.controller-pending-card small{display:block;overflow-wrap:anywhere}
+.controller-pending-card small{font-size:.72rem;font-weight:400;margin-top:.25rem;color:var(--dim)}
+.controller-pending-card[aria-pressed="true"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.controller-drop-slot{min-height:30px;padding:.2rem .6rem;border:1px dashed var(--accent);color:var(--accent);background:var(--surface);font-size:.72rem;text-transform:none;letter-spacing:normal}
+#controller-pending-blocks a,.fs-val a{color:var(--accent);text-decoration:underline;text-underline-offset:.15em}
+.controller-drop-target{border-style:solid;background:color-mix(in srgb,var(--accent) 20%,var(--surface))}
 </style>
 </head>
 <body>

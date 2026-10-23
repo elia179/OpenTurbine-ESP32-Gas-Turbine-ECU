@@ -142,7 +142,8 @@ uint8_t SessionLogger::errorCode() { return _errorCode; }
 bool SessionLogger::captureActive() { return _acceptRows; }
 uint32_t SessionLogger::configuredMask() { return Config::sessionLogMask; }
 
-static void _evictOldSessions();
+static void _evictOldSessions(size_t extraBytes=0);
+void SessionLogger::makeRoomForEvents(){ _evictOldSessions(500); }
 
 static const char* _modeStr(uint8_t m) {
     switch ((SysMode)m) {
@@ -311,8 +312,8 @@ bool SessionLogger::begin() {
 }
 
 // ── Evict oldest session files if flash is low ────────────────
-static void _evictOldSessions() {
-    while (LittleFS.totalBytes() - LittleFS.usedBytes() < _sessionReserveBytes()) {
+static void _evictOldSessions(size_t extraBytes) {
+    while (LittleFS.totalBytes() - LittleFS.usedBytes() < _sessionReserveBytes()+extraBytes) {
         File dir = LittleFS.open("/logs");
         if (!dir) break;
 
@@ -340,7 +341,7 @@ static void _evictOldSessions() {
         dir.close();
 
         if (oldest == INT_MAX) {
-            if (sawCurrent) Serial.println("[SessionLogger] Flash low - current session is the only log left");
+            if (sawCurrent) Serial.println("[Session] Flash low; active log only");
             break;
         }
         if (!LittleFS.remove(oldestPath)) {
@@ -348,12 +349,12 @@ static void _evictOldSessions() {
             // /api/session/log download) — bail out instead of re-selecting
             // the same file forever; rows are dropped and counted until the
             // next eviction attempt succeeds.
-            Serial.printf("[SessionLogger] Could not evict %s (in use?) - will retry\n", oldestPath);
+            Serial.printf("[Session] Evict busy %s; retry\n", oldestPath);
             break;
         }
         _evictionCount++;
         _lastEvictedSession = (uint32_t)oldest;
-        Serial.printf("[SessionLogger] Evicted %s - flash low\n", oldestPath);
+        Serial.printf("[Session] Evicted %s; flash low\n", oldestPath);
     }
 }
 
@@ -387,14 +388,14 @@ static void _openSession() {
         _currentPath[0] = '\0';
         _healthy = false;
         _errorCode = 7;
-        Serial.println("[SessionLogger] Session identity exhausted");
+        Serial.println("[Session] Identity exhausted");
         return;
     }
     snprintf(_currentPath, sizeof(_currentPath), "/logs/session_%lu.csv", (unsigned long)run);
 
     _file = LittleFS.open(_currentPath, "w");
     if (!_file) {
-        Serial.printf("[SessionLogger] Failed to create %s\n", _currentPath);
+        Serial.printf("[Session] Create failed: %s\n", _currentPath);
         _currentPath[0] = '\0';
         _healthy = false;
         _errorCode = 2;
@@ -441,7 +442,7 @@ static void _openSession() {
         _file.print(_registryUnitSuffix(channel));
     }
     if (_file.println() == 0) {
-        Serial.printf("[SessionLogger] Failed to write CSV header to %s\n", _currentPath);
+        Serial.printf("[Session] CSV header failed: %s\n", _currentPath);
         _file.close();
         _currentPath[0] = '\0';
         _droppedRows = _droppedRows + 1;
@@ -455,7 +456,7 @@ static void _openSession() {
     _lowSpaceDropActive = false;
     _lastFlushMs = millis();
     _open     = true;
-    Serial.printf("[SessionLogger] Session started - %u columns -> %s\n",
+    Serial.printf("[Session] Started: %u columns -> %s\n",
         (unsigned)_csvColumnCount(mask), _currentPath);
 }
 
@@ -482,7 +483,7 @@ static void _closeSession() {
     _open = false;
     _file.flush();
     _file.close();
-    Serial.printf("[SessionLogger] Session ended - %u rows\n", (unsigned)_rowCount);
+    Serial.printf("[Session] Ended: %u rows\n", (unsigned)_rowCount);
     // The queue is useful only while a run is being captured. Keeping its
     // worst-case row storage for the entire uptime cost a Classic about
     // 14 KiB precisely when the UI and configuration saves need heap most.

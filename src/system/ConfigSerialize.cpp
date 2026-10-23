@@ -1,5 +1,6 @@
 #include "Config.h"
 #include "ConfigInternal.h"
+#include "RuleFields.h"
 #include "HardwareConfig.h"
 #include "RulesEngine.h"
 #include "hardware_profile.h"
@@ -16,17 +17,26 @@ struct ConfigField {
     T* value;
 };
 
-template <typename T, size_t N>
-void readConfigFields(JsonVariantConst object, const ConfigField<T> (&fields)[N]) {
-    for (const auto& field : fields) {
-        JsonVariantConst value = object[field.key];
-        if (!value.isNull()) *field.value = value.as<T>();
+// Share the typed loops between differently sized sections. Keeping one loop
+// per value type saves Classic flash without changing the serialized settings.
+template <typename T>
+__attribute__((noinline)) void readConfigFieldRange(JsonVariantConst object, const ConfigField<T>* fields, size_t count) {
+    for (size_t i=0;i<count;++i) {
+        JsonVariantConst value=object[fields[i].key];
+        if (!value.isNull()) *fields[i].value=value.as<T>();
     }
 }
-
+template <typename T, size_t N>
+void readConfigFields(JsonVariantConst object, const ConfigField<T> (&fields)[N]) {
+    readConfigFieldRange(object,fields,N);
+}
+template <typename T>
+__attribute__((noinline)) void writeConfigFieldRange(JsonObject object, const ConfigField<T>* fields, size_t count) {
+    for (size_t i=0;i<count;++i) object[fields[i].key]=*fields[i].value;
+}
 template <typename T, size_t N>
 void writeConfigFields(JsonObject object, const ConfigField<T> (&fields)[N]) {
-    for (const auto& field : fields) object[field.key] = *field.value;
+    writeConfigFieldRange(object,fields,N);
 }
 
 template <typename T, size_t N>
@@ -138,7 +148,15 @@ const ConfigField<float> SAFETY_FLOAT_FIELDS[] = {
     CONFIG_FIELD(torqueTripLimit, "torque_trip_nm"),
     CONFIG_FIELD(surgeDetectRpmVariance, "surge_detect_rpm_variance"),
 };
+const ConfigField<bool> SAFETY_BOOL_FIELDS[] = {
+    CONFIG_FIELD(p1TripEnabled, "p1_trip_enabled"),
+    CONFIG_FIELD(p2TripEnabled, "p2_trip_enabled"),
+    CONFIG_FIELD(torqueTripEnabled, "torque_trip_enabled"),
+    CONFIG_FIELD(underspeedEnabled, "underspeed_enabled"),
+};
 const ConfigField<int> SAFETY_INT_FIELDS[] = {
+    CONFIG_FIELD(oilSafetyModes, "oil_pressure_modes"),
+    CONFIG_FIELD(fuelPressureSafetyModes, "fuel_pressure_modes"),
     CONFIG_FIELD(safetyCheckIntervalMs, "check_interval_ms"),
     CONFIG_FIELD(egtSource, "egt_source"), CONFIG_FIELD(flameoutSource, "flameout_source"),
     CONFIG_FIELD(p1TripConfirmMs, "p1_trip_confirm_ms"), CONFIG_FIELD(p2TripConfirmMs, "p2_trip_confirm_ms"),
@@ -264,10 +282,12 @@ const ConfigField<float> STARTUP_FLOAT_FIELDS[] = {
     CONFIG_FIELD(modifiedIdleMultiplier, "modified_idle_multiplier"),
     CONFIG_FIELD(waitTotCoolTarget, "wait_tot_target"), CONFIG_FIELD(throttleSetPct, "throttle_set_pct"),
     CONFIG_FIELD(oilPumpOnPct, "oil_pump_on_pct"), CONFIG_FIELD(preStartEgtLimitC, "pre_start_egt_limit_c"),
+    CONFIG_FIELD(startupEgtDwellC, "startup_egt_dwell_c"),
     CONFIG_FIELD(startupEgtLimitC, "startup_egt_limit_c"), CONFIG_FIELD(fp2StartPct, "fp2_start_pct"),
     CONFIG_FIELD(fp2EndPct, "fp2_end_pct"), CONFIG_FIELD(fp2DemandPct, "fp2_demand_pct"),
 };
 const ConfigField<int> STARTUP_INT_FIELDS[] = {
+    CONFIG_FIELD(startupEgtDwellMs, "startup_egt_dwell_ms"),
     CONFIG_FIELD(startupOilArmTimeoutMs, "oil_arm_timeout_ms"),
     CONFIG_FIELD(flameTimeoutMs, "flame_timeout_ms"),
     CONFIG_FIELD(flameCheckIntervalMs, "flame_check_interval_ms"),
@@ -282,6 +302,9 @@ const ConfigField<int> STARTUP_INT_FIELDS[] = {
     CONFIG_FIELD(govHoldTimeoutMs, "gov_hold_timeout_ms"),
 };
 const ConfigField<bool> STARTUP_BOOL_FIELDS[] = {
+    CONFIG_FIELD(startupEgtGuardEnabled, "startup_egt_guard_enabled"),
+    CONFIG_FIELD(startupEgtImmediateEnabled, "startup_egt_immediate_enabled"),
+    CONFIG_FIELD(startupEgtDwellEnabled, "startup_egt_dwell_enabled"),
     CONFIG_FIELD(safetyHoldCheckN1, "final_check_n1_enabled"),
     CONFIG_FIELD(safetyHoldCheckN2, "final_check_n2_enabled"),
     CONFIG_FIELD(safetyHoldCheckP1, "final_check_p1_enabled"),
@@ -523,7 +546,8 @@ void Config::_applyDefaults() {
     flameConfirmTurnOffIgniter = true;
     safetyHoldTurnOffStarter = false; safetyHoldTurnOffStarterEn = false; safetyHoldTurnOffIgniter = false;
     spoolCutStarterOnExit = true; spoolCutStarterEnOnExit = true;
-    preStartEgtLimitC = 150.0f; startupEgtLimitC = 0.0f; finalStopOilScavengeMs = 0;
+    preStartEgtLimitC = 150.0f; startupEgtLimitC = 0.0f;
+    startupEgtGuardEnabled=false;startupEgtDwellC=0;startupEgtDwellMs=1000; finalStopOilScavengeMs = 0;
     oilPrimeUseScavengePump = false; cooldownUseScavengePump = false;
     shutdownRpmDropThreshold = 5000; shutdownRpmDropTimeoutMs = 15000;
     shutdownCooldownTimeoutMs = 60000; shutdownFinalStopTimeoutMs = 10000;
@@ -540,6 +564,9 @@ void Config::_applyDefaults() {
     pullbackEgtSoftC = 700.0f; pullbackEgtHardC = 750.0f;
     pullbackP1Soft = pullbackP1Hard = pullbackP2Soft = pullbackP2Hard = 0.0f;
     pullbackTorqueSoft = pullbackTorqueHard = 0.0f;
+    p1TripEnabled = p2TripEnabled = torqueTripEnabled = false;
+    underspeedEnabled = true;
+    startupEgtImmediateEnabled = startupEgtDwellEnabled = false;
     p1TripLimit = p2TripLimit = torqueTripLimit = 0.0f;
     p1TripConfirmMs = p2TripConfirmMs = torqueTripConfirmMs = 250;
     pullbackMinThrottlePct = 8.0f; pullbackNearLimitRampUpMs = 4000.0f;
@@ -563,6 +590,7 @@ void Config::_applyDefaults() {
     idlePressureDecelEnter = 0.0f; idlePressureSettleBand = 0.03f;
     idlePressureFullResponse = 0.25f; idlePressureLearnRateMax = 1.0f;
     safetyCheckIntervalMs = 100; flameoutShutdownMs = 3000;
+    oilSafetyModes = fuelPressureSafetyModes = 4;
     lowOilConfirmMs = 500; oilZeroConfirmMs = 100; oilTempConfirmMs = 1000;
     fuelPressConfirmMs = 500; battLowConfirmMs = 1000;
     egtSource = 0; flameoutSource = 0; flameoutN1MinRpm = 0.0f;
@@ -663,6 +691,7 @@ void Config::resetToCompiledDefaults() {
 }
 
 void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
+    RulesEngine::releaseForConfiguration();
     controllerSchema = constrain((int)(doc["controller_schema"] | 0), 0, 1);
     // Warn if an expected top-level section is entirely absent.
     // This typically means the file is truncated or severely corrupted —
@@ -736,7 +765,19 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     auto sf = doc["safety"];
     if (sf["egt_source"].isNull()) _missingRequiredSections = true;
     readConfigFields(sf, SAFETY_FLOAT_FIELDS);
+    // Older files have no phase selection; never inherit another file's phases.
+    oilSafetyModes = fuelPressureSafetyModes = 4;
     readConfigFields(sf, SAFETY_INT_FIELDS);
+    if (oilSafetyModes != 2 && oilSafetyModes != 4 && oilSafetyModes != 6) oilSafetyModes = 4;
+    if (fuelPressureSafetyModes != 2 && fuelPressureSafetyModes != 4 && fuelPressureSafetyModes != 6) fuelPressureSafetyModes = 4;
+    // Older engine files armed these protections through positive thresholds.
+    // Explicit false always wins, including when a retained limit is edited.
+    p1TripEnabled = sf["p1_trip_enabled"] | (p1TripLimit > 0);
+    p2TripEnabled = sf["p2_trip_enabled"] | (p2TripLimit > 0);
+    torqueTripEnabled = sf["torque_trip_enabled"] | (torqueTripLimit > 0);
+    underspeedEnabled = sf["underspeed_enabled"] | (minRpm > 0);
+    startupEgtImmediateEnabled = su["startup_egt_immediate_enabled"] | (startupEgtLimitC > 0);
+    startupEgtDwellEnabled = su["startup_egt_dwell_enabled"] | (startupEgtDwellC > 0);
     readConfigFields(sf, SAFETY_U32_FIELDS);
     if (egtSource < 0 || egtSource > 2) egtSource = 0;
 
@@ -879,24 +920,26 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
             r.enabled   = jr["enabled"]   | false;
             r.kind      = (uint8_t)(jr["kind"]      | 0);
             r.op        = (uint8_t)(jr["op"]        | 0);
-            r.threshold = jr["threshold"] | 0.0f;
-            r.onValue   = jr["on_value"]  | 1.0f;
-            r.offValue  = jr["off_value"] | 0.0f;
-            r.hysteresis= jr["hysteresis"] | 0.0f;
-            r.inputMin  = jr["input_min"]  | 0.0f;
-            r.inputMax  = jr["input_max"]  | 1.0f;
-            r.outputMin = jr["output_min"] | 0.0f;
-            r.outputMax = jr["output_max"] | 1.0f;
+            RuleFields::read(r,jr);
+            r.confirmMs = (uint16_t)constrain(jr["confirm_ms"] | 0,0,60000);
             r.targetSourceType = (uint8_t)(jr["target_source_type"] | 0);
-            r.targetFixed = jr["target_fixed"] | 0.0f;
-            r.targetLow = jr["target_low"] | 0.0f;
-            r.targetHigh = jr["target_high"] | 1.0f;
-            r.targetInputMin = jr["target_input_min"] | 0.0f;
-            r.targetInputMax = jr["target_input_max"] | 1.0f;
-            r.responseGain = jr["response_gain"] | 0.01f;
-            r.integralGain = jr["integral_gain"] | 0.001f;
-            r.deadband = jr["deadband"] | 0.0f;
             r.modeMask  = (uint8_t)(jr["mode_mask"] | 0x0E);
+            r.controllerId = jr["controller_id"] | uint16_t(0);
+            if (!r.controllerId) {
+                // Old definitions lack IDs. Reserve every explicit ID first,
+                // including definitions later in the document.
+                for (uint16_t candidate=1; !r.controllerId; ++candidate) {
+                    bool used=false;
+                    for (JsonObjectConst other : rulesArr.as<JsonArrayConst>())
+                        if ((other["controller_id"] | uint16_t(0)) == candidate) used=true;
+                    for (int previous=0;previous<ruleCount-1;++previous)
+                        if (rules[previous].controllerId==candidate) used=true;
+                    if (!used) r.controllerId=candidate;
+                }
+            }
+            const uint8_t oldEvent = jr["activate_event"] | uint8_t(255);
+            r.activateEvents = jr["activate_events"] | uint8_t(oldEvent <= 4 ? 1u << oldEvent : 0);
+            r.deactivateEvents = jr["deactivate_events"] | uint8_t(0);
             const char* n = jr["name"] | "";
             strncpy(r.name, n, sizeof(r.name) - 1);
             r.name[sizeof(r.name) - 1] = '\0';
@@ -917,6 +960,9 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
                 } else {
                     r.sensor = (uint8_t)sourceHandle;
                     r.actuator = (uint8_t)targetHandle;
+                    r.safeDemand = r.actuator == RulesEngine::PROP_PITCH ? 1.0f : 0.0f;
+                    if (const auto* output = HardwareConfig::channelRegistry.find(r.targetId, ChannelRegistry::Output))
+                        r.safeDemand = output->safeDemand;
                     r.targetSensor = (uint8_t)targetSourceHandle;
                 }
             } else {
@@ -974,7 +1020,9 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (shutdownRpmDropThreshold < 0.0f) shutdownRpmDropThreshold = 0.0f;
     if (rpmZeroThreshold < 0.0f) rpmZeroThreshold = 0.0f;
     if (preStartEgtLimitC < 0.0f) preStartEgtLimitC = 0.0f;
-    if (startupEgtLimitC < 0.0f) startupEgtLimitC = 0.0f;
+    if (!isfinite(startupEgtLimitC) || startupEgtLimitC < 0.0f) startupEgtLimitC = 0.0f;
+    if (!isfinite(startupEgtDwellC) || startupEgtDwellC < 0.0f) startupEgtDwellC=0;
+    startupEgtDwellMs=constrain(startupEgtDwellMs,1,600000);
     if (startupOilArmTimeoutMs < 0) startupOilArmTimeoutMs = 0;
     if (starterTimeoutMs < 0) starterTimeoutMs = 0;
     if (flameTimeoutMs < 0) flameTimeoutMs = 0;
@@ -1308,6 +1356,7 @@ void Config::_writeDoc(JsonObject doc) {
     auto sf = doc["safety"].to<JsonObject>();
     writeConfigFields(sf, SAFETY_FLOAT_FIELDS);
     writeConfigFields(sf, SAFETY_INT_FIELDS);
+    writeConfigFields(sf, SAFETY_BOOL_FIELDS);
     writeConfigFields(sf, SAFETY_U32_FIELDS);
 
     auto gov = doc["governor"].to<JsonObject>();
@@ -1422,25 +1471,16 @@ void Config::_writeDoc(JsonObject doc) {
             jr["enabled"]   = r.enabled;
             jr["kind"]      = r.kind;
             jr["op"]        = r.op;
-            jr["threshold"] = r.threshold;
-            jr["on_value"]  = r.onValue;
-            jr["off_value"] = r.offValue;
-            jr["hysteresis"]= r.hysteresis;
-            jr["input_min"] = r.inputMin;
-            jr["input_max"] = r.inputMax;
-            jr["output_min"]= r.outputMin;
-            jr["output_max"]= r.outputMax;
+            RuleFields::write(jr,r);
+            jr["confirm_ms"] = r.confirmMs;
             jr["target_source_type"] = r.targetSourceType;
             jr["target_source"] = r.targetSourceId;
-            jr["target_fixed"] = r.targetFixed;
-            jr["target_low"] = r.targetLow;
-            jr["target_high"] = r.targetHigh;
-            jr["target_input_min"] = r.targetInputMin;
-            jr["target_input_max"] = r.targetInputMax;
-            jr["response_gain"] = r.responseGain;
-            jr["integral_gain"] = r.integralGain;
-            jr["deadband"] = r.deadband;
             jr["mode_mask"] = r.modeMask;
+            jr["controller_id"] = r.controllerId ? r.controllerId : uint16_t(i + 1);
+            if (r.activateEvents != 0) {
+                jr["activate_events"] = r.activateEvents;
+                jr["deactivate_events"] = r.deactivateEvents;
+            }
             jr["name"]      = r.name;
             jr["source"]    = r.sourceId;
             jr["target"]    = r.targetId;

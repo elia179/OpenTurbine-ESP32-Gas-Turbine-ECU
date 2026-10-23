@@ -64,7 +64,7 @@ function runValidation() {
     });
   }
 
-  const n1PullbackEnabled = Number(document.getElementById('cf-pb_n1e')?.value || 0) > 0;
+  const n1PullbackEnabled = !!document.getElementById('cf-pb_n1e_on')?.checked;
   const n1PullbackSoft = fv('pb_n1s'), n1PullbackFull = fv('pb_n1h');
   if (hasRegistryInput('n1_speed') && n1PullbackEnabled && rpmLimit > 0 &&
       ((n1PullbackSoft > 0 && n1PullbackSoft >= rpmLimit) ||
@@ -130,7 +130,7 @@ function runValidation() {
 
   // N2 control targets should leave operating margin below the independent trip.
   if (hwCfg.safety?.n2_overspeed && n2RpmLimit > 0) {
-    const pbEnabled = Number(document.getElementById('cf-pb_n2e')?.value || 0) > 0;
+    const pbEnabled = !!document.getElementById('cf-pb_n2e_on')?.checked;
     const pbSoft = fv('pb_n2s'), pbFull = fv('pb_n2h');
     if (pbEnabled && ((pbSoft > 0 && pbSoft >= n2RpmLimit) ||
                       (pbFull > 0 && pbFull >= n2RpmLimit))) {
@@ -163,7 +163,7 @@ function runValidation() {
   const titLimitVal = fv('sf_tit');
   const titLimitCanonical = titLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('sf_tit') || {}, titLimitVal) : undefined;
   const activeEgtLimit = effectiveEgt === 1 ? totLimitVal : (effectiveEgt === 2 ? titLimitVal : 0);
-  const startupEgtLimit = fv('sf_st') || activeEgtLimit || 0;
+  const startupEgtLimit = document.getElementById('cf-sf_sg_en')?.checked ? ((document.getElementById('cf-sf_st_en')?.checked?fv('sf_st'):0) || (document.getElementById('cf-sf_sd_en')?.checked?fv('sf_sd'):0) || 0) : activeEgtLimit || 0;
   const preStartEgtLimit = fv('sf_hs') || 0;
   if (hwCfg.safety?.hot_start && preStartEgtLimit > 0 && startupEgtLimit > 0 &&
       preStartEgtLimit >= startupEgtLimit) {
@@ -191,7 +191,7 @@ function runValidation() {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
-      msg:     '⚠ Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. Set a value before enabling low-oil safety.'
+      msg:     '⚠ Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. Set a value before enabling low-oil safety.'
     });
   }
 
@@ -236,6 +236,19 @@ function hookValidation() {
 // ── Save validation ───────────────────────────────────────────
 async function validateBeforeSave(cfg) {
   const errors = [];
+  const startup=cfg.sequence?.startup||{};
+  if(startup.startup_egt_guard_enabled){
+    const hard=startup.startup_egt_immediate_enabled?Number(startup.startup_egt_limit_c)||0:0,timed=startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0;
+    if(startup.startup_egt_immediate_enabled&&hard<=0)errors.push('Immediate startup overtemperature: set a positive limit or switch it off.');
+    if(startup.startup_egt_dwell_enabled&&timed<=0)errors.push('Sustained startup temperature: set a positive limit or switch it off.');
+    if(hard<=0&&timed<=0)errors.push('Startup temperature protection: set an immediate or sustained trip threshold.');
+    if(timed>0&&!(Number(startup.startup_egt_dwell_ms)>0))errors.push('Startup temperature protection: choose a positive allowed time.');
+    if(hard>0&&timed>=hard)errors.push('Startup temperature protection: sustained threshold must be below the immediate trip, or switch either individual protection off.');
+    if(!controllerInputs('tot').length&&!controllerInputs('tit').length)errors.push('Startup temperature protection: fit a TOT or TIT input, or turn the guard off.');
+  }
+  for(const [flag,field,name] of [['p1_trip_enabled','p1_trip_bar','Pressure 1'],['p2_trip_enabled','p2_trip_bar','Pressure 2'],['torque_trip_enabled','torque_trip_nm','Torque']])
+    if(cfg.safety?.[flag]&&!(Number(cfg.safety[field])>0))errors.push(name+' fault shutdown: set a positive limit or switch it off.');
+  if(cfg.safety?.underspeed_enabled&&!(Number(cfg.engine?.min_rpm)>0))errors.push('N1 underspeed: set a positive minimum or switch it off.');
   const warns  = [];
 
   function gv(obj, ...keys) {
@@ -278,14 +291,24 @@ async function validateBeforeSave(cfg) {
     const label = String(control.name || `Custom controller ${index + 1}`);
     const output = String(control.target || '');
     const kind = Number(control.kind || 0);
-    if ((Number(control.mode_mask ?? 4) & 0x0f) === 0)
+    if(kind===0&&(!Number.isInteger(Number(control.confirm_ms??0))||Number(control.confirm_ms??0)<0||Number(control.confirm_ms??0)>60000))
+      errors.push(`${label}: condition confirmation must be a whole number from 0 to 60000 ms.`);
+    if(window.OTControllerTiming?.scheduled(control)){
+      if(!OTControllerTiming.starts(control))errors.push(`${label}: choose when this controller activates.`);
+      if(!(Number(control.deactivate_events)&31))errors.push(`${label}: choose when this controller deactivates.`);
+      if(OTControllerTiming.starts(control)&Number(control.deactivate_events)&30)errors.push(`${label}: activation and deactivation cannot use the same state entry.`);
+    }
+
+    if (!window.OTControllerTiming?.scheduled(control) && (Number(control.mode_mask ?? 4) & 0x0f) === 0)
       errors.push(`${label}: select at least one operating state.`);
     if (kind !== 3 && !installedInputs.has(String(control.source || '')))
       errors.push(`${label}: choose a fitted input or feedback signal.`);
+    if (kind===0 && controllerSwitchInput(control.source) && !controllerSwitchSettingsReady(control))
+      errors.push(`${label}: choose Switch is ON/OFF or select Use switch state to replace its older numeric switch settings.`);
     if (!availableOutputs.has(output))
       errors.push(`${label}: its output is unavailable or already belongs to a dedicated controller.`);
-    if (control.enabled !== false && claimedOutputs.has(output))
-      errors.push(`${label}: another custom controller already owns this output.`);
+    if (control.enabled !== false && !['request_shutdown','request_fault'].includes(output) && claimedOutputs.has(output) && !window.OTControllerTiming?.scheduled(control))
+      errors.push(`${label}: migrate activation timing before sharing this output with another controller.`);
     if (control.enabled !== false) claimedOutputs.add(output);
     if (kind === 1 && Number(control.input_min) === Number(control.input_max))
       errors.push(`${label}: mapped input low and high cannot be equal.`);
@@ -426,11 +449,11 @@ async function validateBeforeSave(cfg) {
   const hasOilPressure = hasRegistryInput('oil_pressure');
   if (hasOilPressure) {
     if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
     if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
       errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
     if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
+      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
   }
 
   // EGT / temperature cross-checks
@@ -451,7 +474,7 @@ async function validateBeforeSave(cfg) {
     errors.push('EGT Soft Margin (' + totMargin + '°) must be less than selected ' + primaryLabel + ' limit (' + primaryLimit + '°).');
   const preStartLimit = Number(gv(cfg, 'sequence', 'startup', 'pre_start_egt_limit_c') || 0);
   const separateStartupLimit = Number(gv(cfg, 'sequence', 'startup', 'startup_egt_limit_c') || 0);
-  const effectiveStartupLimit = separateStartupLimit > 0 ? separateStartupLimit : Number(primaryLimit || 0);
+  const effectiveStartupLimit = startup.startup_egt_guard_enabled ? (startup.startup_egt_immediate_enabled?separateStartupLimit:startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0) : Number(primaryLimit||0);
   if (hwCfg.safety?.hot_start && preStartLimit > 0 && effectiveStartupLimit > 0 &&
       preStartLimit >= effectiveStartupLimit)
     warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the STARTUP EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
@@ -487,7 +510,7 @@ async function validateBeforeSave(cfg) {
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
   if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
+    warns.push('Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {
@@ -520,11 +543,7 @@ function collectConfigFields() {
       // Old-file choices are interpreted for display only. Only an explicit
       // mode/channel action may replace their stored behavior.
       if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
-      if (f.type === 'pullback_mode') {
-        const mode = Number(el.value || 0);
-        setPath(cfg, f.path, mode > 0);
-        setPath(cfg, f.modePath, mode === 2 ? 1 : 0);
-      } else if (f.type === 'checkbox') {
+      if (f.type === 'checkbox') {
         setPath(cfg, f.path, el.checked);
       } else if (f.string) {
         setPath(cfg, f.path, String(el.value || ''));
@@ -571,6 +590,12 @@ async function saveConfig() {
 
   // Build the change list for the recap
   const changes = _buildChanges();
+  const cleanup=_controllerRulesDirty&&window.OTControllerTiming?OTControllerTiming.cleanup(cfg.rules,hwCfg):{removed:[]};
+  window._otControllerCleanupReview=cleanup.removed.slice();
+  if(cleanup.removed.length){
+    _controllerHardwareDirty=true;
+    changes.push({key:'controller_links',label:'Inactive controller sequence blocks',was:`${cleanup.removed.length} linked block(s)`,now:'Remove these blocks; retain every other sequence action'});
+  }
   if (!changes.length) {
     // Nothing differs from snapshot — skip recap and save directly
     _doSave();
@@ -589,6 +614,9 @@ async function saveConfig() {
     (inactiveChanges.length
       ? ` ${inactiveChanges.length} amber-marked value${inactiveChanges.length === 1 ? ' is' : 's are'} being saved for future hardware and will remain inactive for now.`
       : '');
+
+  if(_controllerRulesDirty&&(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg)==='Sequence needs setup'))
+    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Affected controllers stay inactive until setup is complete, or disable the controller.';
 
   const rows = changes.map(c =>
     `<tr>
@@ -642,6 +670,15 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     safety: JSON.parse(JSON.stringify(hwCfg.safety || {})),
     oil_loops: JSON.parse(JSON.stringify(hwCfg.oil_loops || []))
   };
+  if(window._otControllerCleanupReview?.length){
+    const response=await fetch('/api/hardware',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw Error('Could not read the current sequence; nothing has been written');
+    const fresh=await response.json(),cleanup=OTControllerTiming.cleanup(cfg.rules,fresh);
+    const expected=window._otControllerCleanupReview.slice().sort();
+    if(JSON.stringify(cleanup.removed.slice().sort())!==JSON.stringify(expected))
+      throw Error('Sequence changed since the review. Reload Controllers and review the changes again.');
+    Object.assign(hardwarePatch,cleanup.patch);
+  }
   await _saveConfigHardwarePatch('controllers', hardwarePatch);
   // Finish the Hardware reboot before sending the second page-owned write.
   if (Object.keys(payload).length) {
@@ -746,10 +783,7 @@ async function _performConfigSave() {
     if (runningLive && !LIVE_CONFIG_KEYS.has(field.key)) return;
     const value = field.path.reduce((obj, key) => obj?.[key], cfg);
     if (value !== undefined) setPath(payload, field.path, value);
-    if (field.type === 'pullback_mode') {
-      const modeValue = field.modePath.reduce((obj, key) => obj?.[key], cfg);
-      if (modeValue !== undefined) setPath(payload, field.modePath, modeValue);
-    }
+
   }));
   if (_controllerRulesDirty) {
     payload.rules = JSON.parse(JSON.stringify(cfg.rules || []));

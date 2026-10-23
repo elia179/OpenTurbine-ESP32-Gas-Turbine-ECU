@@ -185,6 +185,7 @@ struct EngineData {
     volatile float    abEgtBaseline = 0.0f;
     volatile uint32_t abEgtBaselineSampleSeq = 0;
     volatile bool     mainFuelProtectionActive = false;
+    volatile bool     throttleFeedbackInhibited = false;
     char              abFaultReason[96] = {};
     volatile bool     abSolOpen       = false;  // AB fuel solenoid (g_actAbSol)
     volatile int      abInputRaw      = 0;      // raw ADC/RC counts for analog/RC AB trigger
@@ -255,6 +256,7 @@ struct EngineData {
     uint8_t          seqIssueCount  = 0;
     bool             seqHasErrors   = false;
     bool             seqHasStructuralErrors = false;
+    uint16_t         controllerInhibitMask = 0; // setup issues: inactive for next run
 
     // ── Sequence progress (written by SequenceEngine) ─────────
     char              currentBlock[32]   = {};     // name of active block, "" when idle
@@ -272,9 +274,9 @@ struct EngineData {
     volatile bool     governorHandoffActive = false;
     char              governorControllerState[64] = "Off";
     char              idleControllerState[40] = "Off";
-    char              throttleCommandOwner[32] = "Sequencer / operator";
-    char              propPitchCommandOwner[32] = "Sequencer / parked";
-    char              oilCommandOwner[32] = "Sequencer / fixed";
+    char              throttleCommandOwner[32] = "Unavailable";
+    char              propPitchCommandOwner[32] = "Unavailable";
+    char              oilCommandOwner[32] = "Unavailable";
 
     // ── Oil controller state (for web display) ────────────────
     volatile float    oilPumpPct         = 0;   // % duty currently driven

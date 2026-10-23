@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>document.documentElement.setAttribute('data-dashboard-accents','on');try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023q',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023q');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -102,13 +102,14 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Fault/abort description card -->
   <div id="fault-card" style="display:none">
-    <div class="fault-title">⚠ Startup locked — exact reason</div>
+    <div class="fault-title" id="fault-title">⚠ Startup locked — exact reason</div>
     <div class="fault-desc" id="fault-desc-text"></div>
     <div class="fault-actions" aria-label="Fault investigation">
       <a href="/log.html">Event evidence</a>
-      <a href="/calibration.html">Check calibration</a>
-      <a href="/controllers.html">Review limits</a>
-      <a href="/tools.html">Standby diagnostics</a>
+      <a id="fault-hardware-link" href="/hardware.html" hidden>Review switch input</a>
+      <a id="fault-calibration-link" href="/calibration.html">Check calibration</a>
+      <a id="fault-limits-link" href="/controllers.html">Review limits</a>
+      <a id="fault-tools-link" href="/tools.html">Standby diagnostics</a>
       <button id="btn-clear-fault" type="button" style="display:none" onclick="clearFault()" title="Acknowledge this fault after the engine is stopped and all outputs are safely off. Reboot also clears faults.">Clear fault</button>
     </div>
   </div>
@@ -226,8 +227,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="card" id="oil-card" style="display:none" title="Bearing oil pressure. 'demand' is the ECU target pressure; a proportional pump is adjusted to maintain it. When running oil-pressure protection is configured and enabled, pressure below its limit for the confirmation time causes a fault shutdown.">
       <div class="label"><span id="lbl-oil">Oil Press</span> (<span data-unit="press">bar</span>) <span id="oil-health" class="dot"></span></div>
       <div class="value small" id="oil">—</div>
-      <div class="oil-sub">demand: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
-      <div class="oil-sub" id="oil-min-bar-row" style="display:none">min: <span id="oil-min-bar-val">—</span> <span data-unit="press">bar</span></div>
+      <div class="oil-sub" id="oil-target-row" style="display:none">pressure target: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
+      <div class="oil-sub" id="oil-min-bar-row" style="display:none">run minimum: <span id="oil-min-bar-val">—</span> <span data-unit="press">bar</span></div>
       <span id="oil-abs-label" class="gauge-abs-label">— / — bar</span>
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>
     </div>
@@ -344,7 +345,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <section id="governor-section" style="display:none;margin-bottom:.5rem">
     <div class="card small" id="governor-card">
       <div class="label">Automatic <span data-input-name="n2_speed">N2 Speed</span> Control <span id="gov-mode" style="display:none;font-size:.6rem;padding:.05rem .4rem;border-radius:999px;border:1px solid var(--border);color:var(--dim);vertical-align:middle;letter-spacing:.03em"></span></div>
-      <div class="oil-sub"><span data-input-name="n2_speed">N2</span> target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
+      <div class="oil-sub"><span data-input-name="n2_speed">N2</span> configured target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
     </div>
   </section>
 
@@ -461,19 +462,18 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
   <!-- Telemetry cards -->
   <section class="grid-2 telemetry" id="dashboard-secondary-cards">
-    <div class="card small" id="throttle-output-card" title="Actual commanded fuel-metering output after applying its calibrated minimum reliable output. During startup the idle-input command range starts at this minimum.">
+    <div class="card small" id="throttle-output-card" title="Actual commanded fuel-metering output after applying its calibrated minimum reliable output. Command details identify the current owner.">
       <div class="label"><span id="lbl-throttle-output">Main Fuel Metering Output</span></div>
       <div class="value small" id="throttle-demand">—</div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="throttle-gauge-bar" style="width:0%"></div></div>
-      <div class="oil-sub dashboard-card-warning" id="throttle-feedback-inhibit-note" style="display:none;color:var(--yellow)">Throttle increase limited: fitted RPM/EGT feedback is unhealthy. Fix the sensor/calibration before live running; Bench Mode is only for dry actuator tests.</div>
+      <div class="oil-sub dashboard-card-warning" id="throttle-feedback-inhibit-note" style="display:none;color:var(--yellow)">Throttle increase held: required feedback is unavailable. Review sensor health and the enabled protections.</div>
       <div class="oil-sub operator-input-summary" id="operator-input-row" style="display:none">
         <span id="operator-throttle-wrap" style="display:none">throttle input: <span id="registry-input-value-operator_throttle">???</span>%</span>
         <span id="operator-idle-wrap" style="display:none">idle/minimum input: <span id="registry-input-value-operator_idle">???</span>%</span>
       </div>
       <div class="oil-sub" id="throttle-floor-row" title="Minimum reliable fuel-metering output. Outside standby calibration/tools, nonzero commands below this value are forced to zero. 0 = no minimum configured.">minimum metering output: <span id="throttle-idle-floor">—</span>%
-        <span id="throttle-di-wrap" style="display:none"> · automatic idle <span id="throttle-di-state">Off</span>, target <span id="throttle-di-rpm">—</span> <span id="throttle-di-unit">rpm</span></span>
+        <span id="throttle-di-wrap" style="display:none"> · automatic idle <span id="throttle-di-state">Off</span>, configured target <span id="throttle-di-rpm">—</span> <span id="throttle-di-unit">rpm</span></span>
       </div>
-      <div class="oil-sub" id="throttle-startup-range-row" style="display:none">startup idle-input command range: <span id="throttle-startup-range">—</span>%</div>
       <div class="oil-sub" id="throttle-effective-note" style="display:none">base demand: <span id="throttle-base-demand">—</span>% + AB offset</div>
       <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="throttle-command-details">Owner unavailable</div></details>
     </div>
@@ -481,7 +481,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label"><span id="lbl-oil-output">Oil Pump Output</span></div>
       <div class="value small" id="oil-pct">—</div>
       <div class="gauge-bar-wrap"><div class="gauge-bar" id="oil-output-gauge-bar" style="width:0%"></div></div>
-      <div class="oil-sub" id="oil-startup-setting-note" style="display:none">startup oil-pump command: <span id="oil-startup-setting">—</span>% (Sequence)</div>
       <div class="oil-sub dashboard-card-warning" id="oil-failsafe-note" style="display:none;color:var(--red)">⚠ sensor failsafe</div>
       <div class="oil-sub dashboard-card-warning" id="oil-flow-warning-note" style="display:none;color:var(--warning)">⚠ monitored oil flow low or unavailable</div>
       <div class="oil-sub dashboard-card-warning" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
@@ -636,10 +635,24 @@ function updateFirstRunForMode(mode) {
   if (beta) beta.style.display = 'none';
   if (window.OTTheme) OTTheme.maybeFirstRun();
 }
-function showStartConfirm() {
+async function showStartConfirm() {
   if (!hasBetaNoticeAck()) {
     showBetaNotice();
     return;
+  }
+  if (_lastData?.mode === 'FAULT') {
+    if (!_lastData.fault_latched || !_lastData.fault_clear_allowed || _telemetryStale) return;
+    if (!await clearFault()) return;
+    try {
+      for(let attempt=0;attempt<8;attempt++){
+        const response=await fetch('/api/data',{cache:'no-store'});
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        applyData(await response.json());
+        if(_lastData?.mode==='STANDBY')break;
+        await new Promise(resolve=>setTimeout(resolve,150));
+      }
+    } catch(error){alert('Could not verify the cleared fault. Check the live dashboard before starting.');return;}
+    if(_telemetryStale || _lastData?.mode!=='STANDBY'){alert('The ECU has not returned to STANDBY. Review the remaining fault.');return;}
   }
   const text = document.getElementById('start-confirm-text');
   if (text) {

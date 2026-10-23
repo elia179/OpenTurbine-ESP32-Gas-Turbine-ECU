@@ -558,6 +558,7 @@ public:
     // Resolve a stable registry output ID to the runtime actuator adapter.
     // Core-owned and fully generic outputs use the same caller-facing model.
     static int8_t outputActuatorForId(const char* id);
+    static int8_t inputSensorForId(const char* id);
     static const char* defaultOutputIdForPurpose(const char* purpose);
     static void applyDefaults();             // restore defaults (mirrors hardware_profile.h)
 

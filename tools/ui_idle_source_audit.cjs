@@ -90,7 +90,11 @@ const {chromium} = require('playwright');
       // glow across the whole section. Errors retain a separate red marker.
       for (const theme of ['carbon','ember','slate','midnight','contrast','daylight']) {
         await page.evaluate(theme=>OTTheme.set(theme),theme);
-        await page.waitForTimeout(200);
+        await page.waitForFunction(()=>{
+          const probe=document.createElement('span');probe.style.color='var(--accent)';document.body.append(probe);
+          const expected=getComputedStyle(probe).color;probe.remove();
+          return getComputedStyle(document.getElementById('cf-fi_input')).borderTopColor===expected;
+        });
         assert.equal(await page.locator('#cf-fi_input').evaluate(el=>getComputedStyle(el).borderTopColor),await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()).then(async accent=>page.evaluate(accent=>{const el=document.createElement('span');el.style.color=accent;document.body.append(el);const color=getComputedStyle(el).color;el.remove();return color},accent)));
         assert.equal(await page.locator('#cf-fi_mode').evaluate(el=>getComputedStyle(el.closest('.config-group')).boxShadow),'none');
       }
@@ -124,9 +128,15 @@ const {chromium} = require('playwright');
       });
       assert.ok(missing.some(message=>/choose a fitted input channel/.test(message)));
       await page.locator('#cf-fi_input').selectOption('operator_throttle');
-      for(const width of [320,390,768,1200]) {
+      for(const font of ['native','alternate']) {
+        const override=font==='alternate'?await page.addStyleTag({content:':root{--font-ui:Arial,sans-serif;--font-mono:"Courier New",monospace}'}):null;
+        for(const width of [320,390,768,1200]) {
         await page.setViewportSize({width,height:1000});
-        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${bundle}: overflow at ${width}`);
+        const layout=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,
+          outside:[...document.querySelectorAll('body *')].filter(e=>e.getClientRects().length&&e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:Math.round(e.getBoundingClientRect().right),text:e.textContent?.trim().slice(0,100)})).slice(-20)}));
+        assert.ok(layout.scroll<=width+1,`${bundle} ${font}: overflow at ${width}: ${JSON.stringify(layout)}`);
+        }
+        if(override)await override.evaluate(el=>el.remove());
       }
       assert.deepEqual(errors,[]);
       // Automatic settings must be visible in the default configured filter,

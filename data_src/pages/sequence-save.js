@@ -34,6 +34,16 @@ function validateSequenceHardwareForSave() {
         errors.push(`${label} block ${index + 1} needs a 500–60000 ms maximum wait.`);
     }
   }));
+  if(window.OTControllerTiming){
+    const placedControllers=new Set();
+    for(const [,tab] of tabs)for(const name of hwCfg[seqKey(tab)]||[])if(OTControllerTiming.parse(name)){
+      if(placedControllers.has(name))errors.push(`${BLOCKS[name]?.label||name}: controller block is placed more than once. Remove the extra block.`);
+      placedControllers.add(name);
+    }
+    for(const block of OTControllerTiming.required(cfg.rules))
+      if(block.rule.enabled!==false&&!OTControllerTiming.placed(hwCfg,block.key))errors.push(`${block.rule.name}: place required ${block.on?'Activate':'Deactivate'} block, or disable the controller.`);
+    for(const [,tab] of tabs)for(const issue of OTControllerTiming.plan(cfg.rules,hwCfg,tab))errors.push(`${tab}: ${issue.message}`);
+  }
   return errors;
 }
 
@@ -81,8 +91,8 @@ async function saveAll() {
   }
   const hardwareErrors = validateSequenceHardwareForSave();
   if (hardwareErrors.length) {
-    setSaveStatus('Warning: Sequence contains blocks with missing hardware');
-    await OTDialog.alert('Sequence hardware mismatch:\n\n' + hardwareErrors.map(e => '- ' + e).join('\n') + '\n\nRestore the required devices in Hardware or remove these blocks before saving.', {title:'Sequence needs hardware'});
+    setSaveStatus('Warning: Sequence setup needs attention');
+    await OTDialog.alert('Sequence setup needs attention:\n\n' + hardwareErrors.map(e => '- ' + e).join('\n') + '\n\nPlace required controller blocks, restore missing hardware, or remove unavailable blocks before saving.', {title:'Sequence needs attention'});
     return;
   }
   const startup = hwCfg.startup_seq || [];

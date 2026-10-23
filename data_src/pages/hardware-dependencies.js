@@ -60,7 +60,7 @@ function updateSafetyPrerequisites(markDirty) {
       return registryHasPurpose('input','oil_pressure');
     }
     if (sensor === 'oil_safety_low') {
-      return availableBySensor('oil_press') || hardwareHasDiRole('low_oil_switch') || registryHasPurpose('input','low_oil_switch');
+      return availableBySensor('oil_press') || hardwareHasDiRole('low_oil_switch') || registryHasPurpose('input','low_oil_switch') || hardwareHasDiRole('oil_zero_switch') || registryHasPurpose('input','oil_zero_switch');
     }
     if (sensor === 'oil_safety_zero') {
       return availableBySensor('oil_press') || hardwareHasDiRole('oil_zero_switch') || registryHasPurpose('input','oil_zero_switch');

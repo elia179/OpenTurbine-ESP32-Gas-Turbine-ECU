@@ -60,6 +60,7 @@ function fixture(original, level) {
   h.safety = { overspeed:false, n2_overspeed:false, overtemp:false, low_oil:false, oil_zero:false, flameout:false, hot_start:false, oil_temp_high:false, fuel_press_low:false, batt_low:false, surge:false };
   h.startup_seq = []; h.shutdown_seq = []; h.ab_seq = []; h.ab_shut_seq = [];
   h.cluster_serial.enabled = false; h.mavlink.enabled = false; h.buzzer.enabled = false;
+  state.settings.controller_schema=1;
   state.settings.rules = level >= 2 ? [{ enabled:true, name:'Knob to bench light', kind:1, source:'light_knob', target:'bench_light', sensor:17, actuator:64, input_min:0, input_max:1, output_min:0, output_max:1, on_value:1, off_value:0, mode_mask:1 }] : [];
   state.settings.relight.enabled=false;
   state.settings.starter_control ||= {};
@@ -104,6 +105,8 @@ function fixture(original, level) {
     const load = async (level, route, edit) => {
       const state = fixture(initial, level);
       if (edit) edit(state);
+      state.settings.controller_schema=1;
+      (state.settings.rules||[]).forEach((rule,index)=>{rule.controller_id ||= index+1;if(rule.activate_events===undefined){rule.activate_events=rule.mode_mask===1?16:4;rule.deactivate_events=rule.mode_mask===1?14:24;}});
       await page.request.post(`${base}/api/ecu_config`, {data:state});
       await page.request.post(`${base}/__sim/data`, {data:{fuel_pump_min_pct:state.settings.throttle.fuel_pump_min_pct}});
       await page.goto(`${base}/${route}.html`);
@@ -121,8 +124,8 @@ await target.waitFor({state:'visible'});
         await chrome.evaluate(el=>el.remove());
         console.log('Captured '+name); return;
       }
-      if (['main-fuel-controller','bench-fuel-zero-configured','controller-create','controller-new','controller-mapping','controller-states','oil-feedback','oil-feedback-settings','fan-hysteresis','sequence-bench-fuel-action','fuel-minimum-calibration','throttle-calibration','pressure-calibration','automatic-idle-off','fixed-running-idle','engine-backup-restore','phase-torque-calibration','thrust-calibration'].includes(name)) {
-        const chrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}'});
+      if (['main-fuel-controller','bench-fuel-zero-configured','controller-create','controller-new','controller-mapping','controller-states','oil-feedback','oil-feedback-settings','fan-hysteresis','sequence-bench-fuel-action','fuel-minimum-calibration','throttle-calibration','pressure-calibration','automatic-idle-off','fixed-running-idle','engine-backup-restore','phase-torque-calibration','thrust-calibration','startup-temperature-protection','oil-switch-protection','switch-fault-controller','controller-block-placement'].includes(name)) {
+        const chrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}.cfg-workspace{position:static!important}'});
         await target.screenshot({path:path.join(output,name+'.png')});
         await chrome.evaluate(el=>el.remove());
         console.log('Captured '+name); return;
@@ -141,7 +144,7 @@ await target.waitFor({state:'visible'});
       const advanced=row.locator('details').filter({hasText:'Advanced output settings'});
       if(await advanced.count()) await advanced.locator(':scope > summary').click();
       if (await row.locator('.registry-status-error').count()) throw new Error(name+' has incomplete hardware: '+await row.innerText());
-      const chrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}'});
+      const chrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}.cfg-workspace{position:static!important}'});
       await row.screenshot({path:path.join(output,name+'.png')});
       await chrome.evaluate(el=>el.remove());
       console.log('Captured '+name);
@@ -184,12 +187,11 @@ await target.waitFor({state:'visible'});
     await page.locator('#tab-shutdown').screenshot({path:path.join(output,'sequence-bench-shutdown.png')});
     await load(1,'controllers',state=>{state.settings.rules=[{enabled:true,name:'Bench fuel stays off in Running',kind:3,target:'main_fuel',source:'',actuator:3,on_value:0,mode_mask:4}];});
     await open('[data-controller-output="main_fuel"]');
-    await open('[data-controller-output="main_fuel"] .protection-card');
     await shot('bench-fuel-zero-configured','[data-controller-output="main_fuel"]');
     await load(1,'controllers',state=>{state.settings.engine.rpm_limit=1000;state.settings.engine.tot_limit=60;state.settings.engine.tot_safe_margin=5;});
     await open('[data-group="safety"]');
     await open('[data-protection="n1"]');
-    const protectionChrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}'});
+    const protectionChrome=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}.cfg-workspace{position:static!important}'});
     await page.locator('[data-protection="n1"]').screenshot({path:path.join(output,'n1-warnings-configured.png')});
     await open('[data-protection="egt"]');
     await page.locator('[data-protection="egt"]').screenshot({path:path.join(output,'temperature-warnings-configured.png')});
@@ -217,6 +219,7 @@ await target.waitFor({state:'visible'});
     assert.equal(await page.locator('#btn-fp-stop').isEnabled(),true);
     assert.equal(await page.locator('#btn-fp-sweep').isEnabled(),false);
     await page.locator('#btn-fp-stop').click();
+    await page.waitForFunction(()=>!document.getElementById('btn-fp-sweep').disabled);
     assert.equal(await page.locator('#btn-fp-sweep').isEnabled(),true);
     console.log('Calibration readiness and sweep/stop state checks passed.');
     await load(1,'tools');
@@ -296,9 +299,8 @@ await target.waitFor({state:'visible'});
     await load(2,'controllers');
     await open('[data-controller-output="bench_light"]');
     await shot('controller-mapping','[data-controller-output="bench_light"]');
-    await open('[data-controller-output="bench_light"] .protection-card');
-    await shot('controller-states','[data-controller-output="bench_light"] .protection-card');
-    await page.getByRole('textbox',{name:'Controller name',exact:true}).fill('Brightness knob to bench light');
+    await shot('controller-states','[data-controller-output="bench_light"] .controller-form-section:has(.automation-states)');
+    await page.getByRole('textbox',{name:'Controller name',exact:true}).fill('Brightness control');
     await page.getByRole('textbox',{name:'Controller name',exact:true}).press('Tab');
     await page.locator('#btn-save').click();
     await page.waitForTimeout(150);
@@ -321,6 +323,26 @@ await target.waitFor({state:'visible'});
     await load(3,'controllers',state=>{state.settings.rules.push({enabled:true,name:'Bench cooling fan',kind:0,source:'oil_temperature',target:'cooling_fan',op:0,threshold:30,hysteresis:2,on_value:1,off_value:0,mode_mask:1});});
     await open('[data-controller-output="cooling_fan"]');
     await shot('fan-hysteresis','[data-controller-output="cooling_fan"]');
+    await load(1,'controllers',state=>{
+      state.hardware.safety.overtemp=true;
+      Object.assign(state.settings.sequence.startup,{startup_egt_guard_enabled:true,startup_egt_immediate_enabled:true,startup_egt_dwell_enabled:true,startup_egt_limit_c:900,startup_egt_dwell_c:800,startup_egt_dwell_ms:3000});
+    });
+    await open('[data-group="safety"]');await open('[data-protection="egt"]');
+    await shot('startup-temperature-protection','[data-protection="egt"] .protection-part:has(#cf-sf_sg_en)');
+    const oilSwitch = state=>{
+      state.hardware.channel_registry.inputs=state.hardware.channel_registry.inputs.filter(row=>row.id!=='oil_pressure_main');
+      state.hardware.channel_registry.inputs.push({id:'oil_review_switch',name:'Low oil pressure switch',role:'low_oil_switch',purpose:'low_oil_switch',driver:0,pin:4,active_high:false,pullup:false,pulldown:false,installed:true});
+      state.hardware.sensors.oil_pressure={enabled:false,pin:-1};state.hardware.oil_loops=[];state.hardware.controllers.oil_loop=false;
+      state.settings.safety.oil_pressure_modes=4;state.settings.safety.low_oil_confirm_ms=500;
+    };
+    await load(2,'controllers',state=>{oilSwitch(state);state.hardware.safety.low_oil=true;});
+    await open('[data-group="safety"]');await open('[data-protection="low_oil"]');
+    await shot('oil-switch-protection','[data-protection="low_oil"]');
+    await load(2,'controllers',state=>{oilSwitch(state);state.hardware.channel_registry.inputs.find(row=>row.id==='oil_review_switch').name='Oil circuit 2 switch';state.settings.rules=[{controller_id:22,name:'Oil circuit 2',enabled:true,kind:0,source:'oil_review_switch',target:'request_fault',op:0,threshold:.5,hysteresis:0,confirm_ms:500,activate_events:4,deactivate_events:24,mode_mask:4}];});
+    await open('[data-controller-id="22"]');await shot('switch-fault-controller','[data-controller-id="22"]');
+    await load(1,'sequence',state=>{state.hardware.startup_seq=['TimedDelay'];state.hardware.startup_delay_ms=[1000];state.settings.rules=[{controller_id:42,name:'Main Fuel',enabled:true,kind:1,source:'operator_throttle',target:'main_fuel',input_min:0,input_max:1,output_min:0,output_max:.5,activate_events:1,deactivate_events:1,mode_mask:4}];});
+    await page.waitForFunction(()=>document.querySelector('#controller-pending-blocks')?.textContent.includes('Main Fuel'));
+    await shot('controller-block-placement','#controller-pending-blocks');
   } finally { await browser.close(); }
   console.log('Captured simulated guided-build inventories. These are UI examples, not engine configurations.');
   process.exit(0);

@@ -516,10 +516,8 @@ function renderDiChannels(channels) {
           </select>
         </div>
         <div class="hw-field">
-          <span class="hw-label">Debounce (ms)</span>
-          <span class="hw-desc">Ignore glitches shorter than this. Typical: 20 ms.</span>
-          <input type="number" min="5" max="500" value="${ch.debounce_ms||20}"
-            oninput="setDiChannel(${i},'debounce_ms',+this.value)">
+          <span class="hw-label">Built-in contact debounce</span>
+          <span class="hw-desc">20 ms on all switch inputs. Additional fault confirmation belongs to its safety/controller settings.</span>
         </div>
         <div class="hw-field">
           <span class="hw-label">Display label</span>

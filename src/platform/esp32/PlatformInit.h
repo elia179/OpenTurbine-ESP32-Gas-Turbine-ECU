@@ -72,7 +72,7 @@ public:
             Serial.println("[OT] LittleFS OK");
         }
 
-        // ADC: 12-bit, 11 dB attenuation (0–3.3V full range)
+        // ADC: 12-bit, 11 dB attenuation (usable voltage range is chip-dependent)
         analogReadResolution(12);
         analogSetAttenuation(ADC_11db);
 

@@ -87,6 +87,12 @@ function buildCard(bname, idx, tab) {
   <div class="block-info-panel" hidden></div>
   ${buildParamsHtml(bname, idx, tab)}`;
 
+  const ref=window.OTControllerTiming?.parse(bname);
+  const controller=ref?(cfg.rules||[]).find(r=>Number(r.controller_id)===ref.id):null;
+  if(controller&&(controller.enabled===false||!window.OTControllerTiming.selected(controller,ref))){
+    card.style.opacity='.55';
+    const note=document.createElement('p');note.textContent=controller.enabled===false?'Controller disabled — this block is inactive.':'Controller timing changed — this block is inactive and can be removed.';card.append(note);
+  }
   wireBlockDragHandle(card, tab, idx);
 
   return card;
@@ -120,6 +126,7 @@ function wireBlockDragHandle(card, tab, originalIdx) {
       document.removeEventListener('pointerup', finish);
       document.removeEventListener('pointercancel', finish);
       card.classList.remove('block-dragging');
+      if(pointerEvent.type==='pointercancel'){renderWithLiveIdle(tab);return;}
       const newIdx = Array.from(list.children).filter(node => node.classList?.contains('block-card')).indexOf(card);
       if (newIdx >= 0 && newIdx !== originalIdx) moveBlockTo(tab, originalIdx, newIdx);
     };
@@ -675,7 +682,8 @@ function moveBlockTo(tab, idx, ni) {
 
 async function removeBlock(tab, idx) {
   const name = hwCfg[seqKey(tab)]?.[idx] || 'this block';
-  if (!await OTDialog.confirm(`Remove "${name}" from this sequence?\n\nThis cannot be undone after you save.`, {
+  const required=window.OTControllerTiming?.required(cfg.rules).find(b=>b.key===name&&b.rule.enabled!==false);
+  if (!required && !await OTDialog.confirm(`Remove "${name}" from this sequence?\n\nThis cannot be undone after you save.`, {
     title: 'Remove sequence block?', confirmText: 'Remove block', danger: true
   })) return;
   ensureDelaySlots(tab);
@@ -683,6 +691,12 @@ async function removeBlock(tab, idx) {
   ensureIgnitionTargetSlots(tab);
   ensureDeviceTargetSlots(tab);
   ensureWaitInputSlots(tab);
+  if(required){
+    const stem=seqKey(tab).slice(0,-4),saved={};
+    for(const suffix of ['delay_ms','ignition_target','device_target','wait_inputs','enter_actions','exit_actions'])
+      saved[suffix]=cloneSequenceJson(hwCfg[stem+'_'+suffix][idx]);
+    pendingControllerSlots.set(name,saved);
+  }
   hwCfg[seqKey(tab)].splice(idx, 1);
   hwCfg[delaySeqKey(tab)].splice(idx, 1);
   hwCfg[ignitionTargetSeqKey(tab)].splice(idx, 1);
@@ -700,6 +714,11 @@ function addBlock(tab, selectedValue = '') {
   const selected = selectedValue || sel.value;
   if (!selected) return;
   const [bname, presetTarget = ''] = selected.split('::');
+  if(window.OTControllerTiming?.parse(bname)&&OTControllerTiming.placed(hwCfg,bname)){
+    OTDialog.alert('This controller block is already placed. Remove it from its current sequence to move it.');return;
+  }
+  if((hwCfg[seqKey(tab)]||[]).length>=16){OTDialog.alert('This sequence is full. Remove an unneeded block first.');return;}
+
   const key = seqKey(tab);
   if (!hwCfg[key]) hwCfg[key] = [];
   hwCfg[key].push(bname);
@@ -721,6 +740,7 @@ function addBlock(tab, selectedValue = '') {
     }];
   }
   renderFast(tab);
+  renderPendingControllers();
 }
 
 function closeBlockPicker() {

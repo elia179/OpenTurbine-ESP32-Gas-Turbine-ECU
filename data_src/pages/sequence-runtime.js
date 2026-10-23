@@ -74,6 +74,8 @@ window.addEventListener('pageshow', event => {
 });
 // ------ Sequence validation banner ---------------------------------------------------------------------------------------------------------------------------------------
 function sequenceIssueDestination(issue) {
+  if (window.OTControllerTiming?.parse(issue.block)) return '#controller-pending-blocks';
+  if (issue.block === 'Controllers') return '/controllers.html#controller-overview';
   const fields = {
     'P1 Hard Trip':'sf_p1t', 'P2 Hard Trip':'sf_p2t', 'Torque Hard Trip':'sf_tqt',
     'P1 Pullback':'pb_p1e', 'P2 Pullback':'pb_p2e', 'Torque Pullback':'pb_tqe',
@@ -81,7 +83,7 @@ function sequenceIssueDestination(issue) {
     Overtemp:'eg_src', DynamicIdle:'di_src',
     AutoRelight:'rl_en', 'Windmill Oil':'so_en', 'Oil Safety':'oil_rm',
     'Oil Temp':'sf_ot', 'Fuel Pressure':'sf_fp', Battery:'sf_bv',
-    'Hot Start':'sf_hs', Flameout:'sf_fs', Surge:'sf_sg'
+    'Startup Temperature':'sf_sg_en', 'Hot Start':'sf_hs', Flameout:'sf_fs', Surge:'sf_sg'
   };
   if (/no .*sensor|no .*input|not configured in Hardware|no compatible fitted|selected output.*missing/i.test(issue.msg || '') &&
       !/Hard Trip$/.test(issue.block || '')) return '/hardware.html';

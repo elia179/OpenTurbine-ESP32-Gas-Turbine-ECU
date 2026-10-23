@@ -448,11 +448,11 @@ function registryRoleUsage(direction, c) {
     } else if (purpose === 'oil_pressure') {
       if (cfg.controllers?.oil_loop) uses.add('Controller: oil pressure loop');
       if (cfg.safety?.low_oil !== false) uses.add('Safety: low oil pressure');
-      if (cfg.safety?.oil_zero !== false) uses.add('Safety: zero oil pressure');
+      if (cfg.safety?.low_oil) uses.add('Safety: oil pressure protection');
     } else if (purpose === 'low_oil_switch') {
       if (cfg.safety?.low_oil !== false) uses.add('Safety: low oil pressure');
     } else if (purpose === 'oil_zero_switch') {
-      if (cfg.safety?.oil_zero !== false) uses.add('Safety: zero oil pressure');
+      if (cfg.safety?.low_oil) uses.add('Safety: oil pressure protection');
     } else if (purpose === 'oil_temperature') {
       if (cfg.safety?.oil_temp_high) uses.add('Safety: oil overtemperature');
     } else if (purpose === 'fuel_pressure') {
@@ -707,6 +707,9 @@ function renderBuiltinInputSummary() {
   (cfg.di_channels || []).forEach((ch, i) => {
     if (!ch) return;
     const role = ch.role || 'none';
+    // Registry switches project into di_channels for runtime compatibility.
+    // Their editable registry card is the single user-facing owner.
+    if ((cfg.channel_registry?.inputs||[]).some(input=>input.installed!==false && Number(input.pin)===Number(ch.pin) && String(input.purpose)===role)) return;
     const configured = (ch.pin ?? -1) >= 0 || role !== 'none' || (ch.label || '').trim();
     if (!configured) return;
     const roleLabel = DI_ROLES.find(r => r.val === role)?.lbl || role;
@@ -960,7 +963,7 @@ function safetyAvailability(key) {
     overspeed: [hasSpeed, 'Requires primary N1 speed input.'],
     n2_overspeed: [hasN2Speed, 'Requires N2 power-turbine speed input.'],
     overtemp: [hasEgt, 'Requires a TOT or TIT temperature input.'],
-    low_oil: [hasOilPress || hasLowOilSwitch, 'Requires oil-pressure input or low-oil switch.'],
+    low_oil: [hasOilPress || hasLowOilSwitch || hasOilZeroSwitch, 'Requires oil-pressure input or low-oil switch.'],
     oil_zero: [hasOilPress || hasOilZeroSwitch, 'Requires oil-pressure input or zero-oil switch.'],
     flameout: [hasFlameConfirm, 'Requires flame, N1, TOT or TIT confirmation.'],
     hot_start: [hasEgt, 'Requires turbine temperature input.'],
@@ -980,7 +983,7 @@ function safetyInlineEditor() {
     const changed = workflowFieldChanged('safety', key);
     const target = {
       overspeed:'cf-rpm_limit', n2_overspeed:'cf-n2_rpm_limit',
-      overtemp:'cf-eg_src', low_oil:'cf-oil_rm', oil_zero:'cf-oil_zb',
+      overtemp:'cf-eg_src', low_oil:'protection-low_oil', oil_zero:'protection-low_oil',
       flameout:'cf-sf_fs', hot_start:'cf-sf_hs', oil_temp_high:'cf-sf_ot',
       fuel_press_low:'cf-sf_fp', batt_low:'cf-sf_bv', surge:'cf-sf_sg'
     }[key];
@@ -996,8 +999,7 @@ function safetyInlineEditor() {
     ${cb('overspeed', 'N1 overspeed', 'Requires primary N1 speed input.', s.overspeed !== false)}
     ${cb('n2_overspeed', 'N2 overspeed', 'Independent hard shutdown for the free power-turbine/output shaft. Set its RPM limit under Controllers -> Engine Limits & Protection.', !!s.n2_overspeed)}
     ${cb('overtemp', 'Turbine gas overtemperature', 'Watches the configured TOT/TIT temperature limits.', s.overtemp !== false)}
-    ${cb('low_oil', 'Low oil pressure', 'Requires oil-pressure input or low-oil switch.', s.low_oil !== false)}
-    ${cb('oil_zero', 'Zero oil pressure', 'Requires oil-pressure input or zero-oil switch.', s.oil_zero !== false)}
+    ${cb('low_oil', 'Oil pressure protection', 'Requires oil-pressure input or oil-pressure switch.', s.low_oil !== false)}
     ${cb('flameout', 'Flameout', 'Requires flame, N1, TOT or TIT confirmation.', s.flameout !== false)}
     ${cb('hot_start', 'Pre-start hot-engine interlock', 'Blocks START when fitted TOT/TIT is already above the configured pre-start maximum.', !!s.hot_start)}
     ${cb('oil_temp_high', 'Oil temperature high', 'Requires oil-temperature input.', !!s.oil_temp_high)}
@@ -1015,7 +1017,6 @@ function renderSafetySummary() {
     ['n2_overspeed', 'N2 overspeed', 'Hard power-turbine shaft shutdown; limit is set in Controllers', !!s.n2_overspeed],
     ['overtemp', 'Turbine gas overtemperature', 'Watches configured TOT/TIT limits', s.overtemp !== false],
     ['low_oil', 'Low oil pressure', 'Requires oil-pressure input or low-oil switch', s.low_oil !== false],
-    ['oil_zero', 'Zero oil pressure', 'Requires oil-pressure input or zero-oil switch', s.oil_zero !== false],
     ['flameout', 'Flameout', 'Requires flame, N1, TOT or TIT confirmation', s.flameout !== false],
     ['hot_start', 'Pre-start hot-engine interlock', 'Requires turbine temperature input', !!s.hot_start],
     ['oil_temp_high', 'Oil temperature high', 'Requires oil-temperature input', !!s.oil_temp_high],
@@ -1139,8 +1140,8 @@ function registryContextLinks(direction, c) {
       tot:['/controllers.html#cf-tot_limit','Set TOT protection'],
       tit:['/controllers.html#cf-sf_tit','Set TIT protection'],
       oil_pressure:['/controllers.html#cf-oil_rm','Set oil protection'],
-      low_oil_switch:['/controllers.html#cf-oil_rm','Set low-oil protection'],
-      oil_zero_switch:['/controllers.html#cf-oil_zb','Set no-pressure protection'],
+      low_oil_switch:['/controllers.html#protection-low_oil','Set oil-pressure protection'],
+      oil_zero_switch:['/controllers.html#protection-low_oil','Set oil-pressure protection'],
       p1_pressure:['/controllers.html#cf-sf_p1t','Set P1 protection'],
       p2_pressure:['/controllers.html#cf-sf_p2t','Set P2 protection'],
       oil_temperature:['/controllers.html#cf-sf_ot','Set oil-temperature protection'],

@@ -11,96 +11,9 @@
 #include "ConfigInternal.h"
 
 namespace ConfigInternal {
-int8_t ruleSourceHandle(const char* id) {
-    if (!id || !id[0]) return -1;
-    if (!strcmp(id, "oil_temp") || !strcmp(id, "oil_temp_main")) return RulesEngine::OIL_TEMP;
-    if (!strcmp(id, "tot") || !strcmp(id, "tot_main")) return RulesEngine::TOT;
-    if (!strcmp(id, "n1_main") || !strcmp(id, "n1_rpm")) return RulesEngine::N1_RPM;
-    if (!strcmp(id, "n2_main") || !strcmp(id, "n2_rpm")) return RulesEngine::N2_RPM;
-    if (!strcmp(id, "oil_pressure_main") || !strcmp(id, "oil_press")) return RulesEngine::OIL_PRESS;
-    if (!strcmp(id, "primary_n1")) return RulesEngine::N1_RPM;
-    if (!strcmp(id, "primary_n2")) return RulesEngine::N2_RPM;
-    if (!strcmp(id, "primary_egt")) return RulesEngine::TOT;
-    if (!strcmp(id, "operator_throttle") || !strcmp(id, "throttle_input") || !strcmp(id, "throttle_in") || !strcmp(id, "throttle_input_main")) return RulesEngine::THROTTLE_INPUT;
-    if (!strcmp(id, "tit") || !strcmp(id, "tit_main")) return RulesEngine::TIT;
-    if (!strcmp(id, "batt_voltage") || !strcmp(id, "batt_voltage_main") || !strcmp(id, "battery_voltage")) return RulesEngine::BATT_V;
-    if (!strcmp(id, "fuel_press") || !strcmp(id, "fuel_pressure_main")) return RulesEngine::FUEL_PRESS;
-    if (!strcmp(id, "fuel_flow") || !strcmp(id, "fuel_flow_main")) return RulesEngine::FUEL_FLOW;
-    if (!strcmp(id, "p1") || !strcmp(id, "p1_main")) return RulesEngine::P1;
-    if (!strcmp(id, "p2") || !strcmp(id, "p2_main")) return RulesEngine::P2;
-    if (!strcmp(id, "torque") || !strcmp(id, "torque_main")) return RulesEngine::TORQUE;
-    if (!strcmp(id, "thrust") || !strcmp(id, "thrust_main")) return RulesEngine::THRUST;
-    if (!strcmp(id, "flame") || !strcmp(id, "flame_main")) return RulesEngine::FLAME;
-    if (!strcmp(id, "idle_input") || !strcmp(id, "idle_in") || !strcmp(id, "idle_input_main") || !strcmp(id, "operator_idle")) return RulesEngine::IDLE_INPUT;
-    if (!strcmp(id, "ab_flame") || !strcmp(id, "ab_flame_main")) return RulesEngine::AB_FLAME;
-    if (!strcmp(id, "glow_current") || !strcmp(id, "glow_current_main")) return RulesEngine::GLOW_CURRENT;
-    if (!strcmp(id, "igniter_current") || !strcmp(id, "igniter_current_main")) return RulesEngine::IGNITER_CURRENT;
-    if (!strcmp(id, "igniter2_current") || !strcmp(id, "igniter2_current_main")) return RulesEngine::IGNITER2_CURRENT;
-    if (!strcmp(id, "oil_pump_current") || !strcmp(id, "oil_pump_current_main")) return RulesEngine::OIL_PUMP_CURRENT;
-    if (!strcmp(id, "ab_input") || !strcmp(id, "ab_input_main")) return RulesEngine::AB_INPUT;
-    if (!strcmp(id, "start_switch")) return RulesEngine::START_SWITCH;
-    if (!strcmp(id, "stop_switch")) return RulesEngine::STOP_SWITCH;
-    if (!strcmp(id, "di0")) return RulesEngine::DI_CH0;
-    if (!strcmp(id, "di1")) return RulesEngine::DI_CH1;
-    if (!strcmp(id, "di2")) return RulesEngine::DI_CH2;
-    if (!strcmp(id, "di3")) return RulesEngine::DI_CH3;
-    for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
-        const auto& in = HardwareConfig::channelRegistry.inputs[i];
-        if (strcmp(in.id, id) != 0) continue;
-        return (int8_t)(ChannelRegistry::INPUT_SENSOR_BASE + i);
-    }
-    return -1;
-}
-int8_t ruleTargetHandle(const char* id) {
-    if (!id || !id[0]) return -1;
-    if (!strcmp(id, "main_fuel") || !strcmp(id, "main_fuel_output") || !strcmp(id, "throttle")) return RulesEngine::THROTTLE;
-    if (!strcmp(id, "starter_main") || !strcmp(id, "main_starter") || !strcmp(id, "starter")) return RulesEngine::STARTER;
-    if (!strcmp(id, "starter_enable") || !strcmp(id, "starter_enable_main")) return RulesEngine::STARTER_ENABLE;
-    if (!strcmp(id, "oil_pump_main") || !strcmp(id, "oil_pump")) return RulesEngine::OIL_PUMP;
-    if (!strcmp(id, "cooling_fan_main") || !strcmp(id, "cooling_fan") || !strcmp(id, "cool_fan")) return RulesEngine::COOL_FAN;
-    if (!strcmp(id, "bleed_valve_main") || !strcmp(id, "bleed_valve")) return RulesEngine::BLEED_VALVE;
-    if (!strcmp(id, "oil_scavenge_main") || !strcmp(id, "scavenge_pump") || !strcmp(id, "oil_scavenge_pump")) return RulesEngine::OIL_SCAVENGE;
-    if (!strcmp(id, "fuel_pump") || !strcmp(id, "fuel_pump2") || !strcmp(id, "fuel_pump2_main")) return RulesEngine::FUEL_PUMP2;
-    if (!strcmp(id, "main_fuel_shutoff") || !strcmp(id, "fuel_shutoff") || !strcmp(id, "fuel_sol")) return RulesEngine::FUEL_SOL;
-    if (!strcmp(id, "igniter") || !strcmp(id, "igniter_main")) return RulesEngine::IGNITER;
-    if (!strcmp(id, "ab_igniter") || !strcmp(id, "igniter2_main") || !strcmp(id, "igniter2")) return RulesEngine::IGNITER2;
-    if (!strcmp(id, "ab_solenoid") || !strcmp(id, "ab_sol") || !strcmp(id, "ab_solenoid_main")) return RulesEngine::AB_SOL;
-    if (!strcmp(id, "ab_pump") || !strcmp(id, "ab_pump_main")) return RulesEngine::AB_PUMP;
-    if (!strcmp(id, "air_starter") || !strcmp(id, "airstarter_sol") || !strcmp(id, "airstarter_main")) return RulesEngine::AIRSTARTER;
-    if (!strcmp(id, "glow_plug") || !strcmp(id, "glow_plug_main")) return RulesEngine::GLOW_PLUG;
-    if (!strcmp(id, "prop_pitch") || !strcmp(id, "prop_pitch_main")) return RulesEngine::PROP_PITCH;
-    if (!strcmp(id, "request_shutdown")) return RulesEngine::REQUEST_SHUTDOWN;
-    if (!strcmp(id, "request_fault")) return RulesEngine::REQUEST_FAULT;
-    for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount; ++i) {
-        const auto& out = HardwareConfig::channelRegistry.outputs[i];
-        if (strcmp(out.id, id) != 0) continue;
-        if (!HardwareConfig::channelRegistry.ownsCoreOutput(out) &&
-            !HardwareConfig::channelRegistry.boundToCoreOutput(out))
-            return (int8_t)(ChannelRegistry::OUTPUT_ACTUATOR_BASE + i);
-        // A core-owned output is still addressed by its stable registry ID.
-        // Resolve it through the legacy adapter that currently drives the
-        // physical channel; callers must never need to know that adapter's
-        // historical alias.
-        if (!strcmp(out.purpose, "main_fuel")) return RulesEngine::THROTTLE;
-        if (!strcmp(out.purpose, "starter")) return RulesEngine::STARTER;
-        if (!strcmp(out.purpose, "starter_enable")) return RulesEngine::STARTER_ENABLE;
-        if (!strcmp(out.purpose, "oil_pump")) return RulesEngine::OIL_PUMP;
-        if (!strcmp(out.purpose, "cooling_fan")) return RulesEngine::COOL_FAN;
-        if (!strcmp(out.purpose, "bleed_valve")) return RulesEngine::BLEED_VALVE;
-        if (!strcmp(out.purpose, "scavenge_pump")) return RulesEngine::OIL_SCAVENGE;
-        if (!strcmp(out.purpose, "fuel_pump")) return RulesEngine::FUEL_PUMP2;
-        if (!strcmp(out.purpose, "fuel_shutoff")) return RulesEngine::FUEL_SOL;
-        if (!strcmp(out.purpose, "igniter")) return RulesEngine::IGNITER;
-        if (!strcmp(out.purpose, "ab_igniter")) return RulesEngine::IGNITER2;
-        if (!strcmp(out.purpose, "ab_valve")) return RulesEngine::AB_SOL;
-        if (!strcmp(out.purpose, "ab_pump")) return RulesEngine::AB_PUMP;
-        if (!strcmp(out.purpose, "air_starter")) return RulesEngine::AIRSTARTER;
-        if (!strcmp(out.purpose, "glow_plug")) return RulesEngine::GLOW_PLUG;
-        if (!strcmp(out.purpose, "prop_pitch")) return RulesEngine::PROP_PITCH;
-        return -1;
-    }
-    return -1;
-}
+int8_t ruleSourceHandle(const char* id) { return HardwareConfig::inputSensorForId(id); }
+int8_t ruleTargetHandle(const char* id) { return HardwareConfig::outputActuatorForId(id); }
+
 
 }
 
@@ -173,6 +86,12 @@ float Config::pullbackP2Soft        = 0.0f;
 float Config::pullbackP2Hard        = 0.0f;
 float Config::pullbackTorqueSoft    = 0.0f;
 float Config::pullbackTorqueHard    = 0.0f;
+bool Config::p1TripEnabled = false;
+bool Config::p2TripEnabled = false;
+bool Config::torqueTripEnabled = false;
+bool Config::underspeedEnabled = true;
+bool Config::startupEgtImmediateEnabled = false;
+bool Config::startupEgtDwellEnabled = false;
 float Config::p1TripLimit           = 0.0f;
 float Config::p2TripLimit           = 0.0f;
 float Config::torqueTripLimit       = 0.0f;
@@ -235,6 +154,8 @@ float Config::oilTempLimit               = 120.0f;
 float Config::fuelPressMin               = 0.0f;
 float Config::battVoltMin                = 0.0f;
 float Config::surgeDetectRpmVariance     = 0.0f;
+int Config::oilSafetyModes = 4;
+int Config::fuelPressureSafetyModes = 4;
 uint32_t Config::lowOilConfirmMs         = 500;
 uint32_t Config::oilZeroConfirmMs        = 100;
 uint32_t Config::oilTempConfirmMs        = 1000;
@@ -345,6 +266,9 @@ bool     Config::spoolCutStarterEnOnExit     = true;
 
 float    Config::preStartEgtLimitC           = 150.0f;
 float    Config::startupEgtLimitC            = 0.0f;
+bool Config::startupEgtGuardEnabled = false;
+float Config::startupEgtDwellC = 0.0f;
+int Config::startupEgtDwellMs = 1000;
 int      Config::finalStopOilScavengeMs      = 0;
 bool     Config::oilPrimeUseScavengePump    = false;
 bool     Config::cooldownUseScavengePump    = false;
@@ -626,6 +550,12 @@ bool validRuleId(JsonVariantConst v, size_t maxLen,
     return handle >= 0 && available((uint8_t)handle);
 }
 
+bool validEnabledLimit(JsonVariantConst enabled, JsonVariantConst limit, bool currentEnabled, float currentLimit) {
+    const float value=limit | currentLimit;
+    const bool active=enabled | (!limit.isNull() ? value>0 : currentEnabled);
+    return !active || value>0;
+}
+
 bool validRawPair(JsonVariantConst obj, const char* minKey, const char* maxKey) {
     if (!validInt(obj[minKey], 0, 4095) || !validInt(obj[maxKey], 0, 4095)) return false;
     if (present(obj[minKey]) && present(obj[maxKey]) && obj[maxKey].as<int>() <= obj[minKey].as<int>()) return false;
@@ -702,6 +632,11 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(su["oil_pump_on_pct"], 0.0f, 100.0f) ||
         !validNumber(su["modified_idle_multiplier"], 0.0f, 10.0f) ||
         !validNumber(su["pre_start_egt_limit_c"], 0.0f, 100000.0f) ||
+        !validBool(su["startup_egt_guard_enabled"]) ||
+        !validBool(su["startup_egt_immediate_enabled"]) ||
+        !validBool(su["startup_egt_dwell_enabled"]) ||
+        !validNumber(su["startup_egt_dwell_c"], 0.0f, 100000.0f) ||
+        !validInt(su["startup_egt_dwell_ms"], 1, 600000) ||
         !validNumber(su["startup_egt_limit_c"], 0.0f, 100000.0f) ||
         !validNumber(su["fp2_start_pct"], 0.0f, 100.0f) ||
         !validNumber(su["fp2_end_pct"], 0.0f, 100.0f) ||
@@ -844,7 +779,13 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validOptionalStableId(so["output_id"], sizeof(Config::standbyOilOutputId)))) return false;
 
     JsonVariantConst sf = doc["safety"];
-    if (!validInt(sf["check_interval_ms"], 10, 250) ||
+    for (const char* key : {"oil_pressure_modes", "fuel_pressure_modes"}) {
+        JsonVariantConst modes = sf[key];
+        if (!modes.isNull() && (!validInt(modes, 2, 6) || (modes.as<int>() & 1))) return false;
+    }
+    if (!validBool(sf["p1_trip_enabled"]) || !validBool(sf["p2_trip_enabled"]) ||
+        !validBool(sf["torque_trip_enabled"]) || !validBool(sf["underspeed_enabled"]) ||
+        !validInt(sf["check_interval_ms"], 10, 250) ||
         !validNumber(sf["flameout_shutdown_ms"], 100.0f, 60000.0f) ||
         !validInt(sf["egt_source"], 0, 2) ||
         !validInt(sf["flameout_source"], 0, 3) ||
@@ -867,6 +808,19 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validInt(sf["oil_temp_confirm_ms"], 0, 60000) ||
         !validInt(sf["fuel_press_confirm_ms"], 0, 60000) ||
         !validInt(sf["batt_low_confirm_ms"], 0, 60000)) return false;
+
+    if (!validEnabledLimit(sf["p1_trip_enabled"],sf["p1_trip_bar"],Config::p1TripEnabled,Config::p1TripLimit) ||
+        !validEnabledLimit(sf["p2_trip_enabled"],sf["p2_trip_bar"],Config::p2TripEnabled,Config::p2TripLimit) ||
+        !validEnabledLimit(sf["torque_trip_enabled"],sf["torque_trip_nm"],Config::torqueTripEnabled,Config::torqueTripLimit) ||
+        !validEnabledLimit(sf["underspeed_enabled"],eng["min_rpm"],Config::underspeedEnabled,Config::minRpm)) return false;
+    if (su["startup_egt_guard_enabled"] | Config::startupEgtGuardEnabled) {
+        const float hard=su["startup_egt_limit_c"] | Config::startupEgtLimitC;
+        const float timed=su["startup_egt_dwell_c"] | Config::startupEgtDwellC;
+        const bool hardOn=su["startup_egt_immediate_enabled"] | (hard>0);
+        const bool timedOn=su["startup_egt_dwell_enabled"] | (timed>0);
+        if ((!hardOn && !timedOn) || (hardOn && hard<=0) || (timedOn && timed<=0) ||
+            (hardOn && timedOn && timed>=hard)) return false;
+    }
 
     JsonVariantConst rl = doc["relight"];
     if (present(rl) && (!rl.is<JsonObjectConst>() ||
@@ -1085,10 +1039,26 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
     JsonVariantConst rules = doc["rules"];
     if (present(rules)) {
         if (!rules.is<JsonArrayConst>() || rules.size() > Config::MAX_RULES) return false;
-        const char* claimedTargets[Config::MAX_RULES] = {};
+        uint8_t claimedTargets[Config::MAX_RULES] = {};
+        bool claimedLegacy[Config::MAX_RULES] = {};
         size_t claimedTargetCount = 0;
         for (JsonObjectConst rule : rules.as<JsonArrayConst>()) {
             const int kind = rule["kind"] | -1;
+            if (!validInt(rule["controller_id"], 1, 65535) ||
+                !validInt(rule["activate_event"], 0, 4) ||
+                !validInt(rule["activate_events"], 1, 31) ||
+                !validInt(rule["deactivate_events"], 1, 31)) return false;
+            const bool scheduled = !rule["activate_events"].isNull() || !rule["activate_event"].isNull();
+            const uint8_t starts = rule["activate_events"] | uint8_t(scheduled ? 1u << (rule["activate_event"] | 0) : 0);
+            if (scheduled && (rule["deactivate_events"].isNull() || rule["controller_id"].isNull() ||
+                (starts & rule["deactivate_events"].as<uint8_t>() & 30))) return false;
+            if (!rule["controller_id"].isNull()) {
+                const uint16_t id = rule["controller_id"].as<uint16_t>();
+                unsigned matches = 0;
+                for (JsonObjectConst other : rules.as<JsonArrayConst>())
+                    if ((other["controller_id"] | uint16_t(0)) == id) ++matches;
+                if (matches != 1) return false;
+            }
             if (!validBool(rule["enabled"]) ||
                 !validInt(rule["kind"], 0, 3) ||
                 !validInt(rule["op"], 0, 1) ||
@@ -1096,11 +1066,12 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
                 !validNumber(rule["on_value"], 0.0f, 1.0f) ||
                 !validNumber(rule["off_value"], 0.0f, 1.0f) ||
                 !validNumber(rule["hysteresis"], 0.0f, 1000000.0f) ||
+                !validInt(rule["confirm_ms"], 0, 60000) ||
                 !validNumber(rule["input_min"], -1000000.0f, 1000000.0f) ||
                 !validNumber(rule["input_max"], -1000000.0f, 1000000.0f) ||
                 !validNumber(rule["output_min"], 0.0f, 1.0f) ||
                 !validNumber(rule["output_max"], 0.0f, 1.0f) ||
-                !validInt(rule["mode_mask"], 1, 15) ||
+                !validInt(rule["mode_mask"], !scheduled ? 1 : 0, 15) ||
                 !(validateHardwareDependencies
                     ? validRuleId(rule["target"], sizeof(Config::Rule::targetId), ConfigInternal::ruleTargetHandle, ruleActuatorAvailable)
                     : validRequiredStableId(rule["target"], sizeof(Config::Rule::targetId)))) return false;
@@ -1136,7 +1107,7 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
             // request shutdown when true, remain inactive when false, and only
             // run in states from which the shutdown sequence is meaningful.
             // Enforce this for complete imports as well as normal UI saves.
-            if (!strcmp(target, "request_shutdown") &&
+            if ((!strcmp(target, "request_shutdown") || !strcmp(target, "request_fault")) &&
                 (kind != 0 || rule["on_value"].as<float>() != 1.0f ||
                  rule["off_value"].as<float>() != 0.0f ||
                  (rule["mode_mask"].as<uint8_t>() & ~0x06u) != 0)) return false;
@@ -1149,8 +1120,10 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
                 if (ruleTargetConflictsWithDedicatedController(handle)) return false;
                 if (handle != 13 && handle != 14) {
                     for (size_t i = 0; i < claimedTargetCount; ++i)
-                        if (!strcmp(claimedTargets[i], target)) return false;
-                    claimedTargets[claimedTargetCount++] = target;
+                        if (claimedTargets[i] == handle &&
+                            (!scheduled || claimedLegacy[i])) return false;
+                    claimedLegacy[claimedTargetCount] = !scheduled;
+                    claimedTargets[claimedTargetCount++] = (uint8_t)handle;
                 }
             }
         }
@@ -1169,12 +1142,12 @@ void Config::load() {
     static constexpr const char* BAK_PATH = "/ecu_config.bak";
     if (!LittleFS.exists(PATH) && LittleFS.exists(BAK_PATH)) {
         if (LittleFS.rename(BAK_PATH, PATH)) {
-            Serial.println("[Config] Recovered ecu_config.json from backup");
+            Serial.println("[Config] Recovered backup config");
         }
     }
 
     if (!LittleFS.exists(PATH)) {
-        Serial.println("[Config] No ecu_config.json - generating defaults");
+        Serial.println("[Config] No config; generating defaults");
         if (!save()) {
             inhibitStartForConfigWriteFailure();
             return;
@@ -1233,7 +1206,7 @@ void Config::load() {
     }
 
     if (!fullDoc[SECTION].is<JsonObject>()) {
-        Serial.println("[Config] Settings missing from ecu_config.json - adding defaults");
+        Serial.println("[Config] Missing settings; adding defaults");
         strncpy(profileId, HardwareConfig::profileId, sizeof(profileId) - 1);
         profileId[sizeof(profileId) - 1] = '\0';
         if (!save()) {
@@ -1254,7 +1227,7 @@ void Config::load() {
     profileMatch = (strcmp(profileId, HardwareConfig::profileId) == 0);
     if (!profileMatch) {
         // Keep web repair available, but do not run with crossed engine sections.
-        Serial.printf("[Config] WARNING: settings profile (%s) does not match hardware profile (%s)"
+        Serial.printf("[Config] Profile mismatch: settings=%s hardware=%s"
                       " - START inhibited until repaired\n",
                       profileId, HardwareConfig::profileId);
         _applyDefaults();
@@ -1266,7 +1239,7 @@ void Config::load() {
 
     uint8_t ver = workDoc["config_version"] | 0;
     if (ver != CONFIG_VERSION) {
-        Serial.printf("[Config] Version mismatch (file=%u expected=%u) - new fields use defaults\n",
+        Serial.printf("[Config] Version %u != %u; new fields defaulted\n",
                       ver, CONFIG_VERSION);
         // Signal the web UI to show a calibration reminder banner
         EngineData::instance().configVersionMismatch = true;
@@ -1282,7 +1255,7 @@ void Config::load() {
     _missingRequiredSections = false;
     _fromDoc(workDoc);
     if (settingsIncomplete || _missingRequiredSections) {
-        Serial.println("[Config] Completing missing settings sections in ecu_config.json");
+        Serial.println("[Config] Filling missing settings sections");
         if (!save()) {
             inhibitStartForConfigWriteFailure();
             return;
@@ -1364,19 +1337,13 @@ bool Config::sanitizeForHardware() {
     disarmUnavailable(HardwareConfig::hasP1, pullbackP1Enabled);
     disarmUnavailable(HardwareConfig::hasP2, pullbackP2Enabled);
     disarmUnavailable(HardwareConfig::hasTorque, pullbackTorqueEnabled);
-    // These hard trips have no separate enable flag: a positive threshold
-    // arms them. A saved Hardware removal must therefore clear the threshold.
-    // Availability means configured hardware, never live sensor health; a
-    // disconnected fitted sensor must retain its protection and report loss.
-    auto disarmUnavailableTrip = [&](bool available, float& limit) {
-        if (!available && limit != 0.0f) {
-            limit = 0.0f;
-            changed = true;
-        }
-    };
-    disarmUnavailableTrip(HardwareConfig::hasP1, p1TripLimit);
-    disarmUnavailableTrip(HardwareConfig::hasP2, p2TripLimit);
-    disarmUnavailableTrip(HardwareConfig::hasTorque, torqueTripLimit);
+    // Hardware removal disarms protection but preserves its advisory/tuning limits.
+    // A disconnected fitted sensor retains protection and reports feedback loss.
+    disarmUnavailable(HardwareConfig::hasP1, p1TripEnabled);
+    disarmUnavailable(HardwareConfig::hasP2, p2TripEnabled);
+    disarmUnavailable(HardwareConfig::hasTorque, torqueTripEnabled);
+    disarmUnavailable(HardwareConfig::hasN1Rpm, underspeedEnabled);
+    disarmUnavailable(HardwareConfig::hasTot || HardwareConfig::hasTit, startupEgtGuardEnabled);
     // An enabled starter-assist mode is an operating command, not merely a
     // tuning value. If a Hardware edit removes its required starter/N1 path
     // (or changes to a non-PWM starter), disarm it while preserving all of its
@@ -1473,6 +1440,7 @@ bool Config::sanitizeForHardware() {
     int out = 0;
     const int previousRuleCount = ruleCount;
     uint8_t claimedTargets[MAX_RULES] = {};
+    bool claimedLegacy[MAX_RULES] = {};
     int claimedTargetCount = 0;
     for (int i = 0; i < ruleCount; i++) {
         Rule r = rules[i];
@@ -1484,9 +1452,9 @@ bool Config::sanitizeForHardware() {
         // their dedicated controller is not selected in the UI.
         if (ruleTargetConflictsWithDedicatedController(r.actuator)) { changed = true; continue; }
         bool duplicateTarget = false;
-        if (r.actuator != 13 && r.actuator != 14) {
+        if (r.enabled && r.actuator != 13 && r.actuator != 14) {
             for (int j = 0; j < claimedTargetCount; ++j)
-                if (claimedTargets[j] == r.actuator) { duplicateTarget = true; break; }
+                if (claimedTargets[j] == r.actuator && (r.activateEvents == 0 || claimedLegacy[j])) { duplicateTarget = true; break; }
         }
         if (duplicateTarget) { changed = true; continue; }
         r.kind = constrain(r.kind, 0, 3);
@@ -1515,8 +1483,10 @@ bool Config::sanitizeForHardware() {
                 r.outputMin = max(r.outputMin, calibratedMinimum);
             r.outputMax = max(r.outputMax, r.outputMin);
         }
-        if (r.actuator != 13 && r.actuator != 14)
+        if (r.enabled && r.actuator != 13 && r.actuator != 14) {
+            claimedLegacy[claimedTargetCount] = r.activateEvents == 0;
             claimedTargets[claimedTargetCount++] = r.actuator;
+        }
         if (out != i || memcmp(&r, &rules[i], sizeof(Rule)) != 0) changed = true;
         rules[out++] = r;
     }
@@ -2091,6 +2061,9 @@ bool Config::resolveRuleHandlesForHardware() {
         if (source < 0 || target < 0 || targetSource < 0) return false;
         rule.sensor = (uint8_t)source;
         rule.actuator = (uint8_t)target;
+        rule.safeDemand = rule.actuator == RulesEngine::PROP_PITCH ? 1.0f : 0.0f;
+        if (const auto* output = HardwareConfig::channelRegistry.find(rule.targetId, ChannelRegistry::Output))
+            rule.safeDemand = output->safeDemand;
         rule.targetSensor = (uint8_t)targetSource;
     }
     return true;

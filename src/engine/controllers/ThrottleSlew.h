@@ -73,6 +73,7 @@ public:
 
     void tick() override {
         auto& ed     = EngineData::instance();
+        ed.throttleFeedbackInhibited = false;
         unsigned long now = millis();
         float actualDt    = (now - _lastMs) / 1000.0f;
         float dt          = actualDt;
@@ -102,7 +103,7 @@ public:
               !FeedbackRequirements::isOverridden(ed, FeedbackRequirements::P2)) ||
              (FeedbackRequirements::torqueForProtectionOrControl() && !ed.torqueHealthy &&
               !FeedbackRequirements::isOverridden(ed, FeedbackRequirements::TORQUE)))) {
-            if (target > _current) { target = _current; protectionActive = true; }
+            if (target > _current) { target = _current; protectionActive = true; ed.throttleFeedbackInhibited = true; }
         }
 
         // Safety pullback: approach overspeed
@@ -172,7 +173,7 @@ public:
         }
         if (n1PullbackEnabled && ed.n1Healthy) applyPullback(n1val, rpmSoftLimit, rpmHardLimit, n1Strength);
         if (n2PullbackEnabled && ed.n2Healthy) applyPullback(n2val, n2SoftLimit, n2HardLimit, n2Strength);
-        if (egtPullbackEnabled && Config::primaryEgtHealthy(ed)) {
+        if (egtPullbackEnabled && !(ed.mode==SysMode::STARTUP && Config::startupEgtGuardEnabled) && Config::primaryEgtHealthy(ed)) {
             applyPullback(egtVal, totSoftLimit, totHardLimit, egtStrength);
         }
         if (p1PullbackEnabled && ed.p1Healthy) applyPullback(p1val, p1SoftLimit, p1HardLimit, p1Strength);
@@ -206,6 +207,7 @@ public:
         _p1LastMs = _p2LastMs = _torqueLastMs = 0;
         auto& ed = EngineData::instance();
         ed.mainFuelProtectionActive = false;
+        ed.throttleFeedbackInhibited = false;
     }
 
     // Returns the slew-limited output before any external offset (e.g. AB fuel offset)

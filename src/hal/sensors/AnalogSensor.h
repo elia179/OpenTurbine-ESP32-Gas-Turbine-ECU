@@ -52,7 +52,7 @@ public:
     void begin() override {
         _lastMs = 0;
         _sampleSeq = 0;
-        analogSetAttenuation(ADC_11db); // 0–3.3 V full range
+        analogSetAttenuation(ADC_11db); // maximum attenuation; usable range depends on the chip
         analogReadResolution(12);       // 12-bit (0–4095), portable across ESP32 targets
     }
 

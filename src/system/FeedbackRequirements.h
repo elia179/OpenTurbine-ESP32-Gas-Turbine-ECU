@@ -84,7 +84,7 @@ namespace FeedbackRequirements {
                 }
         }
         return HardwareConfig::safetyOverspeed || HardwareConfig::safetySurge ||
-               (HardwareConfig::hasN1Rpm && Config::minRpm > 0.0f) ||
+               (HardwareConfig::hasN1Rpm && Config::underspeedEnabled && Config::minRpm > 0.0f) ||
                (HardwareConfig::safetyFlameout && effectiveFlameoutSource() == 2) ||
                (HardwareConfig::hasDynamicIdle && HardwareConfig::hasN1Rpm && Config::idleSource == 0) ||
                (HardwareConfig::hasThrottle && HardwareConfig::hasN1Rpm && Config::pullbackN1Enabled &&
@@ -106,7 +106,8 @@ namespace FeedbackRequirements {
     }
 
     inline bool egtForProtectionOrControl() {
-        return HardwareConfig::safetyOvertemp || HardwareConfig::safetyHotStart ||
+        const auto mode=EngineData::instance().mode;
+        return (Config::startupEgtGuardEnabled && (mode==SysMode::STANDBY || mode==SysMode::STARTUP)) || HardwareConfig::safetyOvertemp || (HardwareConfig::safetyHotStart && mode==SysMode::STANDBY) ||
                (HardwareConfig::safetyFlameout && effectiveFlameoutSource() == 3) ||
                (HardwareConfig::hasThrottle && Config::effectiveEgtSource() != 0 && Config::pullbackEgtEnabled &&
                 Config::pullbackEgtHardC > Config::pullbackEgtSoftC);
@@ -115,17 +116,17 @@ namespace FeedbackRequirements {
     inline bool p1ForProtectionOrControl() {
         return HardwareConfig::hasP1 &&
             ((Config::pullbackP1Enabled && Config::pullbackP1Hard > Config::pullbackP1Soft) ||
-             Config::p1TripLimit > 0.0f || (HardwareConfig::hasDynamicIdle && Config::idleSource == 2));
+             (Config::p1TripEnabled && Config::p1TripLimit > 0.0f) || (HardwareConfig::hasDynamicIdle && Config::idleSource == 2));
     }
     inline bool p2ForProtectionOrControl() {
         return HardwareConfig::hasP2 &&
             ((Config::pullbackP2Enabled && Config::pullbackP2Hard > Config::pullbackP2Soft) ||
-             Config::p2TripLimit > 0.0f || (HardwareConfig::hasDynamicIdle && Config::idleSource == 3));
+             (Config::p2TripEnabled && Config::p2TripLimit > 0.0f) || (HardwareConfig::hasDynamicIdle && Config::idleSource == 3));
     }
     inline bool torqueForProtectionOrControl() {
         return HardwareConfig::hasTorque &&
             ((Config::pullbackTorqueEnabled && Config::pullbackTorqueHard > Config::pullbackTorqueSoft) ||
-             Config::torqueTripLimit > 0.0f);
+             (Config::torqueTripEnabled && Config::torqueTripLimit > 0.0f));
     }
 
     inline bool n1ForStart() {
@@ -143,7 +144,7 @@ namespace FeedbackRequirements {
 
     inline bool oilPressureForStart() {
         if (!HardwareConfig::hasOilPress) return false;
-        return HardwareConfig::safetyLowOil || HardwareConfig::safetyOilZero ||
+        return HardwareConfig::safetyLowOil ||
                HardwareConfig::hasOilLoop || startupHas("OilPrime") ||
                (startupHas("SafetyHold") && Config::safetyHoldCheckOil);
     }
@@ -229,7 +230,7 @@ namespace FeedbackRequirements {
         if (p1ForProtectionOrControl() && !ed.p1Healthy) failed |= P1;
         if (p2ForProtectionOrControl() && !ed.p2Healthy) failed |= P2;
         if (torqueForProtectionOrControl() && !ed.torqueHealthy) failed |= TORQUE;
-        if ((HardwareConfig::safetyLowOil || HardwareConfig::safetyOilZero) &&
+        if (HardwareConfig::safetyLowOil &&
             HardwareConfig::hasOilPress && !ed.oilHealthy) failed |= OIL_PRESSURE;
         if (HardwareConfig::hasOilLoop && !allOilLoopFeedbackHealthy(ed)) failed |= OIL_PRESSURE;
         if (HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp && !ed.oilTempHealthy) failed |= OIL_TEMP;

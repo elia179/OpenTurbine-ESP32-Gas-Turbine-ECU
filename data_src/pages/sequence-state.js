@@ -200,11 +200,153 @@ function revealSequenceDeepLink() {
 window.addEventListener('hashchange', revealSequenceDeepLink);
 
 // ------ Load data from device ------------------------------------------------------------------------------------------------------------------------------------------------------
+function syncControllerSequenceBlocks() {
+  const api=window.OTControllerTiming;if(!api)return;
+  api.ensureIds(cfg.rules||[]);
+  for(const name of Object.keys(BLOCKS))if(api.parse(name))delete BLOCKS[name];
+  for(const list of [STARTUP_BLOCKS,SHUTDOWN_BLOCKS,AFTERBURNER_BLOCKS,AB_SHUT_BLOCKS])
+    for(let i=list.length-1;i>=0;i--)if(api.parse(list[i]))list.splice(i,1);
+  const keys=new Set(api.required(cfg.rules).map(b=>b.key));
+  for(const k of api.seqKeys)for(const name of hwCfg[k]||[])if(api.parse(name))keys.add(name);
+  for(const name of keys){
+    const ref=api.parse(name),rule=(cfg.rules||[]).find(r=>Number(r.controller_id)===ref.id);
+    BLOCKS[name]={label:`${ref.on?'Activate':'Deactivate'} “${rule?.name||'Missing controller'}”`,type:'action',badgeClass:'action',params:[],
+      desc:rule?`${ref.on?'Begin continuous control.':'Apply the output safe state and release control.'} ${api.summary(rule)}${rule.enabled===false?' Controller disabled: this block is inactive.':''}`:'Controller no longer exists. Remove this block.',
+      visibleIf:()=>!!rule};
+
+  }
+}
+let pendingControllerKey = '';
+const pendingControllerSlots = new Map();
+function pendingControllerBlocks() {
+  const api=window.OTControllerTiming;
+  return api ? api.required(cfg.rules).filter(b=>b.rule.enabled!==false&&!api.placed(hwCfg,b.key)) : [];
+}
+function renderPendingControllers() {
+  let panel=document.getElementById('controller-pending-blocks');
+  if(!panel){
+    panel=document.createElement('section');panel.id='controller-pending-blocks';panel.className='card';
+    document.querySelector('main .page-heading')?.after(panel);
+  }
+  const pending=pendingControllerBlocks();
+  if(!pending.some(b=>b.key===pendingControllerKey))pendingControllerKey='';
+  panel.hidden=!pending.length;
+  panel.innerHTML=pending.length?`<h3>Controller blocks — drag into place</h3><p id="controller-placement-hint" aria-live="polite">Drag these blocks into the sequence below. Or select a block, then select “Place here” at the desired position. Choose another sequence tab to place it there.</p><p>START leaves controllers with missing blocks inactive for that run. All required blocks must be placed before saving. Remove a block to move it elsewhere, or disable its controller in <a href="/controllers.html">Controllers</a>.</p><div class="controller-pending-list">`+pending.map(b=>`<button type="button" class="block-card controller-pending-card" data-controller-key="${b.key}" aria-pressed="${pendingControllerKey===b.key}" aria-label="Place ${esc(BLOCKS[b.key]?.label||b.key)}"><span class="drag-grip" aria-hidden="true"></span><span><strong>${esc(BLOCKS[b.key]?.label||b.key)}</strong><small>Drag, or select to choose a position</small></span></button>`).join('')+'</div>':'';
+  panel.querySelectorAll('[data-controller-key]').forEach(wirePendingControllerCard);
+  renderControllerDropSlots();
+}
+function selectPendingController(name) {
+  pendingControllerKey=pendingControllerKey===name?'':name;
+  renderPendingControllers();
+  document.querySelector(`[data-controller-key="${name}"]`)?.focus({preventScroll:true});
+}
+function renderControllerDropSlots() {
+  document.querySelectorAll('[data-controller-drop]').forEach(el=>el.remove());
+  if(!pendingControllerKey)return;
+  const label=BLOCKS[pendingControllerKey]?.label||pendingControllerKey;
+  for(const tab of ['startup','shutdown','afterburner','ab-shut']){
+    const list=document.getElementById('list-'+tab);if(!list)continue;
+    const cards=Array.from(list.children).filter(el=>el.classList.contains('block-card'));
+    for(let index=0;index<=cards.length;index++){
+      const gap=document.createElement('button');gap.type='button';gap.className='controller-drop-slot';
+      gap.dataset.controllerDrop=String(index);gap.dataset.tab=tab;gap.textContent='Place here';
+      gap.setAttribute('aria-label',`Place ${label} at position ${index+1}`);
+      gap.addEventListener('click',()=>placeControllerBlock(pendingControllerKey,tab,index));
+      list.insertBefore(gap,cards[index]||null);
+    }
+  }
+}
+function controllerDropAt(x,y) {
+  const hit=document.elementFromPoint(x,y);
+  const gap=hit?.closest('[data-controller-drop]');
+  if(gap)return gap;
+  const card=hit?.closest('.block-list > .block-card');
+  if(!card)return null;
+  const index=Number(card.dataset.idx)+(y>=card.getBoundingClientRect().top+card.offsetHeight/2?1:0);
+  return card.parentElement.querySelector(`[data-controller-drop="${index}"]`);
+}
+function wirePendingControllerCard(card) {
+  const name=card.dataset.controllerKey;
+  let suppressClick=false;
+  card.addEventListener('click',()=>{if(suppressClick){suppressClick=false;return;}selectPendingController(name);});
+  card.addEventListener('pointerdown',event=>{
+    if(event.button!==undefined&&event.button!==0)return;
+    event.preventDefault();card.focus({preventScroll:true});
+    let moved=false,target=null,frame=0,x=event.clientX,y=event.clientY;
+    const point=()=>{
+      document.querySelectorAll('.controller-drop-target').forEach(el=>el.classList.remove('controller-drop-target'));
+      const hit=document.elementFromPoint(x,y)?.closest('.seq-tab');
+      const tab=hit?.getAttribute('onclick')?.match(/switchTab\('([^']+)'\)/)?.[1];
+      if(tab&&tab!==activeTab)switchTab(tab);
+      target=controllerDropAt(x,y);target?.classList.add('controller-drop-target');
+    };
+    const scroll=()=>{
+      if(y<65)window.scrollBy(0,-12);else if(y>innerHeight-65)window.scrollBy(0,12);
+      point();frame=requestAnimationFrame(scroll);
+    };
+    const move=e=>{
+      if(e.pointerId!==event.pointerId)return;
+      x=e.clientX;y=e.clientY;
+      if(!moved&&Math.hypot(x-event.clientX,y-event.clientY)<6)return;
+      e.preventDefault();
+      if(!moved){
+        moved=true;pendingControllerKey=name;card.setAttribute('aria-pressed','true');
+        card.classList.add('block-dragging');renderControllerDropSlots();frame=requestAnimationFrame(scroll);
+      }
+      point();
+    };
+    const finish=e=>{
+      if(e.pointerId!==event.pointerId)return;
+      document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',finish);document.removeEventListener('pointercancel',finish);document.removeEventListener('keydown',cancel);
+      cancelAnimationFrame(frame);card.classList.remove('block-dragging');
+      if(moved){
+        suppressClick=true;setTimeout(()=>{suppressClick=false;},300);
+        if(e.type!=='pointercancel'){x=e.clientX;y=e.clientY;point();}
+        const drop=e.type!=='pointercancel'?target:null;
+        if(drop)placeControllerBlock(name,drop.dataset.tab,Number(drop.dataset.controllerDrop));
+        else {pendingControllerKey='';renderPendingControllers();}
+      }
+    };
+    const cancel=e=>{if(e.key==='Escape')finish({pointerId:event.pointerId,type:'pointercancel'});};
+    document.addEventListener('keydown',cancel);
+    document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',finish);document.addEventListener('pointercancel',finish);
+  });
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&pendingControllerKey){pendingControllerKey='';renderPendingControllers();}
+});
+function placeControllerBlock(name,tab,index=(hwCfg[seqKey(tab)]||[]).length){
+  if(!['startup','shutdown','afterburner','ab-shut'].includes(tab)||!pendingControllerBlocks().some(b=>b.key===name))return;
+  if((hwCfg[seqKey(tab)]||[]).length>=16){OTDialog.alert('This sequence is full. Remove an unneeded block first.');return;}
+  const length=(hwCfg[seqKey(tab)]||[]).length;
+  if(!Number.isInteger(index)||index<0||index>length)return;
+  // Links in disabled AB paths cannot run. Bring them back to the pool and
+  // preserve their complete slot when the user places them in a live sequence.
+  if(hwCfg.has_afterburner===false)for(const key of ['ab_seq','ab_shut_seq']){
+    const at=(hwCfg[key]||[]).indexOf(name);if(at<0)continue;
+    const stem=key.slice(0,-4),saved={};hwCfg[key].splice(at,1);
+    for(const suffix of ['delay_ms','ignition_target','device_target','wait_inputs','enter_actions','exit_actions']){
+      const rows=hwCfg[stem+'_'+suffix];if(!Array.isArray(rows))continue;
+      saved[suffix]=cloneSequenceJson(rows[at]);rows.splice(at,1);
+    }
+    pendingControllerSlots.set(name,saved);
+  }
+  pendingControllerKey='';addBlock(tab,name);
+  const saved=pendingControllerSlots.get(name);
+  if(saved){
+    for(const [suffix,row] of Object.entries(saved))hwCfg[seqKey(tab).slice(0,-4)+'_'+suffix][length]=cloneSequenceJson(row);
+    pendingControllerSlots.delete(name);renderFast(tab);
+  }
+  if(index<length)moveBlockTo(tab,length,index);
+  renderPendingControllers();
+  document.querySelector(`#list-${tab} [data-idx="${index}"] .drag-handle`)?.focus({preventScroll:true});
+}
 async function loadAll() {
   setSaveStatus('Loading...');
   try {
     hwCfg = await fetchJsonWithRetry('/api/hardware');
     cfg   = await fetchJsonWithRetry('/api/config');
+    pendingControllerSlots.clear();
     loadedHwCfg = cloneSequenceJson(hwCfg);
     loadedCfg = cloneSequenceJson(cfg);
     // Rebuild runtime custom block defs from raw stored defs
@@ -214,6 +356,7 @@ async function loadAll() {
         customBlocks[k] = buildRuntimeBlockDef(k, def);
       }
     }
+    syncControllerSequenceBlocks();
     migrateLegacyDeviceTargets();
     buildParamVals();
     await refreshSequenceLiveData();
@@ -222,6 +365,7 @@ async function loadAll() {
     render('afterburner', lastIdleRaw);
     render('ab-shut', lastIdleRaw);
     populateAddSelects();
+    renderPendingControllers();
     buildAbCriteriaHtml();
     // Show/hide afterburner tab based on hardware feature flag
     const abTabBtn = document.getElementById('tab-btn-afterburner');
@@ -420,6 +564,15 @@ function render(tab, idleRaw, openKeys = new Set()) {
     if (openKeys.has(`${bname}:${idx}`)) card.querySelector('.block-params')?.classList.add('open');
     list.appendChild(card);
   });
+  const ownership=window.OTControllerTiming?.plan(cfg.rules,hwCfg,tab)||[];
+  for(const issue of ownership){
+    if(issue.index<0)continue;
+    const card=list.children[issue.index];if(!card)continue;
+    card.classList.add('controller-blocked');card.style.opacity='.55';
+    const note=document.createElement('p');note.className='controller-ownership-note';note.setAttribute('role','status');note.textContent=issue.message;card.append(note);
+    for(const control of card.querySelectorAll('.block-params input,.block-params select,.block-params button'))control.disabled=true;
+  }
+  renderPendingControllers();
   // Append final state summary card - pass live idle raw if available
   const stateCard = buildFinalStateCard(tab, seq, idleRaw);
   if (stateCard) list.appendChild(stateCard);
@@ -456,263 +609,138 @@ function renderFast(tab) {
 }
 
 // ------ Final state summary card ---------------------------------------------------------------------------------------------------------------------------------------------
-function applySideActionsToState(tab, idx, phase, state) {
-  const key = actionKey(tab, phase);
-  const rows = hwCfg[key]?.[idx] || [];
-  for (const a of rows) {
-    const actKey = ACT_KEY_BY_ENUM[Number(a.act)];
-    if (!actKey) continue;
-    const on = Number(a.value) >= 0.5;
-    const pct = `${Math.round((Number(a.value) || 0) * 100)}%`;
-    switch (actKey) {
-      case 'throttle': state.throttle = pct; break;
-      case 'starter': state.starter = actuatorIsRelay('starter') ? (on ? 'on' : 'off') : pct; break;
-      case 'starter_en': state.starterEn = on ? 'on' : 'off'; break;
-      case 'oil_pump': state.oilPump = actuatorIsRelay('oil_pump') ? (on ? 'on' : 'off') : pct; break;
-      case 'fuel_sol': state.fuelSol = on ? 'open' : 'closed'; break;
-      case 'igniter': state.igniter = on ? 'on' : 'off'; break;
-      case 'igniter2': state.igniter2 = on ? 'on' : 'off'; break;
-      case 'oil_scavenge_pump': state.oilScav = on ? 'on' : 'off'; break;
-      case 'airstarter_sol': state.airstarter = on ? 'open' : 'closed'; break;
-      case 'cool_fan': state.coolFan = on ? 'on' : 'off'; break;
-      case 'bleed_valve': state.bleed = on ? 'open' : 'closed'; break;
-      case 'glow_plug': state.glow = actuatorIsRelay('glow_plug') ? (on ? 'on' : 'off') : pct; break;
-      case 'fuel_pump2': state.fuelPump2 = actuatorIsRelay('fuel_pump2') ? (on ? 'on' : 'off') : pct; break;
-      case 'ab_sol': state.abSol = on ? 'open' : 'closed'; break;
-      case 'ab_pump': state.abPump = actuatorIsRelay('ab_pump') ? (on ? 'on' : 'off') : pct; break;
-      case 'prop_pitch': state.propPitch = actuatorIsRelay('prop_pitch') ? (on ? 'on' : 'off') : pct; break;
-    }
-  }
-}
-
-function setIgnitionPreviewState(state, target, on) {
-  const val = on ? 'on' : 'off';
-  switch (Number(target) || 0) {
-    case 1: state.igniter2 = val; break;
-    case 2: state.glow = val; break;
-    default: state.igniter = val; break;
-  }
-}
-
-function clearTrackedIgnitionPreviewState(state, trackedTargets) {
-  for (const target of trackedTargets) setIgnitionPreviewState(state, target, false);
-  trackedTargets.clear();
-}
-
 function buildFinalStateCard(tab, seq, idleRaw) {
-  if (!seq || seq.length === 0) return null;
-  const hasAct = key => actuatorEnabled(key);
-  const outputLabel = (key, fallback) => getEnabledActuators().find(a => a.key === key)?.label || fallback;
-
-  const state = {
-    throttle:  '0%',
-    fuelSol:   'closed',
-    igniter:   'off',
-    igniter2:  'off',
-    starter:   'off',
-    starterEn: 'off',
-    oilPump:   'off',
-    oilScav:   'off',
-    airstarter:'closed',
-    coolFan:   'off',
-    bleed:     'closed',
-    glow:      'off',
-    fuelPump2: 'off',
-    abSol:     'closed',
-    abPump:    'off',
-    propPitch: '0%',
+  if(!Array.isArray(seq))return null;
+  const acts=getEnabledActuators(),commands=new Map(),ignition=new Set();
+  const byKey=key=>acts.find(a=>a.key===key);
+  const output=target=>acts.find(a=>a.target===target);
+  const primary=purpose=>output(registryOutputPurpose(purpose)?.id);
+  const valueText=(meta,value)=>{
+    if(typeof value==='string')return value;
+    if(meta.mode==='pct')return `${Math.round(value*100)}%`;
+    return ['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)
+      ? value>=.5?'open':'closed' : value>=.5?'on':'off';
   };
-  // Match the firmware's device-specific normal-exit cleanup. Emergency STOP
-  // and FAULT still clear every combustion output, but FlameConfirm and
-  // SafetyHold release only ignition devices commanded by this sequence.
-  const sequenceIgnitionTargets = new Set();
-
-  if (tab === 'startup') {
-    for (let i = 0; i < seq.length; i++) {
-      const bname = seq[i];
-      if (bname === 'OilPrime')     state.oilPump   = actuatorIsRelay('oil_pump') ? 'on' : 'on - pressure ctrl';
-      if (bname === 'StarterSpin')  { state.starter = 'on'; state.starterEn = 'on'; }
-      if (bname === 'FuelOpen')     state.fuelSol   = 'open';
-      if (bname === 'FuelPulse')    state.fuelSol   = 'closed';
-      if (bname === 'IgniterOn') {
-        const target = Number(hwCfg[ignitionTargetSeqKey(tab)]?.[i] ?? 0);
-        setIgnitionPreviewState(state, target, true);
-        sequenceIgnitionTargets.add(target);
-      }
-      if (bname === 'IgniterOff') {
-        const target = Number(hwCfg[ignitionTargetSeqKey(tab)]?.[i] ?? 0);
-        setIgnitionPreviewState(state, target, false);
-        sequenceIgnitionTargets.delete(target);
-      }
-      if (bname === 'FuelSolClose') state.fuelSol   = 'closed';
-      if (bname === 'StarterEnOn')  state.starterEn = 'on';
-      if (bname === 'StarterEnOff') state.starterEn = 'off';
-      if (bname === 'StarterOff')   state.starter   = 'off';
-      if (bname === 'OilPumpOn')    state.oilPump   = demandText('oil_pump', paramVals['OilPumpOn.oil_pump_on_pct'] ?? 100);
-      if (bname === 'OilPumpOff')   state.oilPump   = 'off';
-      if (bname === 'OilScavengeOn')  state.oilScav = 'on';
-      if (bname === 'OilScavengeOff') state.oilScav = 'off';
-      if (bname === 'DrainValveOpen') state.drainValve = 'open';
-      if (bname === 'DrainValveClose') state.drainValve = 'closed';
-      if (bname === 'AirstarterOn')  state.airstarter = 'open';
-      if (bname === 'AirstarterOff') state.airstarter = 'closed';
-      if (bname === 'CoolFanOn')     state.coolFan = 'on';
-      if (bname === 'CoolFanOff')    state.coolFan = 'off';
-      if (bname === 'BleedOpen')     state.bleed = 'open';
-      if (bname === 'BleedClose')    state.bleed = 'closed';
-      if (bname === 'FuelPumpRamp')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPumpRamp.fp2_end_pct'] ?? 80);
-      if (bname === 'FuelPump2Set')  state.fuelPump2 = demandText('fuel_pump2', paramVals['FuelPump2Set.fp2_demand_pct'] ?? 0);
-      if (bname === 'FuelPump2On')   state.fuelPump2 = 'on';
-      if (bname === 'FuelPump2Off')  state.fuelPump2 = 'off';
-      applySideActionsToState(tab, i, 'enter', state);
-      if (bname === 'FuelPumpIdle') {
-        const mn = cfg?.throttle?.fuel_pump_min_pct ?? 0;
-        const mx = paramVals['FuelPumpIdle.fp_idle_max_pct'] ?? 50;
-        state.throttle = `${mn}-${mx}%  (minimum reliable output to idle maximum; position set by idle input)`;
-      }
-      if (bname === 'ModifiedIdle') {
-        const mul = paramVals['ModifiedIdle.modified_idle_multiplier'] ?? 1.0;
-        const mn  = cfg?.throttle?.fuel_pump_min_pct ?? 0;
-        const mx  = cfg?.throttle?.idle_max_pct ?? 50;
-        state.throttle = `${mn}-${mx}% x${mul}  (reset to 0 on RUNNING)`;
-      }
-      if (bname === 'Spool') {
-        const pct = cfg?.throttle?.fuel_pump_min_pct ?? 0;
-        state.throttle = `${pct}%  (calibrated min-spin, held during spool)`;
-        // Update starter/enable state based on exit action checkboxes
-        if (paramVals['Spool.spool_cut_starter_on_exit'] ?? true)    state.starter   = 'off';
-        if (paramVals['Spool.spool_cut_starter_en_on_exit'] ?? true)  state.starterEn = 'off';
-      }
-      if (bname === 'FlameConfirm') {
-        if (paramVals['FlameConfirm.flame_turn_off_igniter'] ?? true)
-          clearTrackedIgnitionPreviewState(state, sequenceIgnitionTargets);
-      }
-      if (bname === 'SafetyHold') {
-        if (paramVals['SafetyHold.safety_turn_off_starter']    ?? false) state.starter   = 'off';
-        if (paramVals['SafetyHold.safety_turn_off_starter_en'] ?? false) state.starterEn = 'off';
-        if (paramVals['SafetyHold.safety_turn_off_igniter']    ?? false)
-          clearTrackedIgnitionPreviewState(state, sequenceIgnitionTargets);
-      }
-      applySideActionsToState(tab, i, 'exit', state);
+  const write=(meta,value)=>{
+    if(!meta)return;
+    commands.set(meta.target,{label:meta.label,val:valueText(meta,value),meta});
+    if(meta.ignition){if(Number(value)>0)ignition.add(meta.target);else if(Number(value)===0)ignition.delete(meta.target);}
+  };
+  const set=(key,value)=>write(byKey(key),value);
+  const param=(name,key,fallback)=>paramVals[name+'.'+key]??fallback;
+  const clearIgnition=()=>{for(const id of [...ignition])write(output(id),0);};
+  const side=(index,phase)=>{
+    for(const action of hwCfg[actionKey(tab,phase)]?.[index]||[])
+      if(action.enabled!==false)write(sideActionMeta(action),Number(action.value)||0);
+  };
+  const selected=(name,index)=>{
+    const explicit=hwCfg[deviceTargetSeqKey(tab)]?.[index];
+    if(explicit)return output(explicit);
+    if(isIgnitionBlock(name))return byKey(['igniter','igniter2','glow_plug'][Number(hwCfg[ignitionTargetSeqKey(tab)]?.[index]??0)]);
+    return primary(BLOCK_OUTPUT_PURPOSES[name]?.[0]);
+  };
+  for(let i=0;i<seq.length;i++){
+    const name=seq[i];
+    if(BLOCK_OUTPUT_PURPOSES[name]){
+      let value=/(?:Off|Close)$/.test(name)?0:1;
+      if(name==='OilPumpOn')value=Number(param(name,'oil_pump_on_pct',100))/100;
+      if(name==='ThrottleSet')value=Number(param(name,'throttle_set_pct',10))/100;
+      if(name==='FuelPump2Set')value=Number(param(name,'fp2_demand_pct',0))/100;
+      if(name==='FuelPumpRamp')value=Number(param(name,'fp2_end_pct',80))/100;
+      write(selected(name,i),value);
     }
-    // After startup completes (RUNNING), throttle tracks idle input
-    if (seq.includes('SafetyHold')) {
-      const mn = cfg?.throttle?.fuel_pump_min_pct ?? 0;
-      const mx = paramVals['FuelPumpIdle.fp_idle_max_pct']
-              ?? cfg?.throttle?.idle_max_pct ?? 50;
-      if (idleRaw != null) {
-        const norm = Math.max(0, Math.min(1, idleRaw / 4095));
-        const pct  = (mn + norm * (mx - mn)).toFixed(1);
-        state.throttle = `${pct}%  (idle input at ${Math.round(norm*100)}%, operator controlled)`;
-      } else {
-        state.throttle = `${mn}-${mx}%  (min-spin to idle maximum, operator controlled)`;
-      }
+    if(name==='OilPrime'){
+      set('oil_pump',sensorEnabled('oil_press')&&hwCfg.controllers?.oil_loop?'Pressure control':Number(param(name,'startup_oil_pct',80))/100);
+      if(param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',1);
     }
-
-  } else if (tab === 'shutdown') {
-    // enterStandby() zeros everything after shutdown sequence. These are the
-    // ECU-enforced STANDBY boundaries, not inferred sequence-card actions.
-    state.throttle  = '0%';
-    state.fuelSol   = 'closed';
-    state.igniter   = 'off';
-    state.igniter2  = 'off';
-    state.starter   = 'off';
-    state.starterEn = 'off';
-    state.oilPump   = 'off';
-    state.oilScav   = 'off';
-    state.airstarter= 'closed';
-    state.coolFan   = 'off';
-    state.bleed     = 'closed';
-    state.glow      = 'off';
-    state.fuelPump2 = 'off';
-    state.abSol     = 'closed';
-    state.abPump    = 'off';
-    state.propPitch = '0%';
-  } else if (tab === 'afterburner') {
-    // After Light Up completes -> AB Running
-    const ab = cfg?.afterburner ?? {};
-    const minP = ab.pump_min_pct ?? 80;
-    const maxP = ab.pump_max_pct ?? 100;
-    const pumpMode = ab.pump_control_mode ?? 0;
-    const pumpStr = actuatorIsRelay('ab_pump') ? 'on'
-                  : pumpMode === 2 ? `${minP}-${maxP}%  (dedicated AB input)`
-                  : pumpMode === 1 ? `${minP}-${maxP}%  (follows throttle)`
-                  : `${maxP}%  (fixed)`;
-    const offStr  = (ab.main_fuel_offset_pct ?? 0) !== 0 ? `+${ab.main_fuel_offset_pct}%` : 'none';
-    const abState = {...state, abSol:'open', abPump:pumpStr, igniter2:'off'};
-    for (let i = 0; i < seq.length; i++) {
-      applySideActionsToState(tab, i, 'enter', abState);
-      applySideActionsToState(tab, i, 'exit', abState);
+    if(name==='StarterSpin'){set('starter',Number(param(name,'starter_demand',60))/100);set('starter_en',1);}
+    if(name==='FuelPumpIdle'||name==='ModifiedIdle'){
+      const minimum=cfg?.throttle?.fuel_pump_min_pct??0;
+      const maximum=name==='FuelPumpIdle'?param(name,'fp_idle_max_pct',50):cfg?.throttle?.idle_max_pct??50;
+      const input=registryInputPurpose('idle')||hwCfg.sensors?.idle_input?.enabled;
+      const demand=input?`${minimum}–${maximum}% (idle input)`:`${maximum}% (fixed)`;
+      set('throttle',demand+(name==='ModifiedIdle'?' × '+param(name,'modified_idle_multiplier',1)+'; temporary startup demand, released on RUNNING':''));
     }
-    const abRows = [
-      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: abState.abPump } : null,
-      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'), val:abState.igniter2 === 'off' ? 'off  (fired during sequence)' : abState.igniter2 } : null,
-      { label:'Main Fuel Offset',   val: offStr },
-    ].filter(Boolean);
-    const rowsHtml2 = abRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
-    ).join('');
-    const card2 = document.createElement('div');
-    card2.className = 'final-state-card';
-    card2.id = 'final-state-afterburner';
-    card2.innerHTML = `<div class="fs-header">After Light Up -> AB Running</div><div class="fs-grid">${rowsHtml2}</div>`;
-    return card2;
-  } else if (tab === 'ab-shut') {
-    // After Light Off completes -> AB Off
-    const abState = {...state, abSol:'closed', abPump:'off', igniter2:'off'};
-    for (let i = 0; i < seq.length; i++) {
-      applySideActionsToState(tab, i, 'enter', abState);
-      applySideActionsToState(tab, i, 'exit', abState);
+    if(name==='Spool')set('throttle',Number(cfg?.throttle?.fuel_pump_min_pct??0)/100);
+    if(name==='ImmediateCut')for(const key of ['throttle','fuel_sol','igniter','igniter2','glow_plug','starter','starter_en','fuel_pump2','ab_sol','ab_pump'])set(key,0);
+    if(name==='ABIgnite'){
+      set('ab_sol',1);set('ab_pump','Afterburner fuel control');
+      write(byKey(['igniter','igniter2','glow_plug'][Number(cfg?.afterburner?.ignition_target??1)]),1);
     }
-    const abOffRows = [
-      hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'),  val:abState.abSol } : null,
-      hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val:abState.abPump } : null,
-      hasAct('igniter2') ? { label:outputLabel('igniter2', 'AB Igniter'),   val:abState.igniter2 } : null,
-      { label:'Main engine',  val:'continues running normally' },
-    ].filter(Boolean);
-    const rowsHtml3 = abOffRows.map(r =>
-      `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
-    ).join('');
-    const card3 = document.createElement('div');
-    card3.className = 'final-state-card';
-    card3.id = 'final-state-ab-shut';
-    card3.innerHTML = `<div class="fs-header">After Light Off -> AB Off</div><div class="fs-grid">${rowsHtml3}</div>`;
-    return card3;
+    const ref=window.OTControllerTiming?.parse(name),rule=ref&&(cfg.rules||[]).find(r=>Number(r.controller_id)===ref.id);
+    if(rule&&rule.enabled!==false&&OTControllerTiming.selected(rule,ref)){
+      const meta=output(rule.target);
+      if(ref.on){write(meta,`Controlled by “${rule.name}”`);if(meta)commands.get(meta.target).controller=rule.controller_id;}
+      else write(meta,Number((hwCfg.channel_registry?.outputs||[]).find(c=>c.id===rule.target)?.safe_demand??0));
+    }
+    // Firmware applies entry side-actions after onEnter(), and custom steps
+    // execute while the block runs, before its normal exit cleanup.
+    side(i,'enter');
+    const custom=hwCfg.custom_blocks?.[name];
+    if(custom&&custom.type!=='wait')for(const step of custom.steps||[]){
+      if(step.type!=='set_act')continue;
+      const meta=step.target?output(step.target):byKey(step.act);
+      write(meta,meta?.mode==='pct'?Number(step.val)/100:Number(step.val));
+    }
+    if(name==='FuelPulse')write(selected(name,i),0);
+    if(name==='FuelPumpRamp')write(selected(name,i),Number(param(name,'fp2_end_pct',80))/100);
+    if(name==='ABIgnite')write(byKey(['igniter','igniter2','glow_plug'][Number(cfg?.afterburner?.ignition_target??1)]),0);
+    if(name==='Spool'){
+      set('throttle',Number(cfg?.throttle?.fuel_pump_min_pct??0)/100);
+      if(param(name,'spool_cut_starter_on_exit',true))set('starter',0);
+      if(param(name,'spool_cut_starter_en_on_exit',true))set('starter_en',0);
+    }
+    if(name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
+    if(name==='SafetyHold'){
+      if(param(name,'safety_turn_off_starter',false))set('starter',0);
+      if(param(name,'safety_turn_off_starter_en',false))set('starter_en',0);
+      if(param(name,'safety_turn_off_igniter',false))clearIgnition();
+    }
+    if(name==='CooldownSpin')for(const key of ['starter','starter_en','oil_pump','oil_scavenge_pump'])set(key,0);
+    if(name==='FinalStop')for(const key of ['oil_pump','oil_scavenge_pump'])set(key,0);
+    side(i,'exit');
   }
-
-  const rows = [
-    hasAct('throttle') ? { label:outputLabel('throttle', 'Main Fuel Metering Output'), val: state.throttle } : null,
-    hasAct('fuel_sol') ? { label:outputLabel('fuel_sol', 'Main Fuel Shutoff'),   val: state.fuelSol } : null,
-    hasAct('igniter') ? { label:outputLabel('igniter', 'Igniter'),              val: state.igniter } : null,
-    hasAct('igniter2') ? { label:outputLabel('igniter2', 'Secondary Igniter'), val: state.igniter2 } : null,
-    hasAct('starter') ? { label:outputLabel('starter', 'Starter'),              val: state.starter } : null,
-    hasAct('starter_en') ? { label:outputLabel('starter_en', 'Starter Enable'),    val: state.starterEn } : null,
-    hasAct('oil_pump') ? { label:outputLabel('oil_pump', 'Oil Pump'),            val: state.oilPump } : null,
-    hasAct('oil_scavenge_pump') ? { label:outputLabel('oil_scavenge_pump', 'Scavenge Pump'), val: state.oilScav } : null,
-    hasAct('airstarter_sol') ? { label:outputLabel('airstarter_sol', 'Air Starter Valve'), val: state.airstarter } : null,
-    hasAct('cool_fan') ? { label:outputLabel('cool_fan', 'Cooling Fan'),         val: state.coolFan } : null,
-    hasAct('bleed_valve') ? { label:outputLabel('bleed_valve', 'Bleed Valve'),      val: state.bleed } : null,
-    hasAct('drain_valve') ? { label:outputLabel('drain_valve', 'Drain Valve'),      val: state.drainValve || 'closed' } : null,
-    hasAct('glow_plug') ? { label:outputLabel('glow_plug', 'Glow Plug'),          val: state.glow } : null,
-    hasAct('fuel_pump2') ? { label:outputLabel('fuel_pump2', 'Secondary / Auxiliary Fuel Pump'),   val: state.fuelPump2 } : null,
-    hasAct('prop_pitch') ? { label:outputLabel('prop_pitch', 'Prop Pitch'),         val: state.propPitch } : null,
-    hasAct('ab_sol') ? { label:outputLabel('ab_sol', 'Afterburner Fuel Valve'), val: state.abSol } : null,
-    hasAct('ab_pump') ? { label:outputLabel('ab_pump', 'AB Fuel Pump'), val: state.abPump } : null,
-  ].filter(Boolean);
-  if (!rows.length) return null;
-
-  const rowsHtml = rows.map(r =>
-    `<div class="fs-row"><span class="fs-label">${esc(r.label)}</span><span class="fs-val">${r.val}</span></div>`
-  ).join('');
-
-  const card = document.createElement('div');
-  card.className = 'final-state-card';
-  card.id = 'final-state-' + tab;
-  card.innerHTML = `
-    <div class="fs-header">Final state after ${tab === 'startup' ? 'Startup complete (RUNNING)' : 'Shutdown complete (STANDBY)'}</div>
-    ${tab === 'shutdown' ? '<div class="hw-desc" style="padding:.55rem 1rem 0">When the sequence finishes, the ECU enters STANDBY and forces every actuator to its safe/off state. This final safety boundary applies even when no matching Off block is present.</div>' : ''}
-    <div class="fs-grid">${rowsHtml}</div>`;
+  const endOwners=window.OTControllerTiming?.ownersAtEnd(cfg.rules,hwCfg,tab)||new Map();
+  for(const row of commands.values())if(row.controller&&!endOwners.has(row.meta.target)){
+    const channel=(hwCfg.channel_registry?.outputs||[]).find(c=>c.id===row.meta.target);
+    row.val=valueText(row.meta,Number(channel?.safe_demand??0))+' (controller released)';
+  }
+  const fuel=byKey('throttle');
+  if(tab==='shutdown'){
+    // STANDBY forces all outputs safe, but list only the ones this sequence
+    // actually commanded. Main fuel remains the one explicit exception.
+    for(const row of commands.values()){
+      const channel=(hwCfg.channel_registry?.outputs||[]).find(c=>c.id===row.meta.target);
+      row.val=valueText(row.meta,row.meta.key==='prop_pitch'?Number(channel?.safe_demand??0):0);
+    }
+    if(fuel)write(fuel,0);
+  }else if(fuel){
+    const last=commands.get(fuel.target);
+    const scheduled=endOwners.get(fuel.target);
+    const legacy=(cfg.rules||[]).filter(r=>r.enabled!==false&&!window.OTControllerTiming?.scheduled(r)&&
+      (Number(r.mode_mask??4)&4)&&((r.target&&[fuel.target,fuel.key,'main_fuel'].includes(String(r.target)))||(!r.target&&Number(r.actuator)===Number(fuel.actuator))));
+    const owners=[...(scheduled?[scheduled]:[]),...legacy];
+    let source=owners.length===1?`Controlled by “${owners[0].name}”`:owners.length>1?'Controller conflict — check Controllers':'';
+    if(!source&&hwCfg.controllers?.dynamic_idle)source='Automatic Idle — Controllers';
+    if(!source&&hwCfg.controllers?.governor&&!cfg.governor?.use_prop_pitch)source='N2 governor — Controllers';
+    if(!source&&Number(cfg.controller_schema??0)===0&&(hwCfg.sensors?.throttle_input?.enabled||registryInputPurpose('throttle')))source='Operator throttle input — Controllers';
+    if(source)commands.set(fuel.target,{label:fuel.label,val:last&&!last.controller?`Sequence command: ${last.val}; ${source}`:source,href:'/controllers.html',meta:fuel});
+    else if(!last||last.controller)commands.set(fuel.target,{label:fuel.label,val:last?`${last.val}; no active controller — check Controllers`:'No active main-fuel controller — check Controllers',href:'/controllers.html',meta:fuel});
+  }
+  for(const row of commands.values()){
+    if(tab!=='shutdown'&&row.meta.key==='throttle')continue;
+    const owner=endOwners.get(row.meta.target);
+    const mode=tab==='shutdown'?1:4;
+    const legacy=(cfg.rules||[]).filter(r=>r.enabled!==false&&!window.OTControllerTiming?.scheduled(r)&&
+      (Number(r.mode_mask??4)&mode)&&((r.target&&[row.meta.target,row.meta.key].includes(String(r.target)))||(!r.target&&Number(r.actuator)===Number(row.meta.actuator))));
+    const owners=[...(owner?[owner]:[]),...legacy];
+    if(owners.length){row.val=owners.length===1?`Controlled by “${owners[0].name}”`:'Controller conflict — check Controllers';row.href='/controllers.html';}
+  }
+  if(!commands.size)return null;
+  const title={startup:'Startup complete (RUNNING)',shutdown:'Shutdown complete (STANDBY)',afterburner:'Light Up complete (AB Running)','ab-shut':'Light Off complete (AB Off)'}[tab];
+  const rows=[...commands.values()].map(row=>`<div class="fs-row"><span class="fs-label">${esc(row.label)}</span><span class="fs-val">${row.href?`<a href="${row.href}">${esc(row.val)}</a>`:esc(row.val)}</span></div>`).join('');
+  const card=document.createElement('div');card.className='final-state-card';card.id='final-state-'+tab;
+  card.innerHTML=`<div class="fs-header">Final state after ${title}</div>${tab==='shutdown'?'<div class="hw-desc" style="padding:.55rem 1rem 0">Entering STANDBY applies the safe/off boundary; any configured Standby controllers then take over. Only sequence-commanded outputs and main fuel are listed.</div>':''}<div class="fs-grid">${rows}</div>`;
   return card;
 }
 

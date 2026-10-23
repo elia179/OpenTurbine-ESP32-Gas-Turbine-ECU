@@ -266,9 +266,9 @@ Every wait must have a finite timeout and defined safe failure outcome. When a r
 
 ### A complete, very basic dummy-load sequence
 
-This example makes the unloaded starter servo move and the two dummy loads light briefly, then leaves every output off. It teaches a finished sequence without pretending to light a turbine. Keep real fuel, ignition and starter energy physically disconnected. In **Controllers**, use **Fixed output in selected states**, **0%**, **Running** for the bench Main Fuel Metering owner so handover cannot reapply a nonzero knob demand. Do not use this fixed-zero controller for engine operation.
+This example makes the unloaded starter servo move and the two dummy loads light briefly, then leaves every output off. It teaches a finished sequence without pretending to light a turbine. Keep real fuel, ignition and starter energy physically disconnected. In **Controllers**, use **Fixed output**, **0%**, **Activate when → Entering Running**, and **Deactivate when → Entering Shutdown / Entering Standby** for the bench Main Fuel Metering owner so handover cannot reapply a nonzero knob demand. Do not use this fixed-zero controller for engine operation.
 
-{% include build-screen.html file="bench-fuel-zero-configured" step="The bench-only Running owner" alt="Main Fuel Metering controller configured as Fixed output in selected states with zero demand." caption="This temporary bench relationship prevents a raised throttle knob from restoring a fuel command after the demonstration sequence. Set it to Running only and verify the saved state selection. It is not an engine fuel controller." %}
+{% include build-screen.html file="bench-fuel-zero-configured" step="The bench-only Running owner" alt="Main Fuel Metering controller configured as Fixed output with zero demand." caption="This temporary bench relationship prevents a raised throttle knob from restoring a fuel command after the demonstration sequence. Verify the Running-entry activation and Shutdown/Standby deactivation. It is not an engine fuel controller." %}
 
 On **Startup**, add the following eight blocks in this order. For the ordinary commands choose the **ACTION** entry, expand it, select **Output device**, and set its percentage or ON/OFF value. Keep any transition time at zero for this exercise.
 

@@ -24,6 +24,8 @@ public:
     virtual void        onEnter()   {}
     virtual BlockResult tick()      = 0;
     virtual void        onExit()    {}
+    virtual int8_t outputTarget() const { return -1; }
+    virtual bool controllerConflict() const { return false; }
 
 protected:
     static void setWaitReason(const char* reason) {

@@ -8,6 +8,41 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [2.6.0] — 2026-10-23
+- Dashboard output details now separate configured presets from active commands, show actual throttle-feedback holds and measured oil-pressure minimum, and clear stale command owners.
+- Oil/fuel pressure protection can monitor Startup, Running or both; oil-switch pressure conditions are confirmed after activation instead of blocking START while stopped.
+
+- Apply built-in 20 ms contact debounce to native and external switch inputs, including ADC threshold switches. Give oil-switch protection and custom ON/OFF controllers separate continuous confirmation times, with immediate input-loss handling and timer reset when monitoring stops. Highlight safety-section headings and correct timing guidance.
+
+- Use logical ON/OFF conditions for switch-driven controllers, with no numeric threshold or hysteresis. Allow independent controllers to share shutdown/fault actions without output-ownership conflicts.
+- Consolidate low/near-zero oil protection into one configurable oil-pressure shutdown, retaining the running pressure threshold and confirmation time. Import either former enable into this protection; both switch purposes remain accepted. Additional named protections can use custom controllers.
+- Move the hot-engine start interlock into temperature protection, fix switch-only safety links, and use consistent boxed protection-state badges.
+
+- Show pressure and torque limit markers and approach colours from saved limits, independently of shutdown enable. Use automatic range when no positive limit is set; retain manual display ranges and label advisory-only limits.
+
+- Give pressure, torque and underspeed shutdowns independent enable switches. Preserve limits and fuel-limiting methods when disabled; retain existing protection states when loading older engine files. Split fuel limiting into an enable switch and Simple/Predictive method, and add individual startup-temperature trip switches.
+- Show protection states on their main cards and link dashboard advisory limits to their settings. Retained limits still supply dashboard colours with automatic shutdown off. Keep shortcut titles below the configuration toolbar and preserve inner-card accents in high-contrast mode.
+- Add an independent startup TOT/TIT guard with immediate and continuous time-above-temperature trips. When enabled, normal temperature trips and temperature fuel limiting resume in Running; otherwise they also protect Startup. Sensor loss during a guarded start fault-shuts down.
+- Separate fault shutdown, gradual fuel limiting, and startup protection in colour-coded safety sections. Preserve unsaved tuning values and expansion state when toggling protections.
+- Allow multiple controller activation events. Missing controller links or ownership conflicts leave only affected controllers inactive for the run, with named repair warnings; unrelated structural and hardware START checks remain enforced.
+- Return controller links from disabled afterburner paths to the placement pool so they can be moved to an executable sequence.
+
+- Add per-controller activation and deactivation on engine-state entry or named sequencer blocks, with continuous input tracking until deactivation.
+- Add required-block placement, stable controller identities, Starts/Stops summaries, explicit disable, and ownership conflict explanations in Controllers and Sequence.
+- Allow separate scheduled controllers to share an output at different times. Apply Hardware safe demand before release; protect core starter/enable coupling and keep emergency/protective control authoritative.
+- Review removal of obsolete controller sequence links while preserving other slots and metadata. Preserve older state-based definitions until timing is reviewed.
+- Share channel-reference resolution and move fault/abort repair guidance into the matched web bundle to preserve Classic flash space. Device diagnostics retain code/detail; the Dashboard expands repair guidance.
+- Show controller names in live sequence progress and event logs; recognize controller-supplied startup outputs in configuration warnings. Match controller-name input length to firmware storage.
+- Add sensor-only, two-point oil-pressure calibration without pump commands, retaining optional electric-pump and minimum-output calibration.
+- Remove duplicate legacy summaries of registry-owned oil/interlock switches; keep their editable registry card.
+- Expose Request Fault Shutdown for custom threshold controllers. Preserve controller and safety-card expansion by stable identities; show activation settings directly inside the open controller card.
+- Select recent valid event records independently of the recorder cache, tolerate damaged/oversized records, report invalid browser responses, and reclaim old session files when they block event logging.
+- Capture and display physical potentiometer ADC samples rather than substituted control demand. Accept calibrated throttle/idle endpoint deadbands without false faults, retain uncalibrated high-rail protection, and avoid NaN percentages on missing samples.
+- Keep throttle/idle calibration bars consistent with percentages for reversed ADC and receiver inputs. Save ascending electrical bounds plus direction, update receiver registry endpoints, include raw readings in full telemetry, and apply pot endpoint tolerance to external I2C ADCs.
+- Replace controller-block placement dropdowns with draggable/selectable cards and insertion positions. Allow unplacing blocks to move between sequences, prevent duplicate placement, require placement on Save and report affected controllers left inactive at START.
+- Restrict sequence recaps to commanded outputs; always show main fuel with its ending controller or sequence command. Include generic/custom outputs and state-entry controller handovers.
+- Keep explicit single-sensor reduced-start handling consistent with the separate startup temperature guard; a recovered healthy temperature still enforces its trip limits.
+
 ## [2.5.6] — 2026-10-21
 
 - Keep generic Tools output-percentage controls readable on narrow screens by wrapping their footer instead of squeezing the number input.

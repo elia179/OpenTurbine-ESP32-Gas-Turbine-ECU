@@ -1,3 +1,4 @@
+#include "../RecentEventLog.h"
 #include "WebServer.h"
 #include "../../hal/i2c/I2CDeviceManager.h"
 #include "hardware_profile.h"
@@ -713,28 +714,15 @@ static bool _startInhibitActive() {
     auto& hw = HardwareConfig::instance();
     for (int i = 0; i < HardwareConfig::MAX_DI; i++) {
         const char* role = hw.diCh[i].role;
-        const bool safetyRole = !strcmp(role, "inhibit_start") ||
-            !strcmp(role, "estop") || !strcmp(role, "fault") ||
-            (hw.safetyLowOil && !strcmp(role, "low_oil_switch")) ||
-            (hw.safetyOilZero && !strcmp(role, "oil_zero_switch"));
-        if (hw.diCh[i].pin >= 0 && safetyRole &&
-            (hw.diCh[i].activeModes & (1u << (int)SysMode::STARTUP)) && ed.diState[i]) {
-            return true;
-        }
+        if (hw.diCh[i].pin >= 0 &&
+            (hw.diCh[i].activeModes & (1u << (int)SysMode::STARTUP)) &&
+            PressureSafety::blocksStart(role, true, ed.diState[i], hw.safetyLowOil)) return true;
     }
     for (uint8_t i = 0; i < hw.channelRegistry.inputCount; ++i) {
         const auto& channel = hw.channelRegistry.inputs[i];
-        const char* role = strcmp(channel.purpose, "generic")
-            ? channel.purpose : channel.role;
-        const bool inhibit = !strcmp(role, "inhibit_start") ||
-            !strcmp(role, "estop") || !strcmp(role, "fault") ||
-            (hw.safetyLowOil && !strcmp(role, "low_oil_switch")) ||
-            (hw.safetyOilZero && !strcmp(role, "oil_zero_switch"));
-        // A configured safety interlock that cannot be read is not permission
-        // to start. This mirrors the ECU-core final check.
-        if (channel.installed && inhibit &&
-            (!ed.registryInputHealthy[i] || ed.registryInputValue[i] >= 0.5f))
-            return true;
+        const char* role = strcmp(channel.purpose, "generic") ? channel.purpose : channel.role;
+        if (channel.installed && PressureSafety::blocksStart(role,
+            ed.registryInputHealthy[i], ed.registryInputValue[i] >= 0.5f, hw.safetyLowOil)) return true;
     }
     return false;
 }
@@ -782,18 +770,18 @@ static const char* _startPreflightRejectReason(bool allowEligibleSensorOverride 
         return !ed.watchdogReady ? "Control-loop watchdog is not ready"
                                  : (ed.hardwareFault[0] ? ed.hardwareFault : "Configured hardware failed to initialize");
     }
+    if (ed.stopSwitchActive) {
+        return "STOP switch is active. Release STOP before pressing START.";
+    }
+    if (_startInhibitActive()) {
+        return "A configured start/safety interlock is active or unavailable";
+    }
     if (!ed.skipSafetyChecks && !ed.benchMode) {
         const uint32_t now = millis();
         if (!FeedbackRequirements::allRequiredStartFeedbackHealthy(ed, now) &&
             !(allowEligibleSensorOverride &&
               FeedbackRequirements::eligibleSingleStartOverride(ed, now) != FeedbackRequirements::NONE))
             return "Feedback used by configured control, safety, or startup logic is unhealthy or stale";
-    }
-    if (ed.stopSwitchActive) {
-        return "STOP switch is active. Release STOP before pressing START.";
-    }
-    if (_startInhibitActive()) {
-        return "A configured start/safety interlock is active or unavailable";
     }
     if (const char* feature = HardwareCapabilities::enabledFeatureRejectReason()) {
         return feature;
@@ -805,7 +793,7 @@ static const char* _startPreflightRejectReason(bool allowEligibleSensorOverride 
         return "An actuator test or prime output is still active. Wait for Tools actions to finish.";
     }
     if (ed.seqHasStructuralErrors) {
-        return "Startup sequence contains unknown or unavailable block names. Open Sequence, fix red errors, and save.";
+        return "Sequence setup needs repair. Open Sequence and resolve its errors.";
     }
     if (ed.seqHasErrors && !ed.benchMode) {
         return "Startup sequence requires hardware that is not configured. Check Sequence, or enable Bench Mode for dry testing.";
@@ -1975,6 +1963,7 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     setFlag(f2,31, _limitedStartRejectReason() == nullptr);
     setFlag(f3, 0, ed.stopSwitchConfigured);
     setFlag(f3, 1, ed.stopSwitchHealthy);
+    setFlag(f3, 2, ed.throttleFeedbackInhibited);
     doc["f"] = f; doc["g"] = f2; doc["h"] = f3;
 
     uint32_t inputOnMask = 0;
@@ -2199,7 +2188,6 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["start_switch_ready"] = ed.startSwitchReady;
     doc["manual_relight_active"] = ed.manualRelightActive;
     doc["oil_failsafe_active"]   = ed.oilFailsafeActive;
-    doc["oil_min_bar"]           = (float)(int)(ed.oilMinBar * 100) / 100.0f;
     doc["standby_oil_feed_active"] = ed.standbyOilFeedActive;
     doc["last_event"]            = ed.lastEvent;
     doc["dev_mode"]              = ed.devMode;
@@ -2280,6 +2268,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["ab_inhibit_reason"]     = ed.abInhibitReason;
     doc["ab_fault_reason"]       = ed.abFaultReason;
     doc["main_fuel_protection_active"] = ed.mainFuelProtectionActive;
+    doc["throttle_feedback_inhibited"] = ed.throttleFeedbackInhibited;
     doc["ab_flame_raw"]          = ed.abFlameRaw;
     doc["ab_sol_open"]           = ed.abSolOpen;
     doc["ab_pump_demand"]        = (float)(int)(ed.abPumpDemand * 1000) / 1000.0f;
@@ -2448,9 +2437,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
                            input.driver == ChannelRegistry::PwmDuty);
         }
         doc["rc_pwm_active"]         = rcPwmActive;
-        doc["fuel_idle_max_pct"]     = Config::throttleIdleMaxPct;  // unified idle ceiling
         doc["fuel_pump_min_pct"]     = Config::fuelPumpMinPct;
-        doc["oil_pump_on_pct"]       = Config::oilPumpOnPct;
         doc["has_throttle"]          = HardwareConfig::hasThrottle;
         doc["has_starter"]           = HardwareConfig::hasStarter;
         doc["starter_type"]          = HardwareConfig::starterType;
@@ -2521,13 +2508,23 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
                                          && Config::totLimit > 0.0f;
         doc["egt_source"]            = Config::effectiveEgtSource();
         doc["egt_limit"]             = Config::primaryEgtLimitC();
-        doc["startup_egt_limit"]     = Config::startupEgtLimitC;
-        doc["egt_limit_active"]      = HardwareConfig::safetyOvertemp && dashboardEgtSource != 0;
+        doc["startup_egt_limit"]     = Config::startupEgtGuardEnabled ?
+            (Config::startupEgtImmediateEnabled && Config::startupEgtLimitC>0 ? Config::startupEgtLimitC :
+             Config::startupEgtDwellEnabled ? Config::startupEgtDwellC : 0) : 0;
+        doc["startup_egt_guard_enabled"] = Config::startupEgtGuardEnabled;
+        doc["egt_limit_active"] = dashboardEgtSource != 0 &&
+            (ed.mode==SysMode::STARTUP && Config::startupEgtGuardEnabled ? true : HardwareConfig::safetyOvertemp);
         // A dedicated oil loop has its own per-loop pressure response; the
         // legacy global minimum is not its dashboard reference.
         doc["oil_running_min"]       = HardwareConfig::hasOilLoop ? 0 : Config::oilRunningMin;
         doc["oil_running_min_active"] = HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress
                                           && !HardwareConfig::hasOilLoop && Config::oilRunningMin > 0.0f;
+        doc["p1_trip_bar"] = Config::p1TripLimit;
+        doc["p2_trip_bar"] = Config::p2TripLimit;
+        doc["torque_trip_nm"] = Config::torqueTripLimit;
+        doc["trip_enabled"] = (Config::p1TripEnabled ? 1 : 0) |
+                              (Config::p2TripEnabled ? 2 : 0) |
+                              (Config::torqueTripEnabled ? 4 : 0);
         doc["oil_temp_limit"]        = Config::oilTempLimit;
         doc["oil_temp_limit_active"] = HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp
                                          && Config::oilTempLimit > 0.0f;
@@ -2603,6 +2600,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         // ── Sequence validation issues ────────────────────────────────────
         doc["seq_has_errors"] = ed.seqHasErrors;
         doc["seq_has_structural_errors"] = ed.seqHasStructuralErrors;
+        doc["controller_inhibit_mask"] = ed.controllerInhibitMask;
         auto issArr = doc["seq_issues"].to<JsonArray>();
         for (int i = 0; i < ed.seqIssueCount; i++) {
             auto obj = issArr.add<JsonObject>();
@@ -2647,6 +2645,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["pullup"] = c.pullup;
             ch["pulldown"] = c.pulldown;
             ch["invert"] = c.inverted;
+            ch["raw"] = ed.registryInputRaw[i];
             ch["value"] = (float)(int)(ed.registryInputValue[i] * 1000) / 1000.0f;
             ch["healthy"] = ed.registryInputHealthy[i];
         }
@@ -3457,28 +3456,16 @@ void WebServer::_setupRoutes() {
         if (!_gateLogRead(req)) return;
         // Keep the heap-backed CSV response below the ESP async-stream ceiling.
         // Full history remains available from the zero-copy /api/log/raw route.
-        const int DISPLAY_LIMIT = 120;
         AsyncResponseStream* resp = req->beginResponseStream("text/csv");
         resp->addHeader("Content-Disposition", "attachment; filename=\"event_log.csv\"");
         resp->print("t,ev,details\r\n");
         FlightRecorder::lockLog();
         File f = LittleFS.open(FlightRecorder::PATH, "r");
-        int total = FlightRecorder::recordCount();
-        int skip  = total > DISPLAY_LIMIT ? total - DISPLAY_LIMIT : 0;
-        int seen  = 0;
+        if(f)RecentEventLog::seekTail(f);
         if (f) {
             JsonDocument doc;   // declared once outside the loop — avoids 2200× heap alloc/free
             char lineBuf[640];
-            while (f.available()) {
-                int n = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
-                if (n <= 0) continue;
-                while (n > 0 && (lineBuf[n - 1] == '\r' || lineBuf[n - 1] == ' ' ||
-                                 lineBuf[n - 1] == '\t')) n--;
-                if (n > 0 && lineBuf[n - 1] == ',') n--;
-                while (n > 0 && (lineBuf[n - 1] == ' ' || lineBuf[n - 1] == '\t')) n--;
-                lineBuf[n] = '\0';
-                if (n < 2 || lineBuf[0] != '{' || lineBuf[n - 1] != '}') continue;
-                if (seen++ < skip) continue;
+            while (RecentEventLog::next(f,lineBuf,sizeof(lineBuf))) {
                 doc.clear();
                 if (deserializeJson(doc, lineBuf)) continue;
                 unsigned long t  = doc["t"] | 0UL;
@@ -3580,30 +3567,17 @@ void WebServer::_setupRoutes() {
         if (!_gateLogRead(req)) return;
         // Typical 120-record payloads stay comfortably below the async response
         // stream's practical ~16 KB ceiling even with several connected clients.
-        const int DISPLAY_LIMIT = 120;
         AsyncResponseStream* resp = req->beginResponseStream("application/json");
         FlightRecorder::lockLog();
         File f = LittleFS.open(FlightRecorder::PATH, "r");
-        int total = FlightRecorder::recordCount();
-        int skip  = total > DISPLAY_LIMIT ? total - DISPLAY_LIMIT : 0;
+        if(f)RecentEventLog::seekTail(f);
         resp->print('[');
         bool first = true;
-        int  seen  = 0;
         if (f) {
+            JsonDocument doc;
             char lineBuf[640];
-            while (f.available()) {
-                int n = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
-                if (n <= 0) continue;
-                while (n > 0 && (lineBuf[n - 1] == '\r' || lineBuf[n - 1] == ' ' ||
-                                 lineBuf[n - 1] == '\t')) n--;
-                // Older/interrupted writes may contain a trailing array comma.
-                // Strip it and require a complete object so one damaged record
-                // can never invalidate the entire in-browser JSON response.
-                if (n > 0 && lineBuf[n - 1] == ',') n--;
-                while (n > 0 && (lineBuf[n - 1] == ' ' || lineBuf[n - 1] == '\t')) n--;
-                lineBuf[n] = '\0';
-                if (n < 2 || lineBuf[0] != '{' || lineBuf[n - 1] != '}') continue;
-                if (seen++ < skip) continue;
+            while (RecentEventLog::next(f,lineBuf,sizeof(lineBuf))) {
+                doc.clear();if(deserializeJson(doc,lineBuf)||!doc["ev"].is<const char*>())continue;
                 if (!first) resp->print(',');
                 first = false;
                 resp->print(lineBuf);
@@ -4560,6 +4534,9 @@ void WebServer::_setupRoutes() {
                     for (JsonPair field : top.value().as<JsonObject>()) {
                         const char* key = field.key().c_str();
                         if (strcmp(key, "id") == 0) hasId = true;
+                        else if (strcmp(key, "invert") == 0) {
+                            if (!field.value().is<bool>()) patchAllowed = false;
+                        }
                         else if (strcmp(key, "analog_zero_mv") != 0 &&
                                  strcmp(key, "min") != 0 &&
                                  strcmp(key, "max") != 0 &&

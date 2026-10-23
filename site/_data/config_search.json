@@ -15,13 +15,13 @@
     "title": "Minimum Running N1 Speed",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-min_rpm",
-    "text": "Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Set 0 to disable this independent underspeed check when N1 is informational only."
+    "text": "Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Its independent enable switch controls shutdown; keep this value when disabling it."
   },
   {
-    "title": "Primary Engine Temperature",
+    "title": "Temperature Source for Safeties",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-eg_src",
-    "text": "Temperature used for over-temperature protection, hot-start prevention, cooldown, throttle reduction, and flame confirmation."
+    "text": "Choose TOT or TIT for temperature safety checks. This source also supplies engine-temperature feedback for cooldown, fuel limiting and flame confirmation."
   },
   {
     "title": "Outlet Temperature Limit (TOT)",
@@ -36,28 +36,82 @@
     "text": "TIT Dashboard reference when TIT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar."
   },
   {
-    "title": "Maximum EGT During Startup",
+    "title": "Enable separate startup temperature guard",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_sg_en",
+    "text": "When enabled, these startup-only trips replace normal overtemperature shutdown and temperature fuel limiting during Startup. In Running the normal protections take over. When disabled, normal temperature protection also applies during Startup."
+  },
+  {
+    "title": "Immediate Startup Trip",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-sf_st",
-    "text": "During STARTUP, this is the selected TOT/TIT Dashboard bar reference instead of the normal temperature limit. It causes automatic shutdown only when engine overtemperature safety is enabled. 0 reuses the normal TOT/TIT limit. Set a separate value only when the engine manufacturer permits a different transient startup limit."
+    "text": "Fault shutdown as soon as selected TOT/TIT reaches this limit. The separate enable switch controls this threshold. Use the engine manufacturer’s starting limit."
+  },
+  {
+    "title": "Sustained Startup Temperature",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_sd",
+    "text": "Fault shutdown if selected TOT/TIT stays at or above this threshold continuously for the time below. Cooling below it resets the timer. The separate enable switch controls this threshold."
+  },
+  {
+    "title": "Allowed Time Above Threshold (ms)",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_sm",
+    "text": "Continuous time permitted at or above the sustained threshold. This does not delay the immediate trip. Reset on leaving Startup or suspending safety checks."
+  },
+  {
+    "title": "Pressure 1 fault shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p1en",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
+  },
+  {
+    "title": "Pressure 2 fault shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_p2en",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
+  },
+  {
+    "title": "Torque fault shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_tqen",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
+  },
+  {
+    "title": "N1 underspeed shutdown",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_us_en",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
+  },
+  {
+    "title": "Immediate startup overtemperature",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_st_en",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
+  },
+  {
+    "title": "Sustained startup temperature",
+    "context": "Setting · Engine Protection Limits",
+    "url": "/user-guide/#field-sf_sd_en",
+    "text": "Automatic protection can be switched off without clearing its saved limit."
   },
   {
     "title": "P1 High-Pressure Shutdown",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-sf_p1t",
-    "text": "Stops fuel when P1 rises above this pressure for the configured confirmation time. 0 disables the P1 high-pressure trip."
+    "text": "Stops fuel when P1 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit."
   },
   {
     "title": "P2 High-Pressure Shutdown",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-sf_p2t",
-    "text": "Stops fuel when P2 rises above this pressure for the configured confirmation time. 0 disables the P2 high-pressure trip."
+    "text": "Stops fuel when P2 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit."
   },
   {
     "title": "Shaft-Torque Hard Shutdown",
     "context": "Setting · Engine Protection Limits",
     "url": "/user-guide/#field-sf_tqt",
-    "text": "Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. 0 disables the torque hard trip."
+    "text": "Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit."
   },
   {
     "title": "Pressure 1 Hard-Trip Confirmation (ms)",
@@ -132,28 +186,22 @@
     "text": "Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection."
   },
   {
-    "title": "Running Low-Pressure Limit",
+    "title": "Low-Pressure Limit",
     "context": "Setting · Oil Pressure Safety",
     "url": "/user-guide/#field-oil_rm",
-    "text": "Sets the Dashboard low-pressure advisory while RUNNING. The ECU shuts down below this value only when low-oil safety is enabled and the Low-Oil Confirmation time expires."
+    "text": "Sets the Dashboard low-pressure advisory. Automatic fault shutdown uses this limit during the selected monitoring phases, after the confirmation time. Explicit oil-prime requirements in Sequence remain independent."
   },
   {
-    "title": "No-Pressure Shutdown Threshold",
+    "title": "Monitor during",
     "context": "Setting · Oil Pressure Safety",
-    "url": "/user-guide/#field-oil_zb",
-    "text": "A faster catastrophic-loss check for pressure at or near zero, such as a stopped pump or broken line. Set this below the normal low-pressure threshold and use its shorter confirmation time."
+    "url": "/user-guide/#field-sf_oil_modes",
+    "text": "Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START."
   },
   {
-    "title": "Low-Oil Confirmation (ms)",
+    "title": "Fault Confirmation Time (ms)",
     "context": "Setting · Oil Pressure Safety",
     "url": "/user-guide/#field-sf_lo_d",
-    "text": "Oil pressure must remain below the running shutdown value for this long before shutdown. 0 is immediate."
-  },
-  {
-    "title": "Near-Zero Oil Confirmation (ms)",
-    "context": "Setting · Oil Pressure Safety",
-    "url": "/user-guide/#field-sf_oz_d",
-    "text": "Catastrophic near-zero oil pressure must persist for this time. Keep this shorter than the normal low-oil confirmation."
+    "text": "The low-pressure condition or logical oil switch ON state must remain continuously active for this long before fault shutdown. Returning to normal resets the timer. Switch contact debounce is a separate built-in 20 ms; 0 means no additional confirmation delay."
   },
   {
     "title": "Low Oil-Flow Confirmation Delay (ms)",
@@ -918,10 +966,16 @@
     "text": "Visual low-pressure advisory on the Dashboard during RUNNING. It becomes a fault shutdown only when low fuel-pressure safety is enabled. 0 removes the advisory."
   },
   {
+    "title": "Monitor during",
+    "context": "Setting · Auxiliary Protection",
+    "url": "/user-guide/#field-sf_fp_modes",
+    "text": "Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START."
+  },
+  {
     "title": "Fuel-Pressure Confirmation (ms)",
     "context": "Setting · Auxiliary Protection",
     "url": "/user-guide/#field-sf_fp_d",
-    "text": "Low running fuel pressure must persist for this time before shutdown."
+    "text": "Low fuel pressure must persist for this time during the selected monitoring phases before fault shutdown."
   },
   {
     "title": "Battery Min (V)",

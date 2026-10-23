@@ -34,6 +34,7 @@ PAGE_MANIFEST = {
     "sequence.html": (
         "sequence.shell.html",
         (
+            "controller-timing.js",
             "sequence-definitions.js",
             "sequence-state.js",
             "sequence-editor.js",
@@ -44,6 +45,7 @@ PAGE_MANIFEST = {
     "config.html": (
         "config.shell.html",
         (
+            "controller-timing.js",
             "config-schema.js",
             "config-render.js",
             "config-validation-save.js",
@@ -53,6 +55,7 @@ PAGE_MANIFEST = {
     "controllers.html": (
         "config.shell.html",
         (
+            "controller-timing.js",
             "config-schema.js",
             "config-render.js",
             "config-validation-save.js",
@@ -62,6 +65,7 @@ PAGE_MANIFEST = {
     "system.html": (
         "config.shell.html",
         (
+            "controller-timing.js",
             "config-schema.js",
             "config-render.js",
             "config-validation-save.js",

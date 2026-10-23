@@ -3,6 +3,7 @@
 #include "../actuators/RelayDemand.h"
 #include "LossRecheck.h"
 #include "../AdcThreshold.h"
+#include "../OperatorAdc.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -39,7 +40,8 @@ public:
             _valid[i] = false;
             _adcDigitalState[i] = !registry.inputs[i].activeHigh;
             _adcConfig[i] = _adcConfigKey(registry.inputs[i]);
-            _adcDigitalChannel[i] = ChannelRegistry::isSwitchCondition(registry.inputs[i]);
+            _adcDigitalChannel[i] = ChannelRegistry::isSwitchCondition(registry.inputs[i]) ||
+                ChannelRegistry::isAdcThresholdCondition(registry.inputs[i]);
         }
         if (!_enabled) return;
         Wire.begin(sda, scl, constrain(frequency, 10000U, 400000U));
@@ -688,7 +690,11 @@ private:
                     physical = (mv - c.analogZeroMv) / max(c.analogMvPerUnit, 0.001f);
                 }
                 const float alpha = constrain(c.filterAlpha, 0.01f, 1.0f);
-                valid = isfinite(physical) && raw >= c.minValue && raw <= c.maxValue;
+                const bool operatorPot = !strcmp(c.role, "operator") &&
+                    (!strcmp(c.purpose, "throttle") || !strcmp(c.purpose, "idle"));
+                valid = isfinite(physical) &&
+                    (operatorPot ? OperatorAdc::healthy(raw, c.minValue, c.maxValue)
+                                 : raw >= c.minValue && raw <= c.maxValue);
                 if (valid) {
                     // Rejected or stale readings must not seed the next healthy
                     // value. Preserve smoothing only across fresh valid samples.

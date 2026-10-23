@@ -39,13 +39,13 @@ class ClassicTemperatureSafety(ClassicSafetyHil):
         reg['bindings'] = [b for b in reg['bindings'] if b['key'] != 'primary_n1']
         for key in hw['safety']:
             hw['safety'][key] = key in ('hot_start', 'overtemp')
-        hw['startup_delay_ms'][-1] = 2000
+        hw['startup_delay_ms'][-1] = int(os.environ.get('OTBENCH_TEMP_STARTUP_MS','2000'))
         settings['rules'] = []
         settings['dynamic_idle']['fuel_mode'] = 0
         settings['engine'].update(min_rpm=0, tot_limit=700)
         settings['throttle'].update(ramp_up_ms=0, ramp_down_ms=0, fuel_pump_min_pct=30)
-        settings['sequence']['startup'].update(pre_start_egt_limit_c=200, startup_egt_limit_c=500)
-        settings['safety']['check_interval_ms'] = 20
+        settings['sequence']['startup'].update(pre_start_egt_limit_c=200, startup_egt_limit_c=500, startup_egt_guard_enabled=True, startup_egt_immediate_enabled=True, startup_egt_dwell_enabled=False, startup_egt_dwell_c=0, startup_egt_dwell_ms=800)
+        settings['safety'].update(check_interval_ms=20,p1_trip_enabled=False,p2_trip_enabled=False,torque_trip_enabled=False,underspeed_enabled=False)
         previous_boot = self.dut.data().get('boot_count')
         code, reply = self.dut._post('/api/ecu_config', temporary)
         if code != 200 or not self.dc._wait_reboot(previous_boot):
@@ -57,10 +57,15 @@ class ClassicTemperatureSafety(ClassicSafetyHil):
 
     def temperature(self, value):
         assert self.tester.raw(f'EMU MAX6675 {value}').startswith('OK')
-        ok, data = self.dut.poll_until(lambda d: d.get('tot_healthy') and
-            abs(float(d.get('tot') or 0) - value) < 2, timeout=5, interval=.1)
-        if not ok:
-            raise RuntimeError(f'Temperature stimulus did not settle: {data.get("tot")}')
+        deadline = time.monotonic() + 5
+        # Require a new complete sample: rotating compact groups can still
+        # contain the pre-reboot value immediately after changing the fixture.
+        while time.monotonic() < deadline:
+            data = self.dut.full_data()
+            if data.get('tot_healthy') and abs(float(data.get('tot') or 0) - value) < 2:
+                return
+            time.sleep(.1)
+        raise RuntimeError(f'Temperature stimulus did not settle: {data.get("tot")}')
 
     def recover(self):
         self.temperature(120)
@@ -123,7 +128,7 @@ class ClassicTemperatureSafety(ClassicSafetyHil):
                 tripped, data = self.dut.poll_until(lambda d: d.get('mode') not in ('STARTUP','RUNNING'), timeout=5, interval=.1)
                 cut, after = self.cut()
                 fault = str(data.get('fault_description') or '')
-                self.record(name, tripped and 'over-temperature' in fault.lower() and cut,
+                self.record(name, tripped and ('over-temperature' in fault.lower() or 'OVERTEMP' in fault) and cut,
                     fault=fault, before=before, after=after)
                 self.recover()
         except Exception as exc:

@@ -361,7 +361,7 @@ async function optionDisabled(page, selector, value) {
       const el = document.querySelector('#cf-oil_rm');
       el.value = '2.7';
       el.dispatchEvent(new Event('input', { bubbles: true }));
-      return _buildChanges().find(change => change.label.includes('Running Low-Pressure Limit'));
+      return _buildChanges().find(change => change.label.includes('Low-Pressure Limit'));
     });
     assert.equal(futureChange?.inactive, true, 'save recap must identify future-hardware edits as inactive');
     assert.match(futureChange?.inactiveReason || '', /oil pressure sensor is not configured/i);
@@ -684,7 +684,7 @@ async function optionDisabled(page, selector, value) {
     await reset(page);
     await patchData(page, {
       has_fuel_flow: true, fuel_flow_type: 0, has_glow_current: true, has_igniter_current: true,
-      has_igniter2_current: true, has_oil_pump_current: true, throttle_input_type: 'servo',
+      has_igniter2_current: true, has_oil_pump_current: true, throttle_input_type: 'servo', rc_throttle_valid:true,
       throttle_input_us: 1500, idle_input_type: 'adc', idle_input_raw: 1234,
       has_ab_flame: true, ab_flame_raw: 760, ab_flame_threshold: 1234, ab_flame_on: false
     });
@@ -711,6 +711,12 @@ async function optionDisabled(page, selector, value) {
       },
       ab_flame: { enabled: true, threshold: 1234 }
     });
+    // Registry identity is authoritative; changing the legacy rc_pwm flag
+    // alone must not silently reinterpret a fitted ADC channel as RC.
+    const receiverHardware=await (await page.request.get(`${base}/api/hardware`)).json();
+    const receiver=receiverHardware.channel_registry.inputs.find(row=>row.purpose==='throttle');
+    Object.assign(receiver,{driver:3,min:1000,max:2000});
+    await patchHardware(page,{channel_registry:receiverHardware.channel_registry});
     await page.reload();
     await page.waitForSelector('#oil-press-cal-row', { state: 'attached' });
     await page.waitForFunction(() => /us|µs/.test(document.querySelector('#cal-th-raw')?.textContent || ''), null, { timeout: 5000 });
