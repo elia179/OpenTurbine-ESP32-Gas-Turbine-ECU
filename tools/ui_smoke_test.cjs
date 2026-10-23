@@ -1512,7 +1512,8 @@ function installedBrowser() {
     const shutdownCard = page.locator('#controller-overview [data-controller-output="request_shutdown"]');
     assert.equal(await shutdownCard.count(), 1);
     if (!(await shutdownCard.evaluate(el => el.open))) await shutdownCard.locator(':scope > summary').click();
-    assert.deepEqual(await shutdownCard.getByLabel('Control method').locator('option').allTextContents(), ['On / Off with hysteresis']);
+    assert.equal(await shutdownCard.getByLabel('Control method').count(), 0,
+      'Shutdown actions use their input condition directly, without a redundant control-method selector');
     await shutdownCard.getByLabel('Controlled by').selectOption('tot_main');
     await page.evaluate(() => {
       const index = cfg.rules.findIndex(rule => rule.target === 'request_shutdown');
