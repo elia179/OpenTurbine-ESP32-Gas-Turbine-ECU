@@ -6,11 +6,11 @@ const {chromium}=require('playwright');
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{for(const k of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1'])localStorage.setItem(k,'1');});
   const base=process.argv[2]||'http://192.168.4.1';
-  await page.goto(base+'/calibration.html?v=20261023p');
+  await page.goto(base+'/calibration.html?v=20261023q');
   await page.waitForFunction(()=>typeof operatorAdcRaw==='function'&&Number.isFinite(operatorAdcRaw(live,'throttle')),{timeout:30000});
   const raw=await page.evaluate(()=>({measured:operatorAdcRaw(live,'throttle'),display:document.getElementById('cal-th-raw').textContent,control:live.throttle_input_raw}));
   assert.ok(Number.isFinite(raw.measured));assert.notEqual(raw.display,'NaN mV');console.log('Installed calibration raw data:',JSON.stringify(raw));
-  await page.goto(base+'/controllers.html?v=20261023p');
+  await page.goto(base+'/controllers.html?v=20261023q');
   await page.waitForFunction(()=>cfg?.rules?.length&&typeof updateControllerTiming==='function');
   const legacy=await page.evaluate(()=>{
    const r=cfg.rules[0],before=!OTControllerTiming.scheduled(r);

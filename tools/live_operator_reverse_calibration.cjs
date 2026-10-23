@@ -22,7 +22,7 @@ async function patch(path,data){
  try{
   const page=await browser.newPage(),errors=[],commands=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(new URL(r.url()).pathname==='/api/command')commands.push(r.postData());});
   await page.addInitScript(()=>{for(const k of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1'])localStorage.setItem(k,'1');});
-  await page.goto(base+'/calibration.html?v=20261023p');
+  await page.goto(base+'/calibration.html?v=20261023q');
   await page.waitForFunction(()=>typeof saveOperatorCalibration==='function'&&cfg?.hardware&&Number.isFinite(operatorAdcRaw(live,'throttle')),null,{timeout:30000});
   await page.evaluate(()=>{window.__messages=[];window.alert=m=>window.__messages.push(String(m));});
   for(const reversed of [true,false]){
