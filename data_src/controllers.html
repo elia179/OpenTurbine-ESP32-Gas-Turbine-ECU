@@ -1216,7 +1216,7 @@ function renderControllerOverview() {
     (purposes.has('ab_pump') || purposes.has('ab_igniter') || purposes.has('ab_fuel') || purposes.has('ab_fuel_shutoff')) ? builtIn('afterburner','Afterburner subsystem','Light-up method, flame confirmation, and lit-running fuel behavior') : ''
   ].join('');
   const needsSequence=(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg,cfg.rules)==='Sequence needs setup');
-  const sequenceNotice=needsSequence?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save controller changes, then place and save the required controller blocks. Start stays blocked until setup is complete, or disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
+  const sequenceNotice=needsSequence?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save controller changes, then place and save the required controller blocks. Affected controllers stay inactive until setup is complete, or disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
   root.innerHTML = `${sequenceNotice}<div class="control-overview-head"><div><h2>Output controllers</h2><p>User-owned normal control for fitted outputs. Only one active controller per output.</p></div></div><div id="configured-controller-cards" class="controller-definition-list"></div>${oilLoopCards}<div class="controller-create-wrap">${availableHtml}</div><div class="control-overview-head built-in-heading"><div><h2>Built-in turbine subsystems</h2><p>Optional ECU behaviors that temporarily command outputs during their defined sequence, protection, or relight state. They do not prevent a separate normal output controller.</p></div></div><div id="built-in-subsystems" class="controller-definition-list">${builtIns}</div>`;
   const list = document.getElementById('configured-controller-cards');
   configuredCards.forEach(card => list?.appendChild(card));
@@ -3125,7 +3125,7 @@ async function saveConfig() {
       : '');
 
   if(_controllerRulesDirty&&(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg)==='Sequence needs setup'))
-    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Start remains blocked until setup is complete, or disable the controller.';
+    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Affected controllers stay inactive until setup is complete, or disable the controller.';
 
   const rows = changes.map(c =>
     `<tr>

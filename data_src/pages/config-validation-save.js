@@ -616,7 +616,7 @@ async function saveConfig() {
       : '');
 
   if(_controllerRulesDirty&&(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg)==='Sequence needs setup'))
-    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Start remains blocked until setup is complete, or disable the controller.';
+    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Affected controllers stay inactive until setup is complete, or disable the controller.';
 
   const rows = changes.map(c =>
     `<tr>
