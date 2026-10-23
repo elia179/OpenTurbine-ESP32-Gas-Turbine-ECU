@@ -36,9 +36,11 @@ class Campaign(ClassicTemperatureSafety):
   restored=False;error=None
   try:
    self.install();self.start_active();self.temperature(500);self.expect_trip('STARTUP_OVERTEMP')
-   self.patch(startup_egt_dwell_c=400,startup_egt_dwell_ms=1500)
-   self.start_active();self.temperature(440);time.sleep(.25)
-   assert self.dut.full_data()['mode']=='STARTUP','Dwell tripped too soon'
+   self.patch(startup_egt_dwell_c=400,startup_egt_dwell_ms=3000)
+   self.start_active();started=time.monotonic();self.tester.raw('EMU MAX6675 440');time.sleep(.25)
+   early=self.dut.full_data()
+   assert time.monotonic()-started<2.5,'Early dwell sample arrived too late to establish timing'
+   assert early['mode']=='STARTUP',('Dwell tripped too soon',early.get('fault_description'))
    self.temperature(300);time.sleep(.15);self.temperature(440);self.expect_trip('STARTUP_TEMP_DWELL')
    self.start_active();self.temperature(120)
    ok,d=self.dut.poll_until(lambda d:d.get('mode')=='RUNNING',timeout=12,interval=.1);assert ok,d.get('last_event')
@@ -51,6 +53,7 @@ class Campaign(ClassicTemperatureSafety):
    try:
     self.recover();self.tester.raw('EMU OFF');self.tester.reset()
     boot=self.dut.data().get('boot_count');code,reply=self.dut._post('/api/ecu_config',self.original_ecu)
+    print('Restore response:',code,reply,flush=True)
     restored=code==200 and self.dc._wait_reboot(boot)
     if restored:restored=self.dut._get('/api/ecu_config')==self.original_ecu
    finally:self.tester.close()

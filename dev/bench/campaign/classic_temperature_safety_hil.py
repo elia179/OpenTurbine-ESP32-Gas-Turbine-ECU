@@ -57,10 +57,15 @@ class ClassicTemperatureSafety(ClassicSafetyHil):
 
     def temperature(self, value):
         assert self.tester.raw(f'EMU MAX6675 {value}').startswith('OK')
-        ok, data = self.dut.poll_until(lambda d: d.get('tot_healthy') and
-            abs(float(d.get('tot') or 0) - value) < 2, timeout=5, interval=.1)
-        if not ok:
-            raise RuntimeError(f'Temperature stimulus did not settle: {data.get("tot")}')
+        deadline = time.monotonic() + 5
+        # Require a new complete sample: rotating compact groups can still
+        # contain the pre-reboot value immediately after changing the fixture.
+        while time.monotonic() < deadline:
+            data = self.dut.full_data()
+            if data.get('tot_healthy') and abs(float(data.get('tot') or 0) - value) < 2:
+                return
+            time.sleep(.1)
+        raise RuntimeError(f'Temperature stimulus did not settle: {data.get("tot")}')
 
     def recover(self):
         self.temperature(120)
