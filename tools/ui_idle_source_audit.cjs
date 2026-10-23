@@ -130,7 +130,9 @@ const {chromium} = require('playwright');
       await page.locator('#cf-fi_input').selectOption('operator_throttle');
       for(const width of [320,390,768,1200]) {
         await page.setViewportSize({width,height:1000});
-        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${bundle}: overflow at ${width}`);
+        const layout=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,
+          outside:[...document.querySelectorAll('body *')].filter(e=>e.getClientRects().length&&e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:Math.round(e.getBoundingClientRect().right),text:e.textContent?.trim().slice(0,100)})).slice(-20)}));
+        assert.ok(layout.scroll<=width+1,`${bundle}: overflow at ${width}: ${JSON.stringify(layout)}`);
       }
       assert.deepEqual(errors,[]);
       // Automatic settings must be visible in the default configured filter,
