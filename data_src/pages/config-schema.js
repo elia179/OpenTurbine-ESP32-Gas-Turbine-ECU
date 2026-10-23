@@ -1,16 +1,25 @@
 // ── Config schema — maps UI field key → JSON path + metadata ──
 const ALL_CONFIG_SCHEMA = [
-  { title: 'Engine Protection Limits', id: 'engine-limits', sectionNote:'N1 is core-shaft speed; N2 is output-shaft speed. TOT is turbine-outlet temperature; TIT is turbine-inlet temperature. Configured N1, N2 and primary TOT/TIT limits also set their Dashboard bar references. They remain visual advisories when their safety switches are off. P1, P2 and torque limits do not create Dashboard bars.', fields: [
+  { title: 'Engine Protection Limits', id: 'engine-limits', sectionNote:'N1 is core-shaft speed; N2 is output-shaft speed. TOT is turbine-outlet temperature; TIT is turbine-inlet temperature. Configured speed, temperature, P1, P2 and torque limits also set their Dashboard bar references. They remain visual advisories when automatic shutdown is off. Pressure and torque bars use automatic range when no positive limit is set.', fields: [
     { key:'rpm_limit',          path:['engine','rpm_limit'],          label:'Maximum N1 Speed', unit:'RPM', desc:'Configured N1 reference for the Dashboard bar and visual advisory. It becomes an automatic hard overspeed shutdown only when N1 overspeed safety is enabled above.', step:1000, min:1000, basic:true },
     { key:'n2_rpm_limit',       path:['engine','n2_rpm_limit'],       label:'Maximum N2 Speed', unit:'RPM', zeroOff:true, desc:'Configured N2 reference for the Dashboard bar and visual advisory, separate from gradual N2 pullback. It becomes an automatic hard shutdown only when N2 overspeed safety is enabled above.', step:1000, min:0, basic:true },
-    { key:'min_rpm',            path:['engine','min_rpm'],            label:'Minimum Running N1 Speed', unit:'RPM', zeroOff:true, desc:'Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Set 0 to disable this independent underspeed check when N1 is informational only.', step:1000, min:0, basic:true },
-    { key:'eg_src',             path:['safety','egt_source'],         label:'Primary Engine Temperature', type:'select', options:[{v:0,l:'Automatic: TOT if fitted, otherwise TIT'},{v:1,l:'Turbine outlet temperature (TOT)'},{v:2,l:'Turbine inlet temperature (TIT)'}], desc:'Temperature used for over-temperature protection, hot-start prevention, cooldown, throttle reduction, and flame confirmation.', basic:true },
+    { key:'min_rpm',            path:['engine','min_rpm'],            label:'Minimum Running N1 Speed', unit:'RPM', zeroOff:true, desc:'Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Its independent enable switch controls shutdown; keep this value when disabling it.', step:1000, min:0, basic:true },
+    { key:'eg_src',             path:['safety','egt_source'],         label:'Temperature Source for Safeties', type:'select', options:[{v:0,l:'Automatic: TOT if fitted, otherwise TIT'},{v:1,l:'Turbine outlet temperature (TOT)'},{v:2,l:'Turbine inlet temperature (TIT)'}], desc:'Choose TOT or TIT for temperature safety checks. This source also supplies engine-temperature feedback for cooldown, fuel limiting and flame confirmation.', basic:true },
     { key:'tot_limit',          path:['engine','tot_limit'],          label:'Outlet Temperature Limit (TOT)', unitType:'temp', zeroOff:true, desc:'TOT Dashboard reference when TOT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar.', step:10, min:0, basic:true },
     { key:'sf_tit',             path:['safety','tit_limit_c'],        label:'Inlet Temperature Limit (TIT)', unitType:'temp', zeroOff:true, wrapId:'field-sf-tit', desc:'TIT Dashboard reference when TIT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar.', step:10, min:0, basic:true },
-    { key:'sf_st', path:['sequence','startup','startup_egt_limit_c'], label:'Maximum EGT During Startup', unitType:'temp', zeroOff:true, desc:'During STARTUP, this is the selected TOT/TIT Dashboard bar reference instead of the normal temperature limit. It causes automatic shutdown only when engine overtemperature safety is enabled. 0 reuses the normal TOT/TIT limit. Set a separate value only when the engine manufacturer permits a different transient startup limit.', step:10, min:0, basic:true },
-    { key:'sf_p1t',             path:['safety','p1_trip_bar'],        label:'P1 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P1 rises above this pressure for the configured confirmation time. 0 disables the P1 high-pressure trip.', step:0.1, min:0, max:1000, basic:true },
-    { key:'sf_p2t',             path:['safety','p2_trip_bar'],        label:'P2 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P2 rises above this pressure for the configured confirmation time. 0 disables the P2 high-pressure trip.', step:0.1, min:0, max:1000, basic:true },
-    { key:'sf_tqt',             path:['safety','torque_trip_nm'],     label:'Shaft-Torque Hard Shutdown', unit:'Nm', zeroOff:true, desc:'Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. 0 disables the torque hard trip.', step:1, min:0, max:1000000 },
+    { key:'sf_sg_en', path:['sequence','startup','startup_egt_guard_enabled'], label:'Enable separate startup temperature guard', type:'checkbox', protectionToggle:true, desc:'When enabled, these startup-only trips replace normal overtemperature shutdown and temperature fuel limiting during Startup. In Running the normal protections take over. When disabled, normal temperature protection also applies during Startup.', basic:true },
+    { key:'sf_st', path:['sequence','startup','startup_egt_limit_c'], label:'Immediate Startup Trip', unitType:'temp', zeroOff:true, desc:'Fault shutdown as soon as selected TOT/TIT reaches this limit. The separate enable switch controls this threshold. Use the engine manufacturer’s starting limit.', step:10, min:0, basic:true },
+    { key:'sf_sd', path:['sequence','startup','startup_egt_dwell_c'], label:'Sustained Startup Temperature', unitType:'temp', zeroOff:true, desc:'Fault shutdown if selected TOT/TIT stays at or above this threshold continuously for the time below. Cooling below it resets the timer. The separate enable switch controls this threshold.', step:10, min:0, basic:true },
+    { key:'sf_sm', path:['sequence','startup','startup_egt_dwell_ms'], label:'Allowed Time Above Threshold (ms)', desc:'Continuous time permitted at or above the sustained threshold. This does not delay the immediate trip. Reset on leaving Startup or suspending safety checks.', step:100, min:1, max:600000, basic:true },
+    { key:'sf_p1en', path:['safety', 'p1_trip_enabled'], legacyThreshold:['safety', 'p1_trip_bar'], label:'Pressure 1 fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_p2en', path:['safety', 'p2_trip_enabled'], legacyThreshold:['safety', 'p2_trip_bar'], label:'Pressure 2 fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_tqen', path:['safety', 'torque_trip_enabled'], legacyThreshold:['safety', 'torque_trip_nm'], label:'Torque fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_us_en', path:['safety', 'underspeed_enabled'], legacyThreshold:['engine', 'min_rpm'], label:'N1 underspeed shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_st_en', path:['sequence', 'startup', 'startup_egt_immediate_enabled'], legacyThreshold:['sequence', 'startup', 'startup_egt_limit_c'], label:'Immediate startup overtemperature', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_sd_en', path:['sequence', 'startup', 'startup_egt_dwell_enabled'], legacyThreshold:['sequence', 'startup', 'startup_egt_dwell_c'], label:'Sustained startup temperature', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_p1t',             path:['safety','p1_trip_bar'],        label:'P1 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P1 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:0.1, min:0, max:1000, basic:true },
+    { key:'sf_p2t',             path:['safety','p2_trip_bar'],        label:'P2 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P2 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:0.1, min:0, max:1000, basic:true },
+    { key:'sf_tqt',             path:['safety','torque_trip_nm'],     label:'Shaft-Torque Hard Shutdown', unit:'Nm', zeroOff:true, desc:'Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:1, min:0, max:1000000 },
     { key:'sf_p1d',             path:['safety','p1_trip_confirm_ms'], label:'Pressure 1 Hard-Trip Confirmation (ms)', desc:'Pressure 1 must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
     { key:'sf_p2d',             path:['safety','p2_trip_confirm_ms'], label:'Pressure 2 Hard-Trip Confirmation (ms)', desc:'Pressure 2 must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
     { key:'sf_tqd',             path:['safety','torque_trip_confirm_ms'], label:'Torque Hard-Trip Confirmation (ms)', desc:'Measured shaft torque must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
@@ -27,12 +36,11 @@ const ALL_CONFIG_SCHEMA = [
     { key:'oil_fp',  path:['oil','failsafe_pct'],       label:'Fixed Pump Output After Pressure-Sensor Failure (%)', desc:'Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection.', step:5, min:0, max:100 },
   ]},
   { title: 'Oil Pressure Safety', id: 'oil-safety-section', sectionNote:'Independent oil-pressure, current, and flow protections. Startup oil requirements remain in the startup Sequence blocks where they act.', fields: [
-    { key:'oil_rm',  path:['oil','running_min'],        label:'Running Low-Pressure Limit', unitType:'press', desc:'Sets the Dashboard low-pressure advisory while RUNNING. The ECU shuts down below this value only when low-oil safety is enabled and the Low-Oil Confirmation time expires.', step:0.1, min:0, max:20, basic:true },
-    { key:'oil_zb',  path:['oil_advanced','zero_bar'],  label:'No-Pressure Shutdown Threshold', unitType:'press', desc:'A faster catastrophic-loss check for pressure at or near zero, such as a stopped pump or broken line. Set this below the normal low-pressure threshold and use its shorter confirmation time.', step:0.05, min:0 },
-    { key:'sf_lo_d', path:['safety','low_oil_confirm_ms'], label:'Low-Oil Confirmation (ms)', desc:'Oil pressure must remain below the running shutdown value for this long before shutdown. 0 is immediate.', step:50, min:0, max:60000 },
-    { key:'sf_oz_d', path:['safety','oil_zero_confirm_ms'], label:'Near-Zero Oil Confirmation (ms)', desc:'Catastrophic near-zero oil pressure must persist for this time. Keep this shorter than the normal low-oil confirmation.', step:25, min:0, max:60000 },
+    { key:'oil_rm',  path:['oil','running_min'],        label:'Low-Pressure Limit', unitType:'press', desc:'Sets the Dashboard low-pressure advisory. Automatic fault shutdown uses this limit during the selected monitoring phases, after the confirmation time. Explicit oil-prime requirements in Sequence remain independent.', step:0.1, min:0, max:20, basic:true },
+    { key:'sf_oil_modes', path:['safety','oil_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START.' },
+    { key:'sf_lo_d', path:['safety','low_oil_confirm_ms'], label:'Fault Confirmation Time (ms)', desc:'The low-pressure condition or logical oil switch ON state must remain continuously active for this long before fault shutdown. Returning to normal resets the timer. Switch contact debounce is a separate built-in 20 ms; 0 means no additional confirmation delay.', step:1, min:0, max:60000, basic:true },
     { key:'oil_ufd', path:['oil_advanced','pump_underflow_delay_ms'], label:'Low Oil-Flow Confirmation Delay (ms)', desc:'How long a monitored main or scavenge pump may remain below its own Hardware minimum-flow value before the ECU confirms a flow fault.', step:100, min:100, max:60000 },
-    { key:'oil_ufs', path:['oil_advanced','shutdown_on_underflow'], label:'Shutdown on Confirmed Low Oil Flow', type:'checkbox', desc:'Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this.' },
+    { key:'oil_ufs', path:['oil_advanced','shutdown_on_underflow'], label:'Shutdown on Confirmed Low Oil Flow', type:'checkbox', protectionToggle:true, desc:'Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this.' },
   ]},
   { title: 'Throttle Response', id: 'throttle', sectionNote:'Normal operator-demand shaping and output movement limits. These settings do not enable, disable, or replace separate engine safety switches.', fields: [
     { key:'th_ru', path:['throttle','ramp_up_ms'],   label:'Full Opening Time (ms)', desc:'Time for the fuel/throttle output to move from 0 to 100%. A larger value opens more gently.', step:50, min:0, basic:true },
@@ -188,7 +196,8 @@ const ALL_CONFIG_SCHEMA = [
     { key:'sf_ot',  path:['safety','oil_temp_limit_c'],         label:'Oil Temp Limit',     unitType:'temp',  zeroOff:true, desc:'Dashboard temperature reference and visual advisory. It becomes a fault shutdown only when oil-temperature safety is enabled. 0 hides the bar.', step:5, min:0, basic:true },
     { key:'sf_ot_d', path:['safety','oil_temp_confirm_ms'], label:'Oil-Temperature Confirmation (ms)', desc:'High oil temperature must persist for this time before shutdown.', step:100, min:0, max:60000 },
     { key:'sf_fp',  path:['safety','fuel_press_min_bar'],       label:'Minimum Running Fuel Pressure',     unitType:'press', desc:'Visual low-pressure advisory on the Dashboard during RUNNING. It becomes a fault shutdown only when low fuel-pressure safety is enabled. 0 removes the advisory.', step:0.1, min:0, basic:true },
-    { key:'sf_fp_d', path:['safety','fuel_press_confirm_ms'], label:'Fuel-Pressure Confirmation (ms)', desc:'Low running fuel pressure must persist for this time before shutdown.', step:50, min:0, max:60000 },
+    { key:'sf_fp_modes', path:['safety','fuel_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START.' },
+    { key:'sf_fp_d', path:['safety','fuel_press_confirm_ms'], label:'Fuel-Pressure Confirmation (ms)', desc:'Low fuel pressure must persist for this time during the selected monitoring phases before fault shutdown.', step:50, min:0, max:60000 },
     { key:'sf_bv',  path:['safety','batt_volt_min_v'],          label:'Battery Min (V)',          desc:'Visual low-voltage advisory on the Dashboard. It becomes an undervoltage shutdown only when battery safety is enabled. 0 removes the advisory.', step:0.1, min:0, basic:true },
     { key:'sf_bv_d', path:['safety','batt_low_confirm_ms'], label:'Bus-Voltage Confirmation (ms)', desc:'Low battery or bus voltage must persist for this time before shutdown.', step:100, min:0, max:60000 },
     { key:'sf_sg',  path:['safety','surge_detect_rpm_variance'],label:'Experimental Surge Detection (RPM²)', desc:'Experimental statistical N1-instability detector over a 10-sample rolling window, not an RPM limit. It requires tuning from recorded stable and surge data for this exact engine. 500,000 RPM² corresponds to about 707 RPM standard deviation. 0 disables it.', step:10000, min:0 },
@@ -204,6 +213,13 @@ const ALL_CONFIG_SCHEMA = [
     { key:'rc_fs', path:['rc_input','failsafe_ms'], label:'Signal-Loss Timeout (ms)', desc:'Marks a receiver input invalid when no valid pulse arrives in time. A lost operator-throttle signal returns main fuel toward the calibrated minimum output; STOP still performs the immediate fuel cut.', step:50, min:100 },
   ]},
 ];
+
+// Enable and method are separate fields so each edit is reviewable and retained.
+for(const section of ALL_CONFIG_SCHEMA)section.fields=section.fields.flatMap(field=>
+  field.type==='pullback_mode' ? [
+    {key:field.key+'_on',path:field.path,label:field.label.replace('Mode','Enabled'),type:'checkbox',protectionToggle:true,basic:true,desc:'Switch gradual fuel limiting on or off independently of fault shutdown. All limits and the selected method are retained.'},
+    {...field,path:field.modePath,modePath:undefined,type:'select',basic:true,label:field.label.replace('Mode','Method'),options:[{v:0,l:'Simple — measured value'},{v:1,l:'Predictive — measured value and rate of change'}],desc:'Simple reacts to the measured value. Predictive also uses its rate of change. The separate enable switch controls whether fuel limiting acts.'}
+  ] : [field]);
 
 // The old all-in-one Config page is intentionally split by ownership. Keep a
 // single field definition source so labels, validation, live-edit rules and
@@ -343,7 +359,7 @@ function _controllerHardwareChanges() {
       continue;
     }
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if (key==='controller_id'||JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
       changes.push({key:`__oil_loop_${index}_${key}`,
         label:`Oil-pressure controller ${index + 1} / ${loopLabels[key] || key.replace(/_/g, ' ')}`,
         was:display(before[key]), now:display(after[key]), inactive:false});
@@ -354,10 +370,14 @@ function _controllerHardwareChanges() {
 
 function _controllerRuleChanges() {
   const changes = [];
-  const beforeRules = _controllerRulesSnap;
-  const afterRules = cfg.rules || [];
-  const fieldLabels = {name:'Name', enabled:'Enabled', kind:'Control method', source:'Input',
-    target:'Output', op:'Direction', threshold:'Switch point', hysteresis:'Hysteresis',
+  const normalize=rule=>{
+    if(!window.OTControllerTiming?.scheduled(rule))return rule;
+    const next={...rule,activate_events:OTControllerTiming.starts(rule)};delete next.activate_event;return next;
+  };
+  const beforeRules = _controllerRulesSnap.map(normalize);
+  const afterRules = (cfg.rules || []).map(normalize);
+  const fieldLabels = {activate_events:'Activate when',activate_event:'Activate when',deactivate_events:'Deactivate when',name:'Name', enabled:'Enabled', kind:'Control method', source:'Input',
+    target:'Output', op:'Direction', threshold:'Switch point', hysteresis:'Hysteresis', confirm_ms:'Condition confirmation time',
     on_value:'On output', off_value:'Off output', input_min:'Input low', input_max:'Input high',
     output_min:'Output low', output_max:'Output high', mode_mask:'Operating states',
     target_source_type:'Target selection', target_source:'Target input', target_fixed:'Fixed target',
@@ -368,16 +388,22 @@ function _controllerRuleChanges() {
     const rows = hwCfg?.channel_registry?.[direction] || [];
     return rows.find(row => String(row.id) === String(id))?.name || id || '(none)';
   };
-  const format = (key, value) => {
+  const format = (key, value, rule={}) => {
+    const events=window.OTControllerTiming?.events||['Sequencer block','Entering Startup','Entering Running','Entering Shutdown','Entering Standby'];
+    if(key==='activate_event')return events[Number(value)]||'Existing operating-state selection';
+    if(key==='activate_events'||key==='deactivate_events')return events.filter((_,i)=>Number(value)&(1<<i)).join(' or ')||'(none)';
+    if (key === 'confirm_ms') return `${Number(value||0)} ms`;
     if (key === 'enabled') return value !== false ? 'On' : 'Off';
-    if (key === 'kind') return ['On / Off with hysteresis', 'Map input to output',
-      'Hold a feedback target', 'Fixed output in selected states'][Number(value)] || String(value);
-    if (key === 'op') return Number(value) === 1 ? 'Turn on below' : 'Turn on above';
+    if (key === 'kind') return [controllerSwitchInput(rule.source)?'Switch state':'On / Off with hysteresis', 'Map input to output',
+      'Hold a feedback target', 'Fixed output'][Number(value)] || String(value);
+    if (key === 'op') return controllerSwitchInput(rule.source)?(Number(value)===1?'Switch is OFF':'Switch is ON'):(Number(value)===1?'Input is below threshold':'Input is above threshold');
     if (key === 'target_source_type') return ['Fixed value', 'Input switch', 'Variable input'][Number(value)] || String(value);
     if (key === 'mode_mask') return [[1,'Standby'],[2,'Startup'],[4,'Running'],[8,'Shutdown']]
       .filter(([bit]) => Number(value) & bit).map(([,label]) => label).join(', ') || '(none)';
     if (key === 'source' || key === 'target_source') return nameFor(value, 'inputs');
-    if (key === 'target') return value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
+    if (key === 'target') return value === 'request_fault' ? 'Request Fault Shutdown' : value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
+    if(['on_value','off_value'].includes(key)&&(['request_shutdown','request_fault'].includes(String(rule.target))||[4,11].includes(Number(hwCfg?.channel_registry?.outputs?.find(row=>String(row.id)===String(rule.target))?.driver))))
+      return Number(value)>=.5?'ON':'OFF';
     if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
       return `${Number((Number(value) * 100).toFixed(4))}%`;
     return value === undefined || value === null || value === '' ? '(none)' : String(value);
@@ -385,7 +411,7 @@ function _controllerRuleChanges() {
   const matchedOld = new Set();
   const matched = afterRules.map(after => {
     const oldIndex = beforeRules.findIndex((before, i) => !matchedOld.has(i) &&
-      String(before.target || '') === String(after.target || ''));
+      (before.controller_id&&after.controller_id?Number(before.controller_id)===Number(after.controller_id):String(before.target || '') === String(after.target || '')));
     if (oldIndex >= 0) matchedOld.add(oldIndex);
     return oldIndex;
   });
@@ -403,11 +429,17 @@ function _controllerRuleChanges() {
         was:'Not present', now:'Created', inactive:false});
       return;
     }
+    const switchRule=Number(after.kind||0)===0&&controllerSwitchInput(after.source);
+    if(switchRule&&['op','threshold','hysteresis'].some(key=>JSON.stringify(before[key])!==JSON.stringify(after[key]))){
+      const condition=rule=>controllerSwitchInput(rule.source)&&controllerSwitchSettingsReady(rule)?format('op',rule.op,rule):`${Number(rule.op||0)===1?'Below':'Above'} ${rule.threshold??0}, hysteresis ${rule.hysteresis??0}`;
+      changes.push({key:`__simple_control_${index}_condition`,label:`Controller / ${ruleName} / Switch condition`,was:condition(before),now:condition(after),inactive:false});
+    }
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if (key==='controller_id'||JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if(switchRule&&['op','threshold','hysteresis'].includes(key))continue;
       changes.push({key:`__simple_control_${index}_${key}`,
         label:`Controller / ${ruleName} / ${fieldLabels[key] || key.replace(/_/g, ' ')}`,
-        was:format(key, before[key]), now:format(key, after[key]), inactive:false});
+        was:format(key, before[key],before), now:format(key, after[key],after), inactive:false});
     }
   });
   beforeRules.forEach((before, index) => {

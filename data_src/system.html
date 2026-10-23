@@ -36,6 +36,14 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .config-group[open]>.group-content{padding:0 1rem 1rem}.config-group[open] .cfg-section{padding:1rem .35rem .45rem}.config-group[open] .cfg-section+.cfg-section{margin-top:.35rem;padding-top:1.15rem}.config-group[open] .cfg-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.8rem}.config-group[open] .cfg-field{padding:.85rem;gap:.45rem}
 .system-surface .system-category{border-color:color-mix(in srgb,var(--accent) 24%,var(--border));background:var(--surface);border-radius:13px}.system-surface .system-category>summary{min-height:82px;padding:.9rem 1rem;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 10%,transparent),transparent 62%);border-left:3px solid var(--accent)}.system-surface .system-category>summary .group-title{color:var(--accent)}.system-surface .system-category-body{padding:0 1rem 1rem}.system-surface .system-subcard-grid{grid-template-columns:minmax(0,1fr);gap:0;padding-top:0}.system-surface .system-subcard-grid>.config-group{border:0;border-radius:0;border-top:1px solid var(--border);background:transparent}.system-surface .system-subcard-grid>.config-group:first-child{border-top:0}.system-surface .system-subcard-grid>.config-group>summary{padding:.8rem .15rem;min-height:68px}.system-surface .system-subcard-grid>.config-group[open]>.group-content{padding:0 0 .8rem}.system-surface .system-subcard-grid>.config-group[open] .cfg-section{padding:.35rem 0 0}
 .automation-states{display:flex;gap:.4rem;flex-wrap:wrap}.automation-state{display:flex;align-items:center;gap:.3rem;min-height:34px;padding:.18rem .5rem;border:1px solid var(--border);border-radius:999px;font-size:.68rem;color:var(--text-2);cursor:pointer}.automation-state:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text)}.automation-state input{margin:0}
+.protection-nav{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 .8rem}.protection-nav button{font-size:.75rem;min-height:36px;padding:.3rem .7rem}.protection-card{border-top:3px solid var(--accent)!important;scroll-margin-top:80px}.protection-card-title{color:var(--text)!important}.protection-part{--protection-accent:var(--accent);border:1px solid var(--border);border-top:3px solid var(--protection-accent)!important;margin:.7rem;padding:.8rem;background:var(--surface-2);border-radius:10px}.protection-part-trip{--protection-accent:var(--red)}.protection-part-startup{--protection-accent:var(--yellow)}.protection-part{position:relative}.protection-part::before{content:"";position:absolute;top:-3px;left:0;right:0;height:3px;background:var(--protection-accent);border-radius:10px 10px 0 0;pointer-events:none;forced-color-adjust:none}.protection-part h4{margin:0 0 .35rem;color:var(--text);font-size:.88rem}.protection-part p{margin:.35rem 0 .6rem;color:var(--dim);font-size:.76rem;line-height:1.5}.protection-part .cfg-grid{padding:.5rem 0!important;border-top:0!important}.protection-modes{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}.protection-modes [data-enabled="true"]{color:var(--green);font-weight:700}.protection-modes>span{border:1px solid var(--border);padding:.12rem .4rem;border-radius:4px;font-size:.67rem;color:var(--text-2)}.protection-dormant{opacity:.5}.protection-note{font-size:.73rem!important}.protection-card[data-state="unavailable"]{border-top-color:var(--yellow)!important}
+.protection-part-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.7rem;flex-wrap:wrap}.protection-enable{border:0;background:none;padding:.2rem 0}.protection-enable label{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;cursor:pointer}.protection-enable input[type=checkbox]{width:22px;height:22px;flex:0 0 auto;accent-color:var(--accent)}.protection-enable b{font-size:.75rem;color:var(--text)}.protection-part-head .safety-local-toggle{margin:0;max-width:100%}.protection-dashboard-note{font-size:.75rem;margin:.6rem .8rem;color:var(--dim)}.protection-dashboard-note a{color:var(--accent)}
+.safety-local-toggle.protection-enable{display:block;border:0;background:none;padding:.2rem 0;margin:0}.safety-local-toggle.protection-enable small{display:block;font-size:.7rem;color:var(--dim)}.protection-part-head .protection-enable{width:auto;max-width:100%}.startup-trip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin-top:.75rem}.startup-trip-card{border:1px solid var(--border);border-top:3px solid var(--yellow);border-radius:9px;padding:.75rem;min-width:0}.startup-trip-card .cfg-grid{grid-template-columns:minmax(0,1fr)}.startup-trip-card>.protection-enable{margin-bottom:.65rem}.startup-trip-card .protection-enable label{justify-content:flex-end}.startup-trip-card .protection-enable .cfg-label{margin-right:auto}.protection-active-count{font-size:.75rem;font-weight:700;color:var(--dim);white-space:nowrap}.protection-active-count[data-active="true"]{color:var(--green)}@media(max-width:700px){.startup-trip-grid{grid-template-columns:minmax(0,1fr)}.config-group[data-group="safety"]>summary{flex-wrap:wrap}.config-group[data-group="safety"]>summary .group-heading{flex-basis:70%}.protection-active-count{font-size:.7rem}}
+.protection-card>summary>span:first-child{flex:1;min-width:0}.protection-card>summary>.controller-state{flex:0 0 auto;margin-left:auto}.protection-card>summary>.protection-card-chevron{flex:0 0 auto;margin-left:.25rem}.protection-local-body{padding:.75rem}.protection-local-toolbar{display:flex;justify-content:flex-end;gap:.5rem}.protection-local-body>.cfg-grid{padding:.7rem 0!important;border-top:0!important}.protection-local-body>.protection-dashboard-note{margin:.5rem 0}.dashboard-field-note{margin:.25rem 0 0;line-height:1.5;padding:.35rem .45rem;border-left:2px solid var(--accent)}
+.protection-nav[hidden],.protection-nav button[hidden]{display:none!important}.protection-local-toolbar:empty{display:none}.protection-part-head .cfg-inactive-note{max-width:32rem}.protection-part-head .protection-enable:has(.cfg-inactive-note:not(:empty)){flex-basis:100%}
+.protection-modes [data-state="check"]{color:var(--yellow);font-weight:700}
+.protection-enable label{flex-wrap:nowrap}.protection-enable .cfg-label{flex:1;min-width:0;overflow-wrap:anywhere}.protection-enable b{flex:0 0 auto;white-space:nowrap}
+.config-group[data-group="safety"] .cfg-section>.cfg-title{padding:.6rem .75rem;margin:.3rem 0 .9rem;border-left:3px solid var(--accent);border-radius:6px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent)}.config-group[data-group="safety"] .cfg-section+.cfg-section{margin-top:1rem;padding-top:1rem}
 .protection-stack{display:grid;gap:.6rem}.protection-card{border:1px solid var(--border);border-radius:10px;background:var(--surface-2);overflow:hidden}.protection-card>summary{display:flex;align-items:center;gap:.75rem;min-height:62px;padding:.7rem .8rem;cursor:pointer;list-style:none}.protection-card>summary::-webkit-details-marker{display:none}.protection-card>summary:hover{background:color-mix(in srgb,var(--surface-3) 45%,transparent)}.protection-card-title{display:block;font-weight:750;color:var(--text-2)}.protection-card-desc{display:block;font-size:.7rem;color:var(--dim)}.protection-card-chevron{margin-left:auto;color:var(--dim);font-size:1.05rem}.protection-card[open] .protection-card-chevron{transform:rotate(90deg)}.protection-card .cfg-grid{padding:.7rem;border-top:1px solid var(--border)}
 .controller-subcard{margin-top:.7rem;background:var(--surface)}.controller-subcard:first-child{margin-top:0}.controller-subcard-content{padding:.75rem;border-top:1px solid var(--border)}.controller-subcard-content>.cfg-section{padding:0!important;margin:0!important;border:0!important}.controller-subcard-content>.cfg-section>.cfg-title{display:none}.controller-subcard-content>.controller-option-row{margin-bottom:.75rem}.automatic-idle-settings{margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border)}.automatic-idle-settings>.cfg-title{margin-bottom:.55rem}
 .controller-empty-action{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-top:.7rem;padding:.75rem;border:1px dashed var(--border);border-radius:8px;color:var(--muted)}
@@ -61,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023p',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023p');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -103,7 +111,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         </div>
         <span id="cfg-result-count" class="cfg-result-count" aria-live="polite">Loading settings…</span>
       </div>
-      <div class="cfg-explore-note"><strong>Planning future hardware:</strong> amber-bordered tuning values are editable and save normally, but the ECU will not use them until their prerequisites are configured. Enable switches and choices for missing hardware stay locked, so exploring cannot arm a feature unexpectedly.</div>
+      <div class="cfg-explore-note"><strong>Planning future hardware:</strong> amber-bordered tuning values are editable and save normally, but the ECU will not use them until their prerequisites are configured. Unavailable features cannot be enabled. Saved enable switches can still be turned off.</div>
     </div>
   </div>
   <div id="lock-warn" class="error-banner" style="display:none">Warning: engine is running - config is locked. Stop the engine to edit (live editing requires Dev Mode enabled beforehand, from Tools while in STANDBY). <a data-ot-warning-link href="/index.html" style="color:inherit">Review engine state on Dashboard &rarr;</a></div>
@@ -140,20 +148,32 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
 <script>
 window.OT_CONFIG_SURFACE='system';
+// Source: data_src/pages/controller-timing.js
+
+
 // Source: data_src/pages/config-schema.js
 // ── Config schema — maps UI field key → JSON path + metadata ──
 const ALL_CONFIG_SCHEMA = [
-  { title: 'Engine Protection Limits', id: 'engine-limits', sectionNote:'N1 is core-shaft speed; N2 is output-shaft speed. TOT is turbine-outlet temperature; TIT is turbine-inlet temperature. Configured N1, N2 and primary TOT/TIT limits also set their Dashboard bar references. They remain visual advisories when their safety switches are off. P1, P2 and torque limits do not create Dashboard bars.', fields: [
+  { title: 'Engine Protection Limits', id: 'engine-limits', sectionNote:'N1 is core-shaft speed; N2 is output-shaft speed. TOT is turbine-outlet temperature; TIT is turbine-inlet temperature. Configured speed, temperature, P1, P2 and torque limits also set their Dashboard bar references. They remain visual advisories when automatic shutdown is off. Pressure and torque bars use automatic range when no positive limit is set.', fields: [
     { key:'rpm_limit',          path:['engine','rpm_limit'],          label:'Maximum N1 Speed', unit:'RPM', desc:'Configured N1 reference for the Dashboard bar and visual advisory. It becomes an automatic hard overspeed shutdown only when N1 overspeed safety is enabled above.', step:1000, min:1000, basic:true },
     { key:'n2_rpm_limit',       path:['engine','n2_rpm_limit'],       label:'Maximum N2 Speed', unit:'RPM', zeroOff:true, desc:'Configured N2 reference for the Dashboard bar and visual advisory, separate from gradual N2 pullback. It becomes an automatic hard shutdown only when N2 overspeed safety is enabled above.', step:1000, min:0, basic:true },
-    { key:'min_rpm',            path:['engine','min_rpm'],            label:'Minimum Running N1 Speed', unit:'RPM', zeroOff:true, desc:'Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Set 0 to disable this independent underspeed check when N1 is informational only.', step:1000, min:0, basic:true },
-    { key:'eg_src',             path:['safety','egt_source'],         label:'Primary Engine Temperature', type:'select', options:[{v:0,l:'Automatic: TOT if fitted, otherwise TIT'},{v:1,l:'Turbine outlet temperature (TOT)'},{v:2,l:'Turbine inlet temperature (TIT)'}], desc:'Temperature used for over-temperature protection, hot-start prevention, cooldown, throttle reduction, and flame confirmation.', basic:true },
+    { key:'min_rpm',            path:['engine','min_rpm'],            label:'Minimum Running N1 Speed', unit:'RPM', zeroOff:true, desc:'Lowest N1 speed accepted after startup. Falling below it causes an underspeed shutdown. Its independent enable switch controls shutdown; keep this value when disabling it.', step:1000, min:0, basic:true },
+    { key:'eg_src',             path:['safety','egt_source'],         label:'Temperature Source for Safeties', type:'select', options:[{v:0,l:'Automatic: TOT if fitted, otherwise TIT'},{v:1,l:'Turbine outlet temperature (TOT)'},{v:2,l:'Turbine inlet temperature (TIT)'}], desc:'Choose TOT or TIT for temperature safety checks. This source also supplies engine-temperature feedback for cooldown, fuel limiting and flame confirmation.', basic:true },
     { key:'tot_limit',          path:['engine','tot_limit'],          label:'Outlet Temperature Limit (TOT)', unitType:'temp', zeroOff:true, desc:'TOT Dashboard reference when TOT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar.', step:10, min:0, basic:true },
     { key:'sf_tit',             path:['safety','tit_limit_c'],        label:'Inlet Temperature Limit (TIT)', unitType:'temp', zeroOff:true, wrapId:'field-sf-tit', desc:'TIT Dashboard reference when TIT is the primary engine temperature. Visual advisory only until engine overtemperature safety is enabled above. 0 hides the bar.', step:10, min:0, basic:true },
-    { key:'sf_st', path:['sequence','startup','startup_egt_limit_c'], label:'Maximum EGT During Startup', unitType:'temp', zeroOff:true, desc:'During STARTUP, this is the selected TOT/TIT Dashboard bar reference instead of the normal temperature limit. It causes automatic shutdown only when engine overtemperature safety is enabled. 0 reuses the normal TOT/TIT limit. Set a separate value only when the engine manufacturer permits a different transient startup limit.', step:10, min:0, basic:true },
-    { key:'sf_p1t',             path:['safety','p1_trip_bar'],        label:'P1 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P1 rises above this pressure for the configured confirmation time. 0 disables the P1 high-pressure trip.', step:0.1, min:0, max:1000, basic:true },
-    { key:'sf_p2t',             path:['safety','p2_trip_bar'],        label:'P2 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P2 rises above this pressure for the configured confirmation time. 0 disables the P2 high-pressure trip.', step:0.1, min:0, max:1000, basic:true },
-    { key:'sf_tqt',             path:['safety','torque_trip_nm'],     label:'Shaft-Torque Hard Shutdown', unit:'Nm', zeroOff:true, desc:'Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. 0 disables the torque hard trip.', step:1, min:0, max:1000000 },
+    { key:'sf_sg_en', path:['sequence','startup','startup_egt_guard_enabled'], label:'Enable separate startup temperature guard', type:'checkbox', protectionToggle:true, desc:'When enabled, these startup-only trips replace normal overtemperature shutdown and temperature fuel limiting during Startup. In Running the normal protections take over. When disabled, normal temperature protection also applies during Startup.', basic:true },
+    { key:'sf_st', path:['sequence','startup','startup_egt_limit_c'], label:'Immediate Startup Trip', unitType:'temp', zeroOff:true, desc:'Fault shutdown as soon as selected TOT/TIT reaches this limit. The separate enable switch controls this threshold. Use the engine manufacturer’s starting limit.', step:10, min:0, basic:true },
+    { key:'sf_sd', path:['sequence','startup','startup_egt_dwell_c'], label:'Sustained Startup Temperature', unitType:'temp', zeroOff:true, desc:'Fault shutdown if selected TOT/TIT stays at or above this threshold continuously for the time below. Cooling below it resets the timer. The separate enable switch controls this threshold.', step:10, min:0, basic:true },
+    { key:'sf_sm', path:['sequence','startup','startup_egt_dwell_ms'], label:'Allowed Time Above Threshold (ms)', desc:'Continuous time permitted at or above the sustained threshold. This does not delay the immediate trip. Reset on leaving Startup or suspending safety checks.', step:100, min:1, max:600000, basic:true },
+    { key:'sf_p1en', path:['safety', 'p1_trip_enabled'], legacyThreshold:['safety', 'p1_trip_bar'], label:'Pressure 1 fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_p2en', path:['safety', 'p2_trip_enabled'], legacyThreshold:['safety', 'p2_trip_bar'], label:'Pressure 2 fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_tqen', path:['safety', 'torque_trip_enabled'], legacyThreshold:['safety', 'torque_trip_nm'], label:'Torque fault shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_us_en', path:['safety', 'underspeed_enabled'], legacyThreshold:['engine', 'min_rpm'], label:'N1 underspeed shutdown', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_st_en', path:['sequence', 'startup', 'startup_egt_immediate_enabled'], legacyThreshold:['sequence', 'startup', 'startup_egt_limit_c'], label:'Immediate startup overtemperature', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_sd_en', path:['sequence', 'startup', 'startup_egt_dwell_enabled'], legacyThreshold:['sequence', 'startup', 'startup_egt_dwell_c'], label:'Sustained startup temperature', type:'checkbox', protectionToggle:true, basic:true, desc:'Automatic protection can be switched off without clearing its saved limit.' },
+    { key:'sf_p1t',             path:['safety','p1_trip_bar'],        label:'P1 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P1 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:0.1, min:0, max:1000, basic:true },
+    { key:'sf_p2t',             path:['safety','p2_trip_bar'],        label:'P2 High-Pressure Shutdown', unitType:'press', zeroOff:true, desc:'Stops fuel when P2 rises above this pressure for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:0.1, min:0, max:1000, basic:true },
+    { key:'sf_tqt',             path:['safety','torque_trip_nm'],     label:'Shaft-Torque Hard Shutdown', unit:'Nm', zeroOff:true, desc:'Stops fuel when measured shaft torque remains above this independent limit for the configured confirmation time. The separate fault-shutdown switch enables this protection; disabling it preserves this limit.', step:1, min:0, max:1000000 },
     { key:'sf_p1d',             path:['safety','p1_trip_confirm_ms'], label:'Pressure 1 Hard-Trip Confirmation (ms)', desc:'Pressure 1 must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
     { key:'sf_p2d',             path:['safety','p2_trip_confirm_ms'], label:'Pressure 2 Hard-Trip Confirmation (ms)', desc:'Pressure 2 must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
     { key:'sf_tqd',             path:['safety','torque_trip_confirm_ms'], label:'Torque Hard-Trip Confirmation (ms)', desc:'Measured shaft torque must remain above its hard limit for this long before shutdown. 0 is immediate.', step:25, min:0, max:60000 },
@@ -170,12 +190,11 @@ const ALL_CONFIG_SCHEMA = [
     { key:'oil_fp',  path:['oil','failsafe_pct'],       label:'Fixed Pump Output After Pressure-Sensor Failure (%)', desc:'Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection.', step:5, min:0, max:100 },
   ]},
   { title: 'Oil Pressure Safety', id: 'oil-safety-section', sectionNote:'Independent oil-pressure, current, and flow protections. Startup oil requirements remain in the startup Sequence blocks where they act.', fields: [
-    { key:'oil_rm',  path:['oil','running_min'],        label:'Running Low-Pressure Limit', unitType:'press', desc:'Sets the Dashboard low-pressure advisory while RUNNING. The ECU shuts down below this value only when low-oil safety is enabled and the Low-Oil Confirmation time expires.', step:0.1, min:0, max:20, basic:true },
-    { key:'oil_zb',  path:['oil_advanced','zero_bar'],  label:'No-Pressure Shutdown Threshold', unitType:'press', desc:'A faster catastrophic-loss check for pressure at or near zero, such as a stopped pump or broken line. Set this below the normal low-pressure threshold and use its shorter confirmation time.', step:0.05, min:0 },
-    { key:'sf_lo_d', path:['safety','low_oil_confirm_ms'], label:'Low-Oil Confirmation (ms)', desc:'Oil pressure must remain below the running shutdown value for this long before shutdown. 0 is immediate.', step:50, min:0, max:60000 },
-    { key:'sf_oz_d', path:['safety','oil_zero_confirm_ms'], label:'Near-Zero Oil Confirmation (ms)', desc:'Catastrophic near-zero oil pressure must persist for this time. Keep this shorter than the normal low-oil confirmation.', step:25, min:0, max:60000 },
+    { key:'oil_rm',  path:['oil','running_min'],        label:'Low-Pressure Limit', unitType:'press', desc:'Sets the Dashboard low-pressure advisory. Automatic fault shutdown uses this limit during the selected monitoring phases, after the confirmation time. Explicit oil-prime requirements in Sequence remain independent.', step:0.1, min:0, max:20, basic:true },
+    { key:'sf_oil_modes', path:['safety','oil_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START.' },
+    { key:'sf_lo_d', path:['safety','low_oil_confirm_ms'], label:'Fault Confirmation Time (ms)', desc:'The low-pressure condition or logical oil switch ON state must remain continuously active for this long before fault shutdown. Returning to normal resets the timer. Switch contact debounce is a separate built-in 20 ms; 0 means no additional confirmation delay.', step:1, min:0, max:60000, basic:true },
     { key:'oil_ufd', path:['oil_advanced','pump_underflow_delay_ms'], label:'Low Oil-Flow Confirmation Delay (ms)', desc:'How long a monitored main or scavenge pump may remain below its own Hardware minimum-flow value before the ECU confirms a flow fault.', step:100, min:100, max:60000 },
-    { key:'oil_ufs', path:['oil_advanced','shutdown_on_underflow'], label:'Shutdown on Confirmed Low Oil Flow', type:'checkbox', desc:'Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this.' },
+    { key:'oil_ufs', path:['oil_advanced','shutdown_on_underflow'], label:'Shutdown on Confirmed Low Oil Flow', type:'checkbox', protectionToggle:true, desc:'Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this.' },
   ]},
   { title: 'Throttle Response', id: 'throttle', sectionNote:'Normal operator-demand shaping and output movement limits. These settings do not enable, disable, or replace separate engine safety switches.', fields: [
     { key:'th_ru', path:['throttle','ramp_up_ms'],   label:'Full Opening Time (ms)', desc:'Time for the fuel/throttle output to move from 0 to 100%. A larger value opens more gently.', step:50, min:0, basic:true },
@@ -331,7 +350,8 @@ const ALL_CONFIG_SCHEMA = [
     { key:'sf_ot',  path:['safety','oil_temp_limit_c'],         label:'Oil Temp Limit',     unitType:'temp',  zeroOff:true, desc:'Dashboard temperature reference and visual advisory. It becomes a fault shutdown only when oil-temperature safety is enabled. 0 hides the bar.', step:5, min:0, basic:true },
     { key:'sf_ot_d', path:['safety','oil_temp_confirm_ms'], label:'Oil-Temperature Confirmation (ms)', desc:'High oil temperature must persist for this time before shutdown.', step:100, min:0, max:60000 },
     { key:'sf_fp',  path:['safety','fuel_press_min_bar'],       label:'Minimum Running Fuel Pressure',     unitType:'press', desc:'Visual low-pressure advisory on the Dashboard during RUNNING. It becomes a fault shutdown only when low fuel-pressure safety is enabled. 0 removes the advisory.', step:0.1, min:0, basic:true },
-    { key:'sf_fp_d', path:['safety','fuel_press_confirm_ms'], label:'Fuel-Pressure Confirmation (ms)', desc:'Low running fuel pressure must persist for this time before shutdown.', step:50, min:0, max:60000 },
+    { key:'sf_fp_modes', path:['safety','fuel_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START.' },
+    { key:'sf_fp_d', path:['safety','fuel_press_confirm_ms'], label:'Fuel-Pressure Confirmation (ms)', desc:'Low fuel pressure must persist for this time during the selected monitoring phases before fault shutdown.', step:50, min:0, max:60000 },
     { key:'sf_bv',  path:['safety','batt_volt_min_v'],          label:'Battery Min (V)',          desc:'Visual low-voltage advisory on the Dashboard. It becomes an undervoltage shutdown only when battery safety is enabled. 0 removes the advisory.', step:0.1, min:0, basic:true },
     { key:'sf_bv_d', path:['safety','batt_low_confirm_ms'], label:'Bus-Voltage Confirmation (ms)', desc:'Low battery or bus voltage must persist for this time before shutdown.', step:100, min:0, max:60000 },
     { key:'sf_sg',  path:['safety','surge_detect_rpm_variance'],label:'Experimental Surge Detection (RPM²)', desc:'Experimental statistical N1-instability detector over a 10-sample rolling window, not an RPM limit. It requires tuning from recorded stable and surge data for this exact engine. 500,000 RPM² corresponds to about 707 RPM standard deviation. 0 disables it.', step:10000, min:0 },
@@ -347,6 +367,13 @@ const ALL_CONFIG_SCHEMA = [
     { key:'rc_fs', path:['rc_input','failsafe_ms'], label:'Signal-Loss Timeout (ms)', desc:'Marks a receiver input invalid when no valid pulse arrives in time. A lost operator-throttle signal returns main fuel toward the calibrated minimum output; STOP still performs the immediate fuel cut.', step:50, min:100 },
   ]},
 ];
+
+// Enable and method are separate fields so each edit is reviewable and retained.
+for(const section of ALL_CONFIG_SCHEMA)section.fields=section.fields.flatMap(field=>
+  field.type==='pullback_mode' ? [
+    {key:field.key+'_on',path:field.path,label:field.label.replace('Mode','Enabled'),type:'checkbox',protectionToggle:true,basic:true,desc:'Switch gradual fuel limiting on or off independently of fault shutdown. All limits and the selected method are retained.'},
+    {...field,path:field.modePath,modePath:undefined,type:'select',basic:true,label:field.label.replace('Mode','Method'),options:[{v:0,l:'Simple — measured value'},{v:1,l:'Predictive — measured value and rate of change'}],desc:'Simple reacts to the measured value. Predictive also uses its rate of change. The separate enable switch controls whether fuel limiting acts.'}
+  ] : [field]);
 
 // The old all-in-one Config page is intentionally split by ownership. Keep a
 // single field definition source so labels, validation, live-edit rules and
@@ -486,7 +513,7 @@ function _controllerHardwareChanges() {
       continue;
     }
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if (key==='controller_id'||JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
       changes.push({key:`__oil_loop_${index}_${key}`,
         label:`Oil-pressure controller ${index + 1} / ${loopLabels[key] || key.replace(/_/g, ' ')}`,
         was:display(before[key]), now:display(after[key]), inactive:false});
@@ -497,10 +524,14 @@ function _controllerHardwareChanges() {
 
 function _controllerRuleChanges() {
   const changes = [];
-  const beforeRules = _controllerRulesSnap;
-  const afterRules = cfg.rules || [];
-  const fieldLabels = {name:'Name', enabled:'Enabled', kind:'Control method', source:'Input',
-    target:'Output', op:'Direction', threshold:'Switch point', hysteresis:'Hysteresis',
+  const normalize=rule=>{
+    if(!window.OTControllerTiming?.scheduled(rule))return rule;
+    const next={...rule,activate_events:OTControllerTiming.starts(rule)};delete next.activate_event;return next;
+  };
+  const beforeRules = _controllerRulesSnap.map(normalize);
+  const afterRules = (cfg.rules || []).map(normalize);
+  const fieldLabels = {activate_events:'Activate when',activate_event:'Activate when',deactivate_events:'Deactivate when',name:'Name', enabled:'Enabled', kind:'Control method', source:'Input',
+    target:'Output', op:'Direction', threshold:'Switch point', hysteresis:'Hysteresis', confirm_ms:'Condition confirmation time',
     on_value:'On output', off_value:'Off output', input_min:'Input low', input_max:'Input high',
     output_min:'Output low', output_max:'Output high', mode_mask:'Operating states',
     target_source_type:'Target selection', target_source:'Target input', target_fixed:'Fixed target',
@@ -511,16 +542,22 @@ function _controllerRuleChanges() {
     const rows = hwCfg?.channel_registry?.[direction] || [];
     return rows.find(row => String(row.id) === String(id))?.name || id || '(none)';
   };
-  const format = (key, value) => {
+  const format = (key, value, rule={}) => {
+    const events=window.OTControllerTiming?.events||['Sequencer block','Entering Startup','Entering Running','Entering Shutdown','Entering Standby'];
+    if(key==='activate_event')return events[Number(value)]||'Existing operating-state selection';
+    if(key==='activate_events'||key==='deactivate_events')return events.filter((_,i)=>Number(value)&(1<<i)).join(' or ')||'(none)';
+    if (key === 'confirm_ms') return `${Number(value||0)} ms`;
     if (key === 'enabled') return value !== false ? 'On' : 'Off';
-    if (key === 'kind') return ['On / Off with hysteresis', 'Map input to output',
-      'Hold a feedback target', 'Fixed output in selected states'][Number(value)] || String(value);
-    if (key === 'op') return Number(value) === 1 ? 'Turn on below' : 'Turn on above';
+    if (key === 'kind') return [controllerSwitchInput(rule.source)?'Switch state':'On / Off with hysteresis', 'Map input to output',
+      'Hold a feedback target', 'Fixed output'][Number(value)] || String(value);
+    if (key === 'op') return controllerSwitchInput(rule.source)?(Number(value)===1?'Switch is OFF':'Switch is ON'):(Number(value)===1?'Input is below threshold':'Input is above threshold');
     if (key === 'target_source_type') return ['Fixed value', 'Input switch', 'Variable input'][Number(value)] || String(value);
     if (key === 'mode_mask') return [[1,'Standby'],[2,'Startup'],[4,'Running'],[8,'Shutdown']]
       .filter(([bit]) => Number(value) & bit).map(([,label]) => label).join(', ') || '(none)';
     if (key === 'source' || key === 'target_source') return nameFor(value, 'inputs');
-    if (key === 'target') return value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
+    if (key === 'target') return value === 'request_fault' ? 'Request Fault Shutdown' : value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
+    if(['on_value','off_value'].includes(key)&&(['request_shutdown','request_fault'].includes(String(rule.target))||[4,11].includes(Number(hwCfg?.channel_registry?.outputs?.find(row=>String(row.id)===String(rule.target))?.driver))))
+      return Number(value)>=.5?'ON':'OFF';
     if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
       return `${Number((Number(value) * 100).toFixed(4))}%`;
     return value === undefined || value === null || value === '' ? '(none)' : String(value);
@@ -528,7 +565,7 @@ function _controllerRuleChanges() {
   const matchedOld = new Set();
   const matched = afterRules.map(after => {
     const oldIndex = beforeRules.findIndex((before, i) => !matchedOld.has(i) &&
-      String(before.target || '') === String(after.target || ''));
+      (before.controller_id&&after.controller_id?Number(before.controller_id)===Number(after.controller_id):String(before.target || '') === String(after.target || '')));
     if (oldIndex >= 0) matchedOld.add(oldIndex);
     return oldIndex;
   });
@@ -546,11 +583,17 @@ function _controllerRuleChanges() {
         was:'Not present', now:'Created', inactive:false});
       return;
     }
+    const switchRule=Number(after.kind||0)===0&&controllerSwitchInput(after.source);
+    if(switchRule&&['op','threshold','hysteresis'].some(key=>JSON.stringify(before[key])!==JSON.stringify(after[key]))){
+      const condition=rule=>controllerSwitchInput(rule.source)&&controllerSwitchSettingsReady(rule)?format('op',rule.op,rule):`${Number(rule.op||0)===1?'Below':'Above'} ${rule.threshold??0}, hysteresis ${rule.hysteresis??0}`;
+      changes.push({key:`__simple_control_${index}_condition`,label:`Controller / ${ruleName} / Switch condition`,was:condition(before),now:condition(after),inactive:false});
+    }
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if (key==='controller_id'||JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+      if(switchRule&&['op','threshold','hysteresis'].includes(key))continue;
       changes.push({key:`__simple_control_${index}_${key}`,
         label:`Controller / ${ruleName} / ${fieldLabels[key] || key.replace(/_/g, ' ')}`,
-        was:format(key, before[key]), now:format(key, after[key]), inactive:false});
+        was:format(key, before[key],before), now:format(key, after[key],after), inactive:false});
     }
   });
   beforeRules.forEach((before, index) => {
@@ -696,6 +739,87 @@ async function reloadConfigPage() {
 }
 
 // Source: data_src/pages/config-render.js
+function startupGuardHasTrip(){
+  const hard=document.getElementById('cf-sf_st_en')?.checked?Number(document.getElementById('cf-sf_st')?.value):0;
+  const timed=document.getElementById('cf-sf_sd_en')?.checked?Number(document.getElementById('cf-sf_sd')?.value):0;
+  return (hard>0||timed>0)&&(!document.getElementById('cf-sf_st_en')?.checked||hard>0)&&
+    (!document.getElementById('cf-sf_sd_en')?.checked||(timed>0&&Number(document.getElementById('cf-sf_sm')?.value)>0))&&
+    !(hard>0&&timed>=hard);
+}
+function refreshProtectionSummaries(){
+  for(const card of document.querySelectorAll('.protection-card[data-protection]')){
+    const key=card.dataset.protection,mode=card.querySelector('.protection-modes');if(!mode)continue;
+    const field={n1:'pb_n1e',n2:'pb_n2e',egt:'pb_egte',p1:'pb_p1e',p2:'pb_p2e',torque:'pb_tqe'}[key];
+    if(field){const checkbox=document.getElementById('cf-'+field+'_on'),available=checkbox?.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1',enabled=!!checkbox?.checked;
+      mode.lastElementChild.dataset.enabled=String(enabled&&available);mode.lastElementChild.dataset.state=enabled&&!available?'check':'';
+      mode.lastElementChild.textContent='Fuel limiting: '+(!enabled?'OFF':!available?'unavailable':'ON — '+(Number(document.getElementById('cf-'+field)?.value)===1?'Predictive':'Simple'));}
+    const phaseField={low_oil:'sf_oil_modes',fuel_press_low:'sf_fp_modes'}[key];
+    if(phaseField){const status=mode.firstElementChild,phase=document.getElementById('cf-'+phaseField);
+      if(status&&phase)status.textContent=status.textContent.split(' · ')[0]+' · '+({2:'Startup',4:'Running',6:'Startup and Running'}[Number(phase.value)]||'Check monitoring phases');}
+    const trip=mode.querySelector('[data-trip-state]');
+    if(trip){
+      const prefix={p1:'sf_p1',p2:'sf_p2',torque:'sf_tq'}[key];
+      const threshold=document.getElementById('cf-'+prefix+'t'),delay=document.getElementById('cf-'+prefix+'d');
+      const limit=Number(threshold?.value),ms=Number(delay?.value);
+      const fitted=controllerInputs({p1:'p1_pressure',p2:'p2_pressure',torque:'torque'}[key]).length>0;
+      trip.textContent=!fitted?'Fault shutdown: unavailable — fit an input':
+        !Number.isFinite(limit)||limit<0?'Fault shutdown: check limit':
+        !document.getElementById('cf-'+prefix+'en')?.checked?'Fault shutdown: OFF — limit retained':
+        limit===0?'Fault shutdown: check limit':
+        'Fault shutdown: ON — '+limit+' '+(key==='torque'?'Nm':pressUnit())+
+        (Number.isFinite(ms)&&ms>=0?(ms===0?' · immediate':' · '+ms+' ms confirmation'):' · check confirmation time');
+      trip.dataset.enabled=String(fitted&&limit>0&&document.getElementById('cf-'+prefix+'en')?.checked);
+    }
+  }
+  for(const input of document.querySelectorAll('.protection-enable input')){const state=input.parentElement.querySelector('[data-toggle-state]');if(state)state.textContent=input.checked?((input.closest('[data-safety-available="false"]')||input.closest('.cfg-field')?.dataset.hardwareUnavailable==='1')?'CHECK':'ON'):'OFF';}
+  for(const badge of document.querySelectorAll('[data-config-safety]')){
+    const input=document.getElementById('cf-'+badge.dataset.configSafety),available=input?.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1',on=!!input?.checked;
+    badge.textContent=on?(available?'Fault shutdown: ON':'Fault shutdown: unavailable'):'Fault shutdown: OFF';badge.dataset.enabled=String(on&&available);badge.dataset.state=on&&!available?'check':'';
+  }
+  const guard=document.getElementById('cf-sf_sg_en'),status=document.querySelector('[data-startup-guard-state]');
+  if(guard&&status){const ready=startupGuardHasTrip(),available=guard.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1';
+    status.textContent='Startup guard: '+(!guard.checked?'OFF':!available?'unavailable':ready?'ON':'needs setup');
+    status.dataset.enabled=String(guard.checked&&available&&ready);status.dataset.state=guard.checked&&(!available||!ready)?'check':'';}
+  const underspeed=document.getElementById('cf-sf_us_en'),underStatus=document.querySelector('[data-underspeed-state]');
+  if(underspeed&&underStatus){const available=underspeed.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1';underStatus.textContent='Underspeed: '+(!underspeed.checked?'OFF':available?'ON':'unavailable');underStatus.dataset.enabled=String(underspeed.checked&&available);underStatus.dataset.state=underspeed.checked&&!available?'check':'';}
+  refreshProtectionCount();
+}
+function refreshProtectionCount(){
+  const group=document.querySelector('[data-group="safety"]'),badge=group?.querySelector('[data-protection-active-count]');if(!badge)return;
+  // Count enabled functions, independent of filtering and engine edit locks.
+  // The startup envelope is one function; its two threshold choices are not double-counted.
+  const count=Array.from(group.querySelectorAll('.protection-enable input[type="checkbox"]')).filter(input=>
+    input.checked&&!['cf-sf_st_en','cf-sf_sd_en'].includes(input.id)&&(input.id!=='cf-sf_sg_en'||startupGuardHasTrip())&&
+    input.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1'&&
+    !input.closest('[data-safety-available="false"]')).length;
+  badge.textContent=count+' active';badge.dataset.active=String(count>0);
+  badge.title='Enabled protection functions with fitted prerequisites, including fuel limiting. Incomplete startup setup is excluded; a valid startup guard counts once. Operation also depends on engine state and each protection’s conditions.';
+}
+function openProtection(key){
+  const card=document.querySelector(`[data-protection="${key}"]`);if(!card)return;
+  for(let node=card;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+  requestAnimationFrame(()=>{
+    // The desktop workspace wraps with viewport width and browser zoom.
+    // Mobile uses a non-sticky workspace, so only the navigation overlaps.
+    let offset=0;
+    for(const header of document.querySelectorAll('body>nav,.cfg-workspace')){
+      const style=getComputedStyle(header);
+      if(style.position==='sticky'||style.position==='fixed')
+        offset=Math.max(offset,(parseFloat(style.top)||0)+header.getBoundingClientRect().height);
+    }
+    window.scrollTo({top:Math.max(0,scrollY+card.getBoundingClientRect().top-offset-12),behavior:'smooth'});
+  });
+}
+function refreshStartupGuardUi(){
+  const checkbox=document.getElementById('cf-sf_sg_en');if(!checkbox)return;
+  refreshProtectionSummaries();
+  const enabled=checkbox.checked,part=checkbox.closest('.protection-part');
+  if(part)part.querySelector('p').textContent=enabled&&!startupGuardHasTrip()?'Startup guard setup is incomplete. Enable an immediate or sustained trip below and set its positive limit.':enabled?'Separate startup guard is on. Normal temperature shutdown and temperature fuel limiting resume in Running.':'Separate startup guard is off. Normal temperature shutdown and temperature fuel limiting also apply during Startup.';
+  for(const key of ['sf_st','sf_sd','sf_sm']){
+    const field=document.getElementById('cf-'+key);if(!field)continue;
+    field.closest('.cfg-field')?.classList.toggle('protection-dormant',!enabled);
+  }
+}
 // ── JSON path helpers ─────────────────────────────────────────
 function getPath(obj, path) {
   return path.reduce((cur, k) => (cur != null && typeof cur === 'object' ? cur[k] : undefined), obj);
@@ -767,7 +891,7 @@ function controllerChannelName(row) {
     throttle:'Throttle Input', idle:'Idle Input', n1_speed:'N1 Speed', n2_speed:'N2 Speed',
     oil_pressure:'Oil Pressure', main_fuel:'Main Fuel Metering', oil_pump:'Oil Pump',
     prop_pitch:'Propeller Pitch', ab_pump:'Afterburner Fuel Pump', pilot_fuel:'Pilot Fuel',
-    request_shutdown:'Request Normal Shutdown'
+    request_shutdown:'Request Normal Shutdown',request_fault:'Request Fault Shutdown'
   };
   const raw = String(row.name || '').trim();
   return raw || purposeNames[row.purpose] || 'Configured channel';
@@ -828,12 +952,12 @@ function _resolveControllerChannelId(value, rows, kind, numericValue) {
 function _defaultRuleForOutput(channel) {
   const inputs = simpleControlInputs();
   const relay = [4,11].includes(Number(channel.driver));
-  if (String(channel.purpose) === 'request_shutdown') {
+  if (['request_shutdown','request_fault'].includes(String(channel.purpose))) {
     return {enabled:true,kind:0,op:0,threshold:0,hysteresis:0,on_value:1,off_value:0,
       input_min:0,input_max:1,output_min:0,output_max:1,mode_mask:4,
       target_source_type:0,target_source:'',target_fixed:0,target_low:0,target_high:1,
       target_input_min:0,target_input_max:1,response_gain:.02,integral_gain:.005,deadband:.01,
-      name:'Request Normal Shutdown',source:'',target:'request_shutdown'};
+      name:channel.name,source:'',target:channel.id};
   }
   // Main fuel naturally follows the sole throttle input. Every other new
   // controller starts as an explicit fixed command so merely creating it can
@@ -843,7 +967,7 @@ function _defaultRuleForOutput(channel) {
   const minFuel = String(channel.purpose) === 'main_fuel'
     ? Math.max(0, Math.min(1, Number(cfg?.throttle?.fuel_pump_min_pct || 0) / 100)) : 0;
   return {enabled:true,kind:source?(relay?0:1):3,op:0,threshold:0,hysteresis:0,on_value:source?1:0,off_value:0,
-    input_min:0,input_max:1,output_min:minFuel,output_max:1,mode_mask:4,
+    input_min:0,input_max:1,output_min:minFuel,output_max:1,mode_mask:4,activate_events:4,deactivate_events:24,
     target_source_type:0,target_source:'',target_fixed:0,target_low:0,target_high:1,
     target_input_min:0,target_input_max:1,response_gain:.02,integral_gain:.005,deadband:.01,
     name:`${controllerChannelName(channel)} control`.slice(0,31),source:source?.id || '',target:channel.id};
@@ -852,7 +976,7 @@ function _defaultRuleForOutput(channel) {
 function createControllerForOutput(outputId) {
   const outputs = simpleControlOutputs();
   const channel = outputs.find(row => String(row.id) === String(outputId));
-  if (!channel || (cfg.rules || []).some(rule => String(rule.target) === String(outputId))) return;
+  if (!channel || (cfg.rules || []).length >= 16) return;
   const purpose = String(channel.purpose || '');
   hwCfg.controllers ||= {};
   if (purpose === 'main_fuel' || purpose === 'prop_pitch') hwCfg.controllers.governor = false;
@@ -862,6 +986,9 @@ function createControllerForOutput(outputId) {
   }
   cfg.rules ||= [];
   cfg.rules.push(_defaultRuleForOutput(channel));
+  const created=cfg.rules[cfg.rules.length-1];
+  if(!OTControllerTiming.scheduled(created)){created.activate_events=4;created.deactivate_events=24;}
+  window.OTControllerTiming?.ensureIds(cfg.rules);
   _controllerRulesDirty = true;
   if (!channel.virtual) _controllerHardwareDirty = true;
   _markDirty();
@@ -944,7 +1071,7 @@ function renderControllerOverview() {
   // relight and safety commands still take authority in their defined states.
   const unavailableToRules = new Set([...oilLoopOutputs]);
   outputs.filter(channel => String(channel.purpose) === 'ab_pump').forEach(channel => unavailableToRules.add(String(channel.id)));
-  const available = outputs.filter(channel => !configuredIds.has(String(channel.id)) && !unavailableToRules.has(String(channel.id)));
+  const available = outputs.filter(channel => !unavailableToRules.has(String(channel.id)));
   const freeOilPumps = outputs.filter(channel => String(channel.purpose) === 'oil_pump' &&
     !configuredIds.has(String(channel.id)) && !configuredOilOutputs.has(String(channel.id)));
   const oilPressureInputs = controllerInputs('oil_pressure');
@@ -959,7 +1086,9 @@ function renderControllerOverview() {
     purposes.has('oil_pump') ? builtIn('windmilling-oil','Windmilling oil protection','Protective oil flow while a fitted shaft rotates outside normal running') : '',
     (purposes.has('ab_pump') || purposes.has('ab_igniter') || purposes.has('ab_fuel') || purposes.has('ab_fuel_shutoff')) ? builtIn('afterburner','Afterburner subsystem','Light-up method, flame confirmation, and lit-running fuel behavior') : ''
   ].join('');
-  root.innerHTML = `<div class="control-overview-head"><div><h2>Output controllers</h2><p>User-owned normal control for fitted outputs. One normal owner per output.</p></div></div><div id="configured-controller-cards" class="controller-definition-list"></div>${oilLoopCards}<div class="controller-create-wrap">${availableHtml}</div><div class="control-overview-head built-in-heading"><div><h2>Built-in turbine subsystems</h2><p>Optional ECU behaviors that temporarily command outputs during their defined sequence, protection, or relight state. They do not prevent a separate normal output controller.</p></div></div><div id="built-in-subsystems" class="controller-definition-list">${builtIns}</div>`;
+  const needsSequence=(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg,cfg.rules)==='Sequence needs setup');
+  const sequenceNotice=needsSequence?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save controller changes, then place and save the required controller blocks. Start stays blocked until setup is complete, or disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
+  root.innerHTML = `${sequenceNotice}<div class="control-overview-head"><div><h2>Output controllers</h2><p>User-owned normal control for fitted outputs. Only one active controller per output.</p></div></div><div id="configured-controller-cards" class="controller-definition-list"></div>${oilLoopCards}<div class="controller-create-wrap">${availableHtml}</div><div class="control-overview-head built-in-heading"><div><h2>Built-in turbine subsystems</h2><p>Optional ECU behaviors that temporarily command outputs during their defined sequence, protection, or relight state. They do not prevent a separate normal output controller.</p></div></div><div id="built-in-subsystems" class="controller-definition-list">${builtIns}</div>`;
   const list = document.getElementById('configured-controller-cards');
   configuredCards.forEach(card => list?.appendChild(card));
   // Controller definitions are rendered in a temporary section so the normal
@@ -1076,6 +1205,19 @@ function _mountControllerLocalSettings(outputs) {
 
 function simpleControlInputs() {
   return (hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
+}
+function controllerSwitchInput(id) {
+  const row=(hwCfg?.channel_registry?.inputs||[]).find(input=>String(input.id)===String(id));
+  return !!row && (registryInputIsBinary(row)||Number(row.driver)===8||['flame','ab_flame'].includes(String(row.purpose)));
+}
+function controllerSwitchSettingsReady(rule) {
+  const threshold=Number(rule.threshold),op=Number(rule.op||0);
+  return Number(rule.hysteresis||0)===0 && (op===0?threshold>=0&&threshold<1:op===1&&threshold>0&&threshold<=1);
+}
+function setControllerSwitchState(index,op) {
+  const rule=cfg.rules?.[index];if(!rule)return;
+  rule.threshold=.5;rule.hysteresis=0;
+  updateSimpleControl(index,'op',Number(op));
 }
 
 // Presentation only: controller configuration keeps its existing engineering units.
@@ -1204,7 +1346,7 @@ function simpleControlOutputs() {
   return physical.concat([{
     id:'request_shutdown', name:'Request Normal Shutdown', purpose:'request_shutdown',
     role:'safety_action', driver:4, installed:true, virtual:true
-  }]);
+  },{id:'request_fault',name:'Request Fault Shutdown',purpose:'request_fault',role:'safety_action',driver:4,installed:true,virtual:true}]);
 }
 function feedbackDefaultsForInput(id) {
   const row = simpleControlInputs().find(input => String(input.id) === String(id));
@@ -1234,7 +1376,7 @@ function updateSimpleControl(index, key, value) {
     if (Number(value) === 0) {
       rule.threshold ??= 0;
       rule.hysteresis ??= 0;
-      rule.on_value = 0;
+      rule.on_value = target && [4,11].includes(Number(target.driver)) ? 1 : 0;
       rule.off_value = 0;
     } else if (Number(value) === 1) {
       rule.input_min = 0;
@@ -1260,6 +1402,9 @@ function updateSimpleControl(index, key, value) {
   }
   if (key === 'source' && Number(rule.kind) === 2)
     Object.assign(rule, feedbackDefaultsForInput(value));
+  if (['source','kind','op'].includes(key) && Number(rule.kind)===0 && controllerSwitchInput(rule.source)) {
+    rule.threshold=.5;rule.hysteresis=0;
+  }
   if (key === 'target_source_type' && Number(value) !== 0 && !rule.target_source)
     rule.target_source = '';
   if (key === 'target') {
@@ -1280,6 +1425,28 @@ function updateSimpleControl(index, key, value) {
   _applyAllVisibility();
   applyView();
   runValidation();
+}
+function updateControllerTiming(index, field, value) {
+  collectConfigFields();
+  const rule=cfg.rules?.[index]; if(!rule)return;
+  OTControllerTiming.ensureIds(cfg.rules);
+  rule.activate_events=OTControllerTiming.starts(rule);
+  delete rule.activate_event;
+  rule[field]=Number(value)&31;
+  if(field==='activate_events')rule.deactivate_events=(Number(rule.deactivate_events)||24)&~(rule.activate_events&30);
+  _controllerRulesDirty=true;_markDirty();renderForm(true);_applyAllVisibility();applyView();
+}
+function controllerTimingHtml(rule,index) {
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const api=window.OTControllerTiming;
+  if(!api)return '';
+  const action=['request_shutdown','request_fault'].includes(String(rule.target));
+  api.ensureIds(cfg.rules||[]);
+  const choices=(on)=>api.events.map((label,i)=>{
+    const field=on?'activate_events':'deactivate_events',mask=on?api.starts(rule):Number(rule.deactivate_events)||0;
+    return `<label><input type="checkbox" aria-label="${on?'Activate':'Deactivate'}: ${esc(label)}" ${!on&&i>0&&(api.starts(rule)&(1<<i))?'disabled':''} ${mask&(1<<i)?'checked':''} onchange="updateControllerTiming(${index},'${field}',this.checked?(${mask}|${1<<i}):(${mask}&~${1<<i}))"> ${esc(label)}</label>`;
+  }).join('');
+  return `<section class="controller-form-section"><b>${action?'When to monitor':'Activation'}</b>${action?'<p>Monitoring starts and stops below. Shutdown is requested only while monitoring and when the input condition above is met.</p>':''}<div class="cfg-grid"><div class="cfg-field"><span class="cfg-label">${action?'Start monitoring':'Activate when'}</span><span class="automation-states">${choices(true)}</span></div><div class="cfg-field"><span class="cfg-label">${action?'Stop monitoring':'Deactivate when'}</span><span class="automation-states">${choices(false)}</span></div></div><p>${esc(api.summary(rule))}</p><p>Status: <b>${esc(api.status(rule,hwCfg,cfg.rules))}</b></p>${api.status(rule,hwCfg,cfg.rules)!=='OK'?'<a href="/sequence.html">Open Sequence</a>':''}</section>`;
 }
 function toggleSimpleControlMode(index, bit, checked) {
   const rule = cfg.rules?.[index];
@@ -1308,13 +1475,14 @@ function removeSimpleControl(index) {
 }
 
 function controllerInputs(purpose) {
-  return (hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false && String(row.purpose || '') === purpose);
+  return (hwCfg?.channel_registry?.inputs || []).filter(row => registryChannelInstalled(row) && String(row.purpose || '') === purpose);
 }
 function controllerOutputs(purpose) {
-  return (hwCfg?.channel_registry?.outputs || []).filter(row => row && row.installed !== false &&
+  return (hwCfg?.channel_registry?.outputs || []).filter(row => registryChannelInstalled(row) &&
     !String(row.mirror_of || '') && String(row.purpose || '') === purpose);
 }
 function markControllerHardwareDirty() {
+  collectConfigFields();
   _controllerHardwareDirty = true;
   _markDirty();
   renderForm(true);
@@ -1334,11 +1502,8 @@ function setSafetyEnabled(key, enabled) {
 }
 function controllerSafetyToggle(key, label, available, requirement, locked = false) {
   const checked = !!hwCfg?.safety?.[key];
-  const reason = available ? 'Independent protection; its limits and response are configured in this card.' : requirement;
-  const state = checked && available ? '<b class="controller-state controller-state-ok">● ACTIVE</b>'
-    : checked ? '<b class="controller-state controller-state-warn">● NEEDS ATTENTION</b>'
-    : '<b class="controller-state">○ OFF</b>';
-  return `<div class="safety-local-toggle" title="${_escHtml(reason)}"><label title="${_escHtml(reason)}"><input type="checkbox" title="${_escHtml(reason)}" ${checked?'checked':''} ${available&&!locked?'':'disabled'} onchange="setSafetyEnabled('${key}',this.checked)"> ${label} enabled</label>${state}<span>ⓘ ${_escHtml(reason)}</span></div>`;
+  const reason = available ? (key==='hot_start' ? 'Blocks START while the engine is already hot. Does not monitor the ignition rise.' : 'Enables this fault-shutdown protection. Gradual fuel limiting has its own setting and remains independent.') : requirement;
+  return `<div class="safety-local-toggle protection-enable" data-safety-key="${key}" data-safety-available="${!!available}" title="${_escHtml(reason)}"><label><span class="cfg-label">Enable ${_escHtml(label)}</span><input aria-label="Enable ${_escHtml(label)}" type="checkbox" ${checked?'checked':''} ${(available||checked)&&!locked?'':'disabled'} onchange="setSafetyEnabled('${key}',this.checked)"><b data-toggle-state>${checked?(available?'ON':'CHECK'):'OFF'}</b></label>${available?'':`<small>${_escHtml(requirement)}</small>`}</div>`;
 }
 function updateControllerOilLoop(index, key, value) {
   const loop = hwCfg.oil_loops?.[index];
@@ -1606,9 +1771,9 @@ function _refreshDependencyEditability() {
     const activeLocked = control?.dataset.activeLocked === '1';
     // Future tuning values may be prepared before their hardware is installed,
     // but an enable checkbox must never be armed while its prerequisites are
-    // absent. Otherwise adding hardware later could unexpectedly activate a
+    // absent. A stale enabled flag can still be switched off. Otherwise adding hardware later could unexpectedly activate a
     // controller or protection with uncommissioned settings.
-    const activationLocked = inactive && control?.type === 'checkbox';
+    const activationLocked = inactive && control?.type === 'checkbox' && !control.checked;
     const inactiveEditable = inactive && futureEditMode && !activationLocked;
     field.classList.toggle('cfg-field-inactive', inactive);
     field.classList.toggle('inactive-editable', inactiveEditable && !isLocked && !logicallyDisabled && !activeLocked);
@@ -1696,10 +1861,11 @@ function applyView() {
     const featureHidden = section.dataset.forceHidden === '1' ||
       section.dataset.hardwareUnavailable === '1';
     const hiddenBench = ['tools-primary-section','tools-accessory-section','tools-ab-section'].includes(section.id) && _workspaceFilter !== 'configured' && _workspaceFilter !== 'explore' && !search;
+    const availableSafety=!!section.querySelector('[data-safety-available="true"]')&&!search&&_workspaceFilter!=='changed';
     const hideUnavailableFeature = featureHidden && _workspaceFilter !== 'explore' && !search;
     const alwaysVisible = section.dataset.alwaysVisible === '1' &&
       (_workspaceFilter !== 'changed' || _controllerRulesDirty || _controllerHardwareDirty);
-    section.classList.toggle('filter-hidden', !alwaysVisible && (hideUnavailableFeature || count === 0 || hiddenBench));
+    section.classList.toggle('filter-hidden', !alwaysVisible && (hideUnavailableFeature || (count === 0&&!availableSafety) || hiddenBench));
     section.classList.toggle('feature-unavailable', featureHidden);
     section.classList.toggle('search-reveal', featureHidden && !!search);
     if (featureHidden && !section.dataset.unavailableBound) {
@@ -1714,9 +1880,23 @@ function applyView() {
 
   document.querySelectorAll('.protection-card').forEach(card => {
     const count = card.querySelectorAll('.cfg-field:not(.filter-hidden)').length;
-    card.classList.toggle('filter-hidden', count === 0);
+    const availableToggle=card.querySelector('[data-safety-available="true"]');
+    const switchOnly=!!availableToggle&&!_searchQuery&&_workspaceFilter!=='changed';
+    card.classList.toggle('filter-hidden', count === 0&&!switchOnly);
     if ((_searchQuery || _workspaceFilter === 'changed') && count) card.open = true;
   });
+
+  // Shortcuts and nested layouts follow the same filtered fields as their cards.
+  for(const button of document.querySelectorAll('[data-protection-target]')){
+    const card=document.querySelector(`[data-protection="${button.dataset.protectionTarget}"]`);
+    button.hidden=!card||card.classList.contains('filter-hidden')||!!card.closest('.cfg-section.filter-hidden');
+  }
+  for(const nav of document.querySelectorAll('.protection-nav'))nav.hidden=!nav.querySelector('button:not([hidden])');
+  for(const part of document.querySelectorAll('[data-group="safety"] .protection-part,[data-group="safety"] .startup-trip-card')){
+    part.classList.toggle('filter-hidden',!part.querySelector('.cfg-field:not(.filter-hidden)')&&!part.querySelector('[data-safety-available="true"]'));
+  }
+  for(const grid of document.querySelectorAll('[data-group="safety"] .cfg-grid,[data-group="safety"] .startup-trip-grid'))
+    grid.classList.toggle('filter-hidden',!grid.querySelector('.cfg-field:not(.filter-hidden)'));
 
   document.querySelectorAll('.config-group').forEach(group => {
     const sections = Array.from(group.querySelectorAll('.cfg-section'));
@@ -1732,6 +1912,8 @@ function applyView() {
     if (meta && !alwaysVisible) meta.textContent = count ? `${count} setting${count === 1 ? '' : 's'}` : '';
     if ((search || _workspaceFilter === 'changed') && count) group.open = true;
   });
+
+  refreshProtectionCount();
 
   // Field filtering runs before feature-gated sections are resolved. Recount
   // after the section/group pass so hidden governor/afterburner children never
@@ -1925,30 +2107,23 @@ function setConfigPressUnit(value) {
   _switchConfigUnit(['press'], setPressUnit, value);
 }
 
-function _captureControllerOpenState() {
-  if (CONFIG_SURFACE !== 'controllers') return [];
-  return [...document.querySelectorAll('#controller-overview details[open]')].map(card => {
-    const owner = card.closest('[data-controller-output], [data-behavior-output], [data-built-in]');
-    if (!owner) return null;
-    const ownerType = owner.hasAttribute('data-controller-output') ? 'controller' : owner.hasAttribute('data-behavior-output') ? 'behavior' : 'built-in';
-    const ownerId = owner.getAttribute(ownerType === 'controller' ? 'data-controller-output' : ownerType === 'behavior' ? 'data-behavior-output' : 'data-built-in');
-    return {ownerType, ownerId, subcard:card.dataset.subcard || ''};
-  }).filter(Boolean);
+function _detailsStateKey(card) {
+  const owner=card.closest('[data-controller-output],[data-behavior-output],[data-built-in]');
+  const identity=owner?.hasAttribute('data-controller-id')?'controller:'+owner.dataset.controllerId:owner?['data-controller-output','data-behavior-output','data-built-in'].map(a=>owner.getAttribute(a)||'').join(':'):card.closest('.config-group')?.querySelector('.group-title')?.textContent||'settings';
+  if(card===owner)return identity;
+  return identity+'|'+(card.dataset.protection||card.dataset.subcard||card.id||card.dataset.group||card.querySelector(':scope > summary')?.textContent.trim()||'');
 }
-
+function _captureControllerOpenState() {
+  return new Map([...document.querySelectorAll('#controller-overview details,#cfg-form details')].map(card=>[_detailsStateKey(card),card.open]));
+}
 function _restoreControllerOpenState(state) {
-  (state || []).forEach(item => {
-    const attr = item.ownerType === 'controller' ? 'data-controller-output' : item.ownerType === 'behavior' ? 'data-behavior-output' : 'data-built-in';
-    const owner = document.querySelector(`#controller-overview [${attr}="${CSS.escape(String(item.ownerId))}"]`);
-    if (!owner) return;
-    const card = item.subcard
-      ? [...owner.querySelectorAll('.controller-subcard')].find(row => row.dataset.subcard === item.subcard)
-      : owner;
-    if (card && 'open' in card) card.open = true;
+  if(!(state instanceof Map))return;
+  document.querySelectorAll('#controller-overview details,#cfg-form details').forEach(card=>{
+    const key=_detailsStateKey(card);if(state.has(key))card.open=state.get(key);
   });
 }
 
-function renderForm(preserveControllerOpenState = false) {
+function renderForm(preserveControllerOpenState = true) {
   const controllerOpenState = preserveControllerOpenState ? _captureControllerOpenState() : [];
   document.body.classList.toggle('system-surface', CONFIG_SURFACE === 'system');
   const workspaceTitle = document.querySelector('.cfg-workspace-title');
@@ -1961,36 +2136,32 @@ function renderForm(preserveControllerOpenState = false) {
   const mixedOilPumpDrivers = configuredOilPumps.some(oilPumpIsBinary) && configuredOilPumps.some(channel => !oilPumpIsBinary(channel));
   const protectionGroups = [
     {id:'n1', title:`${controllerPurposeNames(['n1_speed']) || 'N1'} · core speed`, desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
-      keys:['pb_n1e','pb_n1s','pb_n1h','rpm_limit','min_rpm'], advanced:['pb_n1l','pb_n1str','rl_ramp','rl_zone','rl_acc']},
+      keys:['sf_us_en','pb_n1e','pb_n1s','pb_n1h','rpm_limit','min_rpm'], advanced:['pb_n1l','pb_n1str','rl_ramp','rl_zone','rl_acc']},
     {id:'n2', title:`${controllerPurposeNames(['n2_speed']) || 'N2'} · output-shaft speed`, desc:'Dashboard reference, optional gradual fuel limiting, and separately enabled overspeed shutdown.',
       keys:['pb_n2e','pb_n2s','pb_n2h','n2_rpm_limit'], advanced:['pb_n2l','pb_n2str']},
-    {id:'egt', title:`${controllerPurposeNames(controllerTemperaturePurposes()) || 'Turbine temperature'} · temperature protection`, desc:'Select TOT/TIT, set running and startup Dashboard references, and optionally enable fuel limiting or overtemperature shutdown.',
-      keys:['eg_src','pb_egte','pb_egts','pb_egth','tot_limit','sf_tit','sf_st','tot_safe_margin'], advanced:['pb_egtl','pb_egtstr']},
+    {id:'egt', title:`${controllerPurposeNames(controllerTemperaturePurposes()) || 'Turbine temperature'} · temperature protection`, desc:'Separate startup limits, normal fault shutdown, and gradual fuel limiting. Uses the selected, user-named TOT/TIT sensor.',
+      keys:['eg_src','pb_egte','pb_egts','pb_egth','tot_limit','sf_tit','sf_sg_en','sf_st_en','sf_sd_en','sf_st','sf_sd','sf_sm','sf_hs','tot_safe_margin'], advanced:['pb_egtl','pb_egtstr']},
     {id:'p1', title:`${controllerChannelName(controllerInputs('p1_pressure')[0]) || 'Pressure 1'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
-      keys:['pb_p1e','pb_p1s','pb_p1h','sf_p1t','sf_p1d'], advanced:['pb_p1l','pb_p1str']},
+      keys:['pb_p1e','pb_p1s','pb_p1h','sf_p1en','sf_p1t','sf_p1d'], advanced:['pb_p1l','pb_p1str']},
     {id:'p2', title:`${controllerChannelName(controllerInputs('p2_pressure')[0]) || 'Pressure 2'} protection`, desc:'User-named pressure input: gradual fuel reduction followed by an optional high-pressure shutdown.',
-      keys:['pb_p2e','pb_p2s','pb_p2h','sf_p2t','sf_p2d'], advanced:['pb_p2l','pb_p2str']},
+      keys:['pb_p2e','pb_p2s','pb_p2h','sf_p2en','sf_p2t','sf_p2d'], advanced:['pb_p2l','pb_p2str']},
     {id:'torque', title:`${controllerPurposeNames(['torque']) || 'Shaft torque'} · torque protection`, desc:'Gradual fuel reduction followed by an optional over-torque shutdown.',
-      keys:['pb_tqe','pb_tqs','pb_tqh','sf_tqt','sf_tqd'], advanced:['pb_tql','pb_tqstr']},
+      keys:['pb_tqe','pb_tqs','pb_tqh','sf_tqen','sf_tqt','sf_tqd'], advanced:['pb_tql','pb_tqstr']},
   ];
+  for(const card of protectionGroups){const mode=card.keys.find(key=>/^pb_.*e$/.test(key));if(mode)card.keys.push(mode+'_on');}
   const gradualSection = SCHEMA.find(section => section.title === 'Gradual Fuel Limit Protection');
 
   const renderField = (f, sec, group) => {
     let val = getPath(cfg, f.path);
+    if (val===undefined && ["sf_oil_modes","sf_fp_modes"].includes(f.key)) val=4;
+    if(val===undefined&&f.legacyThreshold)val=Number(getPath(cfg,f.legacyThreshold))>0;
     if (f.key === 'fi_mode') val = displayedIdleMode();
     if (f.key === 'fi_input' && !Number(cfg?.dynamic_idle?.fuel_mode || 0)) val = '';
-    if (f.type === 'pullback_mode') {
-      const enabled = !!val;
-      const predictive = Number(getPath(cfg, f.modePath) || 0) === 1;
-      val = enabled ? (predictive ? 2 : 1) : 0;
-    }
     const isCb  = f.type === 'checkbox';
     const binaryOilFallback = f.key === 'oil_fp' && allOilPumpsBinary;
-    const isSel = f.type === 'select' || f.type === 'pullback_mode' || binaryOilFallback;
+    const isSel = f.type === 'select' || binaryOilFallback;
     let runtimeOptions = binaryOilFallback
       ? [{v:0,l:'Off'},{v:100,l:'On'}]
-      : f.type === 'pullback_mode'
-      ? [{v:0,l:'Off — no gradual limiting'},{v:1,l:'Simple — measured value'},{v:2,l:'Advanced — predictive'}]
       : (typeof f.options === 'function' ? f.options() : (f.options || []));
     if (f.key === 'fi_mode' && val === 0) runtimeOptions = [{v:0,l:'Choose idle mode',hidden:true},...runtimeOptions];
     if (binaryOilFallback) val = Number(val) > 0 ? 100 : 0;
@@ -2038,10 +2209,27 @@ function renderForm(preserveControllerOpenState = false) {
     const wid = f.wrapId ? ` id="${f.wrapId}"` : '';
     const level = f.basic ? 'essential' : 'advanced';
     const searchText = `${f.key} ${fieldLabel} ${fieldDesc} ${sec.title} ${sec.sectionNote || ''} ${group.title}`.toLowerCase();
+    if(f.protectionToggle)return `<div class="cfg-field protection-enable" title="${_escHtml(fieldDesc)}" data-key="${f.key}" data-level="essential" data-search="${_escHtml(searchText)}"><label><span class="cfg-label">${_escHtml(fieldLabel)}</span>${inp}<b data-toggle-state>${val?'ON':'OFF'}</b></label></div>`;
+    const dashboardNote={
+      rpm_limit:'Dashboard: sets the N1 bar scale and warning colours. Enabling overspeed shutdown also shows the red marker.',
+      n2_rpm_limit:'Dashboard: sets the N2 bar scale and warning colours. Enabling overspeed shutdown also shows the red marker.',
+      tot_limit:'Dashboard: sets the normal TOT bar scale, warning colours and shutdown marker. Startup protection can use a separate limit.',
+      sf_tit:'Dashboard: sets the normal TIT bar scale, warning colours and shutdown marker. Startup protection can use a separate limit.',
+      sf_ot:'Dashboard: sets the oil-temperature bar scale, warning colours and shutdown marker.',
+      sf_p1t:'Dashboard: sets the pressure bar scale, warning colours and limit marker. Zero uses auto range; shutdown off keeps the advisory.',
+      sf_p2t:'Dashboard: sets the pressure bar scale, warning colours and limit marker. Zero uses auto range; shutdown off keeps the advisory.',
+      sf_tqt:'Dashboard: sets the torque bar scale, warning colours and limit marker. Zero uses auto range; shutdown off keeps the advisory.',
+      sf_st:'Dashboard: sets the TOT/TIT startup reference while this trip and the separate startup guard are enabled.',
+      sf_sd:'Dashboard startup reference when this trip and the startup guard are enabled and the immediate trip is off.',
+      oil_rm:'Dashboard low-oil-pressure warning reference; the maximum display range is separate.',
+      sf_fp:'Dashboard low-fuel-pressure warning reference; the maximum display range is separate.',
+      sf_bv:'Dashboard low-voltage warning reference; the maximum display range is separate.'
+    }[f.key];
     return `<div class="cfg-field"${wid} data-key="${f.key}" data-level="${level}" data-search="${_escHtml(searchText)}">
       <div class="cfg-field-head"><div class="cfg-label">${_escHtml(fieldLabel)}${unitSuffix}</div>
         ${level === 'advanced' ? '<span class="field-level">Advanced</span>' : ''}</div>
       ${inp}
+      ${dashboardNote?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
       <details class="cfg-help"><summary>About this setting</summary><div class="cfg-desc">${fieldDesc}</div></details>
     </div>`;
   };
@@ -2055,21 +2243,19 @@ function renderForm(preserveControllerOpenState = false) {
       : '';
     const isProtection = sec.id === 'engine-limits';
     const displayTitle = isProtection ? 'Fuel Limiting & Hard Shutdowns' : sec.title;
-    const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || [])] : sec.fields;
+    const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || []), ...SCHEMA.find(s=>s.title==='Combustion & Startup Protection').fields.filter(f=>f.key==='sf_hs')] : sec.fields;
     const localSafety = {
       'Oil Pressure Safety': [
-        {key:'low_oil',label:'Low oil pressure',available:controllerInputs('oil_pressure').length||controllerInputs('low_oil_switch').length,requirement:'Fit oil pressure or a low-oil switch',keys:['oil_rm','sf_lo_d'],desc:'Insufficient but measurable running pressure; uses the normal confirmation delay'},
-        {key:'oil_zero',label:'No oil pressure',available:controllerInputs('oil_pressure').length||controllerInputs('oil_zero_switch').length,requirement:'Fit oil pressure or a no-pressure switch',keys:['oil_zb','sf_oz_d'],desc:'Catastrophic near-zero pressure; normally uses a faster confirmation'},
-        {label:'Low oil flow',available:true,keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
+        {key:'low_oil',label:'Oil pressure protection',available:controllerInputs('oil_pressure').length||controllerInputs('low_oil_switch').length||controllerInputs('oil_zero_switch').length,requirement:'Fit oil pressure or a low-oil switch',keys:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
+        {label:'Low oil flow',configToggle:'oil_ufs',available:hasMonitoredOilFlowInputs(),requirement:'Fit a matching flow input and enable monitoring on an oil or scavenge pump in Hardware',keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
       ],
       'Combustion & Startup Protection': [
         {key:'flameout',label:'Combustion loss',available:controllerInputs('flame').length||controllerInputs('n1_speed').length||controllerInputs('tot').length||controllerInputs('tit').length,requirement:'Fit flame, N1, TOT, or TIT feedback',keys:['sf_fo','sf_fs','sf_fn','sf_eb','sf_ef'],desc:'Independent confirmed-loss timer; expiry cuts fuel and fault-shuts down'},
-        {key:'hot_start',label:'Hot-start protection',available:controllerInputs('tot').length||controllerInputs('tit').length,requirement:'Fit a TOT or TIT input',keys:['sf_hs'],desc:'Pre-start temperature check; the STARTUP EGT limit is under Turbine temperature'},
         {label:'Safety evaluation timing',available:true,keys:['sf_ci'],desc:'General protection check interval'}
       ],
       'Auxiliary Protection': [
         {key:'oil_temp_high',label:'High oil temperature',available:controllerInputs('oil_temperature').length,requirement:'Fit an oil-temperature input',keys:['sf_ot','sf_ot_d'],desc:'Temperature shutdown threshold and confirmation'},
-        {key:'fuel_press_low',label:'Low fuel pressure',available:controllerInputs('fuel_pressure').length,requirement:'Fit a fuel-pressure input',keys:['sf_fp','sf_fp_d'],desc:'Running pressure threshold and confirmation'},
+        {key:'fuel_press_low',label:'Low fuel pressure',available:controllerInputs('fuel_pressure').length,requirement:'Fit a fuel-pressure input',keys:['sf_fp_modes','sf_fp','sf_fp_d'],desc:'Low-pressure threshold, confirmation time and selectable monitoring phases'},
         {key:'batt_low',label:'Low supply voltage',available:controllerInputs('battery_voltage').length,requirement:'Fit a voltage input',keys:['sf_bv','sf_bv_d'],desc:'Bus-voltage threshold and confirmation'},
         {key:'surge',label:'Surge detection',available:controllerInputs('n1_speed').length,requirement:'Fit an N1 speed input',keys:['sf_sg'],desc:'Experimental N1 instability threshold'}
       ],
@@ -2081,35 +2267,60 @@ function renderForm(preserveControllerOpenState = false) {
       ]
     }[sec.title] || [];
     const localSafetyHtml = localSafety.length ? `<div class="protection-stack">${localSafety.map(item => {
-      const sourcePurposes = {low_oil:['oil_pressure','low_oil_switch'],oil_zero:['oil_pressure','oil_zero_switch'],
+      const sourcePurposes = {low_oil:['oil_pressure','low_oil_switch','oil_zero_switch'],oil_zero:['oil_pressure','oil_zero_switch'],
         flameout:['flame','n1_speed',...controllerTemperaturePurposes()],hot_start:controllerTemperaturePurposes(),
         oil_temp_high:['oil_temperature'],fuel_press_low:['fuel_pressure'],batt_low:['battery_voltage'],surge:['n1_speed']};
       const fittedNames = controllerPurposeNames(sourcePurposes[item.key] || []);
       const fields = item.keys.map(key => sec.fields.find(field => field.key === key)).filter(Boolean);
-      const toggle = item.key ? controllerSafetyToggle(item.key,item.label,item.available,item.requirement,isLocked) : '';
-      const active = item.key && hwCfg?.safety?.[item.key] && item.available;
-      const attention = item.key && hwCfg?.safety?.[item.key] && !item.available;
-      const summaryState = active ? '<b class="controller-state controller-state-ok">● ACTIVE</b>' : attention ? '<b class="controller-state controller-state-warn">● CHECK</b>' : '';
-      return `<details class="protection-card" data-protection="${item.key || item.id || item.label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
-        <summary><span><span class="protection-card-title">${item.label}</span><span class="protection-card-desc">${_escHtml(item.available ? item.desc : item.requirement)}${fittedNames ? ' · Fitted inputs: ' + _escHtml(fittedNames) : ''}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
-        ${toggle}<div class="cfg-grid">${fields.map(field => renderField(field, sec, group)).join('')}</div>
+      const toggle = item.key ? controllerSafetyToggle(item.key,item.label,item.available,item.requirement,isLocked) : item.configToggle?renderField(fields.find(f=>f.key===item.configToggle),sec,group):'';
+      const configured=item.key?!!hwCfg?.safety?.[item.key]:item.configToggle?!!getPath(cfg,fields.find(f=>f.key===item.configToggle).path):false;
+      const active = configured && item.available;
+      const attention = configured && !item.available;
+      const phaseKey = {low_oil:'oil_pressure_modes',fuel_press_low:'fuel_pressure_modes'}[item.key];
+      const phaseSummary = phaseKey ? ' · '+({2:'Startup',4:'Running',6:'Startup and Running'}[Number(cfg?.safety?.[phaseKey] ?? 4)] || 'Check monitoring phases') : '';
+      const summaryState = item.key||item.configToggle?`<span class="protection-modes"><span data-enabled="${!!active}" data-state="${attention?'check':''}" ${item.configToggle?`data-config-safety="${item.configToggle}"`:''}>${item.key==='hot_start'?'Start interlock':'Fault shutdown'}: ${active?'ON':attention?'unavailable':'OFF'}${_escHtml(phaseSummary)}</span></span>`:'';
+      return `<details id="protection-${item.key || item.configToggle || 'local'}" class="protection-card" data-protection="${item.key || item.id || item.label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
+        <summary><span><span class="protection-card-title">${item.label}</span><span class="protection-card-desc">${_escHtml(item.available ? item.desc : item.requirement)}${fittedNames ? ' · Fitted inputs: ' + _escHtml(fittedNames) : ''}</span>${summaryState}</span><span class="protection-card-chevron">›</span></summary>
+        <div class="protection-local-body"><div class="protection-local-toolbar">${toggle}</div>${item.key==='low_oil'?'<p class="protection-dashboard-note">For another oil circuit, <a href="#simple-controls">create a custom controller</a> with its named input and Request Fault Shutdown. Each controller has its own condition and activation settings.</p>':''}${['low_oil','oil_zero'].includes(item.key)&&!controllerInputs('oil_pressure').length?'<p class="protection-dashboard-note">Switch contacts have a built-in 20 ms debounce. Set any additional fault confirmation time below; 0 adds no delay. Switch polarity is set in Hardware. Analogue pressure limits do not apply to this switch.</p>':''}${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]&&(!['low_oil','oil_zero'].includes(item.key)||controllerInputs('oil_pressure').length)?`<p class="protection-dashboard-note">Dashboard colours use the retained <a href="#cf-${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]}">advisory limit</a> even when automatic shutdown is off. Also available from Dashboard → Edit cards → Edit limit &amp; safety.</p>`:''}<div class="cfg-grid">${fields.filter(field=>field.key!==item.configToggle).map(field => renderField(field, sec, group)).join('')}</div></div>
       </details>`;
     }).join('')}</div>` : '';
     let fieldHtml = isProtection
-      ? `<div class="protection-stack">${protectionGroups.map((card, index) => {
+      ? `<div class="protection-nav" role="navigation" aria-label="Protection shortcuts">${protectionGroups.map(card=>`<button type="button" data-protection-target="${card.id}" onclick="openProtection('${card.id}')">${_escHtml(card.title.split(' · ')[0].replace(/ protection$/,''))}</button>`).join('')}</div><div class="protection-stack">${protectionGroups.map((card, index) => {
           const fields = card.keys.map(key => allProtectionFields.find(field => field.key === key)).filter(Boolean);
           const advancedFields = (card.advanced || []).map(key => allProtectionFields.find(field => field.key === key)).filter(Boolean);
           const safety = card.id === 'n1' ? controllerSafetyToggle('overspeed','N1 overspeed',controllerInputs('n1_speed').length,'Fit an N1 speed input',isLocked)
             : card.id === 'n2' ? controllerSafetyToggle('n2_overspeed','N2 overspeed',controllerInputs('n2_speed').length,'Fit an N2 speed input',isLocked)
             : card.id === 'egt' ? controllerSafetyToggle('overtemp','Engine overtemperature',controllerInputs('tot').length||controllerInputs('tit').length,'Fit a TOT or TIT input',isLocked) : '';
           const safetyKey = card.id === 'n1' ? 'overspeed' : card.id === 'n2' ? 'n2_overspeed' : card.id === 'egt' ? 'overtemp' : '';
-          const safetyAvailable = card.id === 'n1' ? controllerInputs('n1_speed').length : card.id === 'n2' ? controllerInputs('n2_speed').length : card.id === 'egt' ? (controllerInputs('tot').length||controllerInputs('tit').length) : true;
+          const safetyAvailable = card.id === 'n1' ? controllerInputs('n1_speed').length : card.id === 'n2' ? controllerInputs('n2_speed').length : card.id === 'egt' ? (controllerInputs('tot').length||controllerInputs('tit').length) : controllerInputs({p1:'p1_pressure',p2:'p2_pressure',torque:'torque'}[card.id]).length;
           const summaryState = safetyKey && hwCfg?.safety?.[safetyKey]
-            ? `<b class="controller-state ${safetyAvailable?'controller-state-ok':'controller-state-warn'}">● ${safetyAvailable?'ACTIVE':'CHECK'}</b>` : '';
-          return `<details class="protection-card" data-protection="${card.id}">
-            <summary><span><span class="protection-card-title">${_escHtml(card.title)}</span><span class="protection-card-desc">${card.desc}</span></span>${summaryState}<span class="protection-card-chevron">›</span></summary>
-            ${safety}<div class="cfg-grid">${fields.map(field => renderField(field, sec, group)).join('')}</div>
-            ${advancedFields.length ? `<div class="cfg-grid protection-predictive-fields" data-predictive-for="${card.id}">${advancedFields.map(field => renderField(field, sec, group)).join('')}</div>` : ''}
+            ? `<b class="controller-state ${safetyAvailable?'controller-state-ok':'controller-state-warn'}">● ${safetyAvailable?'ENABLED':'CHECK'}</b>` : '';
+          const renderKeys=keys=>fields.filter(f=>keys.includes(f.key)).map(field=>renderField(field,sec,group)).join('');
+          const part=(title,description,body,kind,toggle='')=>`<section class="protection-part protection-part-${kind}"><div class="protection-part-head"><h4>${title}</h4>${toggle}</div><p>${description}</p>${body}</section>`;
+          const grid=body=>`<div class="cfg-grid">${body}</div>`;
+          const limitingKeys=card.keys.filter(key=>key.startsWith('pb_')&&!key.endsWith('_on'));
+          const modeKey=limitingKeys.find(key=>key.endsWith('e'));
+          const limiterToggle=renderKeys([modeKey+'_on']);
+          const hasLimiting=!!getPath(cfg,allProtectionFields.find(f=>f.key===modeKey+'_on')?.path||[]);
+          const modeStatus=`<span class="protection-modes">${card.id==='egt'?`<span data-enabled="${!!hwCfg?.safety?.hot_start&&!!safetyAvailable}">Start interlock: ${hwCfg?.safety?.hot_start?(safetyAvailable?'ON':'unavailable'):'OFF'}</span><span data-startup-guard-state>Startup guard: ${cfg.sequence?.startup?.startup_egt_guard_enabled?'on':'off'}</span>`:''}<span ${safetyKey?`data-enabled="${!!hwCfg?.safety?.[safetyKey]&&!!safetyAvailable}" data-state="${hwCfg?.safety?.[safetyKey]&&!safetyAvailable?'check':''}"`:'data-trip-state aria-live="polite"'}>${safetyKey?`Shutdown: ${!hwCfg?.safety?.[safetyKey]?'OFF':safetyAvailable?'ON':'unavailable'}`:''}</span>${card.id==='n1'?'<span data-underspeed-state></span>':''}<span>Fuel limiting: ${hasLimiting?'on':'off'}</span></span>`;
+          let body;
+          if(card.id==='egt'){
+            const enabled=!!cfg.sequence?.startup?.startup_egt_guard_enabled;
+            body=grid(renderKeys(['eg_src']))+
+              part('Hot-engine start interlock','Before START only: blocks starting until the selected temperature is below this limit. Separate from temperature monitoring during Startup.',grid(renderKeys(['sf_hs'])),'startup',controllerSafetyToggle('hot_start','Hot-engine start interlock',safetyAvailable,'Fit a TOT or TIT input',isLocked))+
+              part('Startup protection',enabled?'Separate startup guard is on. Normal temperature shutdown and temperature fuel limiting resume in Running.':'Separate startup guard is off. Normal temperature shutdown and temperature fuel limiting also apply during Startup.',`<div class="startup-trip-grid"><section class="startup-trip-card">${renderKeys(['sf_st_en'])}${grid(renderKeys(['sf_st']))}</section><section class="startup-trip-card">${renderKeys(['sf_sd_en'])}${grid(renderKeys(['sf_sd','sf_sm']))}</section></div>`+'<p class="protection-note">Use the engine’s approved starting limits. Sustained heat protection does not measure acceleration; use an N1 confirmation block with a timeout in Sequence to detect a hung start.</p>','startup',renderKeys(['sf_sg_en']))+
+              part('Running protection','Fault shutdown cuts fuel when the selected temperature exceeds its limit. With the separate startup guard off, this also protects Startup.',grid(renderKeys(['tot_limit','sf_tit','tot_safe_margin'])),'trip',safety)+
+              part('Fuel limiting','Gradually reduces fuel demand before a trip. Independent of the shutdown switch above. During Startup it is paused only when the separate startup guard is on.',grid(renderKeys(limitingKeys))+`<div class="cfg-grid protection-predictive-fields" data-predictive-for="${card.id}">${advancedFields.map(field=>renderField(field,sec,group)).join('')}</div>`,'limiting',limiterToggle);
+          }else if(card.id==='n1'){
+            body=part('Overspeed shutdown','Cuts fuel above Maximum N1 Speed. Independent of underspeed shutdown and gradual fuel limiting.',grid(renderKeys(['rpm_limit'])),'trip',safety)+
+              part('Underspeed shutdown','Cuts fuel if N1 falls below its minimum while Running, or after confirmed spool-up during Startup. Independent of the overspeed switch.',grid(renderKeys(['min_rpm'])),'trip',renderKeys(['sf_us_en']))+
+              part('Fuel limiting','Reduces fuel progressively before the limit. The enable switch preserves the selected method and all tuning.',grid(renderKeys(limitingKeys))+`<div class="cfg-grid protection-predictive-fields" data-predictive-for="${card.id}">${advancedFields.map(field=>renderField(field,sec,group)).join('')}</div>`,'limiting',limiterToggle);
+          }else{
+            body=part('Fault shutdown',safetyKey?'Cuts fuel after the trip condition is met. This switch does not enable gradual fuel limiting.':'The enable switch controls automatic shutdown. Switching off preserves the limit and confirmation time. Fuel limiting is independent.',grid(fields.filter(f=>!f.protectionToggle&&!limitingKeys.includes(f.key)).map(field=>renderField(field,sec,group)).join(''))+renderKeys(card.id==='n1'?['sf_us_en']:[]),'trip',safety||renderKeys([{p1:'sf_p1en',p2:'sf_p2en',torque:'sf_tqen'}[card.id]]))+
+              part('Fuel limiting','Reduces fuel demand progressively. Enable it separately, then choose Simple or Predictive. Switching off preserves the method and limits.',grid(renderKeys(limitingKeys))+`<div class="cfg-grid protection-predictive-fields" data-predictive-for="${card.id}">${advancedFields.map(field=>renderField(field,sec,group)).join('')}</div>`,'limiting',limiterToggle);
+          }
+          return `<details id="protection-${card.id}" class="protection-card" data-protection="${card.id}" data-state="${safetyAvailable?'ready':'unavailable'}">
+            <summary><span><span class="protection-card-title">${_escHtml(card.title)}</span><span class="protection-card-desc">${card.desc}</span>${modeStatus}</span><span class="protection-card-chevron">›</span></summary><p class="protection-dashboard-note">${({n1:'rpm_limit',n2:'n2_rpm_limit',egt:'tot_limit'})[card.id]?`Dashboard yellow/red approach colours use the retained <a href="#cf-${({n1:'rpm_limit',n2:'n2_rpm_limit',egt:'tot_limit'})[card.id]}">reference limit</a>${card.id==='egt'?' (or <a href="#cf-sf_tit">TIT limit</a> for TIT)':''}. With automatic shutdown on, the red marker shows that limit. With shutdown off, the colours remain advisory and the shutdown marker is hidden. You can also find this via <a href="/">Dashboard</a> → Edit cards → Edit limit &amp; safety.`:'A positive saved limit sets the Dashboard bar scale, yellow/red approach colours and limit marker, even when automatic shutdown is off. With no positive limit, the bar uses automatic range. The enable switch independently controls automatic shutdown.'}</p>${body}
           </details>`;
         }).join('')}</div>`
       : localSafety.length ? localSafetyHtml : `<div class="cfg-grid">${sec.fields.map(field => renderField(field, sec, group)).join('')}</div>`;
@@ -2142,7 +2353,7 @@ function renderForm(preserveControllerOpenState = false) {
     return `<details class="config-group" data-group="${group.id}">
       <summary>
         <span class="group-heading"><span class="group-title">${group.title}</span><span class="group-desc">${group.desc}</span></span>
-        <span class="group-meta"></span><span class="group-chevron" aria-hidden="true">›</span>
+        ${group.id==='safety'?'<span class="protection-active-count" data-protection-active-count></span>':''}<span class="group-meta"></span><span class="group-chevron" aria-hidden="true">›</span>
       </summary>
       <div class="group-content">${sections.map(section => renderSection(section, group)).join('')}</div>
     </details>`;
@@ -2179,6 +2390,8 @@ function renderForm(preserveControllerOpenState = false) {
   const _abFmEl = document.getElementById('cf-ab_fm');
   if (_abUtEl) _abUtEl.addEventListener('change', applyAbIgnitionParamVisibility);
   if (_abFmEl) _abFmEl.addEventListener('change', applyAbIgnitionParamVisibility);
+  refreshStartupGuardUi();
+  document.getElementById('cf-sf_sg_en')?.addEventListener('change',refreshStartupGuardUi);
   const _egSrcEl = document.getElementById('cf-eg_src');
   if (_egSrcEl) _egSrcEl.addEventListener('change', () => {
     applyHwConditions();
@@ -2209,15 +2422,18 @@ function renderForm(preserveControllerOpenState = false) {
   ['fi_low','fi_high','th_mx','di_mx'].forEach(key=>document.getElementById('cf-'+key)?.addEventListener('change',refreshIdleInputSummary));
   ['pb_n1e','pb_n2e','pb_egte','pb_p1e','pb_p2e','pb_tqe'].forEach(key => {
     const el = document.getElementById('cf-' + key);
-    if (el) el.addEventListener('change', () => { applyHwConditions(); applyView(); runValidation(); });
+    if (el) el.addEventListener('change', () => { applyHwConditions(); applyView(); refreshProtectionSummaries(); runValidation(); });
   });
+  ['sf_oil_modes','sf_fp_modes','sf_p1en','sf_p1t','sf_p1d','sf_p2en','sf_p2t','sf_p2d','sf_tqen','sf_tqt','sf_tqd'].forEach(key=>
+    document.getElementById('cf-'+key)?.addEventListener('input',refreshProtectionSummaries));
+  refreshProtectionSummaries();
 
   // Controller cards and their local settings are mounted beside cfg-form,
   // so both workspace surfaces own dirty tracking. Property handlers avoid
   // stacking duplicate listeners when a controller topology rerenders.
   [document.getElementById('cfg-form'), document.getElementById('controller-overview')]
     .filter(Boolean).forEach(surface => {
-      surface.oninput = _markDirty;
+      surface.oninput = () => { _markDirty();refreshStartupGuardUi(); };
       surface.onchange = () => {
         _markDirty();
         // Dependency-controlled subcards must react immediately. In
@@ -2300,7 +2516,7 @@ function runValidation() {
     });
   }
 
-  const n1PullbackEnabled = Number(document.getElementById('cf-pb_n1e')?.value || 0) > 0;
+  const n1PullbackEnabled = !!document.getElementById('cf-pb_n1e_on')?.checked;
   const n1PullbackSoft = fv('pb_n1s'), n1PullbackFull = fv('pb_n1h');
   if (hasRegistryInput('n1_speed') && n1PullbackEnabled && rpmLimit > 0 &&
       ((n1PullbackSoft > 0 && n1PullbackSoft >= rpmLimit) ||
@@ -2366,7 +2582,7 @@ function runValidation() {
 
   // N2 control targets should leave operating margin below the independent trip.
   if (hwCfg.safety?.n2_overspeed && n2RpmLimit > 0) {
-    const pbEnabled = Number(document.getElementById('cf-pb_n2e')?.value || 0) > 0;
+    const pbEnabled = !!document.getElementById('cf-pb_n2e_on')?.checked;
     const pbSoft = fv('pb_n2s'), pbFull = fv('pb_n2h');
     if (pbEnabled && ((pbSoft > 0 && pbSoft >= n2RpmLimit) ||
                       (pbFull > 0 && pbFull >= n2RpmLimit))) {
@@ -2399,7 +2615,7 @@ function runValidation() {
   const titLimitVal = fv('sf_tit');
   const titLimitCanonical = titLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('sf_tit') || {}, titLimitVal) : undefined;
   const activeEgtLimit = effectiveEgt === 1 ? totLimitVal : (effectiveEgt === 2 ? titLimitVal : 0);
-  const startupEgtLimit = fv('sf_st') || activeEgtLimit || 0;
+  const startupEgtLimit = document.getElementById('cf-sf_sg_en')?.checked ? ((document.getElementById('cf-sf_st_en')?.checked?fv('sf_st'):0) || (document.getElementById('cf-sf_sd_en')?.checked?fv('sf_sd'):0) || 0) : activeEgtLimit || 0;
   const preStartEgtLimit = fv('sf_hs') || 0;
   if (hwCfg.safety?.hot_start && preStartEgtLimit > 0 && startupEgtLimit > 0 &&
       preStartEgtLimit >= startupEgtLimit) {
@@ -2427,7 +2643,7 @@ function runValidation() {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
-      msg:     '⚠ Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. Set a value before enabling low-oil safety.'
+      msg:     '⚠ Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. Set a value before enabling low-oil safety.'
     });
   }
 
@@ -2472,6 +2688,19 @@ function hookValidation() {
 // ── Save validation ───────────────────────────────────────────
 async function validateBeforeSave(cfg) {
   const errors = [];
+  const startup=cfg.sequence?.startup||{};
+  if(startup.startup_egt_guard_enabled){
+    const hard=startup.startup_egt_immediate_enabled?Number(startup.startup_egt_limit_c)||0:0,timed=startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0;
+    if(startup.startup_egt_immediate_enabled&&hard<=0)errors.push('Immediate startup overtemperature: set a positive limit or switch it off.');
+    if(startup.startup_egt_dwell_enabled&&timed<=0)errors.push('Sustained startup temperature: set a positive limit or switch it off.');
+    if(hard<=0&&timed<=0)errors.push('Startup temperature protection: set an immediate or sustained trip threshold.');
+    if(timed>0&&!(Number(startup.startup_egt_dwell_ms)>0))errors.push('Startup temperature protection: choose a positive allowed time.');
+    if(hard>0&&timed>=hard)errors.push('Startup temperature protection: sustained threshold must be below the immediate trip, or switch either individual protection off.');
+    if(!controllerInputs('tot').length&&!controllerInputs('tit').length)errors.push('Startup temperature protection: fit a TOT or TIT input, or turn the guard off.');
+  }
+  for(const [flag,field,name] of [['p1_trip_enabled','p1_trip_bar','Pressure 1'],['p2_trip_enabled','p2_trip_bar','Pressure 2'],['torque_trip_enabled','torque_trip_nm','Torque']])
+    if(cfg.safety?.[flag]&&!(Number(cfg.safety[field])>0))errors.push(name+' fault shutdown: set a positive limit or switch it off.');
+  if(cfg.safety?.underspeed_enabled&&!(Number(cfg.engine?.min_rpm)>0))errors.push('N1 underspeed: set a positive minimum or switch it off.');
   const warns  = [];
 
   function gv(obj, ...keys) {
@@ -2514,14 +2743,24 @@ async function validateBeforeSave(cfg) {
     const label = String(control.name || `Custom controller ${index + 1}`);
     const output = String(control.target || '');
     const kind = Number(control.kind || 0);
-    if ((Number(control.mode_mask ?? 4) & 0x0f) === 0)
+    if(kind===0&&(!Number.isInteger(Number(control.confirm_ms??0))||Number(control.confirm_ms??0)<0||Number(control.confirm_ms??0)>60000))
+      errors.push(`${label}: condition confirmation must be a whole number from 0 to 60000 ms.`);
+    if(window.OTControllerTiming?.scheduled(control)){
+      if(!OTControllerTiming.starts(control))errors.push(`${label}: choose when this controller activates.`);
+      if(!(Number(control.deactivate_events)&31))errors.push(`${label}: choose when this controller deactivates.`);
+      if(OTControllerTiming.starts(control)&Number(control.deactivate_events)&30)errors.push(`${label}: activation and deactivation cannot use the same state entry.`);
+    }
+
+    if (!window.OTControllerTiming?.scheduled(control) && (Number(control.mode_mask ?? 4) & 0x0f) === 0)
       errors.push(`${label}: select at least one operating state.`);
     if (kind !== 3 && !installedInputs.has(String(control.source || '')))
       errors.push(`${label}: choose a fitted input or feedback signal.`);
+    if (kind===0 && controllerSwitchInput(control.source) && !controllerSwitchSettingsReady(control))
+      errors.push(`${label}: choose Switch is ON/OFF or select Use switch state to replace its older numeric switch settings.`);
     if (!availableOutputs.has(output))
       errors.push(`${label}: its output is unavailable or already belongs to a dedicated controller.`);
-    if (control.enabled !== false && claimedOutputs.has(output))
-      errors.push(`${label}: another custom controller already owns this output.`);
+    if (control.enabled !== false && !['request_shutdown','request_fault'].includes(output) && claimedOutputs.has(output) && !window.OTControllerTiming?.scheduled(control))
+      errors.push(`${label}: migrate activation timing before sharing this output with another controller.`);
     if (control.enabled !== false) claimedOutputs.add(output);
     if (kind === 1 && Number(control.input_min) === Number(control.input_max))
       errors.push(`${label}: mapped input low and high cannot be equal.`);
@@ -2662,11 +2901,11 @@ async function validateBeforeSave(cfg) {
   const hasOilPressure = hasRegistryInput('oil_pressure');
   if (hasOilPressure) {
     if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
+      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
     if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
       errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
     if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Running Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
+      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
   }
 
   // EGT / temperature cross-checks
@@ -2687,7 +2926,7 @@ async function validateBeforeSave(cfg) {
     errors.push('EGT Soft Margin (' + totMargin + '°) must be less than selected ' + primaryLabel + ' limit (' + primaryLimit + '°).');
   const preStartLimit = Number(gv(cfg, 'sequence', 'startup', 'pre_start_egt_limit_c') || 0);
   const separateStartupLimit = Number(gv(cfg, 'sequence', 'startup', 'startup_egt_limit_c') || 0);
-  const effectiveStartupLimit = separateStartupLimit > 0 ? separateStartupLimit : Number(primaryLimit || 0);
+  const effectiveStartupLimit = startup.startup_egt_guard_enabled ? (startup.startup_egt_immediate_enabled?separateStartupLimit:startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0) : Number(primaryLimit||0);
   if (hwCfg.safety?.hot_start && preStartLimit > 0 && effectiveStartupLimit > 0 &&
       preStartLimit >= effectiveStartupLimit)
     warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the STARTUP EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
@@ -2723,7 +2962,7 @@ async function validateBeforeSave(cfg) {
   if (primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
   if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Running Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
+    warns.push('Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {
@@ -2756,11 +2995,7 @@ function collectConfigFields() {
       // Old-file choices are interpreted for display only. Only an explicit
       // mode/channel action may replace their stored behavior.
       if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
-      if (f.type === 'pullback_mode') {
-        const mode = Number(el.value || 0);
-        setPath(cfg, f.path, mode > 0);
-        setPath(cfg, f.modePath, mode === 2 ? 1 : 0);
-      } else if (f.type === 'checkbox') {
+      if (f.type === 'checkbox') {
         setPath(cfg, f.path, el.checked);
       } else if (f.string) {
         setPath(cfg, f.path, String(el.value || ''));
@@ -2807,6 +3042,12 @@ async function saveConfig() {
 
   // Build the change list for the recap
   const changes = _buildChanges();
+  const cleanup=_controllerRulesDirty&&window.OTControllerTiming?OTControllerTiming.cleanup(cfg.rules,hwCfg):{removed:[]};
+  window._otControllerCleanupReview=cleanup.removed.slice();
+  if(cleanup.removed.length){
+    _controllerHardwareDirty=true;
+    changes.push({key:'controller_links',label:'Inactive controller sequence blocks',was:`${cleanup.removed.length} linked block(s)`,now:'Remove these blocks; retain every other sequence action'});
+  }
   if (!changes.length) {
     // Nothing differs from snapshot — skip recap and save directly
     _doSave();
@@ -2825,6 +3066,9 @@ async function saveConfig() {
     (inactiveChanges.length
       ? ` ${inactiveChanges.length} amber-marked value${inactiveChanges.length === 1 ? ' is' : 's are'} being saved for future hardware and will remain inactive for now.`
       : '');
+
+  if(_controllerRulesDirty&&(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg)==='Sequence needs setup'))
+    subtitle.textContent+=' Sequence needs attention: after saving, open Sequence and place the required controller blocks. Start remains blocked until setup is complete, or disable the controller.';
 
   const rows = changes.map(c =>
     `<tr>
@@ -2878,6 +3122,15 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
     safety: JSON.parse(JSON.stringify(hwCfg.safety || {})),
     oil_loops: JSON.parse(JSON.stringify(hwCfg.oil_loops || []))
   };
+  if(window._otControllerCleanupReview?.length){
+    const response=await fetch('/api/hardware',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw Error('Could not read the current sequence; nothing has been written');
+    const fresh=await response.json(),cleanup=OTControllerTiming.cleanup(cfg.rules,fresh);
+    const expected=window._otControllerCleanupReview.slice().sort();
+    if(JSON.stringify(cleanup.removed.slice().sort())!==JSON.stringify(expected))
+      throw Error('Sequence changed since the review. Reload Controllers and review the changes again.');
+    Object.assign(hardwarePatch,cleanup.patch);
+  }
   await _saveConfigHardwarePatch('controllers', hardwarePatch);
   // Finish the Hardware reboot before sending the second page-owned write.
   if (Object.keys(payload).length) {
@@ -2982,10 +3235,7 @@ async function _performConfigSave() {
     if (runningLive && !LIVE_CONFIG_KEYS.has(field.key)) return;
     const value = field.path.reduce((obj, key) => obj?.[key], cfg);
     if (value !== undefined) setPath(payload, field.path, value);
-    if (field.type === 'pullback_mode') {
-      const modeValue = field.modePath.reduce((obj, key) => obj?.[key], cfg);
-      if (modeValue !== undefined) setPath(payload, field.modePath, modeValue);
-    }
+
   }));
   if (_controllerRulesDirty) {
     payload.rules = JSON.parse(JSON.stringify(cfg.rules || []));
@@ -3756,6 +4006,10 @@ function registryOutputByPurpose(...purposes) {
     registryChannelInstalled(channel) && !String(channel.mirror_of || '') &&
     wanted.has(String(channel.purpose || channel.id || '')));
 }
+function hasMonitoredOilFlowInputs(){
+  return (hwCfg.channel_registry?.outputs||[]).some(output=>registryChannelInstalled(output)&&output.has_flow_monitor&&
+    ((output.purpose==='oil_pump'&&hasRegistryInput('oil_flow'))||(output.purpose==='scavenge_pump'&&hasRegistryInput('scavenge_flow'))));
+}
 function hasRegistryInput(...purposes) { return !!registryInputByPurpose(...purposes); }
 function hasRegistryOutput(...purposes) { return !!registryOutputByPurpose(...purposes); }
 function hasActualAfterburnerHardware(hw = hwCfg) {
@@ -3800,10 +4054,7 @@ function applyHwConditions() {
   const hasAirstarter  = hasRegistryOutput('air_starter');
   const hasOilScavenge = hasRegistryOutput('scavenge_pump');
   const oilScavengeChannel = registryOutputByPurpose('scavenge_pump');
-  const hasMonitoredOilFlow = !!(
-    (oilPumpChannel?.has_flow_monitor && hasRegistryInput('oil_flow')) ||
-    (oilScavengeChannel?.has_flow_monitor && hasRegistryInput('scavenge_flow'))
-  );
+  const hasMonitoredOilFlow=hasMonitoredOilFlowInputs();
   const hasBleedValve  = hasRegistryOutput('bleed_valve');
   const hasStarterEn   = hasRegistryOutput('starter_enable');
   const hasAbSol       = !!(hasAB && hasRegistryOutput('ab_valve'));
@@ -3844,7 +4095,7 @@ function applyHwConditions() {
     if (!el || !wrap) return;
     if (!wrap.dataset.baseTitle) {
       const label = wrap.querySelector('.cfg-label')?.textContent?.trim() || '';
-      const desc = wrap.querySelector('.cfg-desc')?.textContent?.trim() || '';
+      const desc = wrap.querySelector('.cfg-desc')?.textContent?.trim() || wrap.getAttribute('title') || '';
       wrap.dataset.baseTitle = desc ? (label ? label + ': ' + desc : desc) : '';
     }
     wrap.dataset.hardwareUnavailable = available ? '0' : '1';
@@ -3889,7 +4140,7 @@ function applyHwConditions() {
   // ── Oil system: hide pressure-control fields when no sensor ──────────────
   // Without a sensor the closed-loop controller does not run; direct pump
   // output during startup and shutdown is configured on the Sequence page.
-  const oilPressFields = ['oil_rm','oil_zb','oil_tm','oil_mm','oil_mx','oil_as','oil_mp','oa_db','oil_fd','oil_fp'];
+  const oilPressFields = ['oil_rm','oil_tm','oil_mm','oil_mx','oil_as','oil_mp','oa_db','oil_fd','oil_fp'];
   oilPressFields.forEach(k =>
     ghostField(k, hasOilPress, 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock closed-loop oil pressure settings.'));
   ghostField('oil_ufd', hasMonitoredOilFlow,
@@ -3963,17 +4214,21 @@ function applyHwConditions() {
   ['tot_safe_margin'].forEach(k =>
     ghostField(k, hasEgt, 'Selected EGT safety requires a configured TOT or TIT sensor.'));
   ghostField('sf_hs', hasEgt, 'Hot-start protection requires a configured TOT or TIT sensor.');
-  ghostField('sf_st', hasEgt, 'The STARTUP EGT Dashboard reference and optional shutdown limit require a configured TOT or TIT sensor.');
+  ghostField('sf_sg_en', hasEgt, 'Fit a TOT or TIT input before enabling startup temperature protection.');
+  ['sf_st_en','sf_sd_en','sf_st','sf_sd','sf_sm'].forEach(key=>ghostField(key,hasEgt,'Fit a TOT or TIT input. Disabled protection retains editable limits.'));
+  refreshStartupGuardUi();
   ghostField('sf_ot', hasOilTemp, 'Oil temperature sensor is not configured in Hardware.');
   ghostField('sf_ot_d', hasOilTemp, 'Oil-temperature confirmation has no effect without an oil-temperature sensor.');
   ghostField('sf_fp', hasFuelPress, 'Fuel pressure sensor is not configured in Hardware.');
+  ghostField('sf_fp_modes', hasFuelPress, 'Fit a fuel-pressure sensor to select its monitoring phases.');
   ghostField('sf_fp_d', hasFuelPress, 'Fuel-pressure confirmation has no effect without a fuel-pressure sensor.');
   ghostField('sf_bv', hasBattVolt, 'Battery voltage sensor is not configured in Hardware.');
   ghostField('sf_bv_d', hasBattVolt, 'Bus-voltage confirmation has no effect without a battery-voltage sensor.');
   ghostField('sf_tit', usesTitEgt, !hasTit ? 'TIT sensor is not configured in Hardware.' : 'TIT is not the selected primary engine temperature.');
   ghostField('sf_sg', hasN1, 'Surge detection requires an N1 RPM sensor.');
-  ghostField('rh_jt', hasN1, 'RPM health checks require an N1 RPM sensor.');
-  ghostField('rh_zs', hasN1, 'RPM health checks require an N1 RPM sensor.');
+  ghostField('rh_jt', hasN1||hasN2, 'RPM health checks require an N1 or N2 RPM sensor.');
+  ghostField('rh_zs', hasN1||hasN2, 'RPM health checks require an N1 or N2 RPM sensor.');
+  ghostField('rc_fs',rcPwmActive,'Configure an RC/servo pulse or PWM-duty input in Hardware to use this timeout.');
   // Fuel response shaping and gradual protection are automatic whenever the
   // main-fuel output exists; users configure the behavior here without a
   // second internal-controller enable.
@@ -4010,8 +4265,10 @@ function applyHwConditions() {
       !hasAnyPullbackSource ? 'Pullback floor has no effect until an N1, N2, TOT, TIT, P1, P2, or torque sensor is configured in Hardware.' : 'Main fuel output is not configured in Hardware.'));
   const configurePullbackVisibility = (modeKey, normalKeys, predictiveKeys) => {
     const mode = Number(document.getElementById('cf-' + modeKey)?.value || 0);
-    const enabled = mode > 0;
-    const predictive = mode === 2;
+    const enabled = true;
+    const predictive = mode === 1;
+    const checkbox=document.getElementById('cf-'+modeKey+'_on');
+    if(checkbox){const method=document.getElementById('cf-'+modeKey),wrap=method?.closest('.cfg-field');checkbox.disabled=!!method?.disabled;ghostField(modeKey+'_on',wrap?.dataset.hardwareUnavailable!=='1',wrap?.dataset.inactiveReason||'Fit the matching input and main fuel output in Hardware.');}
     normalKeys.forEach(key => setCfgFieldHardHidden(key, !enabled));
     predictiveKeys.forEach(key => setCfgFieldHardHidden(key, !enabled || !predictive));
   };
@@ -4107,17 +4364,20 @@ function applyHwConditions() {
     clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';
     clusterSec.style.display = '';
   }
-  ['rpm_limit','min_rpm','cl_n1'].forEach(k =>
+  ['rpm_limit','min_rpm','sf_us_en','cl_n1'].forEach(k =>
     ghostField(k, hasN1, 'N1 RPM sensor is not configured in Hardware. Standard timer/TOT setup does not use this value.'));
   ghostField('n2_rpm_limit', hasN2, 'N2 RPM sensor is not configured in Hardware. This hard power-turbine shutdown limit does not apply.');
+  ghostField('sf_p1en', hasP1, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_p1t', hasP1, 'P1 pressure sensor is not configured in Hardware. This hard shutdown limit does not apply.');
+  ghostField('sf_p2en', hasP2, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_p2t', hasP2, 'P2 pressure sensor is not configured in Hardware. This hard shutdown limit does not apply.');
+  ghostField('sf_tqen', hasTorque, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_tqt', hasTorque, 'Shaft-torque sensor is not configured in Hardware. This hard shutdown limit does not apply.');
   ghostField('sf_p1d', hasP1, 'Pressure 1 hard-trip confirmation has no fitted Pressure 1 input.');
   ghostField('sf_p2d', hasP2, 'Pressure 2 hard-trip confirmation has no fitted Pressure 2 input.');
   ghostField('sf_tqd', hasTorque, 'Torque hard-trip confirmation has no fitted torque input.');
-  ghostField('sf_lo_d', hasOilPress, 'Low-oil confirmation has no effect without an oil-pressure sensor.');
-  ghostField('sf_oz_d', hasOilPress, 'Near-zero-oil confirmation has no effect without an oil-pressure sensor.');
+  ghostField('sf_oil_modes', hasOilPress || controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length, 'Fit an oil-pressure sensor or switch to select its monitoring phases.');
+  ghostField('sf_lo_d', hasOilPress || controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length, 'Fit an oil-pressure sensor or switch to use this confirmation time.');
   ghostField('cl_tw', hasEgt, 'Cluster EGT warning needs a fitted TOT or TIT sensor.');
   ghostField('cl_ow', hasOilPress, 'Cluster oil warning needs a fitted oil pressure sensor.');
 
@@ -4202,6 +4462,7 @@ function _applyAllVisibility() {
   // Re-run view filter AFTER hw conditions — applyHwConditions() may un-hide expert-only
   // sections (e.g. Windmilling Oil Protection) which the basic view should still mask.
   applyView();
+  refreshProtectionSummaries();
 }
 
 function _escHtml(s) {

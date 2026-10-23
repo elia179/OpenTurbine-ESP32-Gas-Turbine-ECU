@@ -28,10 +28,14 @@ function auditConfigStructure() {
     ...field, section: section.title, pathText: field.path.join('.')
   })));
 
-  for (const property of ['key', 'pathText', 'label']) {
+  for (const property of ['key', 'pathText']) {
     const values = fields.map(field => field[property]);
     assert.equal(new Set(values).size, values.length, `Config contains a duplicate ${property}`);
   }
+  // Oil and fuel pressure cards share a contextual monitoring-phase label.
+  const contextualPhaseKeys = new Set(['sf_oil_modes', 'sf_fp_modes']);
+  const labels = fields.map(field => contextualPhaseKeys.has(field.key) ? field.label + ':' + field.key : field.label);
+  assert.equal(new Set(labels).size, labels.length, 'Config contains an unexpected duplicate label');
   assert.equal(new Set(schema.map(section => section.title)).size, schema.length,
     'Config contains duplicate section titles');
   const assignments = groups.flatMap(group => group.sections);
@@ -61,7 +65,7 @@ function auditConfigStructure() {
   assert.match(configSource, /mode_mask:4/, 'Simple controls must be limited to the normal RUNNING owner phase');
   assert.match(configSource, /On \/ Off with hysteresis/, 'Simple controls must expose an understandable binary method');
   assert.match(configSource, /Map input to output/, 'Variable outputs must support proportional mapping');
-  assert.match(configSource, /One normal owner per output/, 'Controller ownership must be explicit');
+  assert.match(configSource, /Only one active controller per output/, 'Controller ownership must be explicit');
   assert.match(configSource, /links:OTValidationLinks\(errors\)/,
     'blocking validation errors must expose direct setting links');
   assert.match(configSource, /links:OTValidationLinks\(warns\)/,
@@ -396,7 +400,7 @@ async function goto(page, route, waitSelector) {
     assert.ok(await page.locator('.cfg-help').count() > 100,
       'Long engineering help should remain available through progressive disclosure');
     const incompleteHelp = await page.evaluate(() => Array.from(document.querySelectorAll('.cfg-section:not([data-always-visible]) .cfg-field')).flatMap(field => {
-      const help = (field.querySelector('.cfg-desc')?.textContent || '').trim();
+      const help = (field.querySelector('.cfg-desc')?.textContent || field.getAttribute('title') || '').trim();
       const label = (field.querySelector('.cfg-label')?.textContent || '').trim();
       return !help || /^(undefined|null|value|setting)$/i.test(help) ? [label] : [];
     }));
@@ -425,10 +429,10 @@ async function goto(page, route, waitSelector) {
       hwCfg.controllers.governor = true;
       hwCfg.controllers.dynamic_idle = true;
       setNumber('n2_rpm_limit', 30000);
-      setSelect('pb_n2e', 1); setNumber('pb_n2s', 30000); setNumber('pb_n2h', 32000);
+      setCheck('pb_n2e_on', true); setSelect('pb_n2e', 1); setNumber('pb_n2s', 30000); setNumber('pb_n2h', 32000);
       setNumber('gv_tr', 29000); setNumber('gv_bd', 1500);
       setNumber('rpm_limit', 50000);
-      setSelect('pb_n1e', 1); setNumber('pb_n1s', 50000); setNumber('pb_n1h', 52000);
+      setCheck('pb_n1e_on', true); setSelect('pb_n1e', 1); setNumber('pb_n1s', 50000); setNumber('pb_n1h', 52000);
       setNumber('di_src', 1); setNumber('di_tr', 30000);
       hwCfg.safety.hot_start = true;
       setNumber('tot_limit', 650); setNumber('sf_hs', 700); setNumber('sf_st', 0);
@@ -456,7 +460,7 @@ async function goto(page, route, waitSelector) {
     assert.doesNotMatch(n1PullbackWithoutTrip, /hard N1 shutdown/);
     results.push('config warns about unsafe shaft, hot-start and windmilling-oil relationships');
     await goto(page, 'controllers.html', '#cf-tot_limit');
-    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20261021a#card-dev-mode');
+    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20261023p#card-dev-mode');
     assert.equal(await page.locator('#btn-dev-mode').count(), 0,
       'Config must not bypass the guarded Developer Mode control on Tools');
     assert.equal(await shown(page, '[data-built-in="afterburner"]'), true,
@@ -621,11 +625,11 @@ async function goto(page, route, waitSelector) {
         ...calibrationHardware.channel_registry,
         inputs: calibrationHardware.channel_registry.inputs.map(channel =>
           ['fuel_flow', 'throttle', 'idle'].includes(channel.purpose)
-            ? { ...channel, installed: true }
+            ? { ...channel, installed: true, ...(['throttle','idle'].includes(channel.purpose) ? {driver:3,min_us:1000,max_us:2000} : {}) }
             : hiddenCalibrationPurposes.has(channel.purpose) ? { ...channel, installed: false } : channel)
       }
     });
-    await patchData(page, { has_fuel_flow: true, fuel_flow_type: 0, throttle_input_type: 'servo', throttle_input_us: 1500, idle_input_type: 'servo', idle_input_us: 1300 });
+    await patchData(page, { has_fuel_flow: true, fuel_flow_type: 0, throttle_input_type: 'servo', throttle_input_us: 1500, rc_throttle_valid: true, idle_input_type: 'servo', idle_input_us: 1300, rc_idle_valid: true });
     await page.reload();
     await page.waitForSelector('#oil-press-cal-row', { state: 'attached' });
     await page.waitForFunction(() => /us|µs/.test(document.querySelector('#cal-th-raw')?.textContent || ''), null, { timeout: 5000 });
@@ -636,7 +640,7 @@ async function goto(page, route, waitSelector) {
     assert.match(await page.locator('#cal-idle-raw').textContent(), /us|µs/);
     results.push('calibration rows and servo/ADC units follow fitted hardware and telemetry type');
 
-    await patchData(page, { idle_input_type: 'servo', idle_input_us: 0 });
+    await patchData(page, { idle_input_type: 'servo', idle_input_us: 0, rc_idle_valid: false });
     await page.waitForFunction(() => document.querySelector('#cal-idle-raw')?.textContent === 'NO SIGNAL');
     assert.equal(await page.locator('#cal-idle-pct').textContent(), '—');
     assert.equal(await page.locator('#cal-idle-thr').textContent(), '—');

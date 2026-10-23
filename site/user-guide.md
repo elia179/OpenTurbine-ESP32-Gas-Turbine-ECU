@@ -281,8 +281,8 @@ First configure the required physical **Start** and **Stop** inputs. These are E
 <tr><td>Controller use / binding</td><td>Assigns the installed device to a core job such as primary N1 or main fuel output. Do not bind two devices to one exclusive role.</td></tr>
 <tr><td>Signal type / sensor interface</td><td>The real signal type: digital, ADC, pulse, RC, PWM duty, thermocouple interface, relay, PWM or servo/ESC. It must match the wiring.</td></tr>
 <tr><td>GPIO / CS / CLK / MISO / MOSI / data</td><td>The physical board pins used by that interface. Choose only offered pins and use each exclusive pin once. Shared SPI clock/data lines are allowed only where the UI explicitly accepts the shared bus.</td></tr>
-<tr><td>Active polarity</td><td>Whether HIGH or LOW means active. For an active-LOW switch to ground, select active LOW and a pull-up.</td></tr>
-<tr><td>Input bias</td><td>Internal pull-up, pull-down or none. Use only when electrically appropriate; never enable both.</td></tr>
+<tr><td>Active polarity</td><td>Whether HIGH or LOW means active. For an active-LOW switch to ground, select active LOW and a suitable input bias. If the pin has no internal bias, follow its message and provide the required external circuit.</td></tr>
+<tr><td>Input bias</td><td>Internal pull-up, pull-down or none. Unsupported choices are disabled with a pin-specific note; never enable both. All switch inputs have built-in 20 ms contact debounce.</td></tr>
 <tr><td>Minimum/maximum raw value</td><td>The measured electrical endpoints: ADC counts, frequency or pulse width. Minimum must be below maximum.</td></tr>
 <tr><td>Minimum/maximum mapped value</td><td>The engineering quantity those raw endpoints represent, such as 0–10 bar or 0–100%.</td></tr>
 <tr><td>Pulses per revolution/litre/unit</td><td>The sensor's real pulse count from its datasheet or calibration. A wrong value produces a proportionally wrong reading.</td></tr>
@@ -321,20 +321,39 @@ Enabling a checkbox does not prove the protection. You must force a safe simulat
 <tbody>
 <tr><td>N1 overspeed</td><td>Hard shutdown above Maximum N1 Speed; requires primary N1.</td></tr>
 <tr><td>N2 overspeed</td><td>Independent hard shutdown above Maximum N2 Speed; requires N2.</td></tr>
-<tr><td>Turbine gas overtemperature</td><td>Watches the startup-specific selected TOT/TIT limit during STARTUP and the normal hard limit during RUNNING. A zero startup limit inherits the normal limit.</td></tr>
-<tr><td>Low oil pressure</td><td>Shutdown after configured low-pressure behavior; requires oil pressure or a low-oil switch.</td></tr>
-<tr><td>Zero oil pressure</td><td>Detects effectively absent oil pressure; requires oil pressure or a zero-oil switch.</td></tr>
+<tr><td>Turbine gas overtemperature</td><td>Separate optional Startup protection and normal fault shutdown use the selected TOT/TIT sensor. With the separate Startup guard off, normal temperature shutdown and fuel limiting also apply during Startup.</td></tr>
+<tr><td>Oil pressure protection</td><td>One configurable analogue-pressure or oil-switch fault shutdown, with confirmation time and Startup/Running/both monitoring.</td></tr>
 <tr><td>Flameout</td><td>Declares combustion loss using the selected flame, N1, or EGT evidence after its confirmation time. EGT evidence means temperature is below its threshold and falling, or is falling faster than the configured rate.</td></tr>
 <tr><td>Hot start</td><td>Blocks START when selected turbine temperature is already above the pre-start limit. The normal/startup overtemperature guard then protects the active start.</td></tr>
 <tr><td>Oil temperature high</td><td>Shutdown above the oil-temperature limit; requires that input.</td></tr>
-<tr><td>Fuel pressure low</td><td>Shutdown below the running fuel-pressure threshold; requires fuel-pressure input.</td></tr>
+<tr><td>Fuel pressure low</td><td>Fault shutdown below the retained pressure limit after confirmation, during the selected Startup/Running/both monitoring phases; requires fuel-pressure input.</td></tr>
 <tr><td>Battery undervoltage</td><td>Fault behavior below the configured bus-voltage threshold; requires a scaled, calibrated voltage input.</td></tr>
 <tr><td>Surge / compressor instability</td><td>Uses rolling N1 variance to detect oscillation. It requires a clean N1 signal and engine-specific validation to avoid false trips.</td></tr>
 </tbody></table></div>
 
-Controllers disables protections whose required input is not fitted. Each expandable safety card keeps its enable, source, thresholds and confirmation timing together. A value of zero disables several thresholds; read each field explanation carefully.
+Controllers disables protections whose required input is not fitted. Each expandable safety card keeps its enable, source, thresholds and confirmation timing together. Each protection has an explicit enable switch. Disabling it preserves its limits and timing; do not erase advisory limits just to turn automatic protection off.
 
 **Choose Running idle explicitly:** open **Controllers → Fuel-metering support → Idle → Running Idle Mode**. Choose **Off**, **Fixed fuel percentage**, **Input channel**, or **Automatic Idle**. Input channel defaults to the configured Idle Input; **Idle Input Channel** also lets you choose another fitted input and map its Low/High endpoints in the source's units. Automatic Idle shows its feedback source, target, cutoff and tuning directly below the choice; missing hardware is explained rather than hiding the controls. Fixed replaces retained startup idle only after Startup finishes. Startup actions stay unchanged, including their use of the Hardware Idle Input. Off permits zero with Main Fuel **Output low = 0%**, and hides the note beside Input low. Older files retain their behavior; a Startup-retained floor requires an explicit mode choice before Idle settings change. Operator input ranges display 0–100%, with decimals supported; storage remains 0–1. Follow the [illustrated idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}). Pump minimum calibration remains separate from stable engine idle.
+
+### 9.3 Temperature protection and startup
+
+**Controllers → Shutdown & Protection → Turbine temperature** contains the temperature source, hot-engine start interlock, **Startup protection**, **Running protection**, and **Fuel limiting**. The main card summarizes which functions are enabled. Automatic shutdown and gradual fuel limiting are independent switches. Fuel limiting retains a **Simple** or **Predictive** method when switched off.
+
+The separate startup guard offers independently enabled **Immediate Startup Trip** and **Sustained Startup Temperature** with allowed time. Enabling a trip requires its positive limit; disable its toggle to retain that limit without using it. The sustained timer requires continuous temperature at/above its threshold and resets on cooling or ended monitoring. At least one trip must be enabled when the separate guard is on. With this guard on, normal temperature shutdown/pullback resume in Running; with it off, normal enabled temperature protections also cover Startup. Other safeguards retain their own activation rules.
+
+Sensor loss during a normally guarded start requests fault shutdown. An explicitly confirmed eligible reduced-power start can override that one unavailable temperature input; it still caps fuel, disables afterburner and leaves unrelated protections active. A recovered healthy temperature is checked against its limits. This is not automatic permission to continue after a real overtemperature trip.
+
+{% include build-screen.html file="startup-temperature-protection" step="Separate starting and running temperature" alt="Startup temperature guard with separate immediate and sustained trip toggles, limits and confirmation time." caption="Illustrative UI values only: use this turbine's documented starting envelope. A hung start is a failure to accelerate: configure a finite N1 sequence confirmation as well; a temperature dwell timer is not an acceleration monitor." %}
+
+### 9.4 Pressure and switch safeguards
+
+Oil-pressure and low-fuel-pressure cards separately select **Monitor during: Startup, Running, or Startup and Running**. Running is the default. Confirmation begins when monitoring starts and resets when it stops or the condition clears. Oil's built-in card accepts an analogue sensor or a logical oil switch. A healthy switch ON while stopped is not itself a pre-start stop interlock; an enabled but unreadable switch still blocks starting. Explicit Sequence oil confirmations and individual pump-loop protections remain independent.
+
+{% include build-screen.html file="oil-switch-protection" step="Pressure-switch monitoring" alt="Oil-pressure protection enabled with Running monitoring and a separate fault confirmation time." caption="Contact debounce is fixed at 20 ms. Choose when oil pressure must exist and how long a low-pressure condition may persist before fault shutdown." %}
+
+Additional independently named oil/fuel switch protections use custom controllers and **Request Fault Shutdown**, with their own condition, confirmation and activation. Direct switches use ON/OFF; an ADC-backed switch is first converted to that logical state using its calibrated threshold.
+
+Configured speed, selected temperature, pressure and torque limits remain Dashboard advisory references with automatic shutdown off. Positive pressure/torque limits supply scale, limit marker and approach colours; without a positive limit, the card uses automatic range unless a manual display range was selected. Use **Dashboard → Edit cards → Edit limit & safety**, or the note/link beside the corresponding safety field. The enable toggle controls automatic action, not whether the saved reference exists.
 
 ## Part 10: Configure Controllers and System
 
@@ -377,7 +396,7 @@ Specific checks:
 
 - **N1/N2:** compare several speeds with an independent tachometer. Correct pulses/revolution first.
 - **TOT/TIT:** verify thermocouple type, polarity, connector metals, converter and probe location. Compare ambient and a controlled reference.
-- **Pressure:** zero only while safely depressurized, then compare with a trusted gauge at multiple pressures.
+- **Pressure:** zero only while safely depressurized, then compare with a trusted gauge at multiple pressures. Oil pressure defaults to sensor-only calibration: capture known references without commanding a pump. Two-point linear calibration and an optional multi-point curve do not require electric-pump control. The separate electric-pump/minimum-output workflow remains available only when deliberately selected.
 - **Voltage/current:** compare with a meter at several loads; verify the divider ratio and current-sensor zero.
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
 - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
@@ -432,20 +451,45 @@ Run the full startup and shutdown sequence repeatedly with no fuel and ignition 
 
 ## Part 13: Use custom controllers
 
-Open **Controllers → Output controllers**. Expand **+ Create controller**, choose the unowned fitted output, select **Create controller**, then open its card. A generic new controller starts with **Fixed output in selected states**, a zero command and Running selected; choose the intended method and states deliberately. The [illustrated controller walkthrough]({{ '/guided-builds/control/#custom' | relative_url }}) shows each screen, validation message and save step.
+Open **Controllers → Output controllers → + Create controller**, choose the fitted output or shutdown action, create the controller, and open its card. Give it a name that identifies its purpose; the same name appears in Sequence, command ownership and fault evidence. A new ordinary output controller starts with **Fixed output** at zero; it activates on entering Running and deactivates on entering Shutdown or Standby.
 
 <span id="threshold-control"></span><span id="mapping-control"></span><span id="feedback-control"></span><span id="fields-common-to-both"></span>
 
-| Control method | Use it for | Check first |
+| Control method | What it does | Configure |
 | --- | --- | --- |
-| **On / Off with hysteresis** | A measured value switching an output above or below a boundary | Direction, threshold, deadband and on/off commands. The [bench fan example]({{ '/guided-builds/extend/#fan' | relative_url }}) demonstrates the fields. |
-| **Map input to output** | A verified proportional relationship | Calibrated input range and bounded output range. Values outside the source range are clamped. |
-| **Hold a feedback target** | Adjusting an output to reach a measured target | Feedback direction, fixed/switched/mapped target, authority, response and feedback-loss command. Verify on a suitable safe rig. |
-| **Fixed output in selected states** | A defined command without feedback | Fixed demand and the selected modes; no input is required. |
+| **Switch state** | Acts on the selected switch being logically ON or OFF | Choose the state and condition confirmation time. Numeric thresholds and hysteresis are not presented for a binary switch. |
+| **On / Off with hysteresis** | Switches an output or requests an action when an analogue value crosses a threshold | Direction, threshold, hysteresis and confirmation time. |
+| **Map input to output** | Continuously maps a calibrated input range to a bounded output range | Source endpoints, direction and output endpoints. An active controller follows the input every control tick. |
+| **Hold a feedback target** | Adjusts output to reach a fixed, switched or mapped feedback target | Direction, target, output authority, response and feedback-loss command. |
+| **Fixed output** | Applies one command while activated | Command and activation/deactivation events. |
 
-**Ownership and failure behavior:** each output has one enabled normal owner. Running is the default, but Standby, Startup and Shutdown can also be selected where appropriate. Outside selected states the controller releases ownership and supported ordinary/sequence behavior resumes; this is not a universal zero command. The threshold method's Off output is the inactive side of its condition. Feedback-loss behavior is method-specific. Custom controllers are always released in FAULT and cannot override fault-safe behavior. Afterburner fuel remains state-machine-owned.
+### 13.1 Activation and deactivation
 
-Save and reopen the card, then verify source movement, output direction, limits, selected states, mode exit, sensor loss, STOP and reboot persistence. Test the physical output rather than assuming a demand shown on screen proves the device responded.
+The open card directly shows **Active when** and **Deactivate when**. Either side can select several events: **Sequencer block**, **Entering Startup**, **Entering Running**, **Entering Shutdown**, and **Entering Standby**. These are entry events: once activated, the controller continues until a selected deactivation, disable, fault, aborted start or reboot. When the same state entry both stops and starts controllers, deactivations run first.
+
+For example, a main-fuel controller can activate at a named Startup sequence position and deactivate on entering Shutdown and Standby. Once active it follows its selected potentiometer continuously. Shutdown then has ordinary discrete output blocks available again. For a non-engine bench light, activate on entering Standby and deactivate on entering Startup, Running and Shutdown. Saving a new definition while already in Standby does not invent a state-entry event; test the next appropriate entry.
+
+{% include build-screen.html file="controller-states" step="Controller activation" alt="Named controller with directly visible activation and deactivation event choices." caption="Choose when ownership starts and ends. The mapping remains continuous while the controller is active." %}
+
+### 13.2 Place required sequence blocks
+
+Selecting **Sequencer block** creates a named Activate or Deactivate card in Sequence's **Needs placement** area. Drag it into the intended sequence and position, or select the card and an insertion gap. Removing a placed block returns it to that area so it can be moved to another sequence. Sequence Save requires all enabled required blocks to be placed. The Controllers save review calls out sequence work still needed.
+
+An incomplete controller setup leaves that controller inactive for the run and shows a named repair warning. It does not by itself lock all starting. Genuine unknown blocks, missing required hardware and other start interlocks still apply. Disable the affected controller explicitly when needed; its links become inactive. Stable IDs preserve references when its display name changes.
+
+{% include build-screen.html file="controller-block-placement" step="Place the controller cards" alt="Named Activate and Deactivate controller cards waiting for placement above the sequence." caption="Place each required card where the corresponding handover belongs; do not substitute an unrelated Set Output block." %}
+
+### 13.3 Output ownership and shutdown actions
+
+An active controller owns its output. Conflicting ordinary blocks and side actions are ghosted with the controller's name; runtime checks enforce the same rule. Deactivation first commands the output's **Hardware safe demand**, then releases ownership. A following block may command it again. Separate controllers can use an output at different times, but overlapping claims require repair. Core starter/enable coupling, emergency cuts, protective oil handling and other turbine protection remain authoritative.
+
+For a pressure switch that must cut combustion immediately, select **Request Fault Shutdown** and **Request fault shutdown when → Switch is ON** (or OFF if appropriate). It records the controller name, cuts fuel/ignition/starter and retains protective cooling/oil handling. **Request Normal Shutdown** is a different action and does not create the same latched fault. Several named controllers can request these actions independently without competing for a physical output. Use separate controllers for additional oil circuits or other switches; no duplicate built-in safety card is required.
+
+Switch contacts have fixed **20 ms debounce**. A controller's additional **Condition confirmation time** starts only while its condition and activation are valid. Returning to normal, losing the input or ending monitoring resets the timer. Zero adds no confirmation delay. Hysteresis remains relevant for analogue threshold control, not a logical ON/OFF switch condition.
+
+{% include build-screen.html file="switch-fault-controller" step="A named switch shutdown" alt="Binary switch condition, fault-shutdown action, separate confirmation time and activation events." caption="Choose the logical switch state. Input polarity belongs in Hardware; the condition confirmation belongs here." %}
+
+Save and reopen the card, then dry-test input movement, output direction and bounds, activation, deactivation to the Hardware safe state, sensor loss, STOP and reboot. The [bench-light walkthrough]({{ '/guided-builds/control/#custom' | relative_url }}) demonstrates a non-engine output. A displayed demand is not proof that a physical actuator responded.
 
 ## Part 14: Dry-test the complete ECU
 
@@ -489,9 +533,17 @@ Observe the engine itself, independent instruments and dashboard. Do not rely on
 
 ### Dashboard readings and display scales
 
-Numeric readings use normal text (white in dark themes) or red at the configured critical boundary. Sensor bars are green and output bars blue; N1 and engine-temperature gauges also show approach zones. Health dots show sensor usability. A red number can be advisory only when its protection is disabled—it does not prove automatic shutdown is enabled. See [Dashboard warning setup]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}).
+Numeric readings use normal text (white in dark themes) or red at the configured critical boundary. Sensor bars are green and output bars blue; configured speed, temperature, pressure and torque limits also provide approach colours and limit markers. Health dots show sensor usability. A red number can be advisory only when its protection is disabled—it does not prove automatic shutdown is enabled. See [Dashboard warning setup]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}).
 
 Continuous sensor cards also show a labelled display bar and up to 30 recent valid samples at 1 Hz. Select the scale below a pressure, voltage, current, flow, thrust, torque or additional-input bar to set a fixed Low/High range or restore auto scaling. This browser-only view does not change calibration or protection. Sensor faults clear the trace; switches stay as On/Off indicators. See the [oil-pressure example]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}).
+
+### Fault acknowledgment and reduced-power start
+
+Switch faults name the configured input and link to its Hardware assignment and relevant protection. A latched run fault requires acknowledgment. When the stopped ECU is ready, **START** first offers acknowledgment, verifies a fresh Standby state, and then opens the separate start review. Clearing the fault does not start the engine. With one eligible required sensor unavailable, that review offers **Start Reduced Power**. Actual switch trips and unrelated interlocks are not silently bypassed.
+
+**Fullscreen** on the Dashboard requests browser fullscreen where supported, including compatible Android browsers. Browser permissions or platform limitations may prevent the request. Exit with the same button or the browser's fullscreen control.
+
+Output cards show actual commanded demand and current command owner. A configured idle/governor target is explicitly labelled as configured. The oil card's **run minimum** is the lowest measured healthy running pressure, not a saved shutdown threshold. Unused startup presets are not shown as active commands. The throttle-feedback warning appears only when the runtime limiter actually holds an attempted increase.
 
 ### Backups
 

@@ -2355,3 +2355,12 @@ body.dashboard-awaiting-snapshot #adv-act-section {
 
 .hw-bias-unavailable { opacity: .45; }
 #dashboard-fullscreen-btn[hidden] { display:none!important; }
+
+.sensor-view-track .gauge-bar{forced-color-adjust:none}
+.sensor-limit-marker{forced-color-adjust:none;position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--red);transform:translateX(-1px);pointer-events:none}.sensor-limit-marker[hidden]{display:none}
+
+#fault-card.reduced-start-available { border-color:var(--yellow); background:rgba(180,130,0,.06); }
+#fault-card.reduced-start-available .fault-title { color:var(--yellow); }
+.fault-actions [hidden] { display:none; }
+
+#fault-card.reduced-start-available .fault-desc { color:var(--text); }

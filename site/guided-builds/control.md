@@ -100,9 +100,9 @@ Add **Generic automation output**, name it **Bench light**, choose **PWM** and t
 
 {% include build-screen.html file="controller-create" step="A · Choose the light" alt="Create controller panel with Bench light selected." caption="Only the bench light is selected. The dedicated oil loop remains a separate owner of Oil Pump." %}
 
-**B · Open its card.** A new generic controller starts with **Fixed output in selected states** and zero command. Change the method to **Map input to output** before looking for the source and range fields.
+**B · Open its card.** A new generic controller starts with **Fixed output** and zero command. Change the method to **Map input to output** before looking for the source and range fields.
 
-{% include build-screen.html file="controller-new" step="B · Recognize the starting method" alt="New Bench light controller starting with Fixed output in selected states and zero command." caption="Creating a controller does not automatically connect it to the brightness knob." %}
+{% include build-screen.html file="controller-new" step="B · Recognize the starting method" alt="New Bench light controller starting with Fixed output and zero command." caption="Creating a controller does not automatically connect it to the brightness knob." %}
 
 **C · Configure the complete mapping:**
 
@@ -114,13 +114,14 @@ Add **Generic automation output**, name it **Bench light**, choose **PWM** and t
 | Controlled by | Brightness knob |
 | Input low / Input high | 0 / 1, after verified endpoint calibration |
 | Output low / Output high | 0% / 100% |
-| When this controller is active | Standby only |
+| Active when | Entering Standby |
+| Deactivate when | Entering Startup, Entering Running, Entering Shutdown |
 
 {% include build-screen.html file="controller-mapping" step="C · The configured dimmer" alt="Knob to bench light controller mapping Brightness knob from 0 to 1 onto Bench light from 0 to 100 percent." caption="Input range uses the source's normalized units; output range uses percent demand. Half input produces half duty, although perceived LED brightness is not necessarily linear." %}
 
-**D · Choose the operating state.** Expand **When this controller is active**, select **Standby**, and clear Startup, Running and Shutdown. A newly created controller defaults to Running, so change this deliberately.
+**D · Choose activation and deactivation.** The open controller card directly shows both sets of choices. Select **Entering Standby** under **Active when**; select **Entering Startup**, **Entering Running** and **Entering Shutdown** under **Deactivate when**. Clear the default Running activation. State entries are events, not continuous mode checkboxes: the light follows the knob after its selected entry until a selected stop event. Test the next appropriate state entry; saving while already in Standby does not invent that entry.
 
-{% include build-screen.html file="controller-states" step="D · Standby-only ownership" alt="Bench light custom controller active only in Standby." caption="This lets you demonstrate the light while engine outputs remain isolated. Outside selected states the controller releases ownership; FAULT also releases it." %}
+{% include build-screen.html file="controller-states" step="D · Standby-entry activation" alt="Bench-light controller configured to activate on entering Standby and stop on entering Startup, Running or Shutdown." caption="Deactivation commands the output's Hardware safe demand before releasing ownership. Faults also release custom control. Keep this example on an isolated non-engine bench light." %}
 
 **E · Save and reopen.** Select **Save to device**, resolve any validation errors and review warnings rather than using Save anyway to get past them. Confirm the change recap, save, then reopen the card and compare output, source, range and states.
 
@@ -149,7 +150,7 @@ On Controllers, inspect the protections available for the fitted system. Set eng
 
 **Verify:** use safe simulated/test evidence with hazardous power isolated to exercise both ordinary limiting and the hard action. Check the actual output commands and event information, not only gauge color. A display scale or warning color can exist without an enabled hard trip. Also test disconnected/unhealthy inputs—the last displayed plausible number is not evidence of a healthy sensor.
 
-Custom automation can request supported actions, but a custom rule is not automatically a separately implemented hard protection. In particular, a normal shutdown request is not the same thing as a latched FAULT. Use the documented action and recovery behavior for your intended purpose.
+Custom automation can request supported actions, but a custom rule is not automatically a separately implemented hard protection. In particular, **Request Normal Shutdown** is not the same thing as **Request Fault Shutdown**, which cuts combustion and latches the named fault. Use the documented action and recovery behavior for your intended purpose.
 
 <h2 id="handover">6 · Review sequence handover</h2>
 

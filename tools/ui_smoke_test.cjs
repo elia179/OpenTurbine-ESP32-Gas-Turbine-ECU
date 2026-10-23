@@ -427,7 +427,7 @@ function installedBrowser() {
     assert.equal(startBlockVisibility.disabled, true);
     assert.equal(startBlockVisibility.visible, true);
     assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
-    assert.equal(startBlockVisibility.link, '/sequence.html?v=20261021a');
+    assert.match(startBlockVisibility.link, /^\/sequence\.html\?v=\d{8}[a-z]$/);
     assert.equal(startBlockVisibility.stopVisible, true);
     assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
@@ -479,14 +479,14 @@ function installedBrowser() {
 
     await page.request.post(`${base}/__sim/data`, { data: {
       mode: 'RUNNING', bench_mode: false, egt_source: 2,
-      has_tit: true, tit_healthy: false,
+      has_tit: true, tit_healthy: false, throttle_feedback_inhibited:true,
       has_tot: true, tot_healthy: true,
       has_n1: true, n1_healthy: true
     } });
     await page.waitForFunction(() => getComputedStyle(document.getElementById('throttle-feedback-inhibit-note')).display !== 'none');
     await page.waitForFunction(() => document.getElementById('tit-rise-rate-val')?.textContent?.includes('2.5'));
     assert.equal(await text(page, '#tot-rise-rate-val'), '—');
-    await page.request.post(`${base}/__sim/data`, { data: { tit_healthy: true, egt_source: 1 } });
+    await page.request.post(`${base}/__sim/data`, { data: { tit_healthy: true, egt_source: 1, throttle_feedback_inhibited:false } });
     await page.waitForFunction(() => getComputedStyle(document.getElementById('throttle-feedback-inhibit-note')).display === 'none');
     await page.waitForFunction(() => document.getElementById('tot-rise-rate-val')?.textContent?.includes('2.5'));
     assert.equal(await text(page, '#tit-rise-rate-val'), '—');
@@ -725,10 +725,11 @@ function installedBrowser() {
     await waitShown(page, '#seq-progress-section', true);
     assert.equal(await text(page, '#seq-block-name'), 'Confirm Combustion by Flame Sensor');
     assert.equal(await text(page, '#seq-step-text'), '4 / 6');
-    await waitShown(page, '#throttle-startup-range-row', true);
-    assert.match(await text(page, '#throttle-startup-range-row'), /10\.0 to 25\.0/);
-    assert.match(await text(page, '#oil-startup-setting-note'), /100\.0/);
-    results.push('startup scenario shows live sequence progress and direct startup output settings');
+    assert.equal(await page.locator('#throttle-startup-range-row').count(), 0);
+    await waitShown(page, '#throttle-floor-row', true);
+    assert.match(await text(page, '#throttle-floor-row'), /10\.0/);
+    assert.equal(await page.locator('#oil-startup-setting-note').count(), 0);
+    results.push('startup scenario shows live sequence progress and physical output minimum without unused presets');
 
     await scenario(page, 'fault');
     await waitShown(page, '#fault-card', true);
@@ -739,7 +740,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#fault-desc-text').evaluate(el =>
       ['anywhere', 'break-word'].includes(getComputedStyle(el).overflowWrap)), true);
     for (const route of ['/log.html', '/calibration.html', '/controllers.html', '/tools.html'])
-      assert.equal(await page.locator(`#fault-card a[href="${route}?v=20261021a"]`).count(), 1);
+      assert.equal(await page.locator(`#fault-card a[href^="${route}?v="]`).count(), 1);
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');
@@ -824,7 +825,8 @@ function installedBrowser() {
 
     await page.goto(`${base}/calibration.html`);
     await page.waitForFunction(() => document.querySelector('#th-wiz-steps').textContent.includes('servo signal'));
-    assert.match(await text(page, '#cal-th-raw'), /us|µs/);
+    // The initial simulator frame has a pulse width but no receiver-valid flag.
+    assert.equal(await text(page, '#cal-th-raw'), 'NO SIGNAL');
     await page.request.post(`${base}/__sim/data`, { data: { throttle_input_us: 1120, throttle_input_norm: 0.12, rc_throttle_valid: true } });
     await page.waitForFunction(() => document.querySelector('#cal-th-raw').textContent.includes('1120'));
     await page.locator('#throttle-cal-row button', { hasText: 'Capture Min' }).click();
@@ -1108,7 +1110,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#tool-always-confirm').isChecked(), false);
     await page.locator('#tool-always-confirm').check();
     await page.getByRole('button', { name: 'Save settings' }).click();
-    await page.waitForTimeout(650);
+    await page.waitForFunction(() => localStorage.getItem('ot_tool_confirmations_skip_all') === null);
     assert.equal(await page.evaluate(() => localStorage.getItem('ot_tool_confirmations_skip_all')), null);
     results.push('tools gates prerequisites, renders and saves all themes, and uses one restorable confirmation preference for the full page');
 

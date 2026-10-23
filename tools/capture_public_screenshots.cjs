@@ -91,6 +91,7 @@ async function installPublicExample(page) {
       actuator: 69, target: 'cooling_fan', on_value: 1, off_value: 0, input_min: 0, input_max: 1, output_min: 0, output_max: 1, mode_mask: 4 }
   ];
 
+  settings.rules.forEach((rule,index)=>{rule.controller_id=index+1;rule.activate_events=4;rule.deactivate_events=24;});
   await page.request.post(`${base}/api/ecu_config`, { data: { hardware, settings } });
 }
 
@@ -100,6 +101,7 @@ async function setRunState(page, patch = {}) {
     mode: 'RUNNING', fw_version: firmwareVersion, uptime_s: 847, last_event: 'RUNNING',
     n1: 58200, n2: 0, n1_rpm_accel: 120, n2_rpm_accel: 0, tot: 592, oil: 2.35, oil_temp: 74, batt_voltage: 12.4,
     throttle_demand: 0.36, throttle_input_us: 1360, throttle_input_norm: 0.36, rc_throttle_norm: 0.36,
+    throttle_command_owner:'Main Fuel',oil_command_owner:'Oil Pump',throttle_feedback_inhibited:false,min_oil:2.1,
     oil_demand: 2.3, oil_pct: 41, flame: true, max_n1: 61400, max_tot: 628, max_oil_temp: 76,
     rpm_limit: 100000, tot_limit: 720, egt_limit: 720, oil_running_min: 1.4, oil_temp_limit: 110,
     idle_target: 58000, idle_target_unit: 'rpm', idle_source: 'N1',

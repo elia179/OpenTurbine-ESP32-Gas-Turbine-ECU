@@ -90,7 +90,11 @@ const {chromium} = require('playwright');
       // glow across the whole section. Errors retain a separate red marker.
       for (const theme of ['carbon','ember','slate','midnight','contrast','daylight']) {
         await page.evaluate(theme=>OTTheme.set(theme),theme);
-        await page.waitForTimeout(200);
+        await page.waitForFunction(()=>{
+          const probe=document.createElement('span');probe.style.color='var(--accent)';document.body.append(probe);
+          const expected=getComputedStyle(probe).color;probe.remove();
+          return getComputedStyle(document.getElementById('cf-fi_input')).borderTopColor===expected;
+        });
         assert.equal(await page.locator('#cf-fi_input').evaluate(el=>getComputedStyle(el).borderTopColor),await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()).then(async accent=>page.evaluate(accent=>{const el=document.createElement('span');el.style.color=accent;document.body.append(el);const color=getComputedStyle(el).color;el.remove();return color},accent)));
         assert.equal(await page.locator('#cf-fi_mode').evaluate(el=>getComputedStyle(el.closest('.config-group')).boxShadow),'none');
       }

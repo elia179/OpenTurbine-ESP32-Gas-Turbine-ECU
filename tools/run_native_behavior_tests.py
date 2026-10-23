@@ -109,6 +109,14 @@ def main() -> int:
                    tempfile.TemporaryDirectory(prefix="ot-native-"))
     with tmp_context as tmp:
         tests = [
+            ("rule_fields_behavior", [str(ROOT / "dev" / "host" / "rule_fields_behavior.cpp")], []),
+            ("switch_timing_behavior", [str(ROOT / "dev" / "host" / "switch_timing_behavior.cpp")], []),
+            ("startup_temperature_integration", [str(ROOT / "dev" / "host" / "startup_temperature_integration.cpp")], []),
+            ("startup_temperature_behavior", [str(ROOT / "dev" / "host" / "startup_temperature_behavior.cpp")], []),
+            ("operator_adc_behavior", [str(ROOT / "dev" / "host" / "operator_adc_behavior.cpp")], []),
+            ("recent_event_log_behavior", [str(ROOT / "dev" / "host" / "recent_event_log_behavior.cpp")], []),
+            ("controller_activation", [str(ROOT / "dev" / "host" / "controller_activation_behavior.cpp")], []),
+            ("controller_activation_integration", [str(ROOT / "dev" / "host" / "controller_activation_integration.cpp")], []),
             ("pcnt_gpio_behavior", [str(ROOT / "dev" / "host" / "pcnt_gpio_behavior.cpp")], []),
             ("wet_glow", [str(ROOT / "dev" / "host" / "wet_glow_behavior.cpp")], []),
             ("relay_demand", [str(ROOT / "dev" / "host" / "relay_demand_behavior.cpp")], []),
@@ -139,6 +147,7 @@ def main() -> int:
             # test probe on some managed hosts. Keep the descriptive historical
             # filename used by this test; the binary is still rebuilt below.
             exe_name = {
+                "controller_activation": "controller_activation_behavior",
                 "relay_demand": "relay_demand_behavior",
                 "servo_actuator": "servo_actuator_behavior",
                 "command_queue": "command_queue_behavior",

@@ -71,6 +71,7 @@ static constexpr size_t _blockRegistryLen = sizeof(_blockRegistry) / sizeof(Bloc
 
 static bool perSlotBlockName(const char* name) {
     if (!name) return false;
+    if (ControllerActivation::blockId(name)) return true;
     static const char* const names[] = {
         "TimedDelay", "IgniterOn", "IgniterOff", "ABIgnOn", "ABIgnOff",
         "FuelOpen", "FuelSolClose",
@@ -99,6 +100,13 @@ class CustomSequenceBlock : public IBlock {
 public:
     void bind(const HardwareConfig::CustomBlockDef* def) { _def = def; }
     const char* name() override { return (_def && _def->key[0]) ? _def->key : "CustomBlock"; }
+    bool controllerConflict() const override {
+        if (!_def) return false;
+        for (uint8_t i = _stepIdx; i < _def->stepCount; ++i)
+            if (_def->steps[i].type == 0 && RulesEngine::controllerOwner(_def->steps[i].actuator) >= 0) return true;
+        return false;
+    }
+
 
     void onEnter() override {
         _entryMs = millis();
@@ -213,6 +221,7 @@ public:
     }
 
     const char* name() override { return _name ? _name : "IgnitionCommand"; }
+    int8_t outputTarget() const override { return _target; }
 
     void onEnter() override {
         if (strcmp(name(), "IgniterOff") == 0 || strcmp(name(), "ABIgnOff") == 0) _setTarget(false);
@@ -241,6 +250,13 @@ public:
     void bind(const char* blockName, const char* targetId, const char* defaultPurpose,
               float demand) {
         _name = blockName;
+        bool activate = false;
+        if (const uint16_t id = ControllerActivation::blockId(blockName, &activate)) {
+            _mode = activate ? 3 : 4;
+            _durationMs = id;
+            _target = -1;
+            return;
+        }
         const char* resolved = targetId && targetId[0] ? targetId :
             HardwareConfig::defaultOutputIdForPurpose(defaultPurpose);
         _target = HardwareConfig::outputActuatorForId(resolved);
@@ -260,11 +276,16 @@ public:
     }
 
     const char* name() override { return _name ? _name : "TargetedActuator"; }
+    int8_t outputTarget() const override { return _mode < 3 ? _target : -1; }
     void onEnter() override {
         _entryMs = millis();
         _phaseMs = 0;
         _phase = 0;
         _completed = false;
+        if (_mode >= 3) {
+            _completed = RulesEngine::controllerCommand((uint16_t)_durationMs, _mode == 3);
+            return;
+        }
         if (!strcmp(name(), "OilPumpOff")) EngineData::instance().oilTargetBar = 0.0f;
         if (_target >= 0) RulesEngine::applyActuatorDemand((uint8_t)_target,
             _mode == 2 ? _startDemand : _demand);
@@ -274,6 +295,7 @@ public:
         }
     }
     BlockResult tick() override {
+        if (_mode >= 3) return _completed ? BlockResult::Complete : BlockResult::Fault;
         if (_mode == 0) return BlockResult::Complete;
         if (_target < 0) return BlockResult::Abort;
         const unsigned long now = millis();
@@ -372,7 +394,7 @@ static void commandConfiguredIgnitionOutput(const char* outputId, uint8_t legacy
     const int8_t actuator = HardwareConfig::outputActuatorForId(outputId);
     if (!output || actuator < 0) return;
     const float demand = on ? 1.0f : 0.0f;
-    RulesEngine::applyActuatorDemand((uint8_t)actuator, demand);
+    RulesEngine::applyProtectedActuatorDemand((uint8_t)actuator, demand);
 }
 
 static CustomSequenceBlock* _sequenceCustomBlockStorage = nullptr;
@@ -446,7 +468,7 @@ static void buildSequences() {
     uint8_t waitInputRequired = 0;
     auto countPlacedBlocks = [&](const char blocks[][24], int length) {
         for (uint8_t i = 0; i < length; ++i) {
-            if (isTargetedActuatorBlock(blocks[i])) ++targetedRequired;
+            if (isTargetedActuatorBlock(blocks[i]) || ControllerActivation::blockId(blocks[i])) ++targetedRequired;
             if (!strncmp(blocks[i], "custom_", 7)) ++customRequired;
             if (!strcmp(blocks[i], "IgniterOn") || !strcmp(blocks[i], "IgniterOff") ||
                 !strcmp(blocks[i], "ABIgnOn") || !strcmp(blocks[i], "ABIgnOff")) ++ignitionRequired;
@@ -557,6 +579,12 @@ static void buildSequences() {
             blocks[count++] = &ignition;
             return;
         }
+        if (ControllerActivation::blockId(name)) {
+            auto& control = _sequenceTargetedBlockStorage[targetedUsed++];
+            control.bind(name, "", "", 0);
+            blocks[count++] = &control;
+            return;
+        }
         const char* purpose = nullptr;
         float demand = 0.0f;
         if (!strcmp(name, "FuelOpen"))             { purpose = "fuel_shutoff"; demand = 1.0f; }
@@ -652,6 +680,7 @@ static void validateSequences(bool report) {
     ed.seqIssueCount = 0;
     ed.seqHasErrors  = false;
     ed.seqHasStructuralErrors = false;
+    ed.controllerInhibitMask = 0;
 
     auto addIssue = [&](const char* block, const char* reason, bool isError) {
         if (isError) ed.seqHasErrors = true;
@@ -667,6 +696,29 @@ static void validateSequences(bool report) {
                           isError ? "ERROR" : "WARN", block, reason);
         }
     };
+
+    // Incomplete controller links disable that controller for this run.
+    for (int r = 0; r < Config::ruleCount; ++r) {
+        const auto& rule = Config::rules[r];
+        if (!rule.enabled || rule.activateEvents == 0) continue;
+        for (uint8_t command = 0; command < 2; ++command) {
+            if (command == 0 ? !(rule.activateEvents & 1) : !(rule.deactivateEvents & 1)) continue;
+            char key[24];
+            snprintf(key,sizeof(key),command == 0 ? "ControllerOn_%u" : "ControllerOff_%u",rule.controllerId);
+            bool found = false;
+            auto search = [&](const char names[][24], int count) {
+                for (int i = 0; i < count; ++i) if (!strcmp(names[i],key)) found = true;
+            };
+            search(hw.startupSeq,hw.startupSeqLen); search(hw.shutdownSeq,hw.shutdownSeqLen);
+            if(hw.hasAfterburner){search(hw.abSeq,hw.abSeqLen); search(hw.abShutSeq,hw.abShutSeqLen);}
+            if (!found) {
+                char reason[96];
+                snprintf(reason,sizeof(reason),"%s inactive this run: place %s block",rule.name,command == 0 ? "Activate" : "Deactivate");
+                addIssue(key,reason,false);
+                ed.controllerInhibitMask |= uint16_t(1) << r;
+            }
+        }
+    }
 
     // ── Check for unrecognized block names ────────────────────
     // Unknown names are silently skipped by buildSequences() — flag them so
@@ -710,6 +762,99 @@ static void validateSequences(bool report) {
     checkNames("shutdown", hw.shutdownSeq, hw.shutdownSeqLen);
     checkNames("ab_ign",   hw.abSeq,       hw.abSeqLen);
     checkNames("ab_shut",  hw.abShutSeq,   hw.abShutSeqLen);
+    uint32_t controllerStartupOutputs=0;
+    for (uint8_t pass=0; !ed.seqHasStructuralErrors && pass<ControllerActivation::Capacity; ++pass) {
+        const uint16_t previousInhibits=ed.controllerInhibitMask;
+        controllerStartupOutputs=0;
+        ControllerActivation plan;
+        plan.inhibit(ed.controllerInhibitMask);
+        bool collectingStartup=true;
+        auto target = [](uint8_t i) { return RulesEngine::controllerTarget(i); };
+        auto safe = [](uint8_t) {};
+        auto problem = [&](uint8_t index,const char* block,const char* reason) {
+            if (ed.controllerInhibitMask & (uint16_t(1)<<index)) return;
+            ed.controllerInhibitMask |= uint16_t(1)<<index;
+            char message[96];
+            snprintf(message,sizeof(message),"%s inactive this run: %s",Config::rules[index].name,reason);
+            addIssue(block,message,false);
+        };
+        auto enter = [&](ControllerActivation::Event event) {
+            plan.enter(event,Config::rules,Config::ruleCount,target,safe);
+            for (uint8_t i=0;i<Config::ruleCount;++i)
+                if (Config::rules[i].enabled && !plan.inhibited(i) &&
+                    (Config::rules[i].activateEvents & (1u<<event)) && !plan.active(i))
+                    problem(i,"Controllers","output ownership conflict");
+        };
+        auto owner = [&](uint8_t actuator) -> int {
+            for (int i=0;i<Config::ruleCount;++i)
+                if (plan.active(i)&&target(i)==ControllerActivation::Target{actuator,uint8_t(actuator==RulesEngine::STARTER?RulesEngine::STARTER_ENABLE:255)}) return i;
+            return -1;
+        };
+        auto walk = [&](IBlock** blocks,int count,
+                        const HardwareConfig::SeqSideAction (*enters)[HardwareConfig::MAX_SEQ_SIDE_ACTIONS],
+                        const HardwareConfig::SeqSideAction (*exits)[HardwareConfig::MAX_SEQ_SIDE_ACTIONS]) {
+            for (int b=0;b<count;++b) {
+                const char* name=blocks[b]->name();
+                bool activate=false;
+                const uint16_t id=ControllerActivation::blockId(name,&activate);
+                if (id) {
+                    const int8_t index=RulesEngine::controllerIndex(id);
+                    if (index<0) { addIssue(name,"Controller removed; block inactive",false); continue; }
+                    const auto& rule=Config::rules[index];
+                    if (!rule.enabled || plan.inhibited(index)) continue;
+                    if (activate && (rule.activateEvents&1)) {
+                        if (plan.activate(index,Config::rules,Config::ruleCount,target)==ControllerActivation::Conflict)
+                            problem(index,name,"another controller owns output");
+                    } else if (!activate && (rule.deactivateEvents&1)) plan.deactivate(index,safe);
+                }
+                if(collectingStartup)for(int r=0;r<Config::ruleCount;++r)
+                    if(plan.active(r)&&Config::rules[r].actuator<32)
+                        controllerStartupOutputs|=1u<<Config::rules[r].actuator;
+                const bool protective=!strcmp(name,"ImmediateCut")||!strcmp(name,"FinalStop")||
+                    !strcmp(name,"CooldownSpin")||!strcmp(name,"RPMDrop");
+                if (protective) continue;
+                auto check = [&](uint8_t actuator) {
+                    const int index=owner(actuator);
+                    if(index<0)return;
+                    problem(index,name,"sequence also commands output");
+                };
+                const int8_t direct=blocks[b]->outputTarget();
+                if (direct>=0) check((uint8_t)direct);
+                else {
+                    const uint32_t mask=RulesEngine::sequenceOutputMask(name);
+                    for(uint8_t act=0;act<32;++act)if(mask&(1u<<act))check(act);
+                }
+                if (const auto* def=customDefFor(name))
+                    for(uint8_t step=0;step<def->stepCount;++step)if(def->steps[step].type==0)check(def->steps[step].actuator);
+                for(int j=0;j<HardwareConfig::MAX_SEQ_SIDE_ACTIONS;++j){
+                    if(enters&&enters[b][j].enabled)check(enters[b][j].actuator);
+                    if(exits&&exits[b][j].enabled)check(exits[b][j].actuator);
+                }
+            }
+        };
+        enter(ControllerActivation::Standby);
+        enter(ControllerActivation::Startup);
+        walk(_startupBlocks,_startupCount,hw.startupEnterActions,hw.startupExitActions);
+        collectingStartup=false;
+        enter(ControllerActivation::Running);
+        const auto runningPlan=plan;
+        if(hw.hasAfterburner){
+            walk(_abIgnBlocks,_abIgnCount,hw.abEnterActions,hw.abExitActions);
+            // Core shutdown can begin before the AB shutdown sequence completes.
+            const auto abActivePlan=plan;
+            enter(ControllerActivation::Shutdown);
+            walk(_shutdownBlocks,_shutdownCount,hw.shutdownEnterActions,hw.shutdownExitActions);
+            plan=abActivePlan;
+            walk(_abShutBlocks,_abShutCount,hw.abShutEnterActions,hw.abShutExitActions);
+            enter(ControllerActivation::Shutdown);
+            walk(_shutdownBlocks,_shutdownCount,hw.shutdownEnterActions,hw.shutdownExitActions);
+            plan=runningPlan;
+        }
+        enter(ControllerActivation::Shutdown);
+        walk(_shutdownBlocks,_shutdownCount,hw.shutdownEnterActions,hw.shutdownExitActions);
+        if (previousInhibits==ed.controllerInhibitMask) break;
+    }
+
 
     auto isIgnitionTargetBlock = [](const char* block) {
         return block && (!strcmp(block, "IgniterOn") || !strcmp(block, "IgniterOff") ||
@@ -949,7 +1094,7 @@ static void validateSequences(bool report) {
         }
         else if (strcmp(nm, "WaitTOTCool") == 0) {
             if (Config::effectiveEgtSource() == 0)
-                addIssue(nm, "No selected EGT source - this block waits for its full timeout, then aborts startup or permits shutdown to finish", false);
+                addIssue(nm, "No EGT source: waits until timeout; startup aborts, shutdown continues", false);
         }
         else if (strcmp(nm, "FinalStop") == 0) {
             if (!hw.hasN1Rpm)
@@ -1080,9 +1225,9 @@ static void validateSequences(bool report) {
     } else {
         // Warn if no sustained fuel-delivery block is present. FuelPulse is
         // intentionally pre-prime only and does not mark a combustion attempt.
-        bool hasFuelDelivery = false;
+        bool hasFuelDelivery = controllerStartupOutputs & ((1u<<RulesEngine::THROTTLE)|(1u<<RulesEngine::FUEL_SOL)|(1u<<RulesEngine::FUEL_PUMP2));
         bool hasFuelPulseOnly = false;
-        bool hasSpoolAction = false;
+        bool hasSpoolAction = controllerStartupOutputs & ((1u<<RulesEngine::STARTER)|(1u<<RulesEngine::AIRSTARTER));
         for (int i = 0; i < _startupCount; i++) {
             const char* nm = _startupBlocks[i]->name();
             if (strcmp(nm, "FuelPulse") == 0) hasFuelPulseOnly = true;
@@ -1108,35 +1253,19 @@ static void validateSequences(bool report) {
         }
         if (!hasFuelDelivery) {
             addIssue("FuelOpen", hasFuelPulseOnly
-                ? "Only FuelPulse is present. FuelPulse is a pre-prime pulse and does not count as sustained fuel delivery or trigger hot cooldown."
-                : "No sustained fuel delivery block (FuelOpen/FuelPumpIdle or secondary/auxiliary fuel pump block) in startup - engine will spin without fuel",
+                ? "FuelPulse only: pre-prime is not sustained fuel delivery and does not trigger hot cooldown."
+                : "No sustained startup fuel delivery: add a fuel valve/pump command.",
                 false);
         }
         if (!hasSpoolAction) {
             addIssue("startup",
-                "No starter, spool, or air-starter action is present. The sequence assumes the rotor is spooled externally; add a starter action unless manual/external starting is intentional.",
+                "No starter action: add one unless external/manual spooling is intentional.",
                 false);
         }
 
-        // ── Low-oil protection arming check ───────────────────
-        // LOW_OIL only trips once a startup block sets oilMinBar > 0 (OilPrime on
-        // completion, StarterSpin, Spool, or SafetyHold). A hand-built sequence with
-        // none of these leaves low-oil protection disarmed even after reaching RUNNING
-        // — the fault would be silent. Warn when low-oil is enabled and an oil sensor is
-        // fitted but nothing arms the threshold. (flameMonitorActive has a comparable
-        // backstop; oilMinBar relies entirely on the sequence.)
-        if (hw.safetyLowOil && hw.hasOilPress) {
-            bool armsOilMin = false;
-            for (int i = 0; i < _startupCount; i++) {
-                const char* nm = _startupBlocks[i]->name();
-                if (strcmp(nm, "OilPrime") == 0 || strcmp(nm, "StarterSpin") == 0 ||
-                    strcmp(nm, "Spool") == 0 || strcmp(nm, "SafetyHold") == 0) {
-                    armsOilMin = true; break;
-                }
-            }
-            if (!armsOilMin)
-                addIssue("startup", "Low-oil protection is enabled but no startup block arms the oil-pressure minimum (OilPrime/StarterSpin/Spool/SafetyHold) - LOW_OIL will never trip. Add one of those blocks.", false);
-        }
+        // Pressure protection arms through its own monitoring phases, not
+        // through the presence of an unrelated startup sequence block.
+
     }
 
     // ── Fitted-but-never-opened output checks ─────────────────
@@ -1171,7 +1300,7 @@ static void validateSequences(bool report) {
         };
 
         if (hw.hasFuelSol) {
-            bool solOpened = sideActionSets(RulesEngine::FUEL_SOL, 0.5f);
+            bool solOpened = (controllerStartupOutputs&(1u<<RulesEngine::FUEL_SOL)) || sideActionSets(RulesEngine::FUEL_SOL, 0.5f);
             for (int i = 0; i < _startupCount && !solOpened; i++) {
                 const char* nm = _startupBlocks[i]->name();
                 if (strcmp(nm, "FuelOpen") == 0 || strcmp(nm, "FuelPulse") == 0 ||
@@ -1179,12 +1308,12 @@ static void validateSequences(bool report) {
                     solOpened = true;
             }
             if (!solOpened)
-                addIssue("FuelOpen", "Main fuel shutoff is fitted but no startup step opens it - the starter will motor the rotor with fuel isolated", false);
+                addIssue("FuelOpen", "Fuel shutoff never opens: add a startup valve command.", false);
         }
 
         if (hw.hasStarterEn) {
             bool starterDriven = sideActionSets(RulesEngine::STARTER, 0.01f);
-            bool enableOn      = sideActionSets(RulesEngine::STARTER_ENABLE, 0.5f);
+            bool enableOn      = (controllerStartupOutputs&((1u<<RulesEngine::STARTER)|(1u<<RulesEngine::STARTER_ENABLE))) || sideActionSets(RulesEngine::STARTER_ENABLE, 0.5f);
             for (int i = 0; i < _startupCount; i++) {
                 const char* nm = _startupBlocks[i]->name();
                 if (strcmp(nm, "StarterSpin") == 0 || strcmp(nm, "StarterEnOn") == 0)
@@ -1195,7 +1324,7 @@ static void validateSequences(bool report) {
                     enableOn = true;
             }
             if (starterDriven && !enableOn)
-                addIssue("Starter", "Starter demand is commanded but nothing turns the starter enable relay on (StarterEnOn) - demand will not reach the ESC", false);
+                addIssue("Starter", "Starter enable stays OFF: add StarterEnOn before starter demand.", false);
         }
     }
 
@@ -1219,7 +1348,7 @@ static void validateSequences(bool report) {
     // only option, so the warning would be noise.
     const bool combustionSensorFitted = hw.hasTot || hw.hasTit || hw.hasFlame || hw.hasN1Rpm;
     if (hasTimedIgnition && !hasCombustionConfirmation && combustionSensorFitted)
-        addIssue("TimedDelay", "Timed light-up does not confirm combustion - replace with TempConfirm or FlameConfirm now that a sensor is fitted", false);
+        addIssue("TimedDelay", "Use TempConfirm or FlameConfirm: timed light-up does not prove combustion.", false);
 
     // ── Shutdown sequence structural check ────────────────────
     if (_shutdownCount == 0) {
@@ -1351,12 +1480,12 @@ static void validateSequences(bool report) {
                 if (strcmp(_abIgnBlocks[i]->name(), "ABIgnite") == 0 && abIgniteIndex < 0) abIgniteIndex = i;
             }
             if (!hasFlameConfirm)
-                addIssue("ABFlameConfirm", "Custom AB ignition sequence must include ABFlameConfirm. Select sensor, EGT-rise, or explicit timed-assumption mode in the Afterburner subsystem.", true);
+                addIssue("ABFlameConfirm", "Add ABFlameConfirm; select sensor, EGT-rise or timed assumption in Afterburner.", true);
             if (!hasStabilize)
-                addIssue("ABStabilize", "AB ignition sequence has no stabilization hold; it enters Running immediately after explicit flame confirmation completes", false);
+                addIssue("ABStabilize", "AB enters Running without a stabilization hold after flame confirmation.", false);
             if (hw.hasAbPump && g_blkABIgnite.useTorch && abIgniteIndex >= 0 &&
                 (abPumpOnIndex < 0 || abPumpOnIndex > abIgniteIndex))
-                addIssue("ABIgnite", "Hot-streak occurs before the fitted AB pump is commanded on. This is allowed, but verify that the intended fuel is present before relying on torch ignition.", false);
+                addIssue("ABIgnite", "Hot-streak occurs before the fitted AB pump is commanded on. Verify fuel before torch ignition.", false);
         }
         if (_abShutCount == 0) {
             const char* defAbShut[] = { "ABSolClose", "ABPumpOff" };
@@ -1408,9 +1537,9 @@ static void validateSequences(bool report) {
         addIssue("P2 Pullback", !hw.hasP2 ? "P2 limiter enabled without a P2 sensor" : "P2 full-reduction value must be above its begin value", false);
     if (Config::pullbackTorqueEnabled && (!hw.hasTorque || Config::pullbackTorqueHard <= Config::pullbackTorqueSoft))
         addIssue("Torque Pullback", !hw.hasTorque ? "Torque limiter enabled without a torque sensor" : "Torque full-reduction value must be above its begin value", false);
-    if (Config::p1TripLimit > 0.0f && !hw.hasP1) addIssue("P1 Hard Trip", "P1 hard trip is configured without a P1 sensor", true);
-    if (Config::p2TripLimit > 0.0f && !hw.hasP2) addIssue("P2 Hard Trip", "P2 hard trip is configured without a P2 sensor", true);
-    if (Config::torqueTripLimit > 0.0f && !hw.hasTorque) addIssue("Torque Hard Trip", "Torque hard trip is configured without a torque sensor", true);
+    if (Config::p1TripEnabled && Config::p1TripLimit > 0.0f && !hw.hasP1) addIssue("P1 Hard Trip", "P1 hard trip is configured without a P1 sensor", true);
+    if (Config::p2TripEnabled && Config::p2TripLimit > 0.0f && !hw.hasP2) addIssue("P2 Hard Trip", "P2 hard trip is configured without a P2 sensor", true);
+    if (Config::torqueTripEnabled && Config::torqueTripLimit > 0.0f && !hw.hasTorque) addIssue("Torque Hard Trip", "Torque hard trip is configured without a torque sensor", true);
     if (hw.safetyOvertemp) {
         if (Config::effectiveEgtSource() == 0)
             addIssue("Overtemp", "Overtemp safety is enabled but no selected TOT/TIT source is configured", true);
@@ -1427,10 +1556,8 @@ static void validateSequences(bool report) {
         }
         return false;
     };
-    if (hw.safetyLowOil && !hw.hasOilPress && !hasOilSafetySwitch("low_oil_switch"))
-        addIssue("Oil Safety", "Low-oil safety is enabled but no oil pressure sensor or low-oil switch is configured", true);
-    if (hw.safetyOilZero && !hw.hasOilPress && !hasOilSafetySwitch("oil_zero_switch"))
-        addIssue("Oil Safety", "Zero-oil safety is enabled but no oil pressure sensor or zero-oil switch is configured", true);
+    if (hw.safetyLowOil && !hw.hasOilPress && !hasOilSafetySwitch("low_oil_switch") && !hasOilSafetySwitch("oil_zero_switch"))
+        addIssue("Oil Safety", "Oil-pressure protection requires an oil pressure sensor or switch", true);
     if (hw.safetyLowOil && hw.hasOilPress && Config::oilRunningMin <= 0.0f)
         addIssue("Oil Safety", "Running oil minimum is 0 - low-oil shutdown is disabled", false);
     if (hw.safetyFlameout) {
@@ -1450,6 +1577,13 @@ static void validateSequences(bool report) {
                  && Config::flameoutEgtFallRateCPerSec <= 0.0f) {
             addIssue("Flameout", "Both EGT flameout conditions are disabled", false);
         }
+    }
+    if (Config::startupEgtGuardEnabled) {
+        if (Config::effectiveEgtSource()==0)
+            addIssue("Startup Temperature","Fit the selected TOT/TIT input or disable startup guard",true);
+        else if ((!Config::startupEgtImmediateEnabled || Config::startupEgtLimitC<=0) &&
+                 (!Config::startupEgtDwellEnabled || Config::startupEgtDwellC<=0))
+            addIssue("Startup Temperature","Set an immediate or timed startup temperature limit",true);
     }
     if (hw.safetyHotStart) {
         if (!hw.hasTot && !hw.hasTit)
@@ -1535,7 +1669,7 @@ static void validateSequences(bool report) {
             addIssue("AutoRelight", "EGT relight recovery rise is 0 - EGT-source relight cannot confirm success", false);
         }
         if (Config::relightMinRpm < Config::minRpm)
-            addIssue("AutoRelight", "Minimum N1 to fire relight is below Minimum Running N1; the ECU will use the higher Minimum Running N1 value", false);
+            addIssue("AutoRelight", "Relight uses the higher Minimum Running N1 threshold.", false);
         if (Config::relightTimeoutMs == 0)
             addIssue("AutoRelight", "Relight timeout is 0 - the ECU will use its hardcoded 30 second maximum", false);
     }
@@ -1568,6 +1702,7 @@ static void cutCombustionAndStarterNow(bool writePhysical = true) {
 // ── General-purpose DI debounce state ────────────────────────
 static unsigned long _diLastChange[HardwareConfig::MAX_DI] = {};
 static bool          _diRawLast[HardwareConfig::MAX_DI]    = {};
+static ConditionConfirmation _oilSwitchConfirmation[HardwareConfig::MAX_DI+ChannelRegistry::MAX_INPUT_CHANNELS];
 
 // ── Run-time tracking ─────────────────────────────────────────
 static unsigned long _runStartMs            = 0;   // millis() when RUNNING entered
@@ -2031,20 +2166,22 @@ static void checkGeneralDI() {
 
         bool rawActive = (digitalRead(hw.diCh[i].pin) == (hw.diCh[i].activeH ? HIGH : LOW));
 
-        // Debounce: only commit a change if the raw state has been stable for debounceMs
+        // Built-in 20 ms contact debounce; no user adjustment.
         if (rawActive != _diRawLast[i]) {
             _diLastChange[i] = now;
             _diRawLast[i]    = rawActive;
         }
 
         bool prevState = ed.diState[i];
-        if ((now - _diLastChange[i]) >= (unsigned long)hw.diCh[i].debounceMs) {
+        if ((now - _diLastChange[i]) >= SwitchDebounce::DelayMs) {
             ed.diState[i] = rawActive;
         }
 
         const char* roleForLevel = hw.diCh[i].role;
         uint8_t modeBitNow = (uint8_t)(1u << (int)ed.mode);
-        const bool activeInMode = (hw.diCh[i].activeModes & modeBitNow) != 0;
+        const bool activeInMode = PressureSafety::oilSwitch(roleForLevel)
+            ? PressureSafety::monitors(Config::oilSafetyModes,ed.mode)
+            : (hw.diCh[i].activeModes & modeBitNow) != 0;
         if (strcmp(roleForLevel, "ab_arm") == 0 && activeInMode) {
             hasDiAbArm = true;
             if (ed.diState[i]) diAbArmActive = true;
@@ -2064,8 +2201,11 @@ static void checkGeneralDI() {
         const bool isFaultRole = strcmp(roleForLevel, "fault") == 0;
         const bool isEstopRole = strcmp(roleForLevel, "estop") == 0;
         const bool isLowOilSwitch = strcmp(roleForLevel, "low_oil_switch") == 0 && hw.safetyLowOil;
-        const bool isOilZeroSwitch = strcmp(roleForLevel, "oil_zero_switch") == 0 && hw.safetyOilZero;
-        if ((isFaultRole || isEstopRole || isLowOilSwitch || isOilZeroSwitch) && ed.diState[i] && activeInMode
+        const bool isOilZeroSwitch = strcmp(roleForLevel, "oil_zero_switch") == 0 && hw.safetyLowOil;
+        const bool oilConfirmed=_oilSwitchConfirmation[i].update(
+            (isLowOilSwitch||isOilZeroSwitch)&&PressureSafety::monitors(Config::oilSafetyModes,ed.mode)&&ed.diState[i]&&activeInMode&&
+            (ed.mode==SysMode::STARTUP||ed.mode==SysMode::RUNNING),now,Config::lowOilConfirmMs);
+        if ((isFaultRole || isEstopRole || oilConfirmed) && ed.diState[i] && activeInMode
             && (ed.mode == SysMode::STARTUP || ed.mode == SysMode::RUNNING)) {
             if (isFaultRole || isLowOilSwitch || isOilZeroSwitch) {
                 // Replicate SafetyMonitor fault path:
@@ -2074,12 +2214,10 @@ static void checkGeneralDI() {
                     strncpy(ed.faultDescription, hw.diCh[i].faultMsg,
                             sizeof(ed.faultDescription) - 1);
                     ed.faultDescription[sizeof(ed.faultDescription) - 1] = '\0';
-                } else if (hw.diCh[i].faultCode[0]) {
-                    snprintf(ed.faultDescription, sizeof(ed.faultDescription),
-                             "DI fault: %s", hw.diCh[i].faultCode);
                 } else {
                     snprintf(ed.faultDescription, sizeof(ed.faultDescription),
-                             "DI fault: channel %d triggered", i + 1);
+                             (isLowOilSwitch || isOilZeroSwitch) ? "OIL_SWITCH: %s" : "INPUT_FAULT: %s",
+                             hw.diCh[i].label[0] ? hw.diCh[i].label : roleForLevel);
                 }
                 // Inject the DI fault code into SafetyMonitor so that
                 // enterFaultShutdown() reads the correct string via lastFault().
@@ -2144,13 +2282,18 @@ static void checkGeneralDI() {
     bool hasRegistryAbArm = false, registryAbArmActive = false;
     for (uint8_t i = 0; i < hw.channelRegistry.inputCount; ++i) {
         const auto& channel = hw.channelRegistry.inputs[i];
+        if (!channel.installed) {
+            _oilSwitchConfirmation[HardwareConfig::MAX_DI+i].reset();continue;
+        }
         const char* role = strcmp(channel.purpose, "generic") ? channel.purpose : channel.role;
         const bool safetyRole = !strcmp(role, "fault") || !strcmp(role, "estop") ||
             (!strcmp(role, "low_oil_switch") && hw.safetyLowOil) ||
-            (!strcmp(role, "oil_zero_switch") && hw.safetyOilZero);
+            (!strcmp(role, "oil_zero_switch") && hw.safetyLowOil);
         const bool healthy = ed.registryInputHealthy[i];
         const bool active = healthy && ed.registryInputValue[i] >= 0.5f;
-        const bool unavailableTrip = safetyRole && !healthy;
+        const bool oilRole=PressureSafety::oilSwitch(role);
+        const bool monitoring = !oilRole || PressureSafety::monitors(Config::oilSafetyModes,ed.mode);
+        const bool unavailableTrip = safetyRole && monitoring && !healthy;
         if (!strcmp(role, "ab_arm")) {
             hasRegistryAbArm = true;
             registryAbArmActive |= active;
@@ -2159,7 +2302,10 @@ static void checkGeneralDI() {
             manualLimpInputActive |= active;
             manualLimpInputUnavailable |= !healthy;
         }
-        if (safetyRole && (active || unavailableTrip) &&
+        const bool oilConfirmed=_oilSwitchConfirmation[HardwareConfig::MAX_DI+i].update(
+            safetyRole&&oilRole&&monitoring&&active&&(ed.mode==SysMode::STARTUP||ed.mode==SysMode::RUNNING),
+            now,Config::lowOilConfirmMs);
+        if (safetyRole && (unavailableTrip || (oilRole?oilConfirmed:active)) &&
             (ed.mode == SysMode::STARTUP || ed.mode == SysMode::RUNNING)) {
             const bool estop = !strcmp(role, "estop");
             if (estop && !unavailableTrip) {
@@ -2170,8 +2316,8 @@ static void checkGeneralDI() {
                     !strcmp(role, "low_oil_switch") ? "LOW_OIL" :
                     !strcmp(role, "oil_zero_switch") ? "OIL_ZERO" : "REGISTRY_FAULT";
                 snprintf(ed.faultDescription, sizeof(ed.faultDescription),
-                         unavailableTrip ? "Safety input %s is disconnected or stale." :
-                                           "Safety input %s is active.",
+                         unavailableTrip ? "INPUT_UNAVAILABLE: %s" :
+                         oilRole ? "OIL_SWITCH: %s" : "INPUT_FAULT: %s",
                          channel.name[0] ? channel.name : channel.id);
                 g_safety.setExternalFault(code);
                 enterFaultShutdown();
@@ -2206,8 +2352,7 @@ static void checkGeneralDI() {
     if (hasDiAbArm || hasRegistryAbArm) {
         bool dedicatedArmActive = false;
         if (hw.abRequiresArmSwitch && hw.abArmSwitchPin >= 0) {
-            dedicatedArmActive = (digitalRead(hw.abArmSwitchPin) ==
-                                  (hw.abArmSwitchActiveH ? HIGH : LOW));
+            dedicatedArmActive = ed.abArmSwitchOn; // Hardware already applied 20 ms debounce.
         }
         ed.abArmSwitchOn = dedicatedArmActive || diAbArmActive || registryAbArmActive;
     }
@@ -2454,9 +2599,11 @@ static void checkABTrigger() {
                 nativeFound = true;
                 if (hw.diCh[i].activeModes & modeBit) rawRequest |= ed.diState[i];
             }
-            if (!registryFound && !nativeFound && hw.abSwitchPin >= 0)
-                rawRequest = (digitalRead(hw.abSwitchPin) ==
-                                   (hw.abSwitchActiveH ? HIGH : LOW));
+            if (!registryFound && !nativeFound && hw.abSwitchPin >= 0) {
+                static SwitchDebounce filter;static uint32_t sequence=0;
+                rawRequest = filter.sample(digitalRead(hw.abSwitchPin) ==
+                    (hw.abSwitchActiveH ? HIGH : LOW),++sequence,millis());
+            }
             break;
         }
 
@@ -2493,9 +2640,12 @@ static void checkABTrigger() {
             : requestValue >= requestThreshold + halfBand;
     }
 
-    // One small debounce applies consistently to throttle, GPIO, registry and
-    // I2C requests. It avoids chatter without exposing more tuning controls.
-    if (rawRequest != _abConditioningCandidate) {
+    // Analogue command thresholds retain their separate request conditioning.
+    // Physical switch paths have already received the common 20 ms debounce.
+    if (hw.abTriggerSource==2) {
+        _abConditionedTrigger=rawRequest; // Switch paths already have 20 ms contact filtering.
+        _abConditioningCandidate=rawRequest;
+    } else if (rawRequest != _abConditioningCandidate) {
         _abConditioningCandidate = rawRequest;
         _abConditioningSinceMs = millis();
     } else if (_abConditionedTrigger != _abConditioningCandidate &&
@@ -2664,6 +2814,7 @@ static void checkCooldownSkip() {
 static void enterRunning() {
     auto& ed = EngineData::instance();
     ed.mode               = SysMode::RUNNING;
+    RulesEngine::modeEntered(ed.mode);
     ed.thermallyLoaded    = true;
     ed.faultShutdownActive = false;
     // Dev mode and bench mode runs are not real engine starts — don't count toward run log
@@ -2700,6 +2851,7 @@ static void enterShutdown() {
     auto& ed = EngineData::instance();
     if (ed.mode == SysMode::SHUTDOWN) return;  // already shutting down
     ed.mode = SysMode::SHUTDOWN;
+    RulesEngine::modeEntered(ed.mode);
     cutCombustionAndStarterNow();
     ed.faultShutdownActive = false;
     _buzzerPattern = 4; _buzzerStep = 0;  // single low beep: normal stop
@@ -2761,6 +2913,7 @@ static void enterFaultShutdown() {
         return;
     }
     ed.mode = SysMode::SHUTDOWN;
+    RulesEngine::modeEntered(ed.mode);
     cutCombustionAndStarterNow();
     ed.faultShutdownActive = true;
     if (HardwareConfig::hasPropPitch) ed.propPitchDemand = 1.0f;
@@ -2827,6 +2980,7 @@ static void enterStandby() {
     }
     _buzzerPattern = 0;  // silence any buzzer
     ed.mode               = ed.faultLatched ? SysMode::FAULT : SysMode::STANDBY;
+    RulesEngine::modeEntered(ed.mode);
     ed.throttleDemand     = 0;
     ed.sequencerIdleDemand = 0;
     ed.finalCoreFuelDemand = 0;
@@ -2922,36 +3076,12 @@ static void enterStandby() {
 
 static void enterAbortStandby(const char* resultBlock, BlockResult) {
     auto& ed = EngineData::instance();
+    RulesEngine::cancelActivation();
     const char* blockName = resultBlock && resultBlock[0] ? resultBlock : "UNKNOWN";
     snprintf(ed.lastEvent, sizeof(ed.lastEvent), "Aborted at: %s", blockName);
     FlightRecorder::logAbort(blockName, "startup_abort");
-    // Set a plain-language description for the fault/abort banner
-    if (strcmp(blockName, "OilPrime") == 0 || strcmp(blockName, "OilPump") == 0) {
-        strncpy(ed.faultDescription,
-            "Startup aborted: oil prime did not reach target pressure in time.\n"
-            "What to do: Check oil level, oil pump wiring and duty settings, "
-            "and oil line connections. Try running Oil Prime from the Tools page to diagnose.",
-            sizeof(ed.faultDescription) - 1);
-    } else if (strcmp(blockName, "FlameConfirm") == 0) {
-        strncpy(ed.faultDescription,
-            "Startup aborted: flame was not detected within the allowed time.\n"
-            "What to do: Check fuel supply, main fuel shutoff, igniter operation, "
-            "and flame sensor threshold. Try Igniter Test from the Tools page.",
-            sizeof(ed.faultDescription) - 1);
-    } else if (strcmp(blockName, "Spool") == 0) {
-        strncpy(ed.faultDescription,
-            "Startup aborted: engine did not reach spool RPM in time.\n"
-            "What to do: Check starter motor, throttle calibration, and fuel flow. "
-            "Increase spool timeout in Sequence settings if the engine is healthy.",
-            sizeof(ed.faultDescription) - 1);
-    } else {
-        snprintf(ed.faultDescription, sizeof(ed.faultDescription),
-            "Startup aborted at sequence step: %s.\n"
-            "What to do: Check the Event Log for details. "
-            "Verify all sensors and actuators are working correctly.",
-            blockName);
-    }
-    ed.faultDescription[sizeof(ed.faultDescription) - 1] = '\0';
+    // Keep code/detail on the ECU; the matching web bundle adds repair guidance.
+    snprintf(ed.faultDescription, sizeof(ed.faultDescription), "STARTUP_ABORT: %s", blockName);
     _buzzerPattern = 1;  // rapid fault beep
 
     cutCombustionAndStarterNow();
@@ -2960,8 +3090,10 @@ static void enterAbortStandby(const char* resultBlock, BlockResult) {
         // Run the full shutdown sequence (ImmediateCut → RPMDrop → CooldownSpin → FinalStop)
         // to keep bearings oiled through spindown and cool the turbine before standby.
         ed.mode = SysMode::SHUTDOWN;
+        RulesEngine::modeEntered(ed.mode);
         cutCombustionAndStarterNow();
         ed.faultShutdownActive = true;
+        RulesEngine::modeEntered(ed.mode);
         FlightRecorder::logFaultShutdown("STARTUP_ABORT");
         if (_shutdownCount == 0) {
             // Keep this recovery path identical to normal/fault shutdown. An
@@ -3129,6 +3261,7 @@ static void enforceEmergencyShutdownTerminal() {
     }
     Hardware::allOff();
     ed.mode = SysMode::FAULT;
+    RulesEngine::modeEntered(ed.mode);
     ed.faultLatched = true;
     ed.recoveryLockout = true;
     ed.recoveryStopAcknowledged = false;
@@ -3189,7 +3322,7 @@ static void handleCommand(const OTPacket& pkt) {
     // any state or output change so a response can never say "not started"
     // while a still-live queue packet starts the turbine later.
     if (startCommand && pkt.requestId && !CommandQueue::claimPendingResult(pkt.requestId)) {
-        Serial.println("[OT] Discarded canceled or stale START request");
+        Serial.println("[OT] Discarded stale/canceled START");
         return;
     }
     if (startCommand && pkt.requestId)
@@ -3243,7 +3376,7 @@ static void handleCommand(const OTPacket& pkt) {
     if (mayEnergizeOutput(pkt.cmd) &&
         (!Config::profileMatch || ed.configLocked || ed.configStorageFault)) {
         strncpy(ed.lastEvent, "Output blocked: repair configuration first", sizeof(ed.lastEvent) - 1);
-        Serial.println("[OT] Output command blocked: configuration is not trusted");
+        Serial.println("[OT] Output blocked: untrusted config");
         return;
     }
 
@@ -3264,7 +3397,7 @@ static void handleCommand(const OTPacket& pkt) {
         if (pkt.cmd == OTCommand::START || pkt.cmd == OTCommand::START_LIMITED) {
             strncpy(ed.lastEvent, "START blocked: maintenance upload in progress", sizeof(ed.lastEvent) - 1);
         }
-        Serial.println("[OT] Command blocked: maintenance upload in progress");
+        Serial.println("[OT] Command blocked: upload active");
         return;
     }
 
@@ -3277,7 +3410,7 @@ static void handleCommand(const OTPacket& pkt) {
         if (pkt.cmd == OTCommand::START || pkt.cmd == OTCommand::START_LIMITED) {
             strncpy(ed.lastEvent, "START blocked: rebooting to apply saved configuration", sizeof(ed.lastEvent) - 1);
         }
-        Serial.println("[OT] Command blocked: reboot pending to apply configuration");
+        Serial.println("[OT] Command blocked: reboot pending");
         return;
     }
 
@@ -3402,14 +3535,9 @@ static void handleCommand(const OTPacket& pkt) {
                         const auto& channel = hwi.diCh[_i];
                         if (channel.pin < 0 ||
                             !(channel.activeModes & (1u << (int)SysMode::STARTUP))) continue;
-                        const bool inhibitRole = !strcmp(channel.role, "inhibit_start");
-                        const bool safetyRole = inhibitRole || !strcmp(channel.role, "estop") ||
-                            !strcmp(channel.role, "fault") ||
-                            (hwi.safetyLowOil && !strcmp(channel.role, "low_oil_switch")) ||
-                            (hwi.safetyOilZero && !strcmp(channel.role, "oil_zero_switch"));
                         const bool active = digitalRead(channel.pin) ==
                             (channel.activeH ? HIGH : LOW);
-                        if (safetyRole && active) {
+                        if (PressureSafety::blocksStart(channel.role, true, active, hwi.safetyLowOil)) {
                             const char* label = channel.label[0] ? channel.label : channel.role;
                             snprintf(ed.lastEvent, sizeof(ed.lastEvent), "START blocked: safety input active");
                             snprintf(ed.faultDescription, sizeof(ed.faultDescription),
@@ -3423,19 +3551,11 @@ static void handleCommand(const OTPacket& pkt) {
                     }
                     for (uint8_t _i = 0; !inhibited && _i < hwi.channelRegistry.inputCount; ++_i) {
                         const auto& channel = hwi.channelRegistry.inputs[_i];
-                        const bool inhibitRole = !strcmp(channel.role, "inhibit_start") ||
-                                                 !strcmp(channel.purpose, "inhibit_start");
-                        const bool safetyRole = inhibitRole || !strcmp(channel.role, "estop") ||
-                            !strcmp(channel.purpose, "estop") || !strcmp(channel.role, "fault") ||
-                            !strcmp(channel.purpose, "fault") ||
-                            ((hwi.safetyLowOil) && (!strcmp(channel.role, "low_oil_switch") ||
-                                                   !strcmp(channel.purpose, "low_oil_switch"))) ||
-                            ((hwi.safetyOilZero) && (!strcmp(channel.role, "oil_zero_switch") ||
-                                                    !strcmp(channel.purpose, "oil_zero_switch")));
-                        const bool unavailable = safetyRole && !ed.registryInputHealthy[_i];
-                        const bool active = ed.registryInputHealthy[_i] &&
-                                            ed.registryInputValue[_i] >= 0.5f;
-                        if (unavailable || (safetyRole && active)) {
+                        if (!channel.installed) continue;
+                        const char* role = strcmp(channel.purpose,"generic") ? channel.purpose : channel.role;
+                        const bool unavailable = !ed.registryInputHealthy[_i];
+                        const bool active = !unavailable && ed.registryInputValue[_i] >= 0.5f;
+                        if (PressureSafety::blocksStart(role, !unavailable, active, hwi.safetyLowOil)) {
                             snprintf(ed.lastEvent, sizeof(ed.lastEvent),
                                      "START blocked: registry interlock");
                             snprintf(ed.faultDescription, sizeof(ed.faultDescription),
@@ -3514,8 +3634,7 @@ static void handleCommand(const OTPacket& pkt) {
                     if (ed.seqHasStructuralErrors) {
                         Serial.println("[OT] START blocked: sequence contains unknown blocks");
                         strncpy(ed.faultDescription,
-                                "Cannot start: sequence contains unknown or unavailable block names. "
-                                "Open the Sequence page, fix the red errors, and save again.",
+                                "Cannot start: sequence setup needs repair. Open Sequence and resolve its errors.",
                                 sizeof(ed.faultDescription) - 1);
                     } else {
                         Serial.println("[OT] START blocked: sequence has hardware errors - enable bench mode to override");
@@ -3538,7 +3657,10 @@ static void handleCommand(const OTPacket& pkt) {
                     ConfigApplyGate::release();
                     break;
                 }
+                RulesEngine::prepareStart();
                 ed.mode = SysMode::STARTUP;
+                RulesEngine::modeEntered(ed.mode);
+                if (ed.mode != SysMode::STARTUP) { ConfigApplyGate::release(); break; }
                 ed.sequencerIdleDemand = 0.0f;
                 ed.fuelAdmitted = false;
                 ed.combustionAttempted = false;
@@ -3825,6 +3947,7 @@ static void handleCommand(const OTPacket& pkt) {
                 ed.faultLatched = false;
                 ed.faultShutdownActive = false;
                 ed.mode = SysMode::STANDBY;
+                RulesEngine::modeEntered(ed.mode);
                 ed.faultDescription[0] = '\0';
                 strncpy(ed.lastEvent, "Fault acknowledged and cleared", sizeof(ed.lastEvent) - 1);
                 g_safety.clearFault();
@@ -3973,12 +4096,8 @@ static void handleCommand(const OTPacket& pkt) {
 
 // ── Stop / Start switch polling ───────────────────────────────
 
-// Dedicated START/STOP lines get a short fixed debounce (the general DI
-// channels have a configurable one; these did not, and switch bounce on a
-// long bench harness caused repeated START attempts / shutdown re-entry).
-// 30 ms rejects contact bounce while adding no operator-perceptible latency
-// to the STOP path.
-static constexpr unsigned long SWITCH_DEBOUNCE_MS = 30;
+// Registry Start/Stop states already have the same built-in debounce.
+static constexpr unsigned long SWITCH_DEBOUNCE_MS = SwitchDebounce::DelayMs;
 
 static bool registryControlInput(const char* purpose, bool& configured,
                                  bool& healthy, bool& activeHigh) {
@@ -4042,7 +4161,7 @@ static void checkStopSwitch() {
     static bool          _wasDebounced = false;
     unsigned long now = millis();
     if (raw != _rawLast) { _lastChange = now; _rawLast = raw; }
-    if (now - _lastChange >= SWITCH_DEBOUNCE_MS) _debounced = raw;
+    if (registryConfigured || now - _lastChange >= SWITCH_DEBOUNCE_MS) _debounced = raw;
     ed.stopSwitchActive = _debounced;
     if (_debounced && !_wasDebounced && ed.recoveryLockout && ed.startReleasedSinceBoot) {
         ed.recoveryStopAcknowledged = true;
@@ -4110,7 +4229,7 @@ static void checkStartSwitch() {
         return;
     }
     if (rawPressed != _rawLast) { _lastChange = nowSw; _rawLast = rawPressed; }
-    if (nowSw - _lastChange >= SWITCH_DEBOUNCE_MS) _pressed = rawPressed;
+    if (registryConfigured || nowSw - _lastChange >= SWITCH_DEBOUNCE_MS) _pressed = rawPressed;
     const bool pressed = _pressed;
     // Represent as a synthetic LOW/HIGH for the _last comparison below
     int cur = pressed ? LOW : HIGH;
@@ -4226,6 +4345,7 @@ void setup() {
         auto& edf = EngineData::instance();
         if (!Config::profileMatch || edf.configLocked) {
             edf.mode = SysMode::FAULT;
+            RulesEngine::modeEntered(edf.mode);
             if (edf.faultDescription[0] == '\0') {
                 strncpy(edf.faultDescription,
                         "Cannot start: the stored configuration failed to load or its "
@@ -4566,6 +4686,7 @@ void loop() {
     RulesEngine::releaseOwnedTargets();
     g_safety.check();
 
+    RulesEngine::modeEntered(EngineData::instance().mode);
     g_sequencer.tick();
     g_abSequencer.tick();
     uint32_t afterSequencersUs = micros();
@@ -4575,9 +4696,12 @@ void loop() {
         auto& ownerEd = EngineData::instance();
         const bool controllersMayOwn = ownerEd.mode == SysMode::STARTUP ||
                                        ownerEd.mode == SysMode::RUNNING;
-        strlcpy(ownerEd.throttleCommandOwner, "Sequencer / operator", sizeof(ownerEd.throttleCommandOwner));
-        strlcpy(ownerEd.propPitchCommandOwner, "Sequencer / parked", sizeof(ownerEd.propPitchCommandOwner));
-        strlcpy(ownerEd.oilCommandOwner, "Sequencer / fixed", sizeof(ownerEd.oilCommandOwner));
+        const char* phaseOwner = ownerEd.mode == SysMode::FAULT ? "Fault protection" :
+            ownerEd.mode == SysMode::STANDBY ? "Standby / manual" :
+            ownerEd.mode == SysMode::SHUTDOWN ? "Shutdown sequence" : "Sequencer / operator";
+        strlcpy(ownerEd.throttleCommandOwner, phaseOwner, sizeof(ownerEd.throttleCommandOwner));
+        strlcpy(ownerEd.propPitchCommandOwner, phaseOwner, sizeof(ownerEd.propPitchCommandOwner));
+        strlcpy(ownerEd.oilCommandOwner, phaseOwner, sizeof(ownerEd.oilCommandOwner));
         if (controllersMayOwn && !strncmp(ownerEd.governorControllerState, "Active", 6)) {
             if (g_ctrlGovernor.usePropPitch)
                 strlcpy(ownerEd.propPitchCommandOwner, "N2 governor", sizeof(ownerEd.propPitchCommandOwner));
@@ -4586,8 +4710,6 @@ void loop() {
         }
         if (controllersMayOwn && !strncmp(ownerEd.idleControllerState, "Active", 6))
             strlcpy(ownerEd.throttleCommandOwner, "Automatic Idle", sizeof(ownerEd.throttleCommandOwner));
-        if (HardwareConfig::instance().hasOilLoop && ownerEd.mode == SysMode::RUNNING)
-            strlcpy(ownerEd.oilCommandOwner, "Oil-pressure controller", sizeof(ownerEd.oilCommandOwner));
     }
 
     checkExtraCooldown();
@@ -4618,6 +4740,11 @@ void loop() {
     // locked. Rule ownership was released above; turbine-owned windmilling oil
     // and other safety behavior still run and may legitimately delay reboot.
     if (!WebServer::rebootPending()) RulesEngine::evaluate();
+    // Relight retains protective authority over ordinary output controllers.
+    if (EngineData::instance().mode == SysMode::RUNNING) {
+        if (_relightActive) commandConfiguredIgnitionOutput(Config::relightOutputId, (uint8_t)Config::relightIgnitionTarget, true);
+        if (EngineData::instance().manualRelightActive) commandConfiguredIgnitionOutput(Config::manualRelightOutputId, (uint8_t)Config::manualRelightIgnitionTarget, true);
+    }
     enforceEmergencyShutdownTerminal();
     enforceDryOilStop();
     Hardware::applyThrottleProtection();

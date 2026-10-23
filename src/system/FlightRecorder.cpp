@@ -1,3 +1,4 @@
+#include "RulesEngine.h"
 #include "FlightRecorder.h"
 #include "Config.h"
 #include "HardwareConfig.h"
@@ -204,7 +205,8 @@ void FlightRecorder::logStartAttempt() {
 
 void FlightRecorder::logBlockEnter(const char* blockName) {
     char safeBlock[48];
-    jsonSafeCopy(safeBlock, sizeof(safeBlock), blockName);
+    char display[40];RulesEngine::blockDisplayName(blockName,display,sizeof(display));
+    jsonSafeCopy(safeBlock, sizeof(safeBlock), display);
     char buf[96];
     snprintf(buf, sizeof(buf), "{\"t\":%lu,\"ev\":\"BLOCK_ENTER\",\"block\":\"%s\"}",
         _uptimeSec(), safeBlock);
@@ -214,7 +216,8 @@ void FlightRecorder::logBlockEnter(const char* blockName) {
 void FlightRecorder::logBlockExit(const char* blockName, const char* result) {
     char safeBlock[48];
     char safeResult[40];
-    jsonSafeCopy(safeBlock, sizeof(safeBlock), blockName);
+    char display[40];RulesEngine::blockDisplayName(blockName,display,sizeof(display));
+    jsonSafeCopy(safeBlock, sizeof(safeBlock), display);
     jsonSafeCopy(safeResult, sizeof(safeResult), result);
     char buf[96];
     snprintf(buf, sizeof(buf), "{\"t\":%lu,\"ev\":\"BLOCK_EXIT\",\"block\":\"%s\",\"res\":\"%s\"}",
@@ -301,7 +304,8 @@ void FlightRecorder::logFaultShutdown(const char* code) {
 void FlightRecorder::logAbort(const char* blockName, const char* reason) {
     char safeBlock[48];
     char safeReason[64];
-    jsonSafeCopy(safeBlock, sizeof(safeBlock), blockName);
+    char display[40];RulesEngine::blockDisplayName(blockName,display,sizeof(display));
+    jsonSafeCopy(safeBlock, sizeof(safeBlock), display);
     jsonSafeCopy(safeReason, sizeof(safeReason), reason);
     char buf[128];
     snprintf(buf, sizeof(buf),
@@ -513,6 +517,7 @@ static void _drainRingLocked() {
         // If non-log files alone consume the reserve, keep newest events in
         // the RAM ring and report the write error instead of consuming the
         // working space required for configuration recovery.
+        SessionLogger::makeRoomForEvents();
         if (LittleFS.totalBytes() - LittleFS.usedBytes() < reserveBytes + RING_SLOT_LEN) {
             s_lastError = 3;
             return;
@@ -539,6 +544,7 @@ static void _drainRingLocked() {
 
         int writtenSinceYield = 0;
         while (s_ringTail != s_ringHead && s_lineCount < FlightRecorder::MAX_RECORDS) {
+            if (LittleFS.totalBytes()-LittleFS.usedBytes()<reserveBytes+RING_SLOT_LEN) break;
             if (fa.println(s_ring[s_ringTail]) == 0) {
                 s_lastError = 3;
                 fa.close();

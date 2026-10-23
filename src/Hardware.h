@@ -20,6 +20,7 @@
 #include "../hardware_profile.h"
 #include "system/HardwareConfig.h"
 #include "hal/GpioInputBias.h"
+#include "hal/SwitchTiming.h"
 #include "system/OutputActivity.h"
 #include "hal/actuators/WetGlowControl.h"
 #include "soc/soc_caps.h"
@@ -36,6 +37,7 @@
 #include "hal/sensors/DS18B20TempSensor.h"
 #include "hal/sensors/HX711Sensor.h"
 #include "hal/AdcThreshold.h"
+#include "hal/OperatorAdc.h"
 #include "hal/i2c/I2CDeviceManager.h"
 
 // ── All actuator headers — always included ────────────────────
@@ -420,6 +422,7 @@ namespace Hardware {
     inline uint32_t          g_registryPwmLastMs[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline uint32_t          g_registryAnalogLastMs[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline bool              g_registryAnalogSwitchState[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
+    inline SwitchDebounce    g_registrySwitchDebounce[ChannelRegistry::MAX_INPUT_CHANNELS];
     inline uint16_t          g_registryAnalogSwitchConfig[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline uint8_t           g_registryCoreKind[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline uint8_t           g_registryInputFlags[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
@@ -758,12 +761,13 @@ namespace Hardware {
         for (uint8_t i = 0; i < reg.inputCount; ++i) {
             const auto& c = reg.inputs[i];
             ed.registryInputValue[i] = 0.0f;
+            g_registrySwitchDebounce[i].reset();
             g_registryDs18Slot[i] = -1;
             g_registryPcntSlot[i] = -1;
             g_registryHx711Slot[i] = -1;
             g_registryThermocouple[i] = nullptr;
             g_registryCoreKind[i] = registryCoreInputKind(c);
-            g_registryInputFlags[i] = ChannelRegistry::isSwitchCondition(c)
+            g_registryInputFlags[i] = ChannelRegistry::isSwitchCondition(c) || ChannelRegistry::isAdcThresholdCondition(c)
                 ? REG_INPUT_THRESHOLD_SWITCH : 0;
             if (c.mirrorOf[0]) {
                 ed.registryInputHealthy[i] = false;
@@ -1112,22 +1116,11 @@ namespace Hardware {
                 } else {
                     ed.registryInputValue[i] = registryAnalogPhysicalInput((float)raw, c);
                 }
-                float healthyMin = c.minValue;
-                float healthyMax = c.maxValue;
                 const bool operatorPot = !strcmp(c.role, "operator") &&
                     (!strcmp(c.purpose, "throttle") || !strcmp(c.purpose, "idle"));
-                // Before commissioning, operator pots use the full 0..4095
-                // mapping. A true 0 V throttle/idle command is both physically
-                // valid and the fail-safe direction, so accept the low rail.
-                // Keep the high rail unavailable: a short-to-high throttle must
-                // never become a trusted 100% command. Once calibrated, the
-                // captured endpoint window remains authoritative.
-                if (operatorPot && healthyMin <= 0.0f && healthyMax >= 4095.0f) {
-                    healthyMin = 0.0f;
-                    healthyMax = 4085.0f;
-                }
                 ed.registryInputHealthy[i] = isfinite(ed.registryInputValue[i]) &&
-                                             raw >= healthyMin && raw <= healthyMax;
+                    (operatorPot ? OperatorAdc::healthy(raw, c.minValue, c.maxValue)
+                                 : raw >= c.minValue && raw <= c.maxValue);
                 ed.registryInputSampleSeq[i] = ed.registryInputSampleSeq[i] + 1U;
                 ed.registryInputSampleMs[i] = now;
             } else if (c.driver == ChannelRegistry::Pulse) {
@@ -1139,6 +1132,19 @@ namespace Hardware {
             } else {
                 ed.registryInputHealthy[i] = false;
             }
+        }
+        // Apply contact filtering once, before any controller, safety or
+        // sequencer consumes the logical state. Health is never delayed.
+        for (uint8_t i=0;i<inputCount;++i) {
+            const auto& c=reg.inputs[i];
+            if (c.driver!=ChannelRegistry::Digital && c.driver!=ChannelRegistry::I2cDigital &&
+                !(g_registryInputFlags[i]&REG_INPUT_THRESHOLD_SWITCH)) continue;
+            auto& filter=g_registrySwitchDebounce[i];
+            if (!ed.registryInputHealthy[i]) {
+                filter.reset();g_registryAnalogSwitchState[i]=!c.activeHigh;continue;
+            }
+            ed.registryInputValue[i]=filter.sample(ed.registryInputValue[i]>=.5f,
+                ed.registryInputSampleSeq[i],now)?1.0f:0.0f;
         }
         if (samplePulse) g_registryPulseLastMs = now;
     }
@@ -2434,18 +2440,7 @@ namespace Hardware {
             const auto& c = HardwareConfig::channelRegistry.inputs[flameRegistry];
             ed.flameHealthy = ed.registryInputHealthy[flameRegistry];
             ed.flameSensorRaw = ed.registryInputRaw[flameRegistry];
-            static RegistryThresholdLatch latch;
-            latch.sync((int8_t)flameRegistry, c);
-            if (!ed.flameHealthy) {
-                ed.flameDetected = false;
-                latch.resetInactive();
-            } else if (c.driver == ChannelRegistry::Digital ||
-                c.driver == ChannelRegistry::I2cDigital) {
-                // Registry digital adapters already apply active-high/low.
-                ed.flameDetected = ed.registryInputValue[flameRegistry] >= 0.5f;
-            } else {
-                ed.flameDetected = latch.update((uint16_t)ed.flameSensorRaw);
-            }
+            ed.flameDetected=ed.flameHealthy && ed.registryInputValue[flameRegistry]>=.5f;
             ed.flameSampleSeq = ed.registryInputSampleSeq[flameRegistry];
         } else {
             ed.flameHealthy = false;
@@ -2481,25 +2476,7 @@ namespace Hardware {
             ed.abFlameRaw = ed.registryInputRaw[abFlameRegistry];
             ed.abFlameSampleSeq = ed.registryInputSampleSeq[abFlameRegistry];
             ed.abFlameSampleMs = ed.registryInputSampleMs[abFlameRegistry];
-            static RegistryThresholdLatch latch;
-            latch.sync((int8_t)abFlameRegistry, c);
-            if (!ed.abFlameHealthy) {
-                ed.abFlameOn = false;
-                // Do not let a pre-disconnect hysteresis state reappear when
-                // an analog signal recovers inside its deadband. Reset the
-                // raw-side latch to the polarity-correct inactive state so a
-                // fresh threshold crossing is required for flame confirmation.
-                latch.resetInactive();
-            } else if (c.driver == ChannelRegistry::Digital ||
-                       c.driver == ChannelRegistry::I2cDigital) {
-                // Digital adapters already publish their active-high/active-low
-                // interpretation as a logical 0/1 value. In particular, a
-                // TCA9554 raw sample is 0/1 rather than ADC counts, so applying
-                // the analog 0..4095 threshold here would make flame impossible.
-                ed.abFlameOn = ed.abFlameValue >= 0.5f;
-            } else {
-                ed.abFlameOn = latch.update((uint16_t)ed.abFlameRaw);
-            }
+            ed.abFlameOn=ed.abFlameHealthy && ed.abFlameValue>=.5f;
         } else {
             ed.abFlameHealthy = false;
             ed.abFlameOn = false;
@@ -2518,7 +2495,8 @@ namespace Hardware {
         if (hw.abRequiresArmSwitch && hw.abArmSwitchPin >= 0) {
             bool pressed = (digitalRead(hw.abArmSwitchPin) ==
                             (hw.abArmSwitchActiveH ? HIGH : LOW));
-            ed.abArmSwitchOn = pressed;
+            static SwitchDebounce filter;static uint32_t sequence=0;
+            ed.abArmSwitchOn = filter.sample(pressed,++sequence,millis());
         }
         // ── New sensors ──────────────────────────────────────────
         if (oilTempAnalog >= 0) {
@@ -3478,6 +3456,7 @@ namespace Hardware {
             const bool primaryLoop = HardwareConfig::channelRegistry.ownsCoreOutput(pump);
             if (primaryLoop || !primaryPublished) {
                 ed.oilTargetBar = targetBar;
+                strlcpy(ed.oilCommandOwner, pump.name[0] ? pump.name : pump.id, sizeof(ed.oilCommandOwner));
                 primaryPublished = true;
             }
 
@@ -3594,6 +3573,7 @@ namespace Hardware {
     }
 
     inline void applyThrottleProtection() {
+        EngineData::instance().throttleFeedbackInhibited = false;
         auto& hw   = HardwareConfig::instance();
         auto& ed   = EngineData::instance();
         auto  mode = ed.mode;

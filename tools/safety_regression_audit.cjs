@@ -34,10 +34,10 @@ expect('first boot initializes the complete settings profile before unified save
 expect('validated runtime restore carries its matching engine identity into the atomic save',
   configSerialize.includes('strlcpy(profileId, id, sizeof(profileId));'));
 const configCpp = read('src/system/Config.cpp') + configSerialize;
-expect('saved hardware removal disarms threshold-enabled pressure and torque hard trips using configured availability',
-  ['disarmUnavailableTrip(HardwareConfig::hasP1, p1TripLimit);',
-   'disarmUnavailableTrip(HardwareConfig::hasP2, p2TripLimit);',
-   'disarmUnavailableTrip(HardwareConfig::hasTorque, torqueTripLimit);'].every(call => configCpp.includes(call)));
+expect('saved hardware removal disarms pressure and torque flags while preserving limits',
+  ['disarmUnavailable(HardwareConfig::hasP1, p1TripEnabled);',
+   'disarmUnavailable(HardwareConfig::hasP2, p2TripEnabled);',
+   'disarmUnavailable(HardwareConfig::hasTorque, torqueTripEnabled);'].every(call => configCpp.includes(call)));
 const configHtml = read('data_src/config.html');
 const configRuntime = read('data_src/pages/config-runtime.js');
 const hardware = read('src/Hardware.h');
@@ -449,7 +449,7 @@ expect('gradual limiters share the physical fuel floor but tune each feedback re
   throttleSlew.includes('n1LookaheadMs') && throttleSlew.includes('egtLookaheadMs') &&
   !throttleSlew.includes('float authority') &&
   configHtml.includes('N1 Fuel-Limiting Mode') && configHtml.includes('Temperature Fuel-Limiting Mode') &&
-  configHtml.includes('Simple — measured value') && configHtml.includes('Advanced — predictive') &&
+  configHtml.includes('Simple — measured value') && configHtml.includes('Predictive — measured value and rate of change') &&
   !configHtml.includes('N1 Reduction Method'));
 expect('afterburner EGT confirmation enforces its configured rise window',
   abFlameConfirm.includes('totRiseWindowMs > 0') &&
@@ -461,12 +461,12 @@ expect('running afterburner flame loss has an AB-only configurable delay',
   main.includes('shutting down afterburner only') &&
   configHtml.includes('Running Flame-Loss Delay'));
 expect('custom afterburner ignition requires explicit confirmation',
-  main.includes('Custom AB ignition sequence must include ABFlameConfirm') &&
+  main.includes('Add ABFlameConfirm; select sensor, EGT-rise or timed assumption in Afterburner.') &&
   main.includes('[AB] Ignition sequence rejected: %s'));
 expect('pre-start temperature is checked before STARTUP and startup has its own hard limit',
   main.includes('START blocked: selected EGT above pre-start limit') &&
   main.indexOf('START blocked: selected EGT above pre-start limit') < main.indexOf('ed.mode = SysMode::STARTUP') &&
-  safety.includes('m == SysMode::STARTUP && Config::startupEgtLimitC > 0.0f') &&
+  safety.includes('m==SysMode::STARTUP && Config::startupEgtGuardEnabled') && safety.includes('!startupGuard && HardwareConfig::safetyOvertemp') && safety.includes('STARTUP_TEMP_DWELL') &&
   !safety.includes('TOT_RISE'));
 expect('EGT flameout requires low-and-falling or independently rapid cooling',
   safety.includes('egt <= flameoutEgtBelowC && ed.totRiseRate < 0.0f') &&
@@ -482,9 +482,9 @@ expect('automatic relight has explicit nonzero firing and recovery speeds',
 expect('event log routes preserve specific downloads and reject malformed display records',
   web.indexOf('_server.on("/api/log/raw"') < web.indexOf('_server.on("/api/log",') &&
   web.indexOf('_server.on("/api/log/csv"') < web.indexOf('_server.on("/api/log",') &&
-  web.includes("lineBuf[n - 1] == ','") &&
-  web.includes("lineBuf[n - 1] != '}'") &&
-  (web.match(/const int DISPLAY_LIMIT = 120/g) || []).length === 2 &&
+  read('src/system/RecentEventLog.h').includes("line[n-1]==','") &&
+  read('src/system/RecentEventLog.h').includes("line[n-1]=='}'") &&
+  (web.match(/RecentEventLog::seekTail\(f\)/g) || []).length === 2 &&
   (web.match(/if \(!_gateLogRead\(req\)\) return;/g) || []).length === 3 &&
   web.includes('Another log view or download is in progress; retry shortly'));
 expect('windmilling oil setup warns when it cannot activate or command oil',
@@ -533,7 +533,7 @@ expect('physical STOP remains mandatory while START is optional',
   (hwConfig.match(/assign the required Stop switch to a PCB connection in Hardware/g) || []).length === 2 &&
   hwConfig.includes('(startPin >= 0 && !gpioAllowed(startPin))'));
 expect('standby control-rule masks survive validation and both load paths',
-  configCpp.includes('validInt(rule["mode_mask"], 1, 15)') &&
+  configCpp.includes('validInt(rule["mode_mask"], !scheduled ? 1 : 0, 15)') &&
   (configCpp.match(/modeMask &= 0x0F/g) || []).length === 2 &&
   !configCpp.includes('r.modeMask &= 0x0E') &&
   !configCpp.includes('rules[i].modeMask &= 0x0E'));
@@ -648,12 +648,12 @@ expect('sequence save drains its local status request before claiming Classic ma
   sequenceHtml.includes('Live sequence status did not become idle'));
 expect('hardware dependency warnings use the same turbine block names',
   hardwareHtml.includes("StarterSpin:'Set Starter'") && !hardwareHtml.includes("StarterSpin:'Crank Engine'"));
-expect('zero minimum N1 remains a valid underspeed-disable setting',
+expect('underspeed has an independent switch and retains its reference',
   configCpp.includes('if (!isfinite(minRpm) || minRpm < 0.0f)') &&
-  configHtml.includes('Set 0 to disable this independent underspeed check'));
+  configHtml.includes("key:'sf_us_en'") && configCpp.includes('underspeed_enabled'));
 expect('N1 feedback-loss limp is independent of the optional underspeed limit',
   safety.includes('if (HardwareConfig::hasN1Rpm && m == SysMode::RUNNING)') &&
-  safety.includes('if (minRpm > 0.0f && ed.n1Healthy && ed.n1Rpm < minRpm)') &&
+  safety.includes('if (Config::underspeedEnabled && minRpm > 0.0f && ed.n1Healthy && ed.n1Rpm < minRpm)') &&
   safety.includes('LIMP: N1 feedback lost'));
 expect('empty session-log selection does not write timestamp-only run files',
   sessionLogger.includes('if (Config::sessionLogMask == 0 && _registryCaptureMask == 0)') &&
@@ -869,7 +869,7 @@ expect('startup feedback follows actual block consumers',
   feedback.includes('startupHas("FlameConfirm")') &&
   !feedback.includes('startupHas("StarterSpin") || startupHas("Spool") ||\n               startupHas("SafetyHold")'));
 expect('startup validation warns when rotor spooling is entirely external',
-  main.includes('No starter, spool, or air-starter action is present') &&
+  main.includes('No starter action: add one unless external/manual spooling is intentional.') &&
   main.includes('strcmp(nm, "AirstarterOn") == 0') &&
   main.includes('action.actuator == RulesEngine::STARTER') &&
   main.includes('action.actuator == RulesEngine::AIRSTARTER'));
@@ -889,8 +889,9 @@ expect('fuel and ignition safety descriptions cover every firmware immediate-cut
     customControllerRenderer.includes(`'${purpose}'`)));
 expect('generic output overcurrent shutdown preserves the configured actuator name',
   safety.includes('_trigger("OUTPUT_OVERCURRENT", c.name[0] ? c.name : c.id);') &&
-  safety.includes('strcmp(code, "OUTPUT_OVERCURRENT") == 0') &&
-  safety.includes('detail && detail[0] ? detail : "An output"'));
+  safety.includes('"%s%s%s",code,') &&
+  read('data_src/app.js').includes('"OUTPUT_OVERCURRENT"') &&
+  read('data_src/app.js').includes('An output'));
 expect('accepted STOP and fault transitions cut hazardous hardware before sensor work',
   hardware.includes('inline void cutHazardousOutputsNow(bool includeStarter = true)') &&
   hardware.includes('Oil, scavenge and cooling outputs are deliberately left') &&
@@ -916,7 +917,7 @@ expect('configuration warnings describe actual startup and cooldown ordering',
   configHtml.includes('Startup may pass and then immediately fault') &&
   sequenceHtml.includes('Cooldown may complete immediately while the turbine is still hot'));
 expect('custom controllers disclose single ownership and safety authority',
-  configHtml.includes('One normal owner per output') &&
+  configHtml.includes('Only one active controller per output') &&
   configHtml.includes('STOP, FAULT, and hardware safety remain authoritative'));
 expect('custom feedback control has target-source choices, bumpless handover, and bounded PI state',
   configHtml.includes('Hold a feedback target') &&
@@ -934,7 +935,7 @@ expect('normal-shutdown rules are threshold-only, omit idle modes, and call the 
   configRender.includes("rule.mode_mask = (Number(rule.mode_mask ?? 4) & 0x06) || 4") &&
   configRender.includes("actionTarget?'':'<option value=\"3\"'") &&
   configRender.includes('does not create a latched FAULT') &&
-  configCpp.includes('return RulesEngine::REQUEST_SHUTDOWN') &&
+  configCpp.includes('return HardwareConfig::outputActuatorForId(id)') && hwConfig.includes('case 13: return "request_shutdown"') &&
   configCpp.includes('(rule["mode_mask"].as<uint8_t>() & ~0x06u) != 0') &&
   rulesEngine.includes('case REQUEST_SHUTDOWN:') &&
   rulesEngine.includes('if (dem >= 0.5f && _shutdownCb) _shutdownCb();'));
@@ -944,7 +945,7 @@ expect('built-in auxiliary requests remain authoritative beside optional user co
   rulesEngine.includes('_usesAdditiveSubsystemAuthority') &&
   rulesEngine.includes('demand = max(demand, baseDemand)'));
 expect('starter-enable output resolves as a supported custom on-off target',
-  configCpp.includes('starter_enable_main') &&
+  hwConfig.includes('starter_enable_main') && configCpp.includes('return HardwareConfig::outputActuatorForId(id)') &&
   configCpp.includes('case 6:  return HardwareConfig::hasStarterEn'));
 expect('oil-loop editor separates binary and proportional hardware semantics',
   hardwareHtml.includes('On/off oil-pressure control') &&
@@ -971,7 +972,7 @@ expect('normal sequence ignition cleanup is exact while emergency cuts remain ca
   sequenceIgnition.includes('RulesEngine::applyActuatorDemand') &&
   sequenceIgnition.includes('ed.igniter2On = false') &&
   abIgnite.includes('setSequenceIgnitionTracked(outputIndex, true)') &&
-  sequenceState.includes('clearTrackedIgnitionPreviewState') &&
+  sequenceState.includes('const clearIgnition=') && sequenceState.includes('for(const id of [...ignition])write(output(id),0)') &&
   main.includes('cutCombustionAndStarterNow()'));
 expect('FinalStop waits for its timeout when N1 is missing or unhealthy',
   finalStop.includes('bool stopped = HardwareConfig::hasN1Rpm') &&
@@ -1073,7 +1074,7 @@ expect('hardware persistence rejects valid-looking ArduinoJson overflow prefixes
     hwConfig.includes('ok &= !settingsOverflowed'))) &&
   !hwConfig.includes('bool HardwareConfig::save()'));
 expect('rules and custom conditions accept thrust plus addressable generic I2C channels',
-  configCpp.includes('return RulesEngine::THRUST') &&
+  configCpp.includes('return HardwareConfig::inputSensorForId(id)') && hwConfig.includes('return 27;') &&
   configCpp.includes('case 27: return HardwareConfig::hasThrust') &&
   configCpp.includes('rules[i].sensor > RulesEngine::THRUST') &&
   configCpp.includes('ChannelRegistry::channelAddressable(HardwareConfig::channelRegistry.inputs[idx])') &&
@@ -1614,12 +1615,9 @@ expect('buzzer owns a reserved LEDC channel and never uses the shared Arduino to
   hardware.includes('inline void buzzerOff()') &&
   !main.includes('tone(HardwareConfig::buzzerPin') &&
   !main.includes('noTone(HardwareConfig::buzzerPin'));
-expect('uncalibrated operator inputs accept fail-safe zero but reject the high ADC rail',
+expect('operator input health uses the tested endpoint-window policy',
   hardware.includes('const bool operatorPot = !strcmp(c.role, "operator")') &&
-  hardware.includes('healthyMin = 0.0f;') &&
-  hardware.includes('healthyMax = 4085.0f;') &&
-  hardware.includes('short-to-high throttle') &&
-  hardware.includes('raw >= healthyMin && raw <= healthyMax'));
+  hardware.includes('OperatorAdc::healthy(raw, c.minValue, c.maxValue)'));
 expect('session deletion waits for final rows and verifies stable per-file removal',
   web.includes('static bool _removeAllSessionFiles()') &&
   web.includes('SessionLogger::captureActive() || SessionLogger::queuedRows() > 0') &&

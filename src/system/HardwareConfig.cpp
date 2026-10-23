@@ -1,3 +1,4 @@
+#include "../engine/controllers/ControllerActivation.h"
 #include "HardwareConfig.h"
 #include "../hal/actuators/RelayDemand.h"
 #include "Config.h"
@@ -514,8 +515,8 @@ bool validateHardwareDependencies(const JsonDocument& doc, const ChannelRegistry
     if ((safety["surge"] | false) && !hasN1) return false;
     if (((safety["overtemp"] | false) || (safety["tit_overtemp"] | false)) && !hasEgt) return false;
     if ((safety["hot_start"] | false) && !hasEgt) return false;
-    if ((safety["low_oil"] | false) && !hasLowOilSafetyInput) return false;
-    if ((safety["oil_zero"] | false) && !hasZeroOilSafetyInput) return false;
+    if ((safety["low_oil"] | false) && !hasLowOilSafetyInput && !hasZeroOilSafetyInput) return false;
+    if ((safety["oil_zero"] | false) && !hasLowOilSafetyInput && !hasZeroOilSafetyInput) return false;
     if ((safety["oil_temp_high"] | false) &&
         !docSensorEnabled(doc, "oil_temp") &&
         !registryHasPurpose(registry, ChannelRegistry::Input, "oil_temperature")) return false;
@@ -756,6 +757,9 @@ int8_t sequenceSourceHandle(const char* id) {
     if (strcmp(id, "primary_egt") == 0) return 1;
     if (strcmp(id, "operator_throttle") == 0 || strcmp(id, "throttle_input") == 0) return 17;
     if (strcmp(id, "operator_idle") == 0) return 18;
+    if (!strcmp(id,"throttle_in") || !strcmp(id,"throttle_input_main")) return 17;
+    if (!strcmp(id,"idle_input_main")) return 18;
+    if (!strcmp(id,"battery_voltage")) return 5;
     if (strcmp(id, "oil_temp") == 0) return 0;
     if (strcmp(id, "tot") == 0) return 1;
     if (strcmp(id, "n1_rpm") == 0) return 2;
@@ -821,6 +825,7 @@ int8_t sequenceTargetHandle(const char* id) {
             return (int8_t)i;
     }
     if (strcmp(id, "main_fuel_output") == 0) return 4;
+    if (!strcmp(id,"cooling_fan")) return 0;
     if (strcmp(id, "main_starter") == 0) return 5;
     if (strcmp(id, "main_fuel_shutoff") == 0) return 8;
     if (strcmp(id, "ab_igniter") == 0) return 10;
@@ -1203,6 +1208,7 @@ void sanitizeSeqSideActions(
 
 bool sequenceBlockAvailable(const char* name) {
     if (!name || !name[0]) return false;
+    if (ControllerActivation::blockId(name)) return true;
     if (strncmp(name, "custom_", 7) == 0) return customBlockAvailable(name);
     if (strcmp(name, "OilPrime") == 0 || strcmp(name, "OilPumpOn") == 0 || strcmp(name, "OilPumpOff") == 0)
         return HardwareConfig::hasOilPump;
@@ -2658,7 +2664,7 @@ bool  HardwareConfig::safetyOverspeed  = DEFAULT_SAFETY_OVERSPEED;
 bool  HardwareConfig::safetyN2Overspeed = false;
 bool  HardwareConfig::safetyOvertemp   = DEFAULT_SAFETY_OVERTEMP;
 bool  HardwareConfig::safetyLowOil     = DEFAULT_SAFETY_LOW_OIL;
-bool  HardwareConfig::safetyOilZero    = DEFAULT_SAFETY_OIL_ZERO;
+bool  HardwareConfig::safetyOilZero    = false;
 bool  HardwareConfig::safetyFlameout   = DEFAULT_SAFETY_FLAMEOUT;
 bool  HardwareConfig::safetyHotStart   = false;
 bool  HardwareConfig::safetyOilTempHigh  = false;
@@ -2759,7 +2765,7 @@ void HardwareConfig::load() {
     // Factory reset regenerates from the same defaults (no factory_config.json
     // ships), so hardware_profile.h is the single source of default topology.
     if (!LittleFS.exists(PATH)) {
-        Serial.println("[HWCfg] No ecu_config.json - using compiled defaults, generating file");
+        Serial.println("[HWCfg] No config; generating compiled defaults");
         // Hardware loads before Config at boot. Initialize the complete settings
         // profile so clean installs and factory resets include structured
         // defaults such as the schema-1 Main Fuel controller.
@@ -2778,7 +2784,7 @@ void HardwareConfig::load() {
 
     File f = LittleFS.open(PATH, "r");
     if (!f) {
-        Serial.println("[HWCfg] Failed to open ecu_config.json - using defaults");
+        Serial.println("[HWCfg] Config open failed; using defaults");
         inhibitStartForHardwareConfigFailure(
             "Cannot start: failed to read the hardware configuration.", true);
         return;
@@ -2817,7 +2823,7 @@ void HardwareConfig::load() {
         fullDoc.shrinkToFit();
         delay(0);
     } else {
-        Serial.println("[HWCfg] Hardware section missing - adding compiled defaults");
+        Serial.println("[HWCfg] Missing hardware; adding compiled defaults");
         if (!saveUnified(true)) {
             inhibitStartForHardwareConfigFailure(
                 "Cannot start: no stored hardware configuration is available.", true);
@@ -2873,7 +2879,7 @@ bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
     static constexpr const char* TMP_PATH = "/ecu_config.unified.tmp";
     static constexpr const char* BAK_PATH = "/ecu_config.bak";
     if (!Config::acquireStorageWrite()) {
-        Serial.println("[HWCfg] Timed out waiting to write unified ecu_config.json");
+        Serial.println("[HWCfg] Unified config write wait timed out");
         return false;
     }
     struct StorageRelease {
@@ -2956,6 +2962,10 @@ bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
     }
     if (hadOriginal) LittleFS.remove(BAK_PATH);
     return true;
+}
+
+int8_t HardwareConfig::inputSensorForId(const char* id) {
+    return sequenceSourceHandle(id);
 }
 
 int8_t HardwareConfig::outputActuatorForId(const char* id) {
@@ -3226,7 +3236,7 @@ void HardwareConfig::applyDefaults() {
     safetyN2Overspeed = false;
     safetyOvertemp  = DEFAULT_SAFETY_OVERTEMP;
     safetyLowOil    = DEFAULT_SAFETY_LOW_OIL;
-    safetyOilZero   = DEFAULT_SAFETY_OIL_ZERO;
+    safetyOilZero   = false;
     safetyFlameout  = DEFAULT_SAFETY_FLAMEOUT;
     safetyHotStart      = false;
     safetyOilTempHigh   = false;
@@ -4751,7 +4761,9 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     if (!saf["overtemp"].isNull())  safetyOvertemp  = saf["overtemp"].as<bool>();
     if (saf["tit_overtemp"] | false) safetyOvertemp = true;
     if (!saf["low_oil"].isNull())   safetyLowOil    = saf["low_oil"].as<bool>();
-    if (!saf["oil_zero"].isNull())  safetyOilZero   = saf["oil_zero"].as<bool>();
+    // Import the former second enable into the one configurable protection.
+    if (saf["oil_zero"] | false) safetyLowOil = true;
+    safetyOilZero = false;
     if (!saf["flameout"].isNull())   safetyFlameout  = saf["flameout"].as<bool>();
     if (!saf["hot_start"].isNull())      safetyHotStart      = saf["hot_start"].as<bool>();
     if (!saf["oil_temp_high"].isNull())  safetyOilTempHigh   = saf["oil_temp_high"].as<bool>();
@@ -4775,7 +4787,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
         }
         return false;
     };
-    if (!hasOilPress && !hasDocOrRegistrySwitch("low_oil_switch")) {
+    if (!hasOilPress && !hasDocOrRegistrySwitch("low_oil_switch") && !hasDocOrRegistrySwitch("oil_zero_switch")) {
         safetyLowOil = false;
     }
     if (!hasOilPress && !hasDocOrRegistrySwitch("oil_zero_switch")) {
@@ -4968,7 +4980,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
             if (i >= MAX_DI) break;
             diCh[i].pin        = ch["pin"]         | -1;
             diCh[i].activeH    = ch["active_h"]    | false;
-            diCh[i].debounceMs = ch["debounce_ms"] | 20;
+            diCh[i].debounceMs = 20;
             strncpy(diCh[i].label,     ch["label"]      | "", sizeof(diCh[i].label)-1);
             strncpy(diCh[i].role,      ch["role"]       | "none", sizeof(diCh[i].role)-1);
             strncpy(diCh[i].faultCode, ch["fault_code"] | "", sizeof(diCh[i].faultCode)-1);
@@ -5119,7 +5131,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
             strncpy(diCh[i].role, "none", sizeof(diCh[i].role) - 1);
             diCh[i].role[sizeof(diCh[i].role) - 1] = '\0';
         }
-        if (diCh[i].debounceMs < 5 || diCh[i].debounceMs > 500) diCh[i].debounceMs = 20;
+        diCh[i].debounceMs = 20;
         diCh[i].activeModes &= 0x1F;
     }
 

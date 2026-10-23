@@ -308,7 +308,7 @@ function enumNames(source, marker) {
     assert.match(safetyMonitor, /HardwareConfig::safetyN2Overspeed && HardwareConfig::hasN2Rpm/);
     assert.match(safetyMonitor, /n2RpmLimit > 0\.0f && ed\.n2Rpm > n2RpmLimit/);
     assert.match(safetyMonitor, /OVERSPEED_CONFIRM_MS[\s\S]*?_trigger\("N2_OVERSPEED"\)/);
-    assert.match(safetyMonitor, /N2 over-speed: power-turbine RPM exceeded its hard shutdown limit/);
+    assert.match(fs.readFileSync('data_src/app.js','utf8'), /N2 over-speed: power-turbine RPM exceeded its hard shutdown limit/);
     // Relight runtime requires viable N1. Exact ignition-device availability is
     // validated in main so a missing configured ID stays visible for repair and
     // is never silently replaced with the first same-purpose output.
@@ -345,13 +345,13 @@ function enumNames(source, marker) {
     assert.match(mainSource, /Running oil minimum is 0 - low-oil shutdown is disabled", false/);
     assert.match(mainSource, /Both EGT flameout conditions are disabled", false/);
     assert.match(mainSource, /EGT relight recovery rise is 0 - EGT-source relight cannot confirm success", false/);
-    assert.match(mainSource, /Minimum N1 to fire relight is below Minimum Running N1; the ECU will use the higher Minimum Running N1 value", false/);
+    assert.match(mainSource, /Relight uses the higher Minimum Running N1 threshold.", false/);
     const configSourceCpp = fs.readFileSync(path.join('src', 'system', 'Config.cpp'), 'utf8');
     assert.match(configSourceCpp,
-      /Settings missing from ecu_config\.json - adding defaults[\s\S]*if \(!save\(\)\)/,
+      /Missing settings; adding defaults[\s\S]*if \(!save\(\)\)/,
       'first boot must complete a hardware-only unified file even while PCB commissioning locks START');
     assert.doesNotMatch(configSourceCpp,
-      /else if \(!EngineData::instance\(\)\.configLocked\) \{[\s\S]*Settings missing from ecu_config\.json - adding defaults/,
+      /else if \(!EngineData::instance\(\)\.configLocked\) \{[\s\S]*Missing settings; adding defaults/,
       'a missing required PCB assignment must not block creation of default settings');
     assert.match(configSourceCpp, /return fmaxf\(relightMinRpm, minRpm\)/);
     assert.match(mainSource, /Relight timeout is 0 - the ECU will use its hardcoded 30 second maximum", false/);
@@ -398,7 +398,7 @@ function enumNames(source, marker) {
       'a custom hot-streak sequence should warn, without blocking expert ordering freedom');
     assert.doesNotMatch(abIgnite, /falling back to the fitted AB igniter/,
       'an unchecked AB igniter option must never energize the fitted igniter');
-    assert.match(mainSource, /ed\.mode = SysMode::SHUTDOWN;\s*cutCombustionAndStarterNow\(\);\s*ed\.faultShutdownActive = true/);
+    assert.match(mainSource, /ed\.mode = SysMode::SHUTDOWN;\s*RulesEngine::modeEntered\(ed\.mode\);\s*cutCombustionAndStarterNow\(\);\s*ed\.faultShutdownActive = true/);
     assert.match(mainSource, /Hardware::allOff\(\);\s*ed\.faultShutdownActive = false/);
     const webSource = fs.readFileSync(path.join('src', 'system', 'web', 'WebServer.cpp'), 'utf8');
     assert.match(webSource, /doc\["has_ab_flame"\]\s+=\s+HardwareConfig::hasAfterburner && HardwareConfig::hasAbFlame/);
@@ -409,7 +409,8 @@ function enumNames(source, marker) {
     assert.match(webSource, /doc\["has_oil_pump_current"\]\s+=\s+HardwareConfig::hasOilPump && HardwareConfig::hasOilPumpCurrentSensor/);
     assert.match(webSource, /doc\["uptime_s"\]\s+=\s+ed\.uptimeMs \/ 1000;\s*doc\["boot_count"\]\s+=\s+ed\.bootCount/);
     assert.match(webSource, /doc\["config_storage_fault"\]\s+=\s+ed\.configStorageFault/);
-    assert.match(webSource, /char lineBuf\[640\];[\s\S]*readBytesUntil\('\\n', lineBuf, sizeof\(lineBuf\) - 1\)/);
+    assert.match(webSource, /RecentEventLog::seekTail\(f\)/);
+    assert.match(fs.readFileSync('src/system/RecentEventLog.h','utf8'), /readBytesUntil\('\\n',line,capacity-1\)/);
     assert.match(webSource, /JsonDocument doc;[\s\S]*char lineBuf\[640\];[\s\S]*deserializeJson\(doc, lineBuf\)/);
     const calibrationHtml = fs.readFileSync(path.join('data_src', 'calibration.html'), 'utf8');
     assert.match(calibrationHtml, /function hwAbFlameEnabled\(hw\) \{\s*return !!registryChannelByPurpose\(hw, 'inputs', 'ab_flame'\);/);
@@ -427,7 +428,7 @@ function enumNames(source, marker) {
     const controllersHtml = fs.readFileSync(path.join('data_src', 'controllers.html'), 'utf8');
     assert.match(controllersHtml, /Custom controllers/);
     assert.match(controllersHtml, /Hold a feedback target/);
-    assert.match(controllersHtml, /one normal owner/i);
+    assert.match(controllersHtml, /one active controller per output/i);
     assert.doesNotMatch(sequenceHtml, /Default:\s*AB(?:CheckReady|SolClose|PumpOn)/);
     assert.match(sequenceHtml, /Default: check readiness &rarr; open the AB fuel valve &rarr; start the AB fuel pump &rarr; ignite &rarr; confirm flame &rarr; stabilize/);
     assert.match(sequenceHtml, /Default: stop the AB fuel pump &rarr; close the AB fuel valve &rarr; turn the AB igniter off/);
@@ -437,12 +438,12 @@ function enumNames(source, marker) {
     assert.doesNotMatch(indexHtml, /20260612b|20260617b|20260619a|20260625a|20260705a|Primary thermal limit/);
     assert.doesNotMatch(indexHtml, />Not saved<|No calibration saved|No successful test recorded/);
     assert.match(indexHtml, /Run a safe actuator or dry-sequence test/);
-    assert.match(indexHtml, /20261021a/);
+    assert.match(indexHtml, /20261023p/);
     for (const pageName of ['index.html', 'hardware.html', 'controllers.html', 'system.html', 'calibration.html', 'sequence.html', 'log.html', 'tools.html']) {
       const pageSource = fs.readFileSync(path.join('data_src', pageName), 'utf8');
       const sharedRefs = [...pageSource.matchAll(/\/(?:style\.css|app\.js|theme\.js|ui_dialog\.js)\?v=([^"'&]+)/g)];
       assert.ok(sharedRefs.length > 0, `${pageName} must version its shared assets`);
-      assert.ok(sharedRefs.every(match => match[1] === '20261021a'), `${pageName} has a stale shared-asset cache key`);
+      assert.ok(sharedRefs.every(match => match[1] === '20261023p'), `${pageName} has a stale shared-asset cache key`);
     }
     const themeSource = fs.readFileSync(path.join('data_src', 'theme.js'), 'utf8');
     assert.match(themeSource, /function versionLocalLinks\(root\)/,

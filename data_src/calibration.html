@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023p',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023p');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -82,8 +82,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="bar-range"><span>0 bar</span><span>6 bar</span></div>
 
     <div class="wizard">
-      <div class="wizard-title">Oil Pressure Sensor &amp; Pump Calibration</div>
+      <div class="wizard-title">Oil Pressure Calibration</div>
 
+      <label><input type="checkbox" id="oil-pump-assisted" onchange="oilCalibrationModeChanged()"> Include electric oil-pump control and minimum-output calibration</label><p id="oil-cal-mode-note">Sensor only: apply pressure with an external source. No pump commands are sent.</p>
       <!-- Step indicator -->
       <div id="oil-steps" style="display:flex;gap:.4rem;align-items:center;margin-bottom:.75rem">
         <span id="oil-step-ind-1" class="step-dot active">1</span>
@@ -94,7 +95,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <!-- Step 1: capture the sensor's pump-off reference -->
       <div id="oil-step-1">
         <div class="wizard-steps">
-          <b>1. Capture pump-off pressure.</b> Depressurise the oil line and choose what the sensor should read at ambient pressure: <b>0 bar</b> for a gauge-pressure sensor, or about <b>1 bar</b> for an absolute-pressure sensor. The ECU keeps the pump off and averages the reference before continuing.
+          <b>1. Capture ambient pressure.</b> Depressurise the oil line and choose what the sensor should read at ambient pressure: <b>0 bar</b> for a gauge-pressure sensor, or about <b>1 bar</b> for an absolute-pressure sensor. Pump-assisted mode stops the pump before capturing; sensor-only mode leaves outputs untouched.
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.5rem">
           <label style="font-size:.75rem;color:var(--dim)">Pressure reference
@@ -110,6 +111,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
       <!-- Step 2: Add points at different pump speeds -->
       <div id="oil-step-2" style="display:none">
+        <div id="oil-pump-cal-controls" hidden>
         <div class="wizard-steps">
           <b>2. Find the pump minimum.</b> Start the slow sweep, then tap <b>Pump started — capture minimum</b> at the first reliable movement, sound, flow, or pressure rise. The pump stops immediately and that output becomes its minimum command.
         </div>
@@ -123,8 +125,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
           <button onclick="oilCalStop()" style="color:var(--dim)">Stop pump</button>
         </div>
         <div id="oil-min-pct-status" style="font-size:.75rem;color:var(--yellow);margin-bottom:.65rem">Minimum pump output not captured yet.</div>
+        </div>
         <div class="wizard-steps">
-          <b>3. Calibrate pressure.</b> Set a few pump outputs across the useful range. After each reading stabilises, enter the pressure shown by your trusted gauge and capture the point. The pump output and sensor voltage are stored together; four total pressure points including zero are required.
+          <b>Calibrate pressure.</b> Apply known pressures across the useful range, using an external source or the optional pump controls. After each reading stabilises, enter the pressure shown by your trusted gauge and capture the point. The pump output and sensor voltage are stored together; Two points including ambient are sufficient for a straight-line sensor; use at least four for a curved fit.
         </div>
         <!-- Pressure capture -->
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
@@ -399,7 +402,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="idle-cal-row" style="display:none">
     <div class="sensor-name">Idle Input</div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label" id="idle-raw-label">ADC pin voltage</div><div class="sv-val" id="cal-idle-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label" id="idle-raw-label">ADC voltage (approx.)</div><div class="sv-val" id="cal-idle-raw">—</div></div>
       <div class="sv-item"><div class="sv-label">Position %</div><div class="sv-val" id="cal-idle-pct">—</div></div>
       <div class="sv-item"><div class="sv-label">Mapped fuel demand (%)</div><div class="sv-val" id="cal-idle-thr">—</div></div>
     </div>
@@ -545,7 +548,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="throttle-cal-row" style="display:none">
     <div class="sensor-name">Throttle Input</div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label" id="th-raw-label">ADC pin voltage</div><div class="sv-val" id="cal-th-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label" id="th-raw-label">ADC voltage (approx.)</div><div class="sv-val" id="cal-th-raw">—</div></div>
       <div class="sv-item"><div class="sv-label">Position</div><div class="sv-val" id="cal-th-pct">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-th" style="width:0%"></div></div>
@@ -1070,10 +1073,10 @@ function applyInputTypeLabels(d) {
     throttleInputType = thType;
     renderThStatus();
     const isServo = thType === 'servo';
-    setText('th-raw-label', isServo ? 'Servo signal' : 'ADC pin voltage');
+    setText('th-raw-label', isServo ? 'Servo signal' : 'ADC voltage (approx.)');
     // Update calibration wizard hint
     const steps = document.getElementById('th-wiz-steps');
-    if (steps) steps.innerHTML = 'Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving adds a 2% minimum margin and 1% maximum margin.' + (isServo ? '<br><span style="color:var(--dim)">Values are captured in microseconds (servo signal).</span>' : '');
+    if (steps) steps.innerHTML = 'Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving adds a 2% minimum margin and 1% maximum margin.' + (isServo ? '<br><span style="color:var(--dim)">Values are captured in microseconds (servo signal).</span>' : '<br><span style="color:var(--dim)">Native ESP32 ADCs have dead zones near 0 V and 3.3 V. Capture both endpoints; the displayed mV is approximate.</span>');
     if (thMin !== null) setText('th-lo', inputReadingText(thMin, thType, 'throttle'));
     if (thMax !== null) setText('th-hi', inputReadingText(thMax, thType, 'throttle'));
     // Range labels will be updated in the live update loop
@@ -1087,9 +1090,9 @@ function applyInputTypeLabels(d) {
     idleInputType = idleType;
     renderIdleStatus();
     const isServo = idleType === 'servo';
-    setText('idle-raw-label', isServo ? 'Servo signal' : 'ADC pin voltage');
+    setText('idle-raw-label', isServo ? 'Servo signal' : 'ADC voltage (approx.)');
     const steps = document.getElementById('idle-wiz-steps');
-    if (steps) steps.innerHTML = 'Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving adds a 2% minimum margin and 1% maximum margin.' + (isServo ? '<br><span style="color:var(--dim)">Values are captured in microseconds (servo signal).</span>' : '');
+    if (steps) steps.innerHTML = 'Hold each endpoint steadily while clicking Capture. Each capture averages one second of samples. Saving adds a 2% minimum margin and 1% maximum margin.' + (isServo ? '<br><span style="color:var(--dim)">Values are captured in microseconds (servo signal).</span>' : '<br><span style="color:var(--dim)">Native ESP32 ADCs have dead zones near 0 V and 3.3 V. Capture both endpoints; the displayed mV is approximate.</span>');
     if (idleMin !== null) setText('idle-range-lo', inputReadingText(idleMin, idleType, 'idle'));
     if (idleMax !== null) setText('idle-range-hi', inputReadingText(idleMax, idleType, 'idle'));
     // Hide row if idle input is not fitted
@@ -1227,21 +1230,19 @@ window.applyData = function(d) {
   if (idleInputType === 'servo') {
     // Servo signal: show µs, bar over rcMin–rcMax
     const us = Number(d.idle_input_us);
-    const hasIdleSignal = Number.isFinite(us) && us > 0;
+    const hasIdleSignal = Number.isFinite(us) && us >= 500 && us <= 2500 && d.rc_idle_valid === true;
     setText('cal-idle-raw', hasIdleSignal ? us + ' µs' : 'NO SIGNAL');
-    const idlePosP = hasIdleSignal
-      ? Math.round(((us - rcMin) / (rcMax - rcMin)) * 100)
-      : 0;
-    setText('cal-idle-pct', hasIdleSignal ? Math.max(0, Math.min(100, idlePosP)) + '%' : '—');
+    const idlePosP = hasIdleSignal ? operatorPercent(us, rcMin, rcMax) : null;
+    setText('cal-idle-pct', idlePosP === null ? '—' : Math.round(idlePosP) + '%');
     setText('idle-range-lo', rcMin + ' µs');
     setText('idle-range-hi', rcMax + ' µs');
     bar('bar-idle', hasIdleSignal ? us : rcMin, rcMin, rcMax, hasIdleSignal);
   } else {
-    // ADC: show counts, bar over 0–4095
-    const idleRaw = d.idle_input_raw ?? 0;
-    setText('cal-idle-raw', adcMvText(d.idle_input_raw, 'idle'));
-    const idlePosP = Math.round(((idleRaw - rcMin) / (rcMax - rcMin)) * 100);
-    setText('cal-idle-pct', Math.max(0, Math.min(100, idlePosP)) + '%');
+    // ADC: show the measured sample, independently of control health.
+    const idleRaw = operatorAdcRaw(d, 'idle');
+    setText('cal-idle-raw', adcMvText(idleRaw, 'idle'));
+    const idlePosP = operatorPercent(idleRaw, rcMin, rcMax);
+    setText('cal-idle-pct', idlePosP === null ? '—' : Math.round(idlePosP) + '%');
     setText('idle-range-lo', adcMvText(rcMin, 'idle'));
     setText('idle-range-hi', adcMvText(rcMax, 'idle'));
     bar('bar-idle', idleRaw, rcMin, rcMax, true);
@@ -1249,10 +1250,10 @@ window.applyData = function(d) {
   // Idle→throttle % mapping (same regardless of signal type)
   {
     const idleUs = Number(d.idle_input_us);
-    const hasIdleSignal = Number.isFinite(idleUs) && idleUs > 0;
+    const hasIdleSignal = Number.isFinite(idleUs) && idleUs >= 500 && idleUs <= 2500 && d.rc_idle_valid === true;
     const idleNorm = idleInputType === 'servo'
-      ? (hasIdleSignal ? Math.max(0, Math.min(1, (idleUs - rcMin) / (rcMax - rcMin))) : null)
-      : Math.max(0, Math.min(1, ((d.idle_input_raw ?? rcMin) - rcMin) / (rcMax - rcMin)));
+      ? (() => { const pct = hasIdleSignal ? operatorPercent(idleUs, rcMin, rcMax) : null; return pct === null ? null : pct / 100; })()
+      : (() => { const pct = operatorPercent(operatorAdcRaw(d, 'idle'), rcMin, rcMax); return pct === null ? null : pct / 100; })();
     const idleThLo = cfg.throttle?.fuel_pump_min_pct ?? 0;
     const idleThHi = cfg.throttle?.idle_max_pct ?? 50;
     setText('cal-idle-thr', idleNorm === null ? '—' : (idleThLo + idleNorm * (idleThHi - idleThLo)).toFixed(1) + '%');
@@ -1372,32 +1373,26 @@ window.applyData = function(d) {
     thRangeMin = 1000; thRangeMax = 2000;
   }
   if (throttleInputType === 'servo') {
-    // Servo signal: show µs
-    const us = d.throttle_input_us ?? thRangeMin;
-    setText('cal-th-raw', us + ' µs');
-    // Set bar range labels to µs if not yet set by captured min/max
-    if (thMin === null && thMax === null) {
-      document.getElementById('th-lo').textContent = thRangeMin + ' µs';
-      document.getElementById('th-hi').textContent = thRangeMax + ' µs';
-    }
-    if (thMin !== null && thMax !== null) {
-      const pct = Math.round(((us - thMin) / (thMax - thMin)) * 100);
-      setText('cal-th-pct', Math.max(0, Math.min(100, pct)) + '%');
-      bar('bar-th', us, thMin, thMax, true);
-    } else {
-      bar('bar-th', us, thRangeMin, thRangeMax, true);
-    }
+    const us = Number(d.throttle_input_us);
+    const signal = Number.isFinite(us) && us >= 500 && us <= 2500 && d.rc_throttle_valid === true;
+    const lo = thMin !== null && thMax !== null ? thMin : thRangeMin;
+    const hi = thMin !== null && thMax !== null ? thMax : thRangeMax;
+    setText('cal-th-raw', signal ? us + ' µs' : 'NO SIGNAL');
+    setText('th-lo', lo + ' µs'); setText('th-hi', hi + ' µs');
+    const pct = signal ? operatorPercent(us, lo, hi) : null;
+    setText('cal-th-pct', pct === null ? '—' : Math.round(pct) + '%');
+    bar('bar-th', signal ? us : NaN, lo, hi, signal);
   } else {
-    // ADC: show the voltage a user can verify with a meter.
-    const raw = d.throttle_input_raw;
+    // ADC: estimate voltage from raw counts; native ESP32 ADCs are not rail-to-rail.
+    const raw = operatorAdcRaw(d, 'throttle');
     setText('cal-th-raw', adcMvText(raw, 'throttle'));
     if (raw !== undefined) {
       const lo = (thMin !== null && thMax !== null) ? thMin : thRangeMin;
       const hi = (thMin !== null && thMax !== null) ? thMax : thRangeMax;
       document.getElementById('th-lo').textContent = adcMvText(lo, 'throttle');
       document.getElementById('th-hi').textContent = adcMvText(hi, 'throttle');
-      const pct = Math.round(((raw - lo) / (hi - lo)) * 100);
-      setText('cal-th-pct', Math.max(0, Math.min(100, pct)) + '%');
+      const pct = operatorPercent(raw, lo, hi);
+      setText('cal-th-pct', pct === null ? '—' : Math.round(pct) + '%');
       bar('bar-th', raw, lo, hi, true);
     }
   }
@@ -1409,13 +1404,30 @@ document.addEventListener('DOMContentLoaded', installCalibrationTelemetryExtensi
 function bar(id, val, lo, hi, healthy) {
   const el = document.getElementById(id);
   if (!el) return;
-  const pct = hi > lo ? Math.max(0, Math.min(100, ((val-lo)/(hi-lo))*100)) : 0;
+  const position = operatorPercent(val, lo, hi);
+  const pct = position ?? 0;
   el.style.width = pct + '%';
-  el.className = 'bar-fill' + (!healthy ? ' fault' : pct > 90 ? ' warn' : '');
+  el.className = 'bar-fill' + (!healthy || position === null ? ' fault' : pct > 90 ? ' warn' : '');
 }
 
 function calibrationConnected() {
   return document.getElementById('conn')?.classList.contains('connected') === true;
+}
+// Canonical operator raw fields are control demand translated through the old
+// calibration, and fall back to minimum on faults. Capture the physical ADC
+// sample instead, even outside the old health window, so recalibration works.
+function operatorAdcRaw(data, purpose) {
+  const channel = registryInputById(purpose);
+  if (channel && [1,9].includes(Number(channel.driver))) {
+    const sample = data?.registry_inputs?.find(row => String(row.id) === String(channel.id));
+    return validAdcRaw(sample?.raw) ? sample.raw : NaN;
+  }
+  const raw = data?.[purpose+'_input_raw'];
+  return validAdcRaw(raw) ? raw : NaN;
+}
+function operatorPercent(raw, low, high) {
+  return Number.isFinite(raw) && Number.isFinite(low) && Number.isFinite(high) && high !== low
+    ? Math.max(0, Math.min(100, (raw-low)/(high-low)*100)) : null;
 }
 function validAdcRaw(raw) {
   return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= 4095;
@@ -1562,6 +1574,10 @@ function calStandbyGuard(action) {
 
 // ── Oil calibration wizard ────────────────────────────────────
 let oilCalActive = false;
+let oilPumpAssisted=false;
+function oilCalibrationModeChanged(){
+  document.getElementById('oil-cal-mode-note').textContent=document.getElementById('oil-pump-assisted').checked?'Pump-assisted: the ECU controls the oil pump during calibration.':'Sensor only: apply pressure with an external source. No pump commands are sent.';
+}
 let oilCalGeneration = 0;
 let oilCalStarting = false;
 let oilFit = { a:0, b:0, c:0, d:0, x0:0, x1:4095 };
@@ -1588,18 +1604,21 @@ async function postCalCommand(payload) {
 }
 
 function oilCalStart() {
-  if (!calStandbyGuard('the oil pump calibration')) return;
+  if (!calStandbyGuard('oil pressure calibration')) return;
+  oilPumpAssisted=!!document.getElementById('oil-pump-assisted').checked;
+  document.getElementById('oil-pump-assisted').disabled=true;
+  document.getElementById('oil-pump-cal-controls').hidden=!oilPumpAssisted;
   const generation = ++oilCalGeneration;
   oilCalStarting=true;
   const statusEl = document.getElementById('oil-zero-status');
   const startBtn = document.getElementById('btn-oil-start');
 
   // Turn pump off first to capture zero-pressure point
-  statusEl.textContent = 'Turning pump off — capturing zero pressure in 3 s…';
+  statusEl.textContent = oilPumpAssisted?'Turning pump off — capturing ambient pressure in 3 s…':'Capturing ambient pressure in 3 s…';
   statusEl.style.display = '';
   startBtn.disabled = true;
 
-  postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 }).then(() => {
+  (oilPumpAssisted?postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 }):Promise.resolve()).then(() => {
     if(generation!==oilCalGeneration)return;
     // Wait 3 s for pressure to settle at zero
     setTimeout(async () => {
@@ -1622,7 +1641,7 @@ function oilCalStart() {
       // first reliable pump output rather than asking the operator to guess it.
       document.getElementById('oil-pump-pct2').value = '0';
       try {
-        await postCalCommand({ cmd:'SET_OIL_PCT', fParam: 0 });
+        if(oilPumpAssisted)await postCalCommand({ cmd:'SET_OIL_PCT', fParam: 0 });
         if(generation!==oilCalGeneration)return;
         oilCalStarting=false;
         oilCalActive = true;
@@ -1643,6 +1662,7 @@ function oilCalStart() {
 }
 
 function oilSetPump() {
+  if(!oilPumpAssisted)return;
   if (!calStandbyGuard('changing the oil pump duty')) return;
   const pct = parseFloat(document.getElementById('oil-pump-pct2').value) || 0;
   postCalCommand({ cmd:'SET_OIL_PCT', fParam: pct })
@@ -1651,6 +1671,7 @@ function oilSetPump() {
 
 let _oilMinSweep = null;
 function oilMinSweepStart() {
+  if(!oilPumpAssisted)return;
   if (!calStandbyGuard('the oil-pump sweep')) return;
   oilMinSweepStop(false);
   const input=document.getElementById('oil-pump-pct2'); input.value='0';
@@ -1668,7 +1689,7 @@ function oilMinSweepStop(keep=true) {
   if(_oilMinSweep){clearInterval(_oilMinSweep);_oilMinSweep=null;}
   document.getElementById('btn-oil-sweep').disabled=false;
   document.getElementById('btn-oil-sweep-stop').disabled=true;
-  postCalCommand({cmd:'SET_OIL_PCT',fParam:0,iParam:0}).catch(()=>{});
+  if(oilPumpAssisted)postCalCommand({cmd:'SET_OIL_PCT',fParam:0,iParam:0}).catch(()=>{});
   if(!keep) document.getElementById('oil-pump-pct2').value='0';
 }
 function oilMinimumFound() {
@@ -1684,9 +1705,10 @@ function oilCalStop() {
   ++oilCalGeneration;
   oilCalStarting=false;
   oilMinSweepStop(true);
-  postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 })
+  if(oilPumpAssisted)postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 })
     .catch(e => alert('Pump stop command failed: ' + e.message));
   oilCalActive = false;
+  document.getElementById('oil-pump-assisted').disabled=false;
   // Reset step-1 button
   const btn = document.getElementById('btn-oil-start');
   if (btn) btn.disabled = false;
@@ -1718,6 +1740,7 @@ function cancelCalibrationActuatorWorkers(reason){
   }
   if(oilCalStarting||oilCalActive||_oilMinSweep){
     ++oilCalGeneration;oilCalStarting=false;oilCalActive=false;
+    document.getElementById('oil-pump-assisted').disabled=false;
     if(_oilMinSweep){clearInterval(_oilMinSweep);_oilMinSweep=null;}
     document.getElementById('btn-oil-start').disabled=false;
     document.getElementById('btn-oil-sweep').disabled=false;
@@ -1859,7 +1882,7 @@ function captureOilPoint() {
   document.getElementById('oil-pval').value = '';
   renderOilPts();
   // Need ≥4 total points (zero + 3 manual)
-  document.getElementById('btn-oil-to-3').disabled = oilPts.length < 4;
+  document.getElementById('btn-oil-to-3').disabled = oilPts.length < 2;
 }
 
 function clearOilPoints() {
@@ -1942,9 +1965,10 @@ function oilUseDatasheet(){
 function fitSse(fit,pts){return pts.reduce((s,p)=>{const x=p.raw,e=((fit.a*x+fit.b)*x+fit.c)*x+fit.d-p.b;return s+e*e;},0);}
 
 function oilGoStep3() {
-  if (oilPts.length < 4) return;
+  if (oilPts.length < 2) return;
   const mode=document.getElementById('oil-fit-mode')?.value||'auto';
-  const linear=computeOilLinearFit(oilPts), cubic=computeOilCubicFit(oilPts);
+  if(mode==='cubic'&&oilPts.length<4){alert('A curved sensor fit needs at least four pressure points. Add points or select Straight-line sensor.');return;}
+  const linear=computeOilLinearFit(oilPts), cubic=oilPts.length>=4?computeOilCubicFit(oilPts):null;
   const fit=mode==='linear'?linear:mode==='cubic'?cubic:
     (oilPts.length>=6&&cubic&&linear&&fitSse(cubic,oilPts)<fitSse(linear,oilPts)*0.5?cubic:linear);
   if (!fit) { alert('Fit failed — points may be collinear. Add more spread.'); return; }
@@ -2005,7 +2029,7 @@ function saveOilCal() {
                   x_min:oilFit.x0, x_max:oilFit.x1 }
     }
   };
-  if (oilMinPctCaptured !== null) settingsPatch.oil = { min_pct: oilMinPctCaptured };
+  if (oilPumpAssisted && oilMinPctCaptured !== null) settingsPatch.oil = { min_pct: oilMinPctCaptured };
   patchHardwareThenConfig(registryPatch, () => {
     const registry = registryInputById('oil_pressure');
     if (registry) registry.calibration_points = curve.map(p=>({raw:Math.round(p.raw),value:p.b}));
@@ -2174,7 +2198,8 @@ async function _captureInputAverage(key) {
   const samples = [], until = performance.now() + 1000;
   while (performance.now() < until) {
     const d = await nextCalibrationFrame();
-    const v = d[key];
+    const purpose = key.startsWith('throttle_') ? 'throttle' : 'idle';
+    const v = key.endsWith('_raw') ? operatorAdcRaw(d, purpose) : d[key];
     const receiverValid = key === 'throttle_input_us' ? d.rc_throttle_valid === true
       : key === 'idle_input_us' ? d.rc_idle_valid === true : false;
     const valid = key.endsWith('_us')
@@ -2238,21 +2263,29 @@ function renderThStatus() {
   document.getElementById('th-status').textContent = msg;
   document.getElementById('btn-th-save').disabled = _operatorCaptureBusy.throttle || thMin === null || thMax === null;
 }
-function saveThrottle() {
-  if (thMin === null || thMax === null) { alert('Capture both min and max first.'); return; }
-  if (thMin === thMax) { alert('Throttle min and max cannot be identical.'); return; }
-  const span=thMax-thMin, saveMin=Math.round(thMin+span*.02), saveMax=Math.round(thMax-span*.01);
-  const registryPatch = registryCalibrationPatch('throttle', {min:saveMin,max:saveMax,calibration_points:[]});
-  const analogRegistryPatch = registryPatch && [1,9].includes(Number(registryInputById('throttle')?.driver)) ? registryPatch : null;
-  patchHardwareThenConfig(analogRegistryPatch, () => {
-    const registry = registryInputById('throttle'); registry.min=saveMin; registry.max=saveMax; registry.calibration_points=[];
-  }, { calibration: { throttle_min_raw: saveMin, throttle_max_raw: saveMax } },
-  `Throttle calibrated: ${inputReadingText(thMin, throttleInputType, 'throttle')} – ${inputReadingText(thMax, throttleInputType, 'throttle')}`, () => {
-    if (!cfg.calibration) cfg.calibration = {};
-    cfg.calibration.throttle_min_raw = saveMin;
-    cfg.calibration.throttle_max_raw = saveMax;
+function saveOperatorCalibration(purpose, minimum, maximum, type) {
+  const servo = type === 'servo';
+  if (!['adc','servo'].includes(type) || !Number.isInteger(minimum) || !Number.isInteger(maximum) ||
+      minimum < (servo ? 500 : 0) || maximum < (servo ? 500 : 0) ||
+      minimum > (servo ? 2500 : 4095) || maximum > (servo ? 2500 : 4095)) {
+    alert('Capture both valid endpoints first.'); return;
+  }
+  if (minimum === maximum) { alert('Minimum and maximum cannot be identical.'); return; }
+  const span=maximum-minimum;
+  const saveMin=Math.round(minimum+span*.02), saveMax=Math.round(maximum-span*.01);
+  const registry = registryInputById(purpose);
+  const fields = {min:Math.min(saveMin,saveMax),max:Math.max(saveMin,saveMax),invert:saveMax<saveMin};
+  if (!servo) fields.calibration_points=[];
+  const patch = registry && [1,3,9].includes(Number(registry.driver)) ? registryCalibrationPatch(purpose,fields) : null;
+  const calibration = {[purpose+'_min_raw']:saveMin,[purpose+'_max_raw']:saveMax};
+  patchHardwareThenConfig(patch, () => {
+    if (registry && patch) Object.assign(registry,fields);
+  }, {calibration},
+  `${purpose === 'idle' ? 'Idle input' : 'Throttle'} calibrated: ${inputReadingText(minimum,type,purpose)} – ${inputReadingText(maximum,type,purpose)}`, () => {
+    cfg.calibration = Object.assign(cfg.calibration || {},calibration);
   });
 }
+function saveThrottle() { saveOperatorCalibration('throttle',thMin,thMax,throttleInputType); }
 
 // ── P1 / P2 zero calibration ─────────────────────────────────
 function captureIdleMin() { return captureOperatorEndpoint('idle',false); }
@@ -2268,21 +2301,7 @@ function renderIdleStatus() {
   document.getElementById('idle-status').textContent = msg;
   document.getElementById('btn-idle-save').disabled = _operatorCaptureBusy.idle || idleMin === null || idleMax === null;
 }
-function saveIdle() {
-  if (idleMin === null || idleMax === null) { alert('Capture both min and max first.'); return; }
-  if (idleMin === idleMax) { alert('Idle min and max cannot be identical.'); return; }
-  const span=idleMax-idleMin, saveMin=Math.round(idleMin+span*.02), saveMax=Math.round(idleMax-span*.01);
-  const registryPatch = registryCalibrationPatch('idle', {min:saveMin,max:saveMax,calibration_points:[]});
-  const analogRegistryPatch = registryPatch && [1,9].includes(Number(registryInputById('idle')?.driver)) ? registryPatch : null;
-  patchHardwareThenConfig(analogRegistryPatch, () => {
-    const registry = registryInputById('idle'); registry.min=saveMin; registry.max=saveMax; registry.calibration_points=[];
-  }, { calibration: { idle_min_raw: saveMin, idle_max_raw: saveMax } },
-  `Idle input calibrated: ${inputReadingText(idleMin, idleInputType, 'idle')} – ${inputReadingText(idleMax, idleInputType, 'idle')}`, () => {
-    if (!cfg.calibration) cfg.calibration = {};
-    cfg.calibration.idle_min_raw = saveMin;
-    cfg.calibration.idle_max_raw = saveMax;
-  });
-}
+function saveIdle() { saveOperatorCalibration('idle',idleMin,idleMax,idleInputType); }
 
 // ── Hardware patch (no reboot) ────────────────────────────────
 function patchHardware(patch, onOk) {
@@ -2370,7 +2389,7 @@ function saveNtcCal() {
 // can change numeric calibration without allowing topology edits.
 function registryInputById(id) {
   return (cfg.hardware?.channel_registry?.inputs || []).find(c =>
-    String(c?.id || '') === id || String(c?.purpose || '') === id) || null;
+    c?.installed !== false && (String(c?.id || '') === id || String(c?.purpose || '') === id)) || null;
 }
 
 function pressureReferenceValue(selectId) {

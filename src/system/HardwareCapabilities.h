@@ -46,12 +46,10 @@ public:
             return "Overspeed/surge safety requires N1 RPM feedback";
         if (HardwareConfig::safetyN2Overspeed && !available("n2_safety"))
             return "N2 overspeed safety requires N2 RPM feedback";
-        if ((HardwareConfig::safetyOvertemp || HardwareConfig::safetyHotStart) && !available("egt_safety"))
+        if ((Config::startupEgtGuardEnabled || HardwareConfig::safetyOvertemp || HardwareConfig::safetyHotStart) && !available("egt_safety"))
             return "Temperature safety requires a selected EGT/TIT input";
-        if (HardwareConfig::safetyLowOil && !hasOilSafetyInput("low_oil_switch"))
-            return "Low-oil safety requires an oil pressure input or low-oil switch";
-        if (HardwareConfig::safetyOilZero && !hasOilSafetyInput("oil_zero_switch"))
-            return "Zero-oil safety requires an oil pressure input or zero-oil switch";
+        if (HardwareConfig::safetyLowOil && !hasOilSafetyInput("low_oil_switch") && !hasOilSafetyInput("oil_zero_switch"))
+            return "Oil-pressure protection requires an oil pressure input or switch";
         if (HardwareConfig::safetyOilTempHigh && !(hasInputPurpose("oil_temperature") || HardwareConfig::hasOilTemp))
             return "Oil temperature safety requires an oil temperature input";
         if (HardwareConfig::safetyFuelPressLow && !(hasInputPurpose("fuel_pressure") || HardwareConfig::hasFuelPress))

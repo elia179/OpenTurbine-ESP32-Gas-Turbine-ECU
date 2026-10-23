@@ -48,7 +48,7 @@ public:
         _cancelStarterTransition();
         if (_running && _blocks && _idx < _count) {
             IBlock::setAfterburnerContext(_afterburner);
-            _blocks[_idx]->onExit();
+            if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
             if (_generation != operation) return;
         }
         _blocks  = blocks;
@@ -75,7 +75,7 @@ public:
         _cancelStarterTransition();
         if (_running && _idx < _count) {
             IBlock::setAfterburnerContext(_afterburner);
-            _blocks[_idx]->onExit();
+            if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
             if (_generation != operation) return;
         }
         _running = false;
@@ -102,7 +102,8 @@ public:
         const uint32_t operation = _generation;
 
         IBlock::setAfterburnerContext(_afterburner);
-        BlockResult r = _blocks[_idx]->tick();
+        if (_controllerConflict(_idx)) { _ownershipFault(); return; }
+        BlockResult r = RulesEngine::inactiveControllerBlock(_blocks[_idx]->name()) ? BlockResult::Complete : _blocks[_idx]->tick();
         if (_generation != operation) return;
 
         switch (r) {
@@ -115,7 +116,8 @@ public:
                 const bool acceptedTimeout = r == BlockResult::TimeoutContinue;
                 const char* completedBlock = _blocks[_idx]->name();
                 FlightRecorder::logBlockExit(_blocks[_idx]->name(), acceptedTimeout ? "timeout_continue" : "ok");
-                _blocks[_idx]->onExit();
+                if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
+                if (_generation != operation) return;
                 _applyActions(_exitActions, _idx);
                 if (_generation != operation) return;
                 _idx++;
@@ -134,7 +136,7 @@ public:
                 // Real engines need the abort path; bench tests just need to step through.
                 if (EngineData::instance().benchMode) {
                     FlightRecorder::logBlockExit(_blocks[_idx]->name(), "bench_mode_skip");
-                    _blocks[_idx]->onExit();
+                    if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
                     _applyActions(_exitActions, _idx);
                     if (_generation != operation) return;
                     _idx++;
@@ -144,7 +146,7 @@ public:
                 }
                 FlightRecorder::logBlockExit(_blocks[_idx]->name(), "abort");
                 _cancelStarterTransition();
-                _blocks[_idx]->onExit();
+                if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
                 if (_generation != operation) return;
                 _running = false;
                 _recordResult("abort");
@@ -155,7 +157,7 @@ public:
                 // Same: bench mode converts fault to Continue rather than shutdown.
                 if (EngineData::instance().benchMode) {
                     FlightRecorder::logBlockExit(_blocks[_idx]->name(), "bench_mode_skip");
-                    _blocks[_idx]->onExit();
+                    if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
                     _applyActions(_exitActions, _idx);
                     if (_generation != operation) return;
                     _idx++;
@@ -166,7 +168,7 @@ public:
                 FlightRecorder::logBlockExit(_blocks[_idx]->name(), "fault");
                 _cancelStarterTransition();
                 _recordFaultBlock(_blocks[_idx]->name());
-                _blocks[_idx]->onExit();
+                if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
                 if (_generation != operation) return;
                 _running = false;
                 _recordResult("fault");
@@ -200,25 +202,52 @@ private:
     uint32_t  _starterTransitionStartedMs = 0;
     uint32_t  _starterTransitionDurationMs = 0;
 
+    bool _controllerConflict(size_t i) const {
+        if (RulesEngine::inactiveControllerBlock(_blocks[i]->name())) return false;
+        const auto* block = _blocks[i];
+        const char* name = _blocks[i]->name();
+        if (!strcmp(name,"ImmediateCut") || !strcmp(name,"FinalStop") ||
+            !strcmp(name,"CooldownSpin") || !strcmp(name,"RPMDrop")) return false;
+        const int8_t target = block->outputTarget();
+        return block->controllerConflict() || (target >= 0
+            ? RulesEngine::controllerOwner((uint8_t)target) >= 0
+            : RulesEngine::sequenceBlockConflict(name));
+    }
+
+    void _ownershipFault() {
+        const char* name = _blocks[_idx]->name();
+        ++_generation; // Fault callbacks must invalidate the interrupted operation.
+        _cancelStarterTransition();
+        _running = false;
+        _recordFaultBlock(name);
+        _recordResult("controller conflict");
+        if (_fault) _fault(name, BlockResult::Fault);
+    }
+
     void _enter(size_t i) {
+        if (_controllerConflict(i)) { _ownershipFault(); return; }
+        const uint32_t operation = _generation;
         const char* bname = _blocks[i]->name();
+        char display[40];RulesEngine::blockDisplayName(bname,display,sizeof(display));
         auto& ed = EngineData::instance();
         // Update last-event for dashboard display
-        snprintf(ed.lastEvent, sizeof(ed.lastEvent), "Seq: %s", bname);
+        snprintf(ed.lastEvent, sizeof(ed.lastEvent), "Seq: %s", display);
         // Update sequence progress fields for web UI
         char* current = _afterburner ? ed.abCurrentBlock : ed.currentBlock;
         const size_t currentSize = _afterburner ? sizeof(ed.abCurrentBlock) : sizeof(ed.currentBlock);
-        strncpy(current, bname, currentSize - 1); current[currentSize - 1] = '\0';
+        strncpy(current, display, currentSize - 1); current[currentSize - 1] = '\0';
         if (_afterburner) ed.abSeqBlockIdx = (uint8_t)i; else ed.seqBlockIdx = (uint8_t)i;
         FlightRecorder::logBlockEnter(bname);
         IBlock::setAfterburnerContext(_afterburner);
-        _blocks[i]->onEnter();
+        if (!RulesEngine::inactiveControllerBlock(bname)) _blocks[i]->onEnter();
+        if (_generation != operation || !_running) return;
         _applyActions(_enterActions, i);
+        if (_generation != operation || !_running) return;
         // A configurable side action must never be able to re-energize a
         // combustion or starter output in the hard-cut shutdown block.
         if (strcmp(bname, "ImmediateCut") == 0) {
             _cancelStarterTransition();
-            _blocks[i]->onEnter();
+            if (!RulesEngine::inactiveControllerBlock(bname)) _blocks[i]->onEnter();
         }
     }
 
@@ -235,15 +264,16 @@ private:
         auto& ed = EngineData::instance();
         char* target = _afterburner ? ed.abSeqFaultBlock : ed.seqFaultBlock;
         const size_t size = _afterburner ? sizeof(ed.abSeqFaultBlock) : sizeof(ed.seqFaultBlock);
-        strncpy(target, blockName ? blockName : "UNKNOWN", size - 1);
-        target[size - 1] = '\0';
+        RulesEngine::blockDisplayName(blockName ? blockName : "UNKNOWN", target, size);
     }
 
     void _applyActions(const HardwareConfig::SeqSideAction (*actions)[HardwareConfig::MAX_SEQ_SIDE_ACTIONS], size_t i) {
+        if (RulesEngine::inactiveControllerBlock(_blocks[i]->name())) return;
         if (!actions || i >= HardwareConfig::MAX_SEQ_BLOCKS) return;
         for (int j = 0; j < HardwareConfig::MAX_SEQ_SIDE_ACTIONS; j++) {
             const auto& a = actions[i][j];
             if (!a.enabled) continue;
+            if (RulesEngine::controllerOwner(a.actuator) >= 0) { _ownershipFault(); return; }
             if (a.actuator == RulesEngine::STARTER && a.transitionMs > 0) {
                 auto& ed = EngineData::instance();
                 _starterTransitionFrom = constrain(ed.starterDemand, 0.0f, 1.0f);

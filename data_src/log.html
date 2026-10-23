@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261021a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261021a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023p',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023p');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -557,7 +557,7 @@ function loadLog(retryEmpty = true, busyRetries = 3) {
 
   fetch('/api/log')
     .then(async r => {
-      const body = await r.json().catch(() => ({}));
+      const body = await r.json().catch(() => {throw Error('Event log response could not be read. Retry or download Event NDJSON.');});
       if (r.status === 429 && busyRetries > 0) {
         // Another dashboard is reading flash. Stagger retries so multiple
         // clients do not repeatedly collide in lock-step.
@@ -569,7 +569,7 @@ function loadLog(retryEmpty = true, busyRetries = 3) {
     })
     .then(events => {
       if (events === null) return;
-      if (!Array.isArray(events)) events = [];
+      if (!Array.isArray(events)) throw Error('ECU returned an invalid event list. Retry or download Event NDJSON.');
       // LittleFS may still be rebuilding the recorder index immediately after
       // a reboot. Retry one empty response so a populated log is not presented
       // as missing; never poll continuously or contend with active logging.

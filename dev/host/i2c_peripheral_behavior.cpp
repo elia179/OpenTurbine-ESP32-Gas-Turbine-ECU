@@ -88,4 +88,44 @@ int main() {
     fakeMillisClock() += 510; assert(!read(0,1000));
     Wire.tlaSamples[0] = 3000; tick(2); valueAt(3000);
     std::cout << "TLA2528 invalid range rejection, healthy smoothing and stale filter recovery passed\n";
+    // Pot calibration has command deadbands at its physical endpoints. They
+    // must remain usable on an external ADC too, including reversed wiring.
+    for (const char* purpose : {"throttle", "idle"}) {
+        std::strcpy(analog.role,"operator"); std::strcpy(analog.purpose,purpose);
+        analog.minValue=41; analog.maxValue=4013; analog.inverted=true;
+        analog.filterAlpha=1;
+        Wire=FakeWire{}; Wire.tlaPresent=true;
+        I2CDeviceManager::begin(true,21,22,-1,100000,r); tick(20);
+        for (int counts : {4095,4013,2027,41,0}) {
+            Wire.tlaSamples[0]=counts; tick(6);
+            float value; int32_t raw; uint32_t sequence, sampleMs;
+            assert(I2CDeviceManager::input(0,value,raw,sequence,sampleMs));
+            assert(raw==counts);
+            const float expected=1.0f-constrain((counts-41)/3972.0f,0.0f,1.0f);
+            assert(std::fabs(value-expected)<0.0001f);
+        }
+        analog.minValue=0; analog.maxValue=4095; analog.inverted=false;
+        Wire.tlaSamples[0]=4095; tick(6); assert(!read(0,4095));
+        Wire.tlaSamples[0]=0; tick(6); assert(read(0,0));
+        analog.minValue=500; analog.maxValue=3500;
+        tick(6); assert(!read(0,0));
+    }
+    std::cout << "TLA2528 throttle/idle deadbands, reversed mapping, raw endpoints and fault windows passed\n";
+    for(const char* purpose:{"low_oil_switch","flame","ab_flame"}) {
+        std::strcpy(analog.role,"generic");std::strcpy(analog.purpose,purpose);
+        analog.minValue=0;analog.maxValue=4095;analog.digitalThresholdRaw=2048;analog.digitalHysteresisRaw=64;
+        for(bool high:{false,true}) {
+            analog.activeHigh=high;Wire=FakeWire{};Wire.tlaPresent=true;Wire.tlaSamples[0]=1000;
+            I2CDeviceManager::begin(true,21,22,-1,100000,r);tick(20);
+            auto logical=[&](int counts,bool physicalHigh){
+                Wire.tlaSamples[0]=counts;tick(6);
+                float value;int32_t raw;uint32_t seq,ms;
+                assert(I2CDeviceManager::input(0,value,raw,seq,ms));
+                assert(raw==counts&&value==(physicalHigh==high?1.0f:0.0f));
+            };
+            logical(1000,false);logical(3000,true);logical(2040,true);logical(1000,false);
+        }
+    }
+    std::cout << "TLA2528 switch/flame inputs publish logical ON/OFF with polarity and threshold hysteresis before common contact filtering.\n";
+
 }

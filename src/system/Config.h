@@ -1,6 +1,7 @@
 #pragma once
 #include <ArduinoJson.h>
 #include "../engine/EngineData.h"
+#include "PressureSafety.h"
 
 // ============================================================
 //  Config — manages the settings section of ecu_config.json and validates profile ID
@@ -93,6 +94,12 @@ public:
     static float pullbackP2Hard;
     static float pullbackTorqueSoft;
     static float pullbackTorqueHard;
+    static bool p1TripEnabled;
+    static bool p2TripEnabled;
+    static bool torqueTripEnabled;
+    static bool underspeedEnabled;
+    static bool startupEgtImmediateEnabled;
+    static bool startupEgtDwellEnabled;
     static float p1TripLimit;
     static float p2TripLimit;
     static float torqueTripLimit;
@@ -160,6 +167,8 @@ public:
     static float fuelPressMin;             // bar minimum fuel pressure (0 = disabled)
     static float battVoltMin;              // V minimum battery voltage (0 = disabled)
     static float surgeDetectRpmVariance;   // N1 variance threshold for surge detection (0 = disabled)
+    static int oilSafetyModes;          // Startup=2, Running=4, both=6
+    static int fuelPressureSafetyModes;
     static uint32_t lowOilConfirmMs;
     static uint32_t oilZeroConfirmMs;
     static uint32_t oilTempConfirmMs;
@@ -289,7 +298,10 @@ public:
 
     // ── Hot start protection ──────────────────────────────────
     static float preStartEgtLimitC;      // °C; reject START if selected EGT is already above this (0 = disabled)
-    static float startupEgtLimitC;       // °C; hard selected-EGT limit in STARTUP (0 = use normal EGT limit)
+    static float startupEgtLimitC;       // °C; startup-only immediate ceiling (0 = off)
+    static bool startupEgtGuardEnabled;
+    static float startupEgtDwellC;
+    static int startupEgtDwellMs;
 
     // ── Post-stop oil scavenge ────────────────────────────────
     static int   finalStopOilScavengeMs; // extra scavenge-pump runtime after the main oil pump stops (0 = off)
@@ -437,6 +449,10 @@ public:
     // Outside its selected engine states the target is released to its normal
     // sequence/direct owner.
     struct Rule {
+        uint16_t controllerId = 0; // stable sequence reference, independent of array position/name
+        uint8_t activateEvents = 0; // event bitmask; zero retains legacy phase selection
+        uint8_t deactivateEvents = 0; // bitmask of ControllerActivation::Event
+        float safeDemand = 0.0f; // resolved from the output, never a separate controller setting
         bool    enabled;
         uint8_t kind;       // 0=threshold on/off, 1=linear map, 2=feedback, 3=fixed output
         uint8_t sensor;     // 0=oil_temp 1=tot 2=n1_rpm 3=oil_press 4=tit 5=batt_v 6=n2_rpm
@@ -446,6 +462,7 @@ public:
         float   onValue;    // threshold rule active demand, canonical 0–1
         float   offValue;   // false/inactive/unhealthy demand, canonical 0–1
         float   hysteresis; // analog deadband in sensor units; 0 = exact threshold
+        uint16_t confirmMs = 0; // continuous condition confirmation, after switch debounce
         float   inputMin;   // map source range in source units
         float   inputMax;
         float   outputMin;  // map target range, canonical 0–1

@@ -1,5 +1,6 @@
 #pragma once
 #include "../hal/actuators/RelayDemand.h"
+#include "../hal/SwitchTiming.h"
 // ============================================================
 //  RulesEngine — deterministic threshold and linear-map simple controls,
 //  evaluated every control tick.
@@ -7,10 +8,10 @@
 //  Simple controls are edited on Controllers and stored in the settings
 //  section of ecu_config.json under "rules".
 //
-//  Rules run after sequencer/controller writes in explicitly selected engine
-//  states. Outside those states they release ownership so the last non-rule
-//  command resumes. Input-driven rules apply their OFF demand when false or
-//  invalid; fixed-output rules need no input. Deletion releases ownership.
+//  Scheduled controllers own their outputs from activation until explicit or
+//  state-entry deactivation. Release applies the Hardware safe demand. Older
+//  mode-mask definitions retain their previous phase/overlay behavior until
+//  timing is reviewed. Protective turbine functions retain final authority.
 // ============================================================
 #include "Config.h"
 #include "ConfigInternal.h"
@@ -18,9 +19,119 @@
 #include "HardwareConfig.h"
 #include "../engine/EngineData.h"
 #include "../engine/controllers/IdleFuelFloor.h"
+#include "../engine/controllers/ControllerActivation.h"
 
 class RulesEngine {
 public:
+    static bool lifecycleActive(uint8_t index) { return _activation.active(index); }
+    static ControllerActivation::Target controllerTarget(uint8_t index) {
+        const auto act=Config::rules[index].actuator;
+        // Independent shutdown requests do not own a shared physical output.
+        if (act==REQUEST_SHUTDOWN || act==REQUEST_FAULT) return {uint8_t(128+index),255};
+        return {act, uint8_t(act==STARTER ? STARTER_ENABLE : 255)};
+    }
+
+
+    static void cancelActivation() {
+        releaseOwnedTargets();
+        _activation.fault([](uint8_t i) { safeController(i); });
+        _activation.reset();
+        // Saving is not an engine-state entry and must not re-engage a rule.
+        // Retain 255 on the first boot load so initial state entry still runs.
+        if (_activationMode != 255) _activationMode = (uint8_t)EngineData::instance().mode;
+    }
+    static void releaseForConfiguration() { cancelActivation(); }
+
+    static int8_t controllerIndex(uint16_t id) {
+        for (int i = 0; i < Config::ruleCount; ++i)
+            if (Config::rules[i].controllerId == id) return (int8_t)i;
+        return -1;
+    }
+
+    static void blockDisplayName(const char* key, char* out, size_t size) {
+        bool on=false;
+        const uint16_t id=ControllerActivation::blockId(key,&on);
+        const int8_t index=id?controllerIndex(id):-1;
+        if(index>=0)snprintf(out,size,"%s: %s",on?"On":"Off",Config::rules[index].name);
+        else strlcpy(out,key?key:"",size);
+    }
+
+    static void safeController(uint8_t index) {
+        _confirmation[index].reset();
+        const uint8_t actuator = Config::rules[index].actuator;
+        _applyActuator(actuator, Config::rules[index].safeDemand, EngineData::instance(), nullptr);
+        _ruleLatched[index] = false;
+        FeedbackControlMath::reset(_feedbackState[index]);
+    }
+
+    static void prepareStart() {
+        releaseOwnedTargets();
+        const uint16_t mask = EngineData::instance().controllerInhibitMask;
+        for (uint8_t i=0; i<Config::ruleCount; ++i)
+            if (mask & (uint16_t(1)<<i)) _activation.deactivate(i, [](uint8_t j) { safeController(j); });
+        _activation.inhibit(mask);
+    }
+
+    static void modeEntered(SysMode mode) {
+        const auto& ed = EngineData::instance();
+        if (mode == SysMode::FAULT || ed.faultLatched || ed.faultShutdownActive) {
+            releaseOwnedTargets();
+            _activation.fault([](uint8_t i) { safeController(i); });
+            _activationMode = (uint8_t)mode;
+            return;
+        }
+        if (_activationMode == (uint8_t)mode) return;
+        if (mode==SysMode::STANDBY) _activation.inhibit(ed.controllerInhibitMask);
+        releaseOwnedTargets();
+        _activationMode = (uint8_t)mode;
+        const auto event = mode == SysMode::STANDBY ? ControllerActivation::Standby :
+            mode == SysMode::STARTUP ? ControllerActivation::Startup :
+            mode == SysMode::RUNNING ? ControllerActivation::Running : ControllerActivation::Shutdown;
+        const auto result = _activation.enter(event, Config::rules, Config::ruleCount,
+            [](uint8_t i) { return controllerTarget(i); },
+            [](uint8_t i) { safeController(i); });
+        if (result == ControllerActivation::Conflict && _faultCb) _faultCb("CONTROLLER_OWNERSHIP");
+    }
+
+    static bool inactiveControllerBlock(const char* name) {
+        bool on=false;
+        const uint16_t id=ControllerActivation::blockId(name,&on);
+        if (!id) return false;
+        const int8_t index=controllerIndex(id);
+        return index<0 || !Config::rules[index].enabled || _activation.inhibited(index) ||
+            !((on?Config::rules[index].activateEvents:Config::rules[index].deactivateEvents)&1);
+    }
+
+    static bool controllerCommand(uint16_t id, bool activate) {
+        modeEntered(EngineData::instance().mode);
+        const int8_t index = controllerIndex(id);
+        if (index < 0) return true; // orphan controller link: inert
+        const auto& rule = Config::rules[index];
+        if (!rule.enabled || _activation.inhibited(index)) return true; // explicitly disabled: linked blocks are inert
+        if (!activate) {
+            if (!(rule.deactivateEvents & 1)) return true;
+            releaseOwnedTargets();
+            _activation.deactivate(index, [](uint8_t i) { safeController(i); });
+            return true;
+        }
+        if (!(rule.activateEvents & 1)) return true;
+        const bool wasActive = _activation.active(index);
+        const auto result = _activation.activate(index, Config::rules, Config::ruleCount,
+            [](uint8_t i) { return controllerTarget(i); });
+        if (result == ControllerActivation::Ok && !wasActive) {
+            _ruleLatched[index] = false;
+            FeedbackControlMath::reset(_feedbackState[index]);
+        }
+        return result == ControllerActivation::Ok;
+    }
+
+    static int8_t controllerOwner(uint8_t actuator) {
+        for (int i = 0; i < Config::ruleCount; ++i)
+            if (Config::rules[i].enabled && _activation.active(i) &&
+                controllerTarget(i) == ControllerActivation::Target{actuator, uint8_t(actuator==STARTER ? STARTER_ENABLE : 255)}) return (int8_t)i;
+        return -1;
+    }
+
     // Sensor indices (match UI dropdown order)
     enum Sensor   : uint8_t { OIL_TEMP=0, TOT=1, N1_RPM=2, OIL_PRESS=3, TIT=4, BATT_V=5, N2_RPM=6,
                               DI_CH0=7, DI_CH1=8, DI_CH2=9, DI_CH3=10, FUEL_PRESS=11,
@@ -49,9 +160,31 @@ public:
         return _actuatorUsable(act);
     }
 
-    static void applyActuatorDemand(uint8_t act, float dem) {
-        if (!_actuatorUsable(act)) return;
+    static bool applyActuatorDemand(uint8_t act, float dem) {
+        if (!_actuatorUsable(act) || controllerOwner(act) >= 0) return false;
         _applyActuator(act, constrain(dem, 0.0f, 1.0f), EngineData::instance(), nullptr);
+        return true;
+    }
+
+    static void applyProtectedActuatorDemand(uint8_t act, float dem) {
+        if (_actuatorUsable(act))
+            _applyActuator(act, constrain(dem,0.0f,1.0f), EngineData::instance(), nullptr);
+    }
+
+    static uint32_t sequenceOutputMask(const char* name) {
+        if (!strcmp(name,"FuelPumpIdle") || !strcmp(name,"ModifiedIdle")) return 1u<<THROTTLE;
+        if (!strcmp(name,"Spool")) return (1u<<THROTTLE)|(1u<<STARTER)|(1u<<STARTER_ENABLE);
+        if (!strcmp(name,"StarterSpin") || !strcmp(name,"SafetyHold")) return (1u<<STARTER)|(1u<<STARTER_ENABLE);
+        if (!strcmp(name,"OilPrime")) return (1u<<OIL_PUMP)|(1u<<OIL_SCAVENGE);
+        if (!strcmp(name,"ABIgnite")) return (1u<<AB_PUMP)|(1u<<AB_SOL)|(1u<<IGNITER2)|(1u<<THROTTLE)|(1u<<GLOW_PLUG);
+        return 0;
+    }
+    static bool sequenceBlockConflict(const char* name) {
+        const uint32_t mask=sequenceOutputMask(name);
+        for (int i=0;i<Config::ruleCount;++i)
+            if (_activation.active(i) && Config::rules[i].actuator<32 &&
+                (mask&(1u<<Config::rules[i].actuator))) return true;
+        return false;
     }
 
     static bool sensorConditionMet(uint8_t sensor, uint8_t op, float threshold) {
@@ -63,8 +196,10 @@ public:
     // reloaded or compacted so a previous rule's latched state cannot apply
     // to a different rule that now occupies the same index.
     static void resetLatches() {
+        _activation.reset();
         for (int i = 0; i < Config::MAX_RULES; i++) {
             _ruleLatched[i] = false;
+            _confirmation[i].reset();
             FeedbackControlMath::reset(_feedbackState[i]);
         }
     }
@@ -87,18 +222,22 @@ public:
         // FAULT is never an automation state. The caller has already released
         // the previous overlay; do not claim or alter any target here.
         if (ed.mode == SysMode::FAULT) {
-            for (int i = 0; i < Config::MAX_RULES; ++i)
+            for (int i = 0; i < Config::MAX_RULES; ++i) {
+                _confirmation[i].reset();
                 FeedbackControlMath::reset(_feedbackState[i]);
+            }
             return;
         }
 
         for (int i = 0; i < Config::ruleCount; i++) {
             const Config::Rule& r = Config::rules[i];
             const uint8_t modeBit = (uint8_t)(1u << (int)ed.mode);
-            const bool activeState = r.enabled && (r.modeMask & modeBit) != 0 &&
+            const bool activeState = r.enabled && !_activation.inhibited(i) &&
+                                     (r.activateEvents == 0 ? (r.modeMask & modeBit) != 0 : _activation.active(i)) &&
                                      _actuatorUsable(r.actuator);
             if (!activeState) {
                 _ruleLatched[i] = false;
+                _confirmation[i].reset();
                 FeedbackControlMath::reset(_feedbackState[i]);
                 continue;
             }
@@ -106,16 +245,17 @@ public:
             if (!_targetPresent(_ownedTargets, _ownedTargetCount, r.actuator) &&
                 _ownedTargetCount < Config::MAX_RULES) {
                 _ownedTargets[_ownedTargetCount] = r.actuator;
-                _ownedBaseDemands[_ownedTargetCount] = baseDemand;
+                _ownedBaseDemands[_ownedTargetCount] = r.activateEvents == 0 ? baseDemand : r.safeDemand;
                 ++_ownedTargetCount;
             }
             const bool inputHealthy = r.kind == 3 || _sensorUsable(r.sensor, ed);
             const bool targetHealthy = r.kind != 2 || r.targetSourceType == 0 ||
                                        _sensorUsable(r.targetSensor, ed);
             const bool applies = inputHealthy && targetHealthy;
-            float demand = r.offValue;
+            float demand = r.activateEvents == 0 ? r.offValue : r.safeDemand;
 
             if (applies) {
+                if (r.kind!=0) _confirmation[i].reset();
                 const float value = r.kind == 3 ? 0.0f : _readSensor(r.sensor, ed);
                 if (r.kind == 3) {
                     demand = r.onValue;
@@ -146,12 +286,14 @@ public:
                     demand = r.outputMin + mapped * (r.outputMax - r.outputMin);
                     _ruleLatched[i] = false;
                 } else {
-                    const bool met = _evalRuleState(i, value, r.op, r.threshold,
-                                                    r.hysteresis, r.sensor);
+                    const bool condition = _evalRuleState(i, value, r.op, r.threshold,
+                                                          r.hysteresis, r.sensor);
+                    const bool met = _confirmation[i].update(condition,millis(),r.confirmMs);
                     demand = met ? r.onValue : r.offValue;
                 }
             } else {
                 _ruleLatched[i] = false;
+                _confirmation[i].reset();
                 FeedbackControlMath::reset(_feedbackState[i]);
             }
 
@@ -167,7 +309,7 @@ public:
             // previous non-rule demand before controllers run, so that value
             // can contain yesterday's idle floor and prevent an idle source
             // from backing down.
-            if (r.actuator == THROTTLE && ed.mode == SysMode::RUNNING) {
+            if (r.activateEvents == 0 && r.actuator == THROTTLE && ed.mode == SysMode::RUNNING) {
                 int8_t idleSensor = IDLE_INPUT;
                 const bool explicitInput = Config::fuelIdleMode == 3 && Config::fuelIdleInputId[0];
                 if (explicitInput)
@@ -518,9 +660,12 @@ private:
         }
     }
 
+    static inline ControllerActivation _activation;
+    static inline uint8_t _activationMode = 255;
     static inline ShutdownCallback _shutdownCb = nullptr;
     static inline FaultCallback _faultCb = nullptr;
     static inline bool _ruleLatched[Config::MAX_RULES] = {};
+    static inline ConditionConfirmation _confirmation[Config::MAX_RULES];
     static inline FeedbackControlMath::State _feedbackState[Config::MAX_RULES] = {};
     static inline uint8_t _ownedTargets[Config::MAX_RULES] = {};
     static inline float _ownedBaseDemands[Config::MAX_RULES] = {};

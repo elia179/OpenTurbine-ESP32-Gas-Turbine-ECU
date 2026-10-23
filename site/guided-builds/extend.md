@@ -102,15 +102,15 @@ Add **Oil Temp**, purpose **Oil / gearbox temperature**, with the **DS18B20** in
 
 {% include build-screen.html file="fan-configured" step="A configured fan output" alt="Cooling Fan Hardware card with its output interface on GPIO 39 and advanced output settings." caption="The screenshot describes the example driver. Match the physical fan's interface, PWM requirements and safe behavior before adding the temperature controller." %}
 
-On **Controllers → Output controllers**, expand **+ Create controller**, choose **Cooling Fan**, create it and open its card. Choose method **On / Off with hysteresis**, source **Oil Temp**, and the required above-threshold relationship. The output command values must suit the chosen driver. Select only the operating states in which this controller should own the fan.
+On **Controllers → Output controllers**, expand **+ Create controller**, choose **Cooling Fan**, create it and open its card. Choose method **On / Off with hysteresis**, source **Oil Temp**, and the required above-threshold relationship. The output command values must suit the chosen driver. Choose the events that activate and deactivate it.
 
 For a benign warming exercise, you might demonstrate **on above 30 °C, off again below 28 °C**, using 2 °C hysteresis. These are observation values for the bench probe, not oil/cooling limits for an engine. Hysteresis prevents chatter around one threshold.
 
-**Find the threshold fields:** choose **On / Off with hysteresis** to expose **Controlled by**, **Direction**, **Switch point** and **Hysteresis**. Select **Oil Temp**, then **Turn on above**. Review the on/off commands for the fitted fan driver. Expand **When this controller is active** and deliberately choose the states for the bench lesson; save using the same change recap as Level 2.
+**Find the threshold fields:** choose **On / Off with hysteresis** to expose **Controlled by**, **Direction**, **Switch point** and **Hysteresis**. Select **Oil Temp**, then **Turn on above**. Review the on/off commands for the fitted fan driver. For this bench lesson choose **Activate when → Entering Standby** and **Deactivate when → Entering Startup, Entering Running, Entering Shutdown** directly in the open card. Test the next appropriate state entry and save using the same change recap as Level 2.
 
 {% include build-screen.html file="fan-hysteresis" step="Build the fan relationship" alt="Bench cooling fan controller with oil temperature source, Turn on above direction, 30-degree switch point and two-degree hysteresis." caption="The pictured 30 °C/2 °C values match the benign warming exercise. They are not an engine oil-temperature limit. On/off percentages are commands through the selected Hardware driver." %}
 
-**Verify:** raise and lower the measured temperature around both boundaries, then check STANDBY, STARTUP, RUNNING and SHUTDOWN as applicable. Check mode exit, unplugged sensor and FAULT behavior too. Custom controllers are released in FAULT; the output then follows the relevant fault/ordinary behavior. Do not assume cooling continues through a fault. If cooling is essential, design the complete physical and software loss response for that requirement.
+**Verify:** raise and lower the measured temperature around both boundaries, then check STANDBY, STARTUP, RUNNING and SHUTDOWN as applicable. Check deactivation, unplugged sensor and FAULT behavior too. Deactivation sends Hardware safe demand before release; custom controllers are also released in FAULT, whose protective output handling remains authoritative. Do not assume cooling continues through a fault. If cooling is essential, design the complete physical and software loss response for that requirement.
 
 <h2 id="switch">6 · Add a cover switch</h2>
 

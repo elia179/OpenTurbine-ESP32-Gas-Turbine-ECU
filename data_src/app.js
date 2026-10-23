@@ -224,7 +224,7 @@ const DASHBOARD_LIMIT_FIELDS = {
   'n1-card':'rpm_limit', 'n2-card':'n2_rpm_limit',
   'tot-card':'tot_limit', 'tit-card':'sf_tit',
   'oil-card':'oil_rm', 'oil-temp-card':'sf_ot',
-  'fuel-press-card':'sf_fp', 'batt-card':'sf_bv'
+  'fuel-press-card':'sf_fp', 'batt-card':'sf_bv', 'p1-card':'sf_p1t', 'p2-card':'sf_p2t', 'torque-card':'sf_tqt'
 };
 let _dashboardHiddenCards = (() => {
   try {
@@ -671,10 +671,11 @@ function niceSensorCeiling(value) {
   const ratio = value / power;
   return power * (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10);
 }
-function sensorViewRange(key, values, reference = 0, normalized = false) {
+function sensorViewRange(key, values, reference = 0, normalized = false, limit = 0) {
   const saved = sensorRanges()[key];
   if (saved && Number.isFinite(saved.min) && Number.isFinite(saved.max) && saved.max > saved.min)
     return {min:saved.min,max:saved.max,manual:true};
+  if (Number.isFinite(limit)&&limit>0)return {min:0,max:limit/.9,manual:false,limited:true};
   if (normalized) return {min:0,max:1,manual:false};
   const valid = values.filter(Number.isFinite);
   if (Number.isFinite(reference)) valid.push(reference);
@@ -731,14 +732,15 @@ function openSensorRange(key, trigger) {
   dialog.querySelector('.sensor-range-error').textContent = '';
   dialog.showModal();
 }
-function renderSensorView(card, key, name, value, healthy, kind, sample, reference = 0, canvasId = '') {
+function renderSensorView(card, key, name, value, healthy, kind, sample, reference = 0, canvasId = '', limit = 0, shutdownEnabled = false) {
   if (!card) return;
   const arr = registryInputSparkSeries('view:' + key);
   const valid = healthy !== false && value !== null && value !== undefined && Number.isFinite(Number(value));
   if (!valid) arr.length = 0; // Never carry a plausible line through a sensor fault.
   else if (sample) pushSparkline(arr,Number(value));
   const values = valid ? [...arr,Number(value)] : arr;
-  const range = sensorViewRange(key,values,reference,kind === 'generic');
+  const hasLimit=Number.isFinite(limit)&&limit>0;
+  const range = sensorViewRange(key,values,reference,kind === 'generic',limit);
   _sensorViews.set(key,{name,kind,range});
   let wrap = card.querySelector('.sensor-view');
   if (!wrap) {
@@ -762,11 +764,21 @@ function renderSensorView(card, key, name, value, healthy, kind, sample, referen
   else track.removeAttribute('aria-valuenow');
   track.querySelector('.gauge-bar').style.width = valid
     ? Math.max(0,Math.min(100,(Number(value)-range.min)/(range.max-range.min)*100))+'%' : '0%';
+  const fill=track.querySelector('.gauge-bar'),reading=card.querySelector('.value');
+  const ratio=hasLimit&&valid?Number(value)/limit:0;
+  fill.style.background=hasLimit&&valid?shutdownGaugeColor(ratio):'';
+  if(reading&&['p1','p2','torque'].includes(key))reading.style.color=hasLimit&&valid&&ratio>=1?'var(--red)':'';
+  let marker=track.querySelector('.sensor-limit-marker');
+  if(!marker){marker=document.createElement('span');marker.className='sensor-limit-marker';marker.setAttribute('aria-hidden','true');track.appendChild(marker);}
+  const markerPosition=(limit-range.min)/(range.max-range.min)*100;
+  marker.hidden=!hasLimit||markerPosition<0||markerPosition>100;
+  marker.style.left=markerPosition+'%';
+  track.title=hasLimit?(shutdownEnabled?'Shutdown limit':'Advisory limit — automatic shutdown off')+': '+Number(sensorDisplayValue(limit,kind).toPrecision(4))+' '+sensorDisplayUnit(kind)+'. Setting: Controllers → Shutdown & Protection.':'Display range only — no shutdown limit set.';
   const outside = valid && (Number(value) < range.min || Number(value) > range.max);
   const format = val => Number(sensorDisplayValue(val,kind).toPrecision(4));
   const scaleButton = wrap.querySelector('button');
-  scaleButton.textContent = `${format(range.min)}–${format(range.max)} ${sensorDisplayUnit(kind)} · ${range.manual?'fixed':'auto'}${outside?' · outside view':''}`;
-  scaleButton.title = 'Display scale only—not a safe operating range. Select to set a fixed range or restore automatic scaling.';
+  scaleButton.textContent = `${format(range.min)}–${format(range.max)} ${sensorDisplayUnit(kind)} · ${range.manual?'fixed':range.limited?'limit scale':'auto'}${hasLimit?' · limit '+format(limit)+(shutdownEnabled?'':' (advisory)'):''}${hasLimit&&marker.hidden?' · limit outside view':''}${outside?' · outside view':''}`;
+  scaleButton.title = hasLimit?'Saved limit controls warning colours and the marker. Select to change the display range; Use auto range restores the saved-limit scale.':'Display scale only—not a safe operating range. Select to set a fixed range or restore automatic scaling.';
   scaleButton.setAttribute('aria-label',`Set ${name} display range`);
   scaleButton.dataset.sensorRangeKey = key;
   scaleButton.onclick = () => openSensorRange(key,scaleButton);
@@ -795,7 +807,9 @@ function renderAdditionalSensorViews(d,sample) {
   rows.forEach(([key,id,field,fitted,health,kind,name,reference,canvas]) => {
     const card = document.getElementById(id);
     if (!card || !d[fitted]) return;
-    renderSensorView(card,key,name,d[field],d[health],kind,sample,reference?Number(d[reference]):0,canvas);
+    const trip={p1:['p1_trip_bar',1],p2:['p2_trip_bar',2],torque:['torque_trip_nm',4]}[key];
+    renderSensorView(card,key,name,d[field],d[health],kind,sample,reference?Number(d[reference]):0,canvas,
+      trip?Number(d[trip[0]]||0):0,trip?!!(Number(d.trip_enabled||0)&trip[1]):false);
     if (d[health] === false) {
       const value = card.querySelector('.value');
       if (value) { value.textContent = '—'; value.style.color = ''; }
@@ -1085,6 +1099,7 @@ function decodeCompactTelemetry(frame, previous) {
   bools2.forEach((name, index) => { out[name] = bit(frame.g, index); });
   out.stop_switch_configured = bit(frame.h, 0);
   out.stop_switch_healthy = bit(frame.h, 1);
+  out.throttle_feedback_inhibited = bit(frame.h, 2);
   out.cool_fan_on = Number(v[30]) >= 50;
   out.oil_scavenge_on = Number(v[31]) >= 50;
   out.bleed_valve_open = Number(v[32]) >= 50;
@@ -1257,6 +1272,8 @@ function applyData(d) {
   const oilCard = document.getElementById('oil-card');
   if (oilCard && d.has_oil_press !== undefined) oilCard.style.display = d.has_oil_press ? '' : 'none';
   setText('oil-demand-val', d.oil_demand !== undefined ? toDispPress(Number(d.oil_demand)).toFixed(1) : '—');
+  const oilTargetRow=document.getElementById('oil-target-row');
+  if(oilTargetRow)oilTargetRow.style.display=d.has_oil_pump&&Number(d.oil_demand)>0?'':'none';
   const baseThrottle = d.throttle_demand !== undefined ? Number(d.throttle_demand) : undefined;
   const throttleChannel = configuredRegistryOutput(d, 'main_fuel', ['main_fuel','main_fuel_output','throttle']);
   const legacyThrottle = d.throttle_effective !== undefined ? Number(d.throttle_effective) : baseThrottle;
@@ -1277,15 +1294,11 @@ function applyData(d) {
   }
   const feedbackInhibit = document.getElementById('throttle-feedback-inhibit-note');
   if (feedbackInhibit) {
-    const primaryEgtUnhealthy =
-      d.egt_source === 1 ? (d.has_tot && d.tot_healthy === false) :
-      d.egt_source === 2 ? (d.has_tit && d.tit_healthy === false) :
-      ((d.has_tot && d.tot_healthy === false) || (d.has_tit && d.tit_healthy === false));
-    const sensorBlocksIncrease = !d.bench_mode &&
-      (d.mode === 'RUNNING' || d.mode === 'STARTUP') &&
-      (primaryEgtUnhealthy ||
-       (d.has_n1 && d.n1_healthy === false));
-    feedbackInhibit.style.display = sensorBlocksIncrease ? '' : 'none';
+    // Runtime limiter evidence, not an inference from fitted sensor flags:
+    // unused telemetry sensors and an explicit single-sensor override do not
+    // imply that throttle movement is being held.
+    feedbackInhibit.style.display = d.throttle_feedback_inhibited === true &&
+      (d.mode === 'STARTUP' || d.mode === 'RUNNING') ? '' : 'none';
   }
   if (d.oil_pct !== undefined) {
     const oilChannel = configuredRegistryOutput(d, 'oil_pump', ['oil_pump','oil_pump_main']);
@@ -1324,18 +1337,8 @@ function applyData(d) {
   if (d.fuel_pump_min_pct !== undefined) {
     setText('throttle-idle-floor', Number(d.fuel_pump_min_pct).toFixed(1));
   }
-  const floorRow = document.getElementById('throttle-floor-row');
-  if (floorRow) floorRow.style.display = d.mode === 'STARTUP' ? 'none' : '';
-  const startupRangeRow = document.getElementById('throttle-startup-range-row');
-  if (startupRangeRow) {
-    const showStartupRange = d.mode === 'STARTUP' &&
-      d.fuel_pump_min_pct !== undefined && d.fuel_idle_max_pct !== undefined;
-    startupRangeRow.style.display = showStartupRange ? '' : 'none';
-    if (showStartupRange) {
-      setText('throttle-startup-range',
-        Number(d.fuel_pump_min_pct).toFixed(1) + ' to ' + Number(d.fuel_idle_max_pct).toFixed(1));
-    }
-  }
+  // This is a physical output calibration, valid in every engine phase.
+  // An unused legacy idle ceiling is not an active startup fuel command.
   const effectiveNote = document.getElementById('throttle-effective-note');
   if (effectiveNote) {
     const showEffective = baseThrottle !== undefined && effectiveThrottle !== undefined &&
@@ -1343,35 +1346,29 @@ function applyData(d) {
     effectiveNote.style.display = showEffective ? '' : 'none';
     if (showEffective) setText('throttle-base-demand', (baseThrottle * 100).toFixed(1));
   }
-  const oilStartupNote = document.getElementById('oil-startup-setting-note');
-  if (oilStartupNote) {
-    const showOilStartup = d.mode === 'STARTUP' && d.oil_pump_on_pct !== undefined;
-    oilStartupNote.style.display = showOilStartup ? '' : 'none';
-    if (showOilStartup) setText('oil-startup-setting', Number(d.oil_pump_on_pct).toFixed(1));
-  }
   const diWrap = document.getElementById('throttle-di-wrap');
   if (diWrap) {
     const showDi = d.dynamic_idle_enabled && d.mode === 'RUNNING';
     diWrap.style.display = showDi ? '' : 'none';
     if (showDi && d.idle_target !== undefined) {
-      setText('throttle-di-rpm', d.idle_target_unit === 'bar' ? Number(d.idle_target).toFixed(2) : fmtInt(d.idle_target));
-      setText('throttle-di-unit', d.idle_target_unit || 'rpm');
+      setText('throttle-di-rpm', d.idle_target_unit === 'bar' ? toDispPress(Number(d.idle_target)).toFixed(2) : fmtInt(d.idle_target));
+      setText('throttle-di-unit', d.idle_target_unit === 'bar' ? dispPressUnit() : (d.idle_target_unit || 'rpm'));
       setText('throttle-di-state', d.idle_controller_state || 'Off');
     }
   }
   const throttleCard = document.getElementById('throttle-output-card');
-  if (throttleCard && d.throttle_command_owner) {
-    throttleCard.title = `Final command owner: ${d.throttle_command_owner}. Actual fuel output remains subject to protection and calibrated hardware limits.`;
-    setText('throttle-command-details', `Owner: ${d.throttle_command_owner}. Safety limits and the calibrated hardware range remain authoritative.`);
+  if (throttleCard) {
+    throttleCard.title = `Final command owner: ${d.throttle_command_owner || 'Unavailable'}. Actual fuel output remains subject to protection and calibrated hardware limits.`;
+    setText('throttle-command-details', `Owner: ${d.throttle_command_owner || 'Unavailable'}. Safety limits and the calibrated hardware range remain authoritative.`);
   }
   const oilOwnerCard = document.getElementById('oil-output-card');
-  if (oilOwnerCard && d.oil_command_owner) {
-    oilOwnerCard.title = `Final command owner: ${d.oil_command_owner}. Bearing oil pressure and configured fault protection remain authoritative.`;
-    setText('oil-command-details', `Owner: ${d.oil_command_owner}. Oil-pressure protection and the configured output range remain authoritative.`);
+  if (oilOwnerCard) {
+    oilOwnerCard.title = `Final command owner: ${d.oil_command_owner || 'Unavailable'}. Bearing oil pressure and configured fault protection remain authoritative.`;
+    setText('oil-command-details', `Owner: ${d.oil_command_owner || 'Unavailable'}. Oil-pressure protection and the configured output range remain authoritative.`);
   }
   const pitchStatus = document.getElementById('adv-pitch');
-  if (pitchStatus && d.prop_pitch_command_owner)
-    pitchStatus.title = `Final command owner: ${d.prop_pitch_command_owner}. 0% is fine/minimum load; 100% is coarse/maximum load.`;
+  if (pitchStatus)
+    pitchStatus.title = `Final command owner: ${d.prop_pitch_command_owner || 'Unavailable'}. 0% is fine/minimum load; 100% is coarse/maximum load.`;
 
   // Relight status — hide card entirely when relight is disabled in config
   const relightCard = document.getElementById('relight-card');
@@ -1385,12 +1382,13 @@ function applyData(d) {
       : 'Disarmed');
   }
 
-  // Oil min bar (session minimum — only shown once engine has run)
+  // Observed running minimum, not the sequence's required-pressure threshold.
   const oilMinRow = document.getElementById('oil-min-bar-row');
   if (oilMinRow) {
-    const minVal = d.oil_min_bar !== undefined ? Number(d.oil_min_bar) : 0;
-    oilMinRow.style.display = minVal > 0 ? '' : 'none';
-    if (minVal > 0) setText('oil-min-bar-val', toDispPress(minVal).toFixed(1));
+    const available = d.min_oil !== undefined && d.min_oil !== null &&
+      Number.isFinite(Number(d.min_oil)) && Number(d.min_oil) >= 0;
+    oilMinRow.style.display = available ? '' : 'none';
+    if (available) setText('oil-min-bar-val', toDispPress(Number(d.min_oil)).toFixed(1));
   }
 
   // Oil failsafe indicator
@@ -1561,34 +1559,36 @@ function applyData(d) {
   // Mirror the backend start-check reasons visible in telemetry, so
   // START is disabled with an explanation instead of accepting the click
   // and rejecting it server-side (backend remains the authority).
+  const acknowledgeToStart = d.mode === 'FAULT' && d.fault_latched === true && d.fault_clear_allowed === true;
   let startBlock = '';
   if (!running) {
-    if (d.mode === 'FAULT')                startBlock = String(d.fault_description || d.hardware_fault || d.last_event || 'ECU startup validation failed');
+    if (d.mode === 'FAULT')                startBlock = String(faultDescriptionText(d) || d.hardware_fault || d.last_event || 'ECU startup validation failed');
     else if (d.stop_switch_active)         startBlock = 'STOP switch is active';
     else if (d.profile_match === false)    startBlock = 'Profile mismatch — upload a matching config';
     // (boot config-load failure enters FAULT mode, caught above; telemetry
     // config_locked means "running, edits locked" and never applies here)
     else if (d.extra_cooldown_active)      startBlock = 'Extra cooldown is running — stop it on Tools';
-    else if (d.seq_has_structural_errors)  startBlock = 'Startup sequence has unknown or unavailable blocks.';
+    else if (d.seq_has_structural_errors)  startBlock = 'Sequence setup has errors. Review Sequence for details.';
     else if (d.seq_has_errors && !d.bench_mode) startBlock = 'Startup sequence needs hardware that is not configured.';
     else if (Array.isArray(d.di_channels) &&
              d.di_channels.some(ch => ch && ch.pin >= 0 && ch.state && ch.role === 'inhibit_start'))
                                            startBlock = 'Start-inhibit input is active';
   }
-  setDisabled('btn-start', running || !!startBlock);
-  if (startBtn) startBtn.title = startBlock;
+  setDisabled('btn-start', running || (!!startBlock && !acknowledgeToStart));
+  if (startBtn) startBtn.title = acknowledgeToStart ? 'Acknowledge the stopped-engine fault, then review start conditions.' : startBlock;
   const sbr = document.getElementById('start-block-reason');
   if (sbr) {
     // stop-switch has its own warning line — avoid doubling it
-    const show = startBlock && !d.stop_switch_active;
+    const setupWarnings=(d.seq_issues||[]).filter(i=>/inactive this run|Controller removed; block inactive/.test(i.msg||''));
+    const show = (startBlock && !d.stop_switch_active) || setupWarnings.length;
     // .stop-warn defaults to display:none in CSS, so an empty inline value
     // would leave the reason invisible even while START is disabled.
     sbr.style.display = show ? 'block' : 'none';
     if (show) {
-      sbr.textContent = '⚠ START unavailable: ' + startBlock;
-      if (d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
+      sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
+      if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261021a';
+        link.href = '/sequence.html?v=20261023p';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1626,7 +1626,15 @@ function applyData(d) {
       (d.mode === 'FAULT' || d.mode === 'STANDBY' || d.mode === 'SHUTDOWN');
     faultCard.style.display = showFault ? '' : 'none';
     if (showFault) {
-      setText('fault-desc-text', hasFaultDesc ? d.fault_description :
+      const context = inputFaultContext(d);
+      setText('fault-title', limitedAllowed ? 'Reduced-power start available' : d.fault_latched ? 'Fault shutdown — acknowledgment required' : '⚠ Startup locked — exact reason');
+      faultCard.classList.toggle('reduced-start-available', limitedAllowed);
+      const hardwareLink = document.getElementById('fault-hardware-link');
+      if (hardwareLink) hardwareLink.hidden = !context;
+      for (const id of ['fault-calibration-link','fault-tools-link']) { const link=document.getElementById(id);if(link)link.hidden=!!context; }
+      const limitsLink=document.getElementById('fault-limits-link');
+      if(limitsLink){limitsLink.hidden=!!context&&!context.oil;limitsLink.textContent=context?.oil?'Review oil protection':'Review limits';limitsLink.href=context?.oil?'/controllers.html#protection-low_oil':'/controllers.html';}
+      setText('fault-desc-text', hasFaultDesc ? faultDescriptionText(d) :
         ('Cannot start normally: ' + (d.limited_start_sensor || 'a required sensor') +
          ' feedback is unavailable.'));
     }
@@ -2074,8 +2082,8 @@ function applyData(d) {
           govMode.textContent = d.governor_mode === 'pitch' ? 'PROPELLER-PITCH CONTROL' :
             d.governor_mode === 'two_position_pitch' ? 'FINE / COARSE PITCH CONTROL' : 'FUEL CONTROL';
           govMode.title = d.governor_mode === 'pitch' || d.governor_mode === 'two_position_pitch'
-            ? 'Holds N2 by adjusting propeller pitch/load — you set power with the throttle.'
-            : 'Holds N2 by winding fuel/throttle directly — the governor owns the throttle.';
+            ? 'When active, holds N2 by adjusting propeller pitch/load; throttle sets power.'
+            : 'When active, holds N2 by adjusting fuel; Command details show the current output owner.';
           govMode.style.display = '';
         } else {
           govMode.style.display = 'none';
@@ -2475,7 +2483,7 @@ function _showRunSummary(d, durationMs) {
   const card = document.getElementById('run-summary-card');
   if (!card) return;
 
-  const faultText = String(d.fault_description || '').trim();
+  const faultText = faultDescriptionText(d).trim();
   const lastEvent = String(d.last_event || '');
   const isAbort = lastEvent.startsWith('Aborted') || faultText.startsWith('Startup aborted');
   const isFault  = d.mode === 'FAULT' || isAbort || faultText.length > 0 || lastEvent.startsWith('FAULT:');
@@ -2594,6 +2602,10 @@ function gaugeColor(from, to, percent) {
   return `color-mix(in srgb, var(--${to}) ${Math.round(percent * 100)}%, var(--${from}))`;
 }
 
+function shutdownGaugeColor(ratio){
+  return ratio<.7?'var(--green)':ratio<.8?gaugeColor('green','yellow',(ratio-.7)/.1):
+    ratio<.95?'var(--yellow)':ratio<1?gaugeColor('yellow','red',(ratio-.95)/.05):'var(--red)';
+}
 // A configured threshold defines a visual advisory scale even if its safety
 // switch is OFF. Only an enabled protection gets the shutdown marker.
 function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
@@ -2603,6 +2615,10 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
   const readingEl = document.getElementById(id.replace(/-gauge-bar$/, ''));
   const threshold = Number(limit);
   const reading = Number(value);
+  const guide=(safetyActive?'Enabled maximum shutdown limit. ':'Visual advisory only — automatic shutdown is off. ')+
+    'Setting: Controllers → Shutdown & Protection.';
+  const label=document.getElementById(id.replace('-gauge-bar','-abs-label'));
+  if(label)label.title=guide;
   const hasScale = Number.isFinite(threshold) && threshold > 0 && Number.isFinite(reading);
   wrap.style.display = hasScale ? '' : 'none';
   wrap.classList.toggle('shutdown-limit-high', hasScale && safetyActive);
@@ -2610,7 +2626,7 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
     bar.style.width = '0%';
     bar.style.background = '';
     if (readingEl) readingEl.style.color = '';
-    wrap.title = '';
+    wrap.title = guide;
     return;
   }
   const ratio = Math.max(0, reading / threshold);
@@ -2619,13 +2635,8 @@ function setShutdownGaugeBar(id, value, limit, safetyActive = false) {
   if (readingEl) readingEl.style.color = ratio >= 1 ? 'var(--red)' : '';
   bar.style.width = Math.min(100, ratio * 90) + '%';
   bar.className = 'gauge-bar';
-  bar.style.background = ratio < .7 ? 'var(--green)'
-    : ratio < .8 ? gaugeColor('green', 'yellow', (ratio - .7) / .1)
-    : ratio < .95 ? 'var(--yellow)'
-    : ratio < 1 ? gaugeColor('yellow', 'red', (ratio - .95) / .05)
-    : 'var(--red)';
-  wrap.title = safetyActive ? 'Enabled maximum shutdown limit'
-    : 'Visual advisory only — automatic shutdown is off';
+  bar.style.background = shutdownGaugeColor(ratio);
+  wrap.title = guide;
 }
 
 // A minimum alone cannot define a truthful full-width pressure/voltage bar.
@@ -2684,6 +2695,7 @@ async function clearFault() {
     return body;
   }).catch(error => { alert('Fault could not be cleared: ' + error.message); return null; });
   if (result) requestTelemetryNow();
+  return !!result;
 }
 
 function sendAbCmd(cmd) {
@@ -2978,8 +2990,8 @@ function registryInputIsBinary(ch) {
   const id = String(ch?.id || '');
   const role = String(ch?.role || '');
   const purpose = String(ch?.purpose || '');
-  return Number(ch?.driver) === 0 || ['digital_switch','switch','fault','estop','inhibit_start','low_oil_switch','oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode','flame'].includes(role) ||
-    ['start_switch','stop_switch','emergency_stop','inhibit_start','low_oil_switch','oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode'].includes(purpose) ||
+  return [0,8].includes(Number(ch?.driver)) || ['digital_switch','switch','fault','estop','inhibit_start','low_oil_switch','oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode','flame'].includes(role) ||
+    ['digital_switch','fault','start_switch','stop_switch','emergency_stop','inhibit_start','low_oil_switch','oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode'].includes(purpose) ||
     ['start_switch','stop_switch','emergency_stop'].includes(id);
 }
 function registryInputDisplay(ch) {
@@ -3253,3 +3265,36 @@ window.OTSaveConfigPatch = async function(patch) {
     } finally { clearTimeout(timeout); }
   });
 };
+
+// Fault presentation lives in the matched web bundle. Older human-readable
+// device descriptions remain supported when only web files are updated.
+function inputFaultContext(data) {
+  const raw=String(data?.fault_description||'');
+  const modern=/^(OIL_SWITCH|INPUT_FAULT|INPUT_UNAVAILABLE): ([\s\S]+)$/.exec(raw);
+  if(modern)return {name:modern[2],oil:modern[1]==='OIL_SWITCH',unavailable:modern[1]==='INPUT_UNAVAILABLE'};
+  const legacy=/^DI fault: channel (\d+) triggered$/.exec(raw);
+  if(!legacy)return null;
+  const channel=data?.di_channels?.[Number(legacy[1])-1];
+  return {name:channel?.label||('Digital input '+legacy[1]),oil:['oil_zero_switch','low_oil_switch'].includes(channel?.role),pin:channel?.pin};
+}
+function faultDescriptionText(data) {
+  const input=inputFaultContext(data);
+  if(input){const location=Number.isInteger(input.pin)&&input.pin>=0?' (GPIO '+input.pin+')':'';
+    return input.name+location+(input.unavailable?': safety input became unavailable. Check its connection and Hardware assignment.':input.oil?': oil-pressure switch stayed ON for the configured confirmation time and requested fault shutdown. Check the oil supply and switch. Monitoring phases and confirmation time are in Controllers → Shutdown & Protection → Oil pressure protection.':': switch requested fault shutdown. Check its wiring, polarity and assigned action in Hardware.');}
+
+  const raw=String(data?.fault_description||'');
+  const match=/^([A-Z][A-Z0-9_]*)(?:: ([\s\S]*))?$/.exec(raw);
+  if(!match)return raw;
+  if(match[1]==='MULTIPLE_SENSOR_FAILURE')return `Reduced-power operation stopped: another required sensor failed while ${match[2]||'a sensor'} was overridden. Inspect both sensor circuits before restarting.`;
+  if(match[1]==='STARTUP_ABORT') {
+    const block=match[2]||'UNKNOWN';
+    const help={OilPrime:'Oil prime did not reach target pressure. Check oil level, pump wiring, duty and oil lines; use Oil Prime in Tools.',OilPump:'Oil prime did not reach target pressure. Check oil level, pump wiring, duty and oil lines; use Oil Prime in Tools.',FlameConfirm:'Flame was not detected in time. Check fuel supply, fuel shutoff, igniter and flame threshold; use Igniter Test in Tools.',Spool:'Spool RPM was not reached in time. Check starter, throttle calibration and fuel flow; review Sequence timeout.'};
+    return `Startup aborted at sequence step: ${block}.\nWhat to do: ${help[block]||'Check the Event Log, sensors and actuators before retrying.'}`;
+  }
+
+  const messages={"STARTUP_OVERTEMP":"Startup overtemperature: the immediate starting temperature limit was reached. Inspect the fuel schedule, airflow and temperature settings before another start.","STARTUP_TEMP_DWELL":"Startup temperature stayed above its sustained limit for the allowed time. Check acceleration, airflow and fuel delivery before another start.","STARTUP_TEMP_SENSOR":"Startup temperature protection lost its selected sensor. Check wiring and sensor health before another start.","OVERSPEED":"Engine over-speed: RPM exceeded the safety limit.\nWhat to do: Wait for the engine to cool down fully. Check your RPM limit setting in Controllers and verify throttle calibration before the next start.","N2_OVERSPEED":"N2 over-speed: power-turbine RPM exceeded its hard shutdown limit.\nWhat to do: Do not restart until the driven load, shaft, coupling, N2 pickup, governor or propeller control, and configured N2 limit have been inspected.","P1_HIGH":"P1 pressure remained above its hard shutdown limit.\nWhat to do: Inspect the pressure pickup and calibration, compressor system, fuel schedule, and configured P1 trip before restarting.","P2_HIGH":"P2 pressure remained above its hard shutdown limit.\nWhat to do: Inspect the pressure pickup and calibration, downstream restriction, fuel schedule, and configured P2 trip before restarting.","TORQUE_HIGH":"Shaft torque remained above its hard shutdown limit.\nWhat to do: Inspect the driven load, coupling and torque calibration, then verify the configured torque trip before restarting.","OVERTEMP":"Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.\nWhat to do: Allow the engine to cool. Check your fuel flow, throttle calibration, and configured EGT limit. Inspect the turbine for damage if this was severe.","LOW_OIL":"Low oil pressure during operation.\nWhat to do: Do not restart until you have checked the oil level, oil pump, oil lines, and fittings for leaks. Verify oil pressure sensor calibration.","OIL_ZERO":"Oil pressure read near zero - possible pump failure or broken fitting.\nWhat to do: Inspect oil pump, lines, and fittings before any restart. Do not run the engine until oil supply is confirmed.","OIL_FLOW_LOW":"A monitored oil pump did not produce the configured minimum flow for the confirmation time.\nWhat to do: Check oil level, pump operation, filters, lines and flow-meter calibration before restarting.","FLAMEOUT":"Combustion-loss shutdown: the independent monitor confirmed loss for its configured time.\nWhat to do: Check fuel supply, fuel valve, and the selected flameout sensor/source. Inspect the cause before another start.","RELIGHT_FAILED":"Automatic relight failed: combustion did not recover within the configured relight window, or N1 fell below the safe firing speed.\nWhat to do: Check fuel delivery, the selected relight trigger and confirmation sensors, and the selected ignition device before restarting.","UNDERSPEED":"Under-speed: RPM dropped below the minimum running threshold.\nWhat to do: Check fuel supply and throttle settings. Verify the RPM sensor is reading correctly.","HOT_START":"Hot start aborted: exhaust temperature was still too high to start safely.\nWhat to do: Wait for the engine to cool further before attempting another start. Increase the cool-down time if this keeps happening.","TIT_OVERTEMP":"Turbine inlet temperature (TIT) exceeded the safety limit.\nWhat to do: Allow full cool-down. Check combustion system, fuel flow, and verify TIT limit is correct for your engine. Inspect turbine wheel for damage.","OIL_TEMP_HIGH":"Engine oil temperature too high.\nWhat to do: Allow the engine to cool down. Check oil cooler (if fitted), oil level, and flow rate. Reduce run duration until the cause is found.","FUEL_PRESS_LOW":"Fuel pressure dropped below the minimum threshold during operation.\nWhat to do: Check fuel tank level, fuel filter, pump, and lines. Inspect for leaks or blockages before attempting another run.","BATT_LOW":"Battery / bus voltage too low - risk of control system brownout.\nWhat to do: Charge or replace the battery. Check power wiring for resistance. Do not run the engine until the voltage is stable above the limit.","SURGE":"Compressor surge detected: N1 RPM is oscillating abnormally.\nWhat to do: The engine has been shut down to prevent compressor damage. Check throttle slew rate settings, compressor inlet for blockage, and reduce throttle advance rate to prevent recurrence.","OUTPUT_OVERCURRENT":"%s current remained above its configured shutdown limit.\nWhat to do: Check that output's load, driver, wiring and current-sensor calibration before restarting.","OIL_PRESSURE_LOW":"%s pressure remained below this oil loop's configured minimum.\nWhat to do: Check oil level, pump, lines, relief/accumulator arrangement and pressure-sensor calibration before clearing the fault.","OIL_FEEDBACK_LOST":"%s pressure feedback was lost for longer than this oil loop permits.\nWhat to do: Check the selected pressure sensor, wiring and calibration before clearing the fault."};
+  const text=messages[match[1]];
+  if(!text)return `Safety fault: ${raw}. Review the event log, wiring, calibration and limits before restarting.`;
+  if(text.includes('%s'))return text.replace('%s',match[2]||(match[1]==='OUTPUT_OVERCURRENT'?'An output':'Oil system'));
+  return text+(match[2]?'\n'+match[2]:'');
+}

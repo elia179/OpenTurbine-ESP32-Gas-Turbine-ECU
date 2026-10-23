@@ -1,7 +1,9 @@
 #pragma once
 #include "../hal/actuators/RelayDemand.h"
 #include "EngineData.h"
+#include "StartupTemperatureGuard.h"
 #include "../system/Config.h"
+#include "../system/PressureSafety.h"
 #include "../system/HardwareConfig.h"
 #include "../system/FeedbackRequirements.h"
 #include "../system/OutputActivity.h"
@@ -165,22 +167,37 @@ public:
         // depend on the gradual fuel limiter being enabled.
         const unsigned long hardNow = millis();
         if (_confirmed(HardwareConfig::hasP1 && ed.p1Healthy &&
-                       Config::p1TripLimit > 0.0f &&
+                       Config::p1TripEnabled && Config::p1TripLimit > 0.0f &&
                        ed.p1 > Config::p1TripLimit, hardNow,
                        Config::p1TripConfirmMs, _p1TripSinceMs)) {
             _trigger("P1_HIGH"); return;
         }
         if (_confirmed(HardwareConfig::hasP2 && ed.p2Healthy &&
-                       Config::p2TripLimit > 0.0f &&
+                       Config::p2TripEnabled && Config::p2TripLimit > 0.0f &&
                        ed.p2 > Config::p2TripLimit, hardNow,
                        Config::p2TripConfirmMs, _p2TripSinceMs)) {
             _trigger("P2_HIGH"); return;
         }
         if (_confirmed(HardwareConfig::hasTorque && ed.torqueHealthy &&
-                       Config::torqueTripLimit > 0.0f &&
+                       Config::torqueTripEnabled && Config::torqueTripLimit > 0.0f &&
                        ed.torque > Config::torqueTripLimit, hardNow,
                        Config::torqueTripConfirmMs, _torqueTripSinceMs)) {
             _trigger("TORQUE_HIGH"); return;
+        }
+
+        const bool startupGuard = m==SysMode::STARTUP && Config::startupEgtGuardEnabled;
+        const bool temperatureHealthy = Config::primaryEgtHealthy(ed) && isfinite(Config::primaryEgtC(ed));
+        const bool temperatureOverridden = FeedbackRequirements::bypassUnhealthyStartupCheck(
+            ed, FeedbackRequirements::EGT, temperatureHealthy);
+        if (startupGuard && !temperatureHealthy && !temperatureOverridden) {
+            _trigger("STARTUP_TEMP_SENSOR");return;
+        }
+        const auto temperatureTrip=_startupTemperature.check(Config::startupEgtGuardEnabled && !temperatureOverridden,
+            m==SysMode::STARTUP,Config::primaryEgtHealthy(ed),Config::primaryEgtC(ed),
+            Config::startupEgtImmediateEnabled ? Config::startupEgtLimitC : 0,
+            Config::startupEgtDwellEnabled ? Config::startupEgtDwellC : 0,Config::startupEgtDwellMs,millis());
+        if (temperatureTrip!=StartupTemperatureGuard::None) {
+            _trigger(temperatureTrip==StartupTemperatureGuard::Immediate ? "STARTUP_OVERTEMP" : "STARTUP_TEMP_DWELL");return;
         }
 
         // ── Interval checks ──────────────────────────────────
@@ -245,9 +262,7 @@ public:
         }
 
         float primaryLimit = Config::primaryEgtLimitC();
-        if (m == SysMode::STARTUP && Config::startupEgtLimitC > 0.0f)
-            primaryLimit = Config::startupEgtLimitC;
-        if (HardwareConfig::safetyOvertemp
+        if (!startupGuard && HardwareConfig::safetyOvertemp
             && (m == SysMode::STARTUP || m == SysMode::RUNNING)
             && primaryLimit > 0.0f &&
             Config::primaryEgtHealthy(ed) && Config::primaryEgtC(ed) > primaryLimit) {
@@ -260,23 +275,13 @@ public:
         // Legacy single-sensor protection remains for configurations without
         // explicit oil-loop ownership. Per-loop installations use their own
         // independently selected response and must not be tripped twice here.
+        const float oilLimit = m == SysMode::STARTUP ? Config::oilRunningMin : ed.oilMinBar;
         if (_confirmed(!HardwareConfig::hasOilLoop && HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress
-            && ed.oilMinBar > 0 && ed.oilHealthy && ed.oilPressure < ed.oilMinBar,
+            && PressureSafety::monitors(Config::oilSafetyModes, m)
+            && oilLimit > 0 && ed.oilHealthy && ed.oilPressure < oilLimit,
             now, lowOilConfirmMs, _lowOilSinceMs))
         {
             _trigger("LOW_OIL");
-            return;
-        }
-
-        // Oil near-zero while sensor is ADC-healthy → catastrophic failure or
-        // disconnected fitting.  Distinguished from LOW_OIL (calibrated range)
-        // and from sensor-rail fault (oilHealthy=false).
-        if (_confirmed(!HardwareConfig::hasOilLoop && HardwareConfig::safetyOilZero && HardwareConfig::hasOilPress
-            && m == SysMode::RUNNING && ed.oilHealthy
-            && ed.oilPressure < Config::oilZeroBar,
-            now, oilZeroConfirmMs, _oilZeroSinceMs))
-        {
-            _trigger("OIL_ZERO");
             return;
         }
 
@@ -335,7 +340,7 @@ public:
 
         // ── Fuel pressure low ────────────────────────────────
         if (_confirmed(HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress && fuelPressMin > 0.0f
-            && m == SysMode::RUNNING && ed.fuelPressHealthy
+            && PressureSafety::monitors(Config::fuelPressureSafetyModes, m) && ed.fuelPressHealthy
             && ed.fuelPressure < fuelPressMin,
             now, fuelPressConfirmMs, _fuelPressSinceMs))
         {
@@ -417,7 +422,7 @@ public:
         //          (genuine stall during spool-up, not the normal crank-up phase
         //          where the engine must pass through 0→minRpm on its way to idle).
         if (HardwareConfig::hasN1Rpm && m == SysMode::RUNNING) {
-            if (minRpm > 0.0f && ed.n1Healthy && ed.n1Rpm < minRpm) {
+            if (Config::underspeedEnabled && minRpm > 0.0f && ed.n1Healthy && ed.n1Rpm < minRpm) {
                 if (HardwareConfig::safetyFlameout && ed.flameMonitorActive
                     && _effectiveFlameoutSource() == 2) {
                     return;
@@ -438,7 +443,7 @@ public:
                 FeedbackRequirements::n2ForProtectionOrControl() && !ed.n2Healthy;
             bool protectionBlind =
                 (HardwareConfig::safetyOvertemp && Config::effectiveEgtSource() != 0 && !Config::primaryEgtHealthy(ed)) ||
-                ((HardwareConfig::safetyLowOil || HardwareConfig::safetyOilZero) && HardwareConfig::hasOilPress && !ed.oilHealthy) ||
+                (HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress && !ed.oilHealthy) ||
                 (HardwareConfig::hasOilLoop && !FeedbackRequirements::allOilLoopFeedbackHealthy(ed)) ||
                 (HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp && !ed.oilTempHealthy) ||
                 (HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress && !ed.fuelPressHealthy) ||
@@ -469,7 +474,7 @@ public:
         } else if (m != SysMode::RUNNING || ed.automaticLimpLatched) {
             _feedbackBlindSinceMs = 0;
         }
-        if (HardwareConfig::hasN1Rpm && minRpm > 0.0f && m == SysMode::STARTUP && ed.n1Healthy) {
+        if (HardwareConfig::hasN1Rpm && Config::underspeedEnabled && minRpm > 0.0f && m == SysMode::STARTUP && ed.n1Healthy) {
             // Do not arm startup underspeed from one pickup glitch. A real
             // spool must remain over the running floor for several fresh RPM
             // samples before a later fall can represent a genuine rollback.
@@ -512,6 +517,7 @@ private:
     unsigned long _flameoutMs     = 0;
     unsigned long _relightDetectMs = 0;
     bool          _relightLatched = false;
+    StartupTemperatureGuard _startupTemperature;
     const char*   _lastFault      = nullptr;
     float         _lastEgt        = -1.0f;   // for dEGT/dt calculation
     unsigned long _lastEgtMs      = 0;
@@ -623,6 +629,7 @@ private:
     }
 
     void _resetDwellConfirmations(bool resetOilFlow = true) {
+        _startupTemperature.reset();
         memset(_registryOvercurrentSinceMs, 0, sizeof(_registryOvercurrentSinceMs));
         if (resetOilFlow) {
             memset(_oilUnderflowSinceMs, 0, sizeof(_oilUnderflowSinceMs));
@@ -786,119 +793,16 @@ private:
         _lastFault = code;
         auto& ed = EngineData::instance();
 
-        // Populate plain-language description for the web UI fault banner
-        const char* desc = nullptr;
-        char fallbackDesc[256] = {};
-        if      (strcmp(code, "OVERSPEED")  == 0) desc =
-            "Engine over-speed: RPM exceeded the safety limit.\n"
-            "What to do: Wait for the engine to cool down fully. Check your RPM limit setting "
-            "in Controllers and verify throttle calibration before the next start.";
-        else if (strcmp(code, "N2_OVERSPEED") == 0) desc =
-            "N2 over-speed: power-turbine RPM exceeded its hard shutdown limit.\n"
-            "What to do: Do not restart until the driven load, shaft, coupling, N2 pickup, "
-            "governor or propeller control, and configured N2 limit have been inspected.";
-        else if (strcmp(code, "P1_HIGH") == 0) desc =
-            "P1 pressure remained above its hard shutdown limit.\n"
-            "What to do: Inspect the pressure pickup and calibration, compressor system, fuel schedule, and configured P1 trip before restarting.";
-        else if (strcmp(code, "P2_HIGH") == 0) desc =
-            "P2 pressure remained above its hard shutdown limit.\n"
-            "What to do: Inspect the pressure pickup and calibration, downstream restriction, fuel schedule, and configured P2 trip before restarting.";
-        else if (strcmp(code, "TORQUE_HIGH") == 0) desc =
-            "Shaft torque remained above its hard shutdown limit.\n"
-            "What to do: Inspect the driven load, coupling and torque calibration, then verify the configured torque trip before restarting.";
-        else if (strcmp(code, "OVERTEMP")   == 0) desc =
-            "Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.\n"
-            "What to do: Allow the engine to cool. Check your fuel flow, throttle calibration, "
-            "and configured EGT limit. Inspect the turbine for damage if this was severe.";
-        else if (strcmp(code, "LOW_OIL")    == 0) desc =
-            "Low oil pressure during operation.\n"
-            "What to do: Do not restart until you have checked the oil level, oil pump, "
-            "oil lines, and fittings for leaks. Verify oil pressure sensor calibration.";
-        else if (strcmp(code, "OIL_ZERO")   == 0) desc =
-            "Oil pressure read near zero - possible pump failure or broken fitting.\n"
-            "What to do: Inspect oil pump, lines, and fittings before any restart. "
-            "Do not run the engine until oil supply is confirmed.";
-        else if (strcmp(code, "OUTPUT_OVERCURRENT") == 0) {
-            snprintf(fallbackDesc, sizeof(fallbackDesc),
-                "%s current remained above its configured shutdown limit.\n"
-                "What to do: Check that output's load, driver, wiring and current-sensor calibration before restarting.",
-                detail && detail[0] ? detail : "An output");
-            desc = fallbackDesc;
+        // The ECU retains diagnostic code/detail; the matched web bundle
+        // expands repair guidance without spending firmware flash on prose.
+        if (!strcmp(code,"MULTIPLE_SENSOR_FAILURE")) {
+            snprintf(ed.faultDescription,sizeof(ed.faultDescription),
+                "MULTIPLE_SENSOR_FAILURE: %s",
+                FeedbackRequirements::sensorName(ed.limpOverrideSensor));
+        } else {
+            snprintf(ed.faultDescription,sizeof(ed.faultDescription),"%s%s%s",code,
+                detail&&detail[0]?": ":"",detail&&detail[0]?detail:"");
         }
-        else if (strcmp(code, "OIL_FLOW_LOW") == 0) desc =
-            "A monitored oil pump did not produce the configured minimum flow for the confirmation time.\n"
-            "What to do: Check oil level, pump operation, filters, lines and flow-meter calibration before restarting.";
-        else if (strcmp(code, "OIL_PRESSURE_LOW") == 0) {
-            snprintf(fallbackDesc, sizeof(fallbackDesc),
-                "%s pressure remained below this oil loop's configured minimum.\n"
-                "What to do: Check oil level, pump, lines, relief/accumulator arrangement and pressure-sensor calibration before clearing the fault.",
-                detail && detail[0] ? detail : "Oil system");
-            desc = fallbackDesc;
-        }
-        else if (strcmp(code, "OIL_FEEDBACK_LOST") == 0) {
-            snprintf(fallbackDesc, sizeof(fallbackDesc),
-                "%s pressure feedback was lost for longer than this oil loop permits.\n"
-                "What to do: Check the selected pressure sensor, wiring and calibration before clearing the fault.",
-                detail && detail[0] ? detail : "Oil system");
-            desc = fallbackDesc;
-        }
-        else if (strcmp(code, "FLAMEOUT")   == 0) desc =
-            "Combustion-loss shutdown: the independent monitor confirmed loss for its configured time.\n"
-            "What to do: Check fuel supply, fuel valve, and the selected flameout sensor/source. "
-            "Inspect the cause before another start.";
-        else if (strcmp(code, "RELIGHT_FAILED") == 0) desc =
-            "Automatic relight failed: combustion did not recover within the configured relight window, or N1 fell below the safe firing speed.\n"
-            "What to do: Check fuel delivery, the selected relight trigger and confirmation sensors, and the selected ignition device before restarting.";
-        else if (strcmp(code, "UNDERSPEED") == 0) desc =
-            "Under-speed: RPM dropped below the minimum running threshold.\n"
-            "What to do: Check fuel supply and throttle settings. "
-            "Verify the RPM sensor is reading correctly.";
-        else if (strcmp(code, "HOT_START")  == 0) desc =
-            "Hot start aborted: exhaust temperature was still too high to start safely.\n"
-            "What to do: Wait for the engine to cool further before attempting another start. "
-            "Increase the cool-down time if this keeps happening.";
-        else if (strcmp(code, "TIT_OVERTEMP")  == 0) desc =
-            "Turbine inlet temperature (TIT) exceeded the safety limit.\n"
-            "What to do: Allow full cool-down. Check combustion system, fuel flow, and "
-            "verify TIT limit is correct for your engine. Inspect turbine wheel for damage.";
-        else if (strcmp(code, "OIL_TEMP_HIGH") == 0) desc =
-            "Engine oil temperature too high.\n"
-            "What to do: Allow the engine to cool down. Check oil cooler (if fitted), "
-            "oil level, and flow rate. Reduce run duration until the cause is found.";
-        else if (strcmp(code, "FUEL_PRESS_LOW")== 0) desc =
-            "Fuel pressure dropped below the minimum threshold during operation.\n"
-            "What to do: Check fuel tank level, fuel filter, pump, and lines. "
-            "Inspect for leaks or blockages before attempting another run.";
-        else if (strcmp(code, "BATT_LOW")      == 0) desc =
-            "Battery / bus voltage too low - risk of control system brownout.\n"
-            "What to do: Charge or replace the battery. Check power wiring for resistance. "
-            "Do not run the engine until the voltage is stable above the limit.";
-        else if (strcmp(code, "SURGE")         == 0) desc =
-            "Compressor surge detected: N1 RPM is oscillating abnormally.\n"
-            "What to do: The engine has been shut down to prevent compressor damage. "
-            "Check throttle slew rate settings, compressor inlet for blockage, "
-            "and reduce throttle advance rate to prevent recurrence.";
-        else if (strcmp(code, "MULTIPLE_SENSOR_FAILURE") == 0) {
-            static char multipleSensorDesc[192];
-            snprintf(multipleSensorDesc, sizeof(multipleSensorDesc),
-                     "Reduced-power operation stopped: another required sensor failed while %s was overridden. "
-                     "Inspect both sensor circuits before restarting.",
-                     FeedbackRequirements::sensorName(ed.limpOverrideSensor));
-            desc = multipleSensorDesc;
-        }
-        // Fallback for unknown / DI-channel fault codes — generate a generic message
-        if (!desc) {
-            snprintf(fallbackDesc, sizeof(fallbackDesc),
-                "Safety fault: %s. Engine has been shut down as a precaution.\n"
-                "Check the event log for sensor readings at the time of the fault "
-                "and review relevant calibration and limit settings before restarting.",
-                code);
-            desc = fallbackDesc;
-        }
-
-        ed.faultDescription[0] = '\0';  // clear previous fault message before writing
-        strncpy(ed.faultDescription, desc, sizeof(ed.faultDescription) - 1);
-        ed.faultDescription[sizeof(ed.faultDescription) - 1] = '\0';
 
         if (_enterFault) _enterFault();   // enterFaultShutdown() — logs FAULT:*, sets lastEvent
     }

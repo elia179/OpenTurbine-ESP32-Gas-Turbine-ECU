@@ -668,6 +668,10 @@ function registryOutputByPurpose(...purposes) {
     registryChannelInstalled(channel) && !String(channel.mirror_of || '') &&
     wanted.has(String(channel.purpose || channel.id || '')));
 }
+function hasMonitoredOilFlowInputs(){
+  return (hwCfg.channel_registry?.outputs||[]).some(output=>registryChannelInstalled(output)&&output.has_flow_monitor&&
+    ((output.purpose==='oil_pump'&&hasRegistryInput('oil_flow'))||(output.purpose==='scavenge_pump'&&hasRegistryInput('scavenge_flow'))));
+}
 function hasRegistryInput(...purposes) { return !!registryInputByPurpose(...purposes); }
 function hasRegistryOutput(...purposes) { return !!registryOutputByPurpose(...purposes); }
 function hasActualAfterburnerHardware(hw = hwCfg) {
@@ -712,10 +716,7 @@ function applyHwConditions() {
   const hasAirstarter  = hasRegistryOutput('air_starter');
   const hasOilScavenge = hasRegistryOutput('scavenge_pump');
   const oilScavengeChannel = registryOutputByPurpose('scavenge_pump');
-  const hasMonitoredOilFlow = !!(
-    (oilPumpChannel?.has_flow_monitor && hasRegistryInput('oil_flow')) ||
-    (oilScavengeChannel?.has_flow_monitor && hasRegistryInput('scavenge_flow'))
-  );
+  const hasMonitoredOilFlow=hasMonitoredOilFlowInputs();
   const hasBleedValve  = hasRegistryOutput('bleed_valve');
   const hasStarterEn   = hasRegistryOutput('starter_enable');
   const hasAbSol       = !!(hasAB && hasRegistryOutput('ab_valve'));
@@ -756,7 +757,7 @@ function applyHwConditions() {
     if (!el || !wrap) return;
     if (!wrap.dataset.baseTitle) {
       const label = wrap.querySelector('.cfg-label')?.textContent?.trim() || '';
-      const desc = wrap.querySelector('.cfg-desc')?.textContent?.trim() || '';
+      const desc = wrap.querySelector('.cfg-desc')?.textContent?.trim() || wrap.getAttribute('title') || '';
       wrap.dataset.baseTitle = desc ? (label ? label + ': ' + desc : desc) : '';
     }
     wrap.dataset.hardwareUnavailable = available ? '0' : '1';
@@ -801,7 +802,7 @@ function applyHwConditions() {
   // ── Oil system: hide pressure-control fields when no sensor ──────────────
   // Without a sensor the closed-loop controller does not run; direct pump
   // output during startup and shutdown is configured on the Sequence page.
-  const oilPressFields = ['oil_rm','oil_zb','oil_tm','oil_mm','oil_mx','oil_as','oil_mp','oa_db','oil_fd','oil_fp'];
+  const oilPressFields = ['oil_rm','oil_tm','oil_mm','oil_mx','oil_as','oil_mp','oa_db','oil_fd','oil_fp'];
   oilPressFields.forEach(k =>
     ghostField(k, hasOilPress, 'Oil pressure sensor is not configured in Hardware. Enable an oil pressure sensor to unlock closed-loop oil pressure settings.'));
   ghostField('oil_ufd', hasMonitoredOilFlow,
@@ -875,17 +876,21 @@ function applyHwConditions() {
   ['tot_safe_margin'].forEach(k =>
     ghostField(k, hasEgt, 'Selected EGT safety requires a configured TOT or TIT sensor.'));
   ghostField('sf_hs', hasEgt, 'Hot-start protection requires a configured TOT or TIT sensor.');
-  ghostField('sf_st', hasEgt, 'The STARTUP EGT Dashboard reference and optional shutdown limit require a configured TOT or TIT sensor.');
+  ghostField('sf_sg_en', hasEgt, 'Fit a TOT or TIT input before enabling startup temperature protection.');
+  ['sf_st_en','sf_sd_en','sf_st','sf_sd','sf_sm'].forEach(key=>ghostField(key,hasEgt,'Fit a TOT or TIT input. Disabled protection retains editable limits.'));
+  refreshStartupGuardUi();
   ghostField('sf_ot', hasOilTemp, 'Oil temperature sensor is not configured in Hardware.');
   ghostField('sf_ot_d', hasOilTemp, 'Oil-temperature confirmation has no effect without an oil-temperature sensor.');
   ghostField('sf_fp', hasFuelPress, 'Fuel pressure sensor is not configured in Hardware.');
+  ghostField('sf_fp_modes', hasFuelPress, 'Fit a fuel-pressure sensor to select its monitoring phases.');
   ghostField('sf_fp_d', hasFuelPress, 'Fuel-pressure confirmation has no effect without a fuel-pressure sensor.');
   ghostField('sf_bv', hasBattVolt, 'Battery voltage sensor is not configured in Hardware.');
   ghostField('sf_bv_d', hasBattVolt, 'Bus-voltage confirmation has no effect without a battery-voltage sensor.');
   ghostField('sf_tit', usesTitEgt, !hasTit ? 'TIT sensor is not configured in Hardware.' : 'TIT is not the selected primary engine temperature.');
   ghostField('sf_sg', hasN1, 'Surge detection requires an N1 RPM sensor.');
-  ghostField('rh_jt', hasN1, 'RPM health checks require an N1 RPM sensor.');
-  ghostField('rh_zs', hasN1, 'RPM health checks require an N1 RPM sensor.');
+  ghostField('rh_jt', hasN1||hasN2, 'RPM health checks require an N1 or N2 RPM sensor.');
+  ghostField('rh_zs', hasN1||hasN2, 'RPM health checks require an N1 or N2 RPM sensor.');
+  ghostField('rc_fs',rcPwmActive,'Configure an RC/servo pulse or PWM-duty input in Hardware to use this timeout.');
   // Fuel response shaping and gradual protection are automatic whenever the
   // main-fuel output exists; users configure the behavior here without a
   // second internal-controller enable.
@@ -922,8 +927,10 @@ function applyHwConditions() {
       !hasAnyPullbackSource ? 'Pullback floor has no effect until an N1, N2, TOT, TIT, P1, P2, or torque sensor is configured in Hardware.' : 'Main fuel output is not configured in Hardware.'));
   const configurePullbackVisibility = (modeKey, normalKeys, predictiveKeys) => {
     const mode = Number(document.getElementById('cf-' + modeKey)?.value || 0);
-    const enabled = mode > 0;
-    const predictive = mode === 2;
+    const enabled = true;
+    const predictive = mode === 1;
+    const checkbox=document.getElementById('cf-'+modeKey+'_on');
+    if(checkbox){const method=document.getElementById('cf-'+modeKey),wrap=method?.closest('.cfg-field');checkbox.disabled=!!method?.disabled;ghostField(modeKey+'_on',wrap?.dataset.hardwareUnavailable!=='1',wrap?.dataset.inactiveReason||'Fit the matching input and main fuel output in Hardware.');}
     normalKeys.forEach(key => setCfgFieldHardHidden(key, !enabled));
     predictiveKeys.forEach(key => setCfgFieldHardHidden(key, !enabled || !predictive));
   };
@@ -1019,17 +1026,20 @@ function applyHwConditions() {
     clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';
     clusterSec.style.display = '';
   }
-  ['rpm_limit','min_rpm','cl_n1'].forEach(k =>
+  ['rpm_limit','min_rpm','sf_us_en','cl_n1'].forEach(k =>
     ghostField(k, hasN1, 'N1 RPM sensor is not configured in Hardware. Standard timer/TOT setup does not use this value.'));
   ghostField('n2_rpm_limit', hasN2, 'N2 RPM sensor is not configured in Hardware. This hard power-turbine shutdown limit does not apply.');
+  ghostField('sf_p1en', hasP1, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_p1t', hasP1, 'P1 pressure sensor is not configured in Hardware. This hard shutdown limit does not apply.');
+  ghostField('sf_p2en', hasP2, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_p2t', hasP2, 'P2 pressure sensor is not configured in Hardware. This hard shutdown limit does not apply.');
+  ghostField('sf_tqen', hasTorque, 'Fit the matching sensor in Hardware before enabling this protection.');
   ghostField('sf_tqt', hasTorque, 'Shaft-torque sensor is not configured in Hardware. This hard shutdown limit does not apply.');
   ghostField('sf_p1d', hasP1, 'Pressure 1 hard-trip confirmation has no fitted Pressure 1 input.');
   ghostField('sf_p2d', hasP2, 'Pressure 2 hard-trip confirmation has no fitted Pressure 2 input.');
   ghostField('sf_tqd', hasTorque, 'Torque hard-trip confirmation has no fitted torque input.');
-  ghostField('sf_lo_d', hasOilPress, 'Low-oil confirmation has no effect without an oil-pressure sensor.');
-  ghostField('sf_oz_d', hasOilPress, 'Near-zero-oil confirmation has no effect without an oil-pressure sensor.');
+  ghostField('sf_oil_modes', hasOilPress || controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length, 'Fit an oil-pressure sensor or switch to select its monitoring phases.');
+  ghostField('sf_lo_d', hasOilPress || controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length, 'Fit an oil-pressure sensor or switch to use this confirmation time.');
   ghostField('cl_tw', hasEgt, 'Cluster EGT warning needs a fitted TOT or TIT sensor.');
   ghostField('cl_ow', hasOilPress, 'Cluster oil warning needs a fitted oil pressure sensor.');
 
@@ -1114,6 +1124,7 @@ function _applyAllVisibility() {
   // Re-run view filter AFTER hw conditions — applyHwConditions() may un-hide expert-only
   // sections (e.g. Windmilling Oil Protection) which the basic view should still mask.
   applyView();
+  refreshProtectionSummaries();
 }
 
 function _escHtml(s) {
