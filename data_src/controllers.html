@@ -1761,7 +1761,7 @@ function renderSimpleControls() {
   const used = new Set(rules.map(rule => String(rule.target || '')));
   const canAdd = outputs.length > 0 && rules.length < 16;
   const timingPending=(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg,cfg.rules)==='Sequence needs setup');
-  const timingNotice=timingPending?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save these controller changes, then place the required Activate/Deactivate blocks in Sequence. Engine start stays blocked until placement is saved. Alternatively, disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
+  const timingNotice=timingPending?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save these controller changes, then place the required Activate/Deactivate blocks in Sequence. Affected controllers stay inactive until placement is saved. Alternatively, disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
   root.innerHTML = `${timingNotice}${cards}<span data-controller-create-capable="${canAdd?'1':'0'}" hidden></span>`;
 }
 // OT_CONTROLLERS_ONLY_END

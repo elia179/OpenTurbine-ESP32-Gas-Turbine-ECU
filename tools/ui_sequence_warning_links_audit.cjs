@@ -96,6 +96,7 @@ const { chromium } = require('playwright');
     await page.evaluate(() => {
       if (!hasRegistryInput('n1_speed')) throw new Error('N1 warning fixture requires a fitted N1 source');
       document.getElementById('cf-pb_n1e').value = '1';
+      document.getElementById('cf-pb_n1e_on').checked = true;
       document.getElementById('cf-pb_n1h').value = String(Number(document.getElementById('cf-rpm_limit').value) + 1000);
       runValidation();
     });

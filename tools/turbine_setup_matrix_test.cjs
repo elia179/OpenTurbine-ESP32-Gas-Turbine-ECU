@@ -638,7 +638,8 @@ const setups = [
         await page.locator('#btn-view-explore').click();
         for (const key of ['pb_p1e','pb_p2e','pb_tqe']) {
           assert.equal(await page.locator(`#cf-${key}`).isDisabled(), false, `${key} should be available`);
-          assert.ok(Number(await page.locator(`#cf-${key}`).inputValue()) > 0, `${key} should remain enabled`);
+          assert.equal(await page.locator(`#cf-${key}_on`).isChecked(), true, `${key} should remain enabled`);
+          assert.ok([0,1].includes(Number(await page.locator(`#cf-${key}`).inputValue())), `${key} must retain a valid Simple/Predictive method`);
         }
         const limiterHelp = await page.locator('#engine-limits').textContent();
         assert.doesNotMatch(limiterHelp, /\bundefined\b/i);

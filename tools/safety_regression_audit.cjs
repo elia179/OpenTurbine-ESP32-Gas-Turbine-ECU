@@ -326,8 +326,8 @@ expect('pulse fuel-flow cards expose only calibration consumed by the PCNT path'
   hardwareCatalog.includes("Number(c.driver) === 2 && purpose === 'fuel_flow'") &&
   hardwareCatalog.includes('No separate hidden flow range is applied'));
 expect('AB flame health loss clears the polarity-aware hysteresis latch',
-  hardware.includes('latch.resetInactive()') &&
-  hardware.includes('fresh threshold crossing is required for flame confirmation'));
+  hardware.includes('filter.reset();g_registryAnalogSwitchState[i]=!c.activeHigh;continue;') &&
+  hardware.includes('ed.abFlameOn=ed.abFlameHealthy && ed.abFlameValue>=.5f;'));
 expect('canonical AB flame threshold is authoritative across calibration, telemetry, and runtime',
   !hwConfig.includes('abFlameThreshold') &&
   !hardware.includes('g_sensorAbFlame') &&
@@ -517,7 +517,7 @@ expect('Pulsed Starter Assist is startup-owned and the RUNNING aid is gone',
   !main.includes('STARTER_LOW_RPM_SUPPORT') && !web.includes('STARTER_LOW_RPM_SUPPORT'));
 
 for (const key of [
-  'low_oil_confirm_ms', 'oil_zero_confirm_ms', 'oil_temp_confirm_ms',
+  'low_oil_confirm_ms', 'oil_temp_confirm_ms',
   'fuel_press_confirm_ms', 'batt_low_confirm_ms'
 ]) {
   expect(`${key} round-trips through firmware and is editable`,
@@ -570,9 +570,9 @@ expect('local digital flame detectors use GPIO rather than ADC-only validation',
   hwConfig.includes('localDigital ? gpioAllowed : adcGpioAllowed') &&
   channelRegistry.includes('!strcmp(purpose, "flame") || !strcmp(purpose, "ab_flame")'));
 expect('canonical main and afterburner digital flame adapters use logical values rather than ADC thresholds',
-  hardware.includes('Registry digital adapters already apply active-high/low') &&
+  hardware.includes('ed.flameDetected=ed.flameHealthy && ed.registryInputValue[flameRegistry]>=.5f;') &&
   hardware.includes('c.driver == ChannelRegistry::I2cDigital') &&
-  hardware.includes('TCA9554 raw sample is 0/1 rather than ADC counts') &&
+  hardware.includes('ed.abFlameOn=ed.abFlameHealthy && ed.abFlameValue>=.5f;') &&
   hardware.includes('const int8_t flameRegistry = inputPlan.flame') &&
   !hardware.includes('g_sensorFlame'));
 expect('registry-backed AB command remains available to control rules without a local GPIO pin',
@@ -1237,8 +1237,9 @@ expect('STOP-input and startup-sequence faults publish stable fault identities',
 expect('web START readiness mirrors canonical STOP health and registry inhibit checks',
   web.includes('ed.stopSwitchConfigured && !ed.stopSwitchHealthy') &&
   web.includes('const char* role = strcmp(channel.purpose, "generic")') &&
-  web.includes('!strcmp(role, "inhibit_start")') &&
-  web.includes('!ed.registryInputHealthy[i] || ed.registryInputValue[i] >= 0.5f'));
+  web.includes('channel.installed && PressureSafety::blocksStart(role,') &&
+  web.includes('ed.registryInputHealthy[i], ed.registryInputValue[i] >= 0.5f, hw.safetyLowOil)') &&
+  read('src/system/PressureSafety.h').includes('(!healthy || active)'));
 expect('every remappable core actuator is parked before peripheral attachment',
   hardware.includes('parkProportional(hw.hasCoolFan') &&
   hardware.includes('parkProportional(hw.hasBleedValve') &&

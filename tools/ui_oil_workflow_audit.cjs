@@ -34,7 +34,7 @@ const {chromium,firefox,webkit}=require('playwright');
     const owner=document.querySelector(`[data-controller-rule="${index}"]`);owner.open=true;
     updateSimpleControl(index,'name','Renamed fault action');
     if(!document.querySelector(`[data-controller-rule="${index}"]`).open)throw Error('Editing collapsed controller');
-    const activation=document.querySelector(`[data-controller-rule="${index}"] [aria-label="Activate when"]`);
+    const activation=document.querySelector(`[data-controller-rule="${index}"] [aria-label^="Activate:"]`);
     const nested=!!activation?.closest('details:not([data-controller-card])');
     const safety=document.querySelector('[data-protection="egt"]');if(!safety)throw Error('Missing safety fixture');safety.open=true;
     renderForm(true);

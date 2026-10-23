@@ -32,12 +32,12 @@ const {chromium,firefox,webkit}=require('playwright');
    for(const theme of ['carbon','ember','slate','midnight','contrast','daylight']){
     await p.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     for(const kind of ['startup','trip','limiting']){
-     const css=await p.locator(`[data-protection="egt"] .protection-part-${kind}`).evaluate(e=>{const s=getComputedStyle(e),b=getComputedStyle(e,'::before');return {width:s.borderTopWidth,strip:b.backgroundColor,expected:s.borderTopColor};});
-     assert.equal(css.width,'3px');assert.equal(css.strip,css.expected);
+     const styles=await p.locator(`[data-protection="egt"] .protection-part-${kind}`).evaluateAll(es=>es.map(e=>{const s=getComputedStyle(e),b=getComputedStyle(e,'::before');return {width:s.borderTopWidth,strip:b.backgroundColor,expected:s.borderTopColor};}));
+     assert.ok(styles.length);for(const css of styles){assert.equal(css.width,'3px');assert.equal(css.strip,css.expected);}
     }
    }
    await p.emulateMedia({forcedColors:'active'});
-   const forced=await p.locator('.protection-part-startup').evaluate(e=>{const s=getComputedStyle(e,'::before');return {supported:CSS.supports('forced-color-adjust','none'),adjust:s.forcedColorAdjust,height:s.height,color:s.backgroundColor};});
+   const forced=await p.locator('.protection-part-startup').first().evaluate(e=>{const s=getComputedStyle(e,'::before');return {supported:CSS.supports('forced-color-adjust','none'),adjust:s.forcedColorAdjust,height:s.height,color:s.backgroundColor};});
    if(forced.supported)assert.equal(forced.adjust,'none');assert.equal(forced.height,'3px');assert.notEqual(forced.color,'rgba(0, 0, 0, 0)');
    assert.deepEqual(errors,[]);console.log(engine.name(),gzip?'gzip':'source','shortcut heading visibility at 3 widths, six themes, contrast accents, live trip status and units passed');
   }finally{await browser.close();}

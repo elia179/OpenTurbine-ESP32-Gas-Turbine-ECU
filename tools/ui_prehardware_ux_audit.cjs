@@ -1125,8 +1125,10 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       has_p2: false,
       throttle_input_type: 'servo',
       throttle_input_us: 1510,
+      rc_throttle_valid: true,
       idle_input_type: 'servo',
       idle_input_us: 1320
+      ,rc_idle_valid: true
     });
     await patchConfig(page, { calibration: {
       throttle_min_raw: 1075, throttle_max_raw: 1925,
