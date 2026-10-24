@@ -61,7 +61,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    const order=await page.evaluate(()=>JSON.parse(localStorage.getItem('ot_dashboard_card_order_v1')));
    assert.ok(order.indexOf('dashboard-warnings-card')>order.indexOf('n1-card'));
    assert.equal(order.filter(id=>id==='dashboard-warnings-card').length,1);
-   await page.locator('#dashboard-card-edit-btn').click();assert.equal(await slot.isVisible(),false);
+   await page.locator('#dashboard-card-edit-btn').click();await slot.waitFor({state:'hidden'});assert.equal(await slot.isVisible(),false);
    await page.reload();await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});
    await feed({});assert.equal(await slot.isVisible(),false);
    assert.deepEqual(await page.evaluate(()=>[...document.querySelector('#dashboard-custom-cards').children].map(c=>c.id)),order);
