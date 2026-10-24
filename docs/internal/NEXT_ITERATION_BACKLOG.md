@@ -1,4 +1,4 @@
-# Next software iteration after 2.6.0
+# Planned 2.6.1 follow-ups
 
 ## Setup Tool Wi-Fi update: final reconnect appears stuck
 
@@ -35,3 +35,32 @@ The missing UI transition/progress is confirmed. The failed attempt's network/HT
 - [ ] Verify that the user can tell whether the tool is waiting for input, waiting for the board, actively checking files, finished or failed throughout the final step.
 
 Do not reflash, rewrite configuration or reproduce on a live engine without a separately authorized stopped-bench session. The current report requests investigation and retention for the next iteration.
+
+## Sequencer: show the individual actions inside compound blocks
+
+Requested 24 October 2026 for **2.6.1**. Open; no sequencer implementation changed yet.
+
+### Intended behavior
+
+Opening **Immediate Fuel and Ignition Cut** should show individual action cards inside the parent block, using the installed outputs' actual names. A typical installation would show **Main Fuel Metering → 0%**, **Fuel Shutoff → CLOSED**, **Main Igniter → OFF**, **Starter → 0%** and **Starter Enable → OFF**. If secondary ignition, glow, secondary fuel or afterburner outputs are fitted, show each affected output separately. A general sentence about cutting ignition is insufficient to identify which devices are commanded.
+
+Keep the parent block compact when collapsed. Its expanded contents should use the normal sequencer action-card style and make the concrete commands easy to inspect. Fixed protective actions remain part of the parent block, rather than becoming extra user-placed blocks or removable shutdown commands. Show commands as commands, not as proof of measured electrical output state.
+
+### Source evidence and scope
+
+`src/engine/sequencer/blocks/ImmediateCut.h::onEnter` clears main fuel demand, fuel shutoff, both igniter flags, glow demand, starter demand/enable, secondary fuel demand and afterburner valve/pump demand. It also clears relight/flame-monitor state and oil pressure targets. **It deliberately does not zero the oil-pump output**: retained lubrication through rotor slowdown must not be represented by an invented Oil Pump OFF card. Explain relevant retained behavior separately.
+
+`data_src/sequence.html` already models several compound commands for the final-state recap, including ImmediateCut. Review and reuse a common resolved-action representation where possible, with tests against actual firmware behavior; avoid another independent list that drifts from runtime or the recap.
+
+- [ ] Add expanded per-output action cards for ImmediateCut, resolving registry names, fitted ignition sources and output types/polarity into clear logical values (percent, OFF or CLOSED).
+- [ ] Review **every compound block** for the same treatment, including oil prime, starter/spool steps, final startup checks with optional release actions, cooldown/final stop and afterburner ignition/stabilization/shutdown steps. Show only actions that block actually takes under the selected options.
+- [ ] Distinguish entry actions, commands maintained while waiting, and exit/release actions where they differ. A sensor wait alone must not appear as an output command.
+- [ ] Account for selected targets, additional named outputs, linked outputs, controller ownership and custom entry/exit actions so the displayed behavior is complete and not contradictory.
+- [ ] Unfitted devices should not produce misleading action cards. Missing required assignments must instead have a clear, actionable explanation.
+- [ ] Preserve the existing protective semantics and saved sequence format unless a separately justified change is required. This request primarily makes existing compound behavior visible.
+
+### Acceptance evidence
+
+- [ ] Compare expanded actions with firmware commands and the final-state recap across Classic/S3 profiles: primary ignition only, secondary ignition/glow, auxiliary fuel/afterburner, renamed channels and absent optional hardware.
+- [ ] Check conditional entry/exit settings, normal controller ownership, lubrication carry-through and shutdown end state. No card may imply that ImmediateCut stops the oil pump.
+- [ ] Verify compact collapsed cards, readable expanded subcards and mobile layout, with no extra blocks the user must place or save.
