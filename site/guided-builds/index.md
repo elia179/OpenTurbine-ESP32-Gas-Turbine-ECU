@@ -6,6 +6,8 @@ lede: One engine, three milestones. Follow the basic path first and add complexi
 permalink: /guided-builds/
 ---
 
+{% include guided-intro.html %}
+
 <div class="card-grid three build-cards">
 <a class="card" href="{{ '/guided-builds/basic/' | relative_url }}"><p class="eyebrow">Build 1 · Configure</p><h2>Basic turbojet</h2><p>Connect and calibrate the essential inputs. Set up starter, fuel, ignition and lubrication, then verify protection and a complete dry start/stop path.</p><span class="button secondary">Begin Build 1 →</span></a>
 <a class="card" href="{{ '/guided-builds/control/' | relative_url }}"><p class="eyebrow">Build 2 · Develop</p><h2>Control and protection</h2><p>Add combustor-pressure feedback, automatic idle, fuel limiting and separate startup-temperature protection. Learn configurable switch controllers and sequence activation.</p><span class="button secondary">Continue to Build 2 →</span></a>

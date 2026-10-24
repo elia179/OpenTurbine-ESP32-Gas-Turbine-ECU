@@ -10,6 +10,8 @@ build_level: 1
 {% include guided-nav.html %}
 {% assign e = site.data.guided_example %}
 
+{% include guided-intro.html %}
+
 ## What you will build
 
 Our example is a homemade, HX80-sized **turbojet**: one compressor/turbine shaft, liquid fuel, spark ignition and an electric starter. OpenTurbine commands its fuel pump, starter, ignition, oil pump and fuel shutoff. A separate free power turbine comes in Build 3.
@@ -120,9 +122,9 @@ For each, choose **Hardware → Add output**, its named purpose, driver and GPIO
 
 {% include build-figure.html file="pwm" alt="PWM signal and reference connect to a driver; separate fused power carries load current." caption="Reuse this pattern for compatible fuel and oil drivers, each with its own load protection." %}
 
-{% include build-figure.html file="relay" alt="A relay interface receives a logic command; separately powered contacts switch a low-power demonstration load." caption="On/off wiring example: VCC supplies the module; COM is the contact common and NO is normally open. Use the actual ignition/valve driver's documented interface for the installation." %}
-
 {% include build-screen.html file="fuel-configured" step="Check a PWM output" alt="Fuel output card showing frequency, resolution, polarity and safe settings." caption="Minimum reliable pump command is calibrated separately from electrical endpoints." %}
+
+{% include build-figure.html file="relay" alt="The ECU Igniter GPIO drives a relay module. Its normally open contacts switch fused low-voltage power to a self-contained spark ignition unit; the unit supplies the spark plug." caption="Igniter example: use a spark unit designed to operate from switched DC power and relay contacts rated for its voltage, inrush and switching duty. VCC powers the relay module; COM and NO switch the spark unit's supply. Never switch the high-voltage spark lead or connect a bare ignition coil to this circuit. Check module polarity and physical off before connecting ignition power." %}
 
 {% include build-screen.html file="igniter-configured" step="Configure the ignition command" alt="Igniter Hardware card showing its on/off interface, GPIO and safe state." caption="Confirm physical off at logical zero using a dummy load before connecting ignition energy." %}
 

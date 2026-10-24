@@ -56,6 +56,10 @@ const server = http.createServer((req,res) => {
       assert.match(section,/include build-screen/,`${heading[1]} needs a matching screenshot`);
     }
     assert.ok(basicHtml.indexOf('spi-configured.png')<basicHtml.indexOf('tot-configured.png'),'shared bus screenshot precedes converter screenshot');
+    const fuelShot=basicHtml.indexOf('fuel-configured.png'),relayDiagram=basicHtml.indexOf('relay.svg'),igniterShot=basicHtml.indexOf('igniter-configured.png');
+    assert.ok(fuelShot<relayDiagram&&relayDiagram<igniterShot,'relay wiring belongs beside the ignition Hardware card');
+    assert.ok(!basicHtml.slice(relayDiagram,igniterShot).includes('build-screen-viewport'),'no unrelated setup screenshot separates relay wiring from ignition');
+    assert.ok(basicHtml.includes('Make the example your own.'),'basic path explains configurable examples and board differences');
     const example=require('../site/_data/guided_example.json');
     assert.ok(example.fuel_min_pct<example.fuel_idle_pct&&example.fuel_idle_pct<example.fuel_max_pct);
     assert.ok(example.n1_idle_rpm<example.n1_full_rpm&&example.n1_full_rpm<example.n1_trip_rpm);
