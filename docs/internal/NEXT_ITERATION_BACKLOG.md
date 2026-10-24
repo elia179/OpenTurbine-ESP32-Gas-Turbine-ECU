@@ -64,3 +64,13 @@ Keep the parent block compact when collapsed. Its expanded contents should use t
 - [ ] Compare expanded actions with firmware commands and the final-state recap across Classic/S3 profiles: primary ignition only, secondary ignition/glow, auxiliary fuel/afterburner, renamed channels and absent optional hardware.
 - [ ] Check conditional entry/exit settings, normal controller ownership, lubrication carry-through and shutdown end state. No card may imply that ImmediateCut stops the oil pump.
 - [ ] Verify compact collapsed cards, readable expanded subcards and mobile layout, with no extra blocks the user must place or save.
+
+## System page: expand all three main sections on entry
+
+Requested 24 October 2026 for **2.6.1**. Open; no implementation changed yet.
+
+On opening **System**, automatically expand all three main cards: **Identity & access**, **Connections & runtime**, and **Maintenance**. Currently only Identity & access opens. Users should immediately see the contents of all three rather than having to discover the collapsed sections.
+
+- [ ] Apply the expanded default on initial load, navigation back into System and page reload. Keep manual collapsing available while the user is on the page.
+- [ ] Do not automatically expand every nested advanced setting or execute maintenance actions; this request concerns the three top-level cards only.
+- [ ] Check desktop/mobile layout and direct links into each section. Expanding sections must not change or save ECU configuration.
