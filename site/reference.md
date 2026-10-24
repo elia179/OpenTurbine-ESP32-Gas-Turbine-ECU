@@ -28,13 +28,13 @@ permalink: /reference/
 | Task | Direct instructions |
 | --- | --- |
 | Choose a supported board or sensor | [Boards]({{ '/hardware/#supported-esp32-targets' | relative_url }}) · [Compatible interfaces]({{ '/hardware/#supported-sensor-and-expansion-devices' | relative_url }}) |
-| Name a device and assign its connection | [Channel fields]({{ '/user-guide/#83-what-every-channel-card-field-means' | relative_url }}) · [Example S3 pin plan]({{ '/guided-builds/parts/#an-optional-cumulative-pin-plan' | relative_url }}) |
-| Set up Dashboard warnings | [References and enable switches]({{ '/guided-builds/basic/#set-up-dashboard-references-and-warnings-now' | relative_url }}) |
-| Choose fixed, input or automatic idle—or turn idle off | [Running idle choices and screenshots]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}) |
+| Name a device and assign its connection | [Channel fields]({{ '/user-guide/#83-what-every-channel-card-field-means' | relative_url }}) · [Example S3 pin plan]({{ '/guided-builds/parts/#pin-plan' | relative_url }}) |
+| Set up Dashboard warnings | [References and enable switches]({{ '/guided-builds/basic/#limits' | relative_url }}) |
+| Choose fixed, input or automatic idle—or turn idle off | [Running idle choices and screenshots]({{ '/guided-builds/control/#idle' | relative_url }}) |
 | Calibrate the fuel pump minimum | [Pump calibration and button states]({{ '/guided-builds/basic/#fuel' | relative_url }}) |
 | Change a sensor bar's display range | [Dashboard scales and recent trends]({{ '/user-guide/#dashboard-readings-and-display-scales' | relative_url }}) |
-| Create a controller | [Illustrated input-to-output mapping]({{ '/guided-builds/control/#custom' | relative_url }}) · [Controller methods and ownership]({{ '/user-guide/#part-13-use-custom-controllers' | relative_url }}) |
-| Calibrate an input | [Calibration checklist]({{ '/user-guide/#part-11-calibrate-inputs-and-outputs' | relative_url }}) · [Throttle wizard]({{ '/guided-builds/basic/#throttle' | relative_url }}) · [Pressure wizard]({{ '/guided-builds/control/#pressure' | relative_url }}) |
+| Create a controller | [Named switch safety controller]({{ '/guided-builds/control/#custom' | relative_url }}) · [Controller methods and ownership]({{ '/user-guide/#part-13-use-custom-controllers' | relative_url }}) |
+| Calibrate an input | [Calibration checklist]({{ '/user-guide/#part-11-calibrate-inputs-and-outputs' | relative_url }}) · [Throttle wizard]({{ '/guided-builds/basic/#throttle' | relative_url }}) · [Oil pressure wizard]({{ '/guided-builds/basic/#pressure' | relative_url }}) |
 | Test an output | [Tools and settings screenshots]({{ '/guided-builds/basic/#starter' | relative_url }}) · [Dry-test checklist]({{ '/user-guide/#part-14-dry-test-the-complete-ecu' | relative_url }}) |
 | Add a sequence block | [Block picker and expanded cards]({{ '/guided-builds/basic/#sequence' | relative_url }}) · [Sequence reference]({{ '/user-guide/#part-12-build-startup-and-shutdown-sequences' | relative_url }}) |
 | Check a limit or shutdown response | [Limits and hard trips]({{ '/guided-builds/control/#limits' | relative_url }}) · [Safety-function reference]({{ '/user-guide/#92-safety-functions' | relative_url }}) |

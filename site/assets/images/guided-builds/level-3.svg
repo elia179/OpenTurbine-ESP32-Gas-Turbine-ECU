@@ -1,51 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Level 3: one system that grows</title><desc id="desc">Functional map — wiring details live in the individual steps. Orange borders mark additions.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Build 3: gas generator + free power turbine</title><desc id="desc">Gas flow joins the stages. N1 and N2 are mechanically separate shafts.</desc>
 <style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
 <rect width="1000" height="600" rx="18" fill="#101922"/>
-<text x="30" y="42" class="heading" text-anchor="start">Level 3: one system that grows</text>
-<text x="30" y="76" class="small" text-anchor="start">Functional map — wiring details live in the individual steps. Orange borders mark additions.</text>
-<rect x="360" y="115" width="280" height="370" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="500.0" y="147" class="" text-anchor="middle">OpenTurbine ECU</text>
-<text x="500" y="260" class="" text-anchor="middle">Hardware</text>
-<text x="500" y="308" class="" text-anchor="middle">Controllers + protection</text>
-<text x="500" y="356" class="" text-anchor="middle">Sequence + calibration</text>
-<text x="500" y="415" class="" text-anchor="middle">Physical Start / Stop</text>
-<rect x="30" y="125" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="157" class="" text-anchor="middle">N1 pulses</text>
-<polyline points="310,151 360,151" class="net" stroke="#74dcb7"/>
-<rect x="30" y="190" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="222" class="" text-anchor="middle">Turbine temperature</text>
-<polyline points="310,216 360,216" class="net" stroke="#74dcb7"/>
-<rect x="30" y="255" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="287" class="" text-anchor="middle">Throttle</text>
-<polyline points="310,281 360,281" class="net" stroke="#74dcb7"/>
-<rect x="30" y="320" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="352" class="" text-anchor="middle">Pressure + brightness knob</text>
-<polyline points="310,346 360,346" class="net" stroke="#74dcb7"/>
-<rect x="30" y="385" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="417" class="" text-anchor="middle">N2 + auxiliary sensing</text>
-<rect x="30" y="385" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
-<polyline points="310,411 360,411" class="net" stroke="#74dcb7"/>
-<rect x="30" y="450" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="482" class="" text-anchor="middle">Torque + I²C thrust</text>
-<rect x="30" y="450" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
-<polyline points="310,476 360,476" class="net" stroke="#74dcb7"/>
-<rect x="690" y="125" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="157" class="" text-anchor="middle">Starter signal</text>
-<polyline points="640,151 690,151" class="net" stroke="#74dcb7"/>
-<rect x="690" y="190" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="222" class="" text-anchor="middle">Ignition command</text>
-<polyline points="640,216 690,216" class="net" stroke="#74dcb7"/>
-<rect x="690" y="255" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="287" class="" text-anchor="middle">Fuel command</text>
-<polyline points="640,281 690,281" class="net" stroke="#74dcb7"/>
-<rect x="690" y="320" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="352" class="" text-anchor="middle">Shutoff + oil + light</text>
-<polyline points="640,346 690,346" class="net" stroke="#74dcb7"/>
-<rect x="690" y="385" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="417" class="" text-anchor="middle">Fan + instrumentation</text>
-<rect x="690" y="385" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
-<polyline points="640,411 690,411" class="net" stroke="#74dcb7"/>
-<text x="30" y="517" class="small" text-anchor="start">Independent physical stop removes fuel / relevant load energy outside this software map.</text>
+<text x="30" y="42" class="heading" text-anchor="start">Build 3: gas generator + free power turbine</text>
+<text x="30" y="76" class="small" text-anchor="start">Gas flow joins the stages. N1 and N2 are mechanically separate shafts.</text>
+<rect x="25" y="145" width="280" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="165.0" y="177" class="" text-anchor="middle">Gas generator</text>
+<text x="45" y="220" class="small" text-anchor="start">Compressor + turbine: N1</text>
+<text x="45" y="253" class="small" text-anchor="start">Fuel / spark / starter</text>
+<rect x="405" y="145" width="250" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="530.0" y="177" class="" text-anchor="middle">Free power turbine</text>
+<text x="425" y="220" class="small" text-anchor="start">Independent shaft: N2</text>
+<text x="425" y="253" class="small" text-anchor="start">Check its own oil supply</text>
+<rect x="755" y="145" width="220" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="865.0" y="177" class="" text-anchor="middle">Driven load</text>
+<text x="775" y="220" class="small" text-anchor="start">Coupling / gearing</text>
+<text x="775" y="253" class="small" text-anchor="start">Defined load envelope</text>
+<polyline points="305,205 405,205" class="net heavy" stroke="#ff9276"/>
+<text x="315" y="180" class="small" text-anchor="start">Gas flow</text>
+<polyline points="655,205 755,205" class="net heavy" stroke="#b6c4d2"/>
+<text x="665" y="180" class="small" text-anchor="start">Shaft</text>
+<text x="40" y="325" class="small" text-anchor="start">TOT location: after gas-generator turbine, before added free turbine.</text>
+<text x="40" y="357" class="small" text-anchor="start">Moving the probe changes what its readings and limits mean.</text>
+<rect x="180" y="400" width="640" height="95" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="500.0" y="432" class="" text-anchor="middle">OpenTurbine: both speeds + temperature + oil</text>
+<polyline points="165,285 165,445 180,445" class="net" stroke="#74dcb7"/>
+<polyline points="530,285 530,400" class="net" stroke="#74dcb7"/>
+<text x="30" y="525" class="small" text-anchor="start">Fuel governor uses N2; independent N1 / N2 / temperature protection remains active.</text>
 <text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
 <polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>
 <text x="270" y="558" class="small" text-anchor="start">Supply / load power</text>

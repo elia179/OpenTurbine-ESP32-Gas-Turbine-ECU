@@ -15,6 +15,8 @@ on:
       - tools/audit_guided_builds.cjs
       - tools/generate_guided_build_diagrams.py
       - tools/capture_guided_build_screenshots.cjs
+      - tools/guided_build_fixture.cjs
+      - tools/audit_guided_recipes.cjs
       - .github/workflows/pages.yml
   pull_request:
     paths:
@@ -29,6 +31,8 @@ on:
       - tools/audit_guided_builds.cjs
       - tools/generate_guided_build_diagrams.py
       - tools/capture_guided_build_screenshots.cjs
+      - tools/guided_build_fixture.cjs
+      - tools/audit_guided_recipes.cjs
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -73,6 +77,14 @@ jobs:
         env:
           OT_AUDIT_SHOTS: ${{ runner.temp }}/documentation-review
         run: node tools/audit_guided_builds.cjs
+      - name: Reproduce guided controller and sequence recipes
+        run: node tools/audit_guided_recipes.cjs
+      - name: Upload reviewable draft site
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: guided-builds-site-preview
+          path: ./_site
       - name: Upload documentation review images
         if: always()
         uses: actions/upload-artifact@v4
