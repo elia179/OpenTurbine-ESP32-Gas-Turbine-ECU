@@ -120,8 +120,9 @@ th,td { padding:.85rem; border-bottom:1px solid var(--line); text-align:left; }
 .build-screen-viewport img { min-width:760px; }
 .build-diagram-viewport img { min-width:800px; }
 .build-screen-viewport:focus-visible,.build-diagram-viewport:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-@media (max-width:700px) { .build-screen figcaption::after { content:' Swipe the screenshot sideways, or select it to enlarge.'; color:var(--muted); } }
-@media (max-width:850px) { .build-figure:not(.build-screen) figcaption::after { content:' Swipe the diagram sideways, or select it to enlarge.'; color:var(--muted); } }
+@media (max-width:850px) {
+  .build-screen-viewport::before,.build-diagram-viewport::before { content:'↔ Swipe sideways, or select the image to enlarge'; display:block; position:sticky; left:0; padding:.5rem .65rem; background:var(--surface); color:var(--muted); font-size:.85rem; }
+}
 .build-next { margin:1.5rem 0 2rem; text-align:right; }
 .build-next a { display:inline-block; min-height:44px; padding:.65rem 0; }
 .build-hint { margin:.8rem 0; padding:1rem; border:1px solid var(--line); border-radius:.5rem; }
