@@ -70,7 +70,7 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
     assert.equal(await page.locator('#p1-card .gauge-bar').evaluate(el=>el.style.background),'var(--yellow)');
     await shot('dashboard-pressure-limit','#p1-card');
     const switchEdit=state=>{
-      state.hardware.channel_registry.inputs.push({id:'oil_circuit_2',name:'Oil circuit 2 switch',purpose:'digital_switch',role:'digital_switch',driver:0,pin:35,active_high:false,pullup:true,min:0,max:1});
+      state.hardware.channel_registry.inputs.push({id:'oil_circuit_2',name:'Oil circuit 2 switch',purpose:'generic',role:'generic',driver:0,pin:35,active_high:false,pullup:true,min:0,max:1});
       state.settings.rules.push({controller_id:22,name:'Oil circuit 2',enabled:true,kind:0,source:'oil_circuit_2',target:'request_fault',op:0,threshold:.5,hysteresis:0,confirm_ms:500,activate_events:4,deactivate_events:24,mode_mask:4});
     };
     await load(2,'controllers',{edit:switchEdit});await open('[data-controller-id="22"]');await shot('switch-fault-controller','[data-controller-id="22"]');
@@ -82,6 +82,12 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
     await page.locator('#btn-edit-buses').click();await shot('i2c-configured','#hardware-i2c-card');await page.locator('#btn-edit-buses').click();
     await page.locator('[data-registry-id="oil_pump"]').getByRole('button',{name:'Edit',exact:true}).click();await shot('current-configured','[data-registry-id="oil_pump"] .registry-subcard:has-text("Current sensing")');
     await load(3,'controllers',{workshops:true});await open('[data-controller-output="cooling_fan"]');await shot('fan-hysteresis','[data-controller-output="cooling_fan"]');await open('[data-controller-output="bench_light"]');await shot('controller-mapping','[data-controller-output="bench_light"]');await shot('controller-states','[data-controller-output="bench_light"] .controller-form-section:has(.automation-states)');
+    const light=page.locator('[data-controller-output="bench_light"]');await light.getByRole('textbox',{name:'Controller name',exact:true}).fill('Bench light dimmer');await light.getByRole('textbox',{name:'Controller name',exact:true}).press('Tab');
+    await page.locator('#btn-save').click();
+    assert.equal(await page.getByRole('button',{name:'Save anyway',exact:true}).isVisible(),false,'optional workshop has no unresolved save warnings');
+    await shot('controller-save','#save-recap-modal .save-recap-card');
+    await load(3,'controllers',{workshops:true,edit:state=>{state.settings.rules=state.settings.rules.filter(rule=>rule.target!=='bench_light');}});
+    await open('.controller-create-card');await page.locator('#new-controller-output').selectOption('bench_light');await shot('controller-create','.controller-create-card');await page.getByRole('button',{name:'Create controller',exact:true}).click();await open('[data-controller-output="bench_light"]');await shot('controller-new','[data-controller-output="bench_light"]');
     await load(3,'calibration',{workshops:true});await shot('phase-torque-calibration','#torque-phase-wizard');await shot('thrust-calibration','#thrust-cal-row');
     // Verify both cumulative development-board plans in the actual Hardware UI.
     for(const board of ['esp32','esp32s3'])for(const level of [1,2,3]){

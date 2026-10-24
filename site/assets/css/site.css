@@ -116,10 +116,12 @@ th,td { padding:.85rem; border-bottom:1px solid var(--line); text-align:left; }
 .document h2[id] { scroll-margin-top:100px; margin-top:3rem; }
 .build-figure { margin:1.6rem 0 1rem; }
 .build-figure img { display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:.65rem; }
-.build-screen-viewport { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; border-radius:.65rem; }
-.build-screen-viewport img { min-width:640px; }
-.build-screen-viewport:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.build-screen-viewport,.build-diagram-viewport { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; border-radius:.65rem; }
+.build-screen-viewport img { min-width:760px; }
+.build-diagram-viewport img { min-width:800px; }
+.build-screen-viewport:focus-visible,.build-diagram-viewport:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 @media (max-width:700px) { .build-screen figcaption::after { content:' Swipe the screenshot sideways, or select it to enlarge.'; color:var(--muted); } }
+@media (max-width:850px) { .build-figure:not(.build-screen) figcaption::after { content:' Swipe the diagram sideways, or select it to enlarge.'; color:var(--muted); } }
 .build-next { margin:1.5rem 0 2rem; text-align:right; }
 .build-next a { display:inline-block; min-height:44px; padding:.65rem 0; }
 .build-hint { margin:.8rem 0; padding:1rem; border:1px solid var(--line); border-radius:.5rem; }

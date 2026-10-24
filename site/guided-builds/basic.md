@@ -138,7 +138,7 @@ Open **Controllers → Shutdown & Protection**. These are **assumed teaching thr
 | Card | Value and enable state |
 | --- | --- |
 | N1 core speed | Maximum N1 Speed {{ e.n1_trip_rpm }} RPM; overspeed ON |
-| Temperature protection | Temperature source for safeties = Main TOT; outlet limit {{ e.tot_trip_c }} °C; running shutdown ON |
+| Temperature protection | Temperature Source for Safeties = Turbine outlet temperature (TOT), using Main TOT; outlet limit {{ e.tot_trip_c }} °C; running shutdown ON |
 | Oil pressure protection | Low-Pressure Limit {{ e.oil_min_bar }} bar; confirmation {{ e.oil_confirm_ms }} ms; monitor Running; ON |
 
 Startup's oil check comes next. It permits pressure to build before ignition without treating zero Standby pressure as a running fault. With separate startup-temperature guard OFF, normal temperature shutdown applies during Startup too. Build 2 teaches a separate guard.

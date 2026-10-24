@@ -86,12 +86,21 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.hardware.shutdown_seq.length,4);assert.equal(saved.hardware.startup_enter_actions[7][0].value,0);
     console.log('Both paths saved and reloaded, including explicit starter cut and the documented 2.6.0 advisory.');
     // Build 2/3 field recipes start at their explicit cumulative hardware baseline.
-    await page.request.post(base+'/api/ecu_config',{data:guidedFixture(initial,2)});await page.goto(base+'/controllers.html');
-    await open('[data-built-in="fuel-support"]');await open('[data-built-in="fuel-support"] [data-subcard="Idle"]');await page.locator('#cf-fi_mode').selectOption('4');await fill(page.locator('#cf-di_tr'),e.n1_idle_rpm);await fill(page.locator('#cf-di_rl'),e.n1_idle_cutoff_rpm);assert.equal(await page.locator('#cf-di_db').inputValue(),String(e.n1_idle_deadband_rpm));
-    await page.request.post(base+'/api/ecu_config',{data:guidedFixture(initial,3)});await page.goto(base+'/controllers.html');await open('[data-controller-output="main_fuel"]');
+    const second=guidedFixture(initial,2);second.settings.dynamic_idle.fuel_mode=1;second.hardware.controllers.dynamic_idle=false;second.settings.rules[0].output_min=e.fuel_idle_pct/100;
+    await page.request.post(base+'/api/ecu_config',{data:second});await page.goto(base+'/controllers.html');
+    await open('[data-controller-output="main_fuel"]');await fill(page.getByLabel('Output low (%)',{exact:true}),e.fuel_min_pct);
+    await open('[data-built-in="fuel-support"]');await open('[data-built-in="fuel-support"] [data-subcard="Idle"]');await page.locator('#cf-fi_mode').selectOption('4');
+    await page.locator('#cf-di_src').selectOption('0');await fill(page.locator('#cf-di_tr'),e.n1_idle_rpm);await fill(page.locator('#cf-di_rl'),e.n1_idle_cutoff_rpm);await fill(page.locator('#cf-di_db'),e.n1_idle_deadband_rpm);await fill(page.locator('#cf-th_mx'),e.fuel_idle_ceiling_pct);
+    await open('[data-built-in="fuel-support"] [data-subcard="Idle"] details:has(#cf-di_mx)');await fill(page.locator('#cf-di_mx'),1);await saveControllers();
+    saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.settings.dynamic_idle.fuel_mode,4);assert.equal(saved.settings.rules[0].output_min,e.fuel_min_pct/100);
+    const third=guidedFixture(initial,3);Object.assign(third.settings.rules[0],{kind:1,name:'Main Fuel',source:'operator_throttle'});
+    await page.request.post(base+'/api/ecu_config',{data:third});await page.goto(base+'/controllers.html');await open('[data-controller-output="main_fuel"]');
+    await fill(page.getByLabel('Controller name',{exact:true}),'Main Fuel N2 Governor');await labelControl('Control method').selectOption({label:'Hold a feedback target'});await labelControl('Feedback signal').selectOption('n2_main');
     await labelControl('How is the target selected?').selectOption({label:'Fixed value'});await fill(labelControl('Target (RPM)'),e.n2_target_rpm);
-    assert.equal(await labelControl('Feedback signal').inputValue(),'n2_main');assert.equal(await labelControl('Minimum output (%)').inputValue(),String(e.fuel_min_pct));
-    assert.deepEqual(errors,[]);console.log('Build 2 automatic idle and Build 3 fixed N2 target fields match the recipes.');
+    await fill(labelControl('Minimum output (%)'),e.fuel_idle_pct);await fill(labelControl('Maximum output (%)'),e.fuel_max_pct);
+    assert.equal(await labelControl('Feedback signal').inputValue(),'n2_main');assert.equal(await labelControl('Minimum output (%)').inputValue(),String(e.fuel_idle_pct));
+    await saveControllers();saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.settings.rules.length,1);assert.equal(saved.settings.rules[0].kind,2);assert.equal(saved.settings.rules[0].target_fixed,e.n2_target_rpm);assert.equal(saved.settings.dynamic_idle.fuel_mode,1);
+    assert.deepEqual(errors,[]);console.log('Build 2 automatic idle and Build 3 fuel-controller conversion reproduced and persisted without a second owner.');
   }finally{await browser.close();}
   process.exit(0);
 })().catch(error=>{console.error(error);process.exit(1);});

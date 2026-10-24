@@ -187,8 +187,8 @@ const server = http.createServer((req,res) => {
       await page.goto(`${base}/user-guide/#field-rpm_limit`);await readyImages();await page.screenshot({path:path.join(folder,'field-reference.png')});
       await page.goto(`${base}/user-guide/#backups`);await readyImages();await page.screenshot({path:path.join(folder,'guide-backup-restore.png')});
       await page.goto(`${base}/hardware/`);await readyImages();await page.screenshot({path:path.join(folder,'hardware-reference.png'),fullPage:true});
-      await page.goto(`${base}/guided-builds/control/`);await readyImages();
-      for (const name of ['controller-create','controller-mapping','controller-states','oil-feedback-settings']) {
+      for (const [name,lesson] of [['controller-create','instruments'],['controller-mapping','instruments'],['controller-states','instruments'],['oil-feedback-settings','control']]) {
+        await page.goto(`${base}/guided-builds/${lesson}/`);await readyImages();
         const figure=page.locator(`figure:has(img[src$="/${name}.png"])`);
         await figure.evaluate(el=>el.scrollIntoView({block:'start'}));
         await page.evaluate(()=>scrollBy(0,-75));

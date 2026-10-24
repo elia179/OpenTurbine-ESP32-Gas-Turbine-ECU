@@ -30,7 +30,7 @@ Use **68 kΩ above the ADC node**, **12 kΩ from the node to GND**, both 1%, and
 
 The hardware ratio is **12 / (68 + 12) = 0.15**. The UI asks for the reciprocal: **Voltage divider ratio = (68 + 12) / 12 = 6.6667**. The card may display **6.67**. Battery volts = measured ADC-pin volts × this ratio. The ADC's measurable range depends on target and attenuation; it is not simply the GPIO's maximum electrical voltage. Check the [Espressif ADC documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/adc/index.html) for the selected target and verify the node with a meter before connecting GPIO.
 
-**Configure:** add **Battery / bus voltage**, name it **Battery Voltage**, choose **Analog / ADC**, and use **GPIO 4** in the cumulative S3 plan. Enter **6.6667** for **Voltage divider ratio**, leave analog input bias off, and keep the measured-signal validity window consistent with this 0–2.4 V circuit. Save and reopen.
+**Configure:** add **Battery voltage**, name it **Battery Voltage**, choose **Analog voltage input (ADC)**, and use **GPIO 4** in the cumulative S3 plan. Enter **6.6667** for **Voltage divider ratio**, leave analog input bias off, and keep the measured-signal validity window consistent with this 0–2.4 V circuit. Save and reopen.
 
 {% include build-screen.html file="battery-configured" step="A configured 12 V battery input" alt="Battery Voltage ADC card on GPIO 4 showing voltage divider ratio 6.67 and ADC-pin validity fields." caption="The displayed ratio belongs to 68 kΩ / 12 kΩ. It converts the voltage at GPIO back to battery volts. It is not a voltage to apply to the pin." %}
 
@@ -76,7 +76,7 @@ On **Controllers → Output controllers**, expand **+ Create controller**, choos
 
 For a benign warming exercise, you might demonstrate **on above 30 °C, off again below 28 °C**, using 2 °C hysteresis. These are observation values for the bench probe, not oil/cooling limits for an engine. Hysteresis prevents chatter around one threshold.
 
-**Find the threshold fields:** choose **On / Off with hysteresis** to expose **Controlled by**, **Direction**, **Switch point** and **Hysteresis**. Select **Oil Temp**, then **Turn on above**. Review the on/off commands for the fitted fan driver. For this bench lesson choose **Activate when → Entering Standby** and **Deactivate when → Entering Startup, Entering Running, Entering Shutdown** directly in the open card. Test the next appropriate state entry and save using the same change recap as Level 2.
+**Find the threshold fields:** choose **On / Off with hysteresis** to expose **Controlled by**, **Direction**, **Switch point** and **Hysteresis**. Select **Oil Temp**, then **Turn on above**. Review the on/off commands for the fitted fan driver. For this bench lesson choose **Activate when → Entering Standby** and **Deactivate when → Entering Startup, Entering Running, Entering Shutdown** directly in the open card. Test the next appropriate state entry and save using the same change recap as Build 2.
 
 {% include build-screen.html file="fan-hysteresis" step="Build the fan relationship" alt="Bench cooling fan controller with oil temperature source, Turn on above direction, 30-degree switch point and two-degree hysteresis." caption="The pictured 30 °C/2 °C values match the benign warming exercise. They are not an engine oil-temperature limit. On/off percentages are commands through the selected Hardware driver." %}
 
@@ -90,7 +90,7 @@ For a benign warming exercise, you might demonstrate **on above 30 °C, off agai
 
 Add **Cover closed**, purpose **Digital interlock**, driver **On/off switch input**. Use the actual pin and active polarity. For closed-is-active in the shown wiring, select active-low. Verify the displayed input state while opening and closing the switch. Choose whether “active” means cover closed or cover open and name it accordingly; do not rely on the word interlock alone to create an action.
 
-{% include build-screen.html file="cover-configured" step="A configured cover-status switch" alt="Cover closed digital Hardware card on GPIO 35 with active-low polarity and internal Pull-up selected." caption="GPIO 35 is reserved for this switch on the specified no-PSRAM S3 teaching board. GPIO 8 belongs to the optional brightness knob. Do not also assign GPIO 35 to an oil-circuit switch. Check your board before copying either pin." %}
+{% include build-screen.html file="cover-configured" step="A configured cover-status switch" alt="Cover closed digital Hardware card on GPIO 35 with active-low polarity and internal Pull-up selected." caption="GPIO 35 is shown for this switch when the optional oil-circuit switch is not fitted. GPIO 8 belongs to the optional brightness knob. Do not also assign GPIO 35 to an oil-circuit switch. Check your board before copying either pin." %}
 
 For the lesson, use it as a visible status/custom-controller source. If the actual purpose is to block startup, review the separate **Inhibit-start switch** role and the current documented DI behavior rather than assuming any generic switch automatically prevents START. Use only one saved assignment for each physical input.
 
@@ -152,7 +152,7 @@ For the lesson, use it as a visible status/custom-controller source. If the actu
 
 **Useful result:** a separate brightness knob adjusts a low-power bench light. Turning the knob from minimum through midpoint to maximum changes the PWM demand from 0% through 50% to 100%. It uses a general-purpose input and output; it does not commandeer fuel, starter or oil hardware.
 
-**Wire the knob:** reuse the [potentiometer pattern]({{ '/guided-builds/basic/#throttle' | relative_url }}) with a second 10 kΩ potentiometer. Its outer terminals go to 3.3 V and GND; the wiper goes to a spare ADC1 input, **GPIO 8** in this cumulative S3 plan. Add **Generic automation input**, name it **Brightness knob**, and choose **Analog / ADC**. Leave internal pull-up/down off. Calibrate the actual endpoints; the example normalized source range is **0–1**. Use **Invert input** if clockwise movement reduces the intended brightness.
+**Wire the knob:** reuse the [potentiometer pattern]({{ '/guided-builds/basic/#throttle' | relative_url }}) with a second 10 kΩ potentiometer. Its outer terminals go to 3.3 V and GND; the wiper goes to a spare ADC1 input, **GPIO 8** in this cumulative S3 plan. Choose **Hardware → Add input → Generic analog input**, name it **Brightness knob**, and choose **Analog voltage input (ADC)**. Leave internal pull-up/down off. Calibrate the actual endpoints; the example normalized source range is **0–1**. Use **Invert input** if clockwise movement reduces the intended brightness.
 
 {% include build-figure.html file="throttle" alt="Potentiometer outer terminals connect to 3.3 V and ground, and its wiper connects to the separate brightness ADC input." caption="Reuse this potentiometer circuit for a separate brightness knob, not the engine throttle. Replace the generic ADC label with GPIO 8 for the cumulative example." %}
 
@@ -164,7 +164,7 @@ For this generic input, inspect its measured endpoints and the **Minimum valid s
 
 {% include build-figure.html file="pwm" alt="A GPIO PWM command feeds a power driver; the separately fused low-power light is powered through the driver rather than GPIO." caption="Here the dummy load is the bench light. Match driver polarity and PWM compatibility to the actual light." %}
 
-Add **Generic automation output**, name it **Bench light**, choose **PWM** and the spare output **GPIO 38**. The fixture uses **1000 Hz**, **10 bits**, normal direction and 0–100% electrical duty endpoints. Set **Power-on demand** to 0%. Verify physical off at logical zero before permitting the controller to own it.
+Choose **Hardware → Add output → PWM output**, name it **Bench light**, choose **PWM** and the spare output **GPIO 38**. The fixture uses **1000 Hz**, **10 bits**, normal direction and 0–100% electrical duty endpoints. Set **Power-on demand** to 0%. Verify physical off at logical zero before permitting the controller to own it.
 
 {% include build-screen.html file="light-configured" step="Configure the light output" alt="Bench light Hardware card with PWM on GPIO 38, normal direction, 0–100 percent duty, 1000 Hz, 10 bits and zero power-on demand." caption="Choose frequency and polarity that the actual driver accepts. The initialized output is off; verify reset behavior separately because firmware cannot guarantee GPIO state before it gains control." %}
 

@@ -133,7 +133,7 @@ Role: can identify USB, a meter and labelled wires, but does not know GPIO, SPI,
 | Add a free turbine | "Inspect the relationship" does not tell me how to finish | Explicit governor source/target/authority/activation recipe with prerequisites and expected result |
 | Check a screenshot | Overview text is too small after shrinking | Focused captures, visible field names and HTML value tables |
 
-The revised outline resolves these ordering problems on paper. It has not yet passed an executable beginner walkthrough because the rewritten recipes and coherent fixture do not exist yet. Do not describe it as fully verified until the following acceptance pass is complete.
+The rewrite now has a cumulative simulator fixture and an executable controller/sequence walkthrough. Ordinary UI controls reproduce Build 1 fuel/oil creation and both sequence paths with save/reload, Build 2 automatic idle, and Build 3 conversion of the existing fuel owner to an N2 governor. Wired/calibrated hardware is supplied as the declared starting fixture; this is not a physical assembly test or an independent beginner usability session.
 
 ## Implementation and acceptance pass after plan approval
 
@@ -149,3 +149,13 @@ The revised outline resolves these ordering problems on paper. It has not yet pa
 10. Present a local/staged preview for review. Publish the documentation only after the revised content and visuals are accepted; do not reflash either ECU as part of this documentation-planning work.
 
 Success means a new reader can explain what each channel does, find every required setting, reproduce the example without undocumented help, identify the correct owner in each state, and know which numbers must come from their own hardware. Completing all three builds is optional; Build 1 must stand on its own as a coherent basic turbojet configuration lesson.
+
+## Implementation review, 24 October 2026
+
+The three drafts, parts/worksheet and optional workshops are implemented on `work/guided-hx80-builds` (draft PR #18). Build 1 is approximately 3,000 source words instead of 6,754, with eight focused screenshot includes instead of 31. Source counts include markup; rendered wiring tables add reference detail, available in expandable tables.
+
+Meaningful walkthrough findings corrected in the draft: exact oil-calibration buttons and sensor-only selection, exact shutdown block name, explicit controller naming, P1 calibration field names and conversion, generic digital-input selection for independent switch logic, and re-entering fuel bounds after changing controller method/source. The N2 governor starts from the example's stable-idle command rather than treating reliable pump minimum as proof of stable engine idle.
+
+The current release's SafetyHold-without-Spool warning is overbroad for an explicit starter-off path. The guide identifies the warning and requires inspection of the explicit starter cut and final preview before confirming it. No firmware/web-source fix is bundled into this documentation change.
+
+Checks completed locally: public-source validation, actual rendered Jekyll metadata/links/images validation, desktop/mobile site audit, focused image inspection, both development-board core pin plans in Hardware, and controller/sequence recipes through ordinary UI controls. The Pages CI fixture initially looked for moved workshop screenshots on the old page; that audit route is corrected. Final updated Pages CI and review remain the publication gate. No ECU was reflashed or reconfigured for this documentation work.

@@ -31,11 +31,11 @@ Reuse the [conditioned N1 pulse-input pattern]({{ '/guided-builds/basic/#n1' | r
 
 {% include build-screen.html file="n2-configured" step="A separate power-shaft measurement" alt="N2 Power Shaft input has its own pulse GPIO and pulses-per-revolution setting." caption="Name the measured shaft clearly and establish its actual PPR. Never copy N1's speed limit simply because both are RPM inputs." %}
 
-**Check:** drive N1 and N2 test inputs independently. Only the intended instrument should change. For an exact 1 PPR input, RPM equals frequency in Hz × 60; {{ e.n2_target_rpm }} RPM needs about 333.33 Hz. Verify against an independent reference at more than one point. Confirm loss of N2 is reported as unhealthy rather than accepted as live speed.
+**Check:** drive N1 and N2 test inputs independently. Only the intended instrument should change. For an exact 1 PPR input, RPM equals frequency in Hz × 60; {{ e.n2_target_rpm }} RPM needs about 333.33 Hz. Verify against an independent reference at more than one point. During a rotating/test-signal check, verify the configured loss-of-N2 response. Zero RPM while legitimately stopped is different from losing expected running feedback.
 
 <h2 id="limits">2 · Give N2 its own protection</h2>
 
-Open **Controllers → Shutdown & Protection → N2 output speed**. Set **Maximum N2 Speed = {{ e.n2_trip_rpm }} RPM** for the teaching dataset, then turn **N2 overspeed shutdown ON**. Keep the independent N1 and engine-temperature protections from Build 2.
+Open **Controllers → Shutdown & Protection → N2 Power Shaft protection**. Set **Maximum N2 Speed = {{ e.n2_trip_rpm }} RPM** for the teaching dataset, then turn **N2 overspeed shutdown ON**. Keep the independent N1 and engine-temperature protections from Build 2.
 
 If using N2 fuel limiting, its gradual-reduction band must sit below this trip with operating margin around the normal target. Start with the **Simple** method and review its reduction authority. Predictive uses acceleration as well and requires separate validation. Do not clear a retained limit merely to disable automatic shutdown; use the enable switch.
 
@@ -54,7 +54,7 @@ Open the existing **Main Fuel** controller. **Edit this controller rather than c
 | Feedback signal | N2 Power Shaft |
 | How is the target selected? | Fixed value |
 | Target | {{ e.n2_target_rpm }} RPM |
-| Minimum / maximum output | {{ e.fuel_min_pct }}% / {{ e.fuel_max_pct }}% teaching fuel authority |
+| Minimum / maximum output | {{ e.fuel_idle_pct }}% / {{ e.fuel_max_pct }}% teaching fuel authority |
 | Activate when | Entering Running |
 | Deactivate when | Entering Shutdown and Entering Standby |
 
@@ -62,7 +62,9 @@ Open the existing **Main Fuel** controller. **Edit this controller rather than c
 
 Open **Response tuning**. Set **Target deadband**, **Immediate response**, **Correction rate** and **Feedback-loss output** from controlled testing of the actual plant. The response fields use percentages per measured unit, so RPM-scale gains are very different from pressure-scale gains. Record both the displayed units and the resulting command change. Do not tune using an unrelated oil controller's numbers.
 
-The earlier automatic idle is a Running fuel floor, not a second governor. For the first N2-governor exercise, set **Fuel-metering support → Idle → Off** and verify the governor's permitted minimum sustains the core in the actual operating envelope. Reintroduce an idle floor only after checking how it constrains N2 control, especially during load rejection. Startup fuel and starter-release checks remain explicit in Sequence.
+Re-enter the output bounds after changing method or source: the UI can initialize method-specific defaults. Check every field in the table before saving rather than assuming the previous mapping's range was retained.
+
+The earlier automatic idle is a Running fuel floor, not a second governor. For the first N2-governor exercise, set **Fuel-metering support → Idle → Off** and verify the governor's permitted minimum sustains the core in the actual operating envelope. The example starts with its {{ e.fuel_idle_pct }}% stable-idle command as the lower bound, rather than treating the {{ e.fuel_min_pct }}% reliable pump minimum as an engine-idle guarantee. Reintroduce an idle floor only after checking how it constrains N2 control, especially during load rejection. Startup fuel and starter-release checks remain explicit in Sequence.
 
 With **Fixed value**, the throttle knob no longer directly sets fuel. That is intentional for this fixed-speed teaching load. For variable speed demand, later choose **Variable input**, **Target input = Throttle Input**, its 0–100% endpoints and separately verified low/high **N2 target speeds**. Those target values are RPM, not fuel percentages. A fixed-speed generator and a variable-speed load should not silently share one demand interpretation.
 

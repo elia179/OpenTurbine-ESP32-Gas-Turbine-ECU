@@ -477,7 +477,7 @@ Selecting **Sequencer block** creates a named Activate or Deactivate card in Seq
 
 An incomplete controller setup leaves that controller inactive for the run and shows a named repair warning. It does not by itself lock all starting. Genuine unknown blocks, missing required hardware and other start interlocks still apply. Disable the affected controller explicitly when needed; its links become inactive. Stable IDs preserve references when its display name changes.
 
-{% include build-screen.html file="controller-block-placement" step="Place the controller cards" alt="Named Activate and Deactivate controller cards waiting for placement above the sequence." caption="Place each required card where the corresponding handover belongs; do not substitute an unrelated Set Output block." %}
+{% include build-screen.html file="controller-block-placement" step="Place the controller cards" alt="A named controller activation card waiting for placement above the sequence." caption="Place each required card where the corresponding handover belongs; do not substitute an unrelated Set Output block." %}
 
 ### 13.3 Output ownership and shutdown actions
 

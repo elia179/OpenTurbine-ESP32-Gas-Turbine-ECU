@@ -24,7 +24,7 @@ This pressure is measured at the identified combustor tap, in **bar gauge** for 
 
 1. Reuse the [conditioned pressure-input pattern]({{ '/guided-builds/basic/#pressure' | relative_url }}) with a separate sensor and ADC pin.
 2. In **Hardware → Add input**, choose **Pressure 1 / P1**, name it **Combustor Pressure**, select **Analog voltage input (ADC)** and assign its GPIO. Save.
-3. Calibrate the channel using a trusted external reference. With the same 0–10 bar, 0.5–4.5 V transducer/divider, the nominal ADC scale is {{ e.pressure_zero_mv }} mV zero and {{ e.pressure_mv_per_bar }} mV/bar. Use the channel's calibration/manual scale controls for the actual measured values.
+3. With a trusted gauge, measure ADC-pin voltage at depressurized zero and a known pressure. In **Hardware → Combustor Pressure → Edit**, enter **Zero offset (mV)** and **mV per bar**, then save. Sensitivity = (reference ADC mV − zero ADC mV) ÷ reference bar. The illustrated circuit gives (760 − 200) ÷ 3.5 = **160 mV/bar**; use your measured values and verify another pressure.
 
 {% include build-screen.html file="combustor-configured" step="Identify the new measurement" alt="Combustor Pressure input assigned to P1 with the worked ADC scale." caption="Use a separate ADC from Oil Pressure. The display name will identify this pressure in Controllers and Dashboard." %}
 
@@ -119,7 +119,7 @@ The **Hot engine start interlock** in the temperature card is another decision: 
 
 Optional example: a second oil circuit has its own switch. Add it only if you want to learn a separate controller; do not duplicate the existing oil measurement as another hidden protection.
 
-1. Wire a dry contact using the [Start/Stop pattern]({{ '/guided-builds/basic/#power' | relative_url }}). Add **On/off switch input**, name it **Oil circuit 2 switch**, choose its purpose/pin and set polarity so **ON means pressure fault**. Check both physical states.
+1. Wire a dry contact using the [Start/Stop pattern]({{ '/guided-builds/basic/#power' | relative_url }}). Choose **Hardware → Add input → Generic digital input**, name it **Oil circuit 2 switch**, select **On/off switch input**, assign its GPIO and set polarity so **ON means pressure fault**. Check both physical states.
 2. In **Controllers → + Create controller**, choose **Request Fault Shutdown** and create a controller named **Oil circuit 2**.
 3. Select **Controlled by → Oil circuit 2 switch** and **Control method → Switch state**. Choose the request condition **Switch is ON** and a **500 ms confirmation**. A switch has no analogue switch point or hysteresis to tune.
 4. Choose **Activate when → Entering Running**; choose **Deactivate when → Entering Shutdown / Entering Standby**. Save and reload.
@@ -133,7 +133,7 @@ Optional example: a second oil circuit has its own switch. Add it only if you wa
 Entering a mode is convenient; sometimes a controller should start at an exact point inside Startup. To learn this, edit the optional **Oil circuit 2** controller: select **Activate when → Sequencer block** instead of Entering Running. Keep Shutdown/Standby deactivation. Save and read the sequence-placement notice.
 
 1. Open **Sequence**. The **Controller blocks — needs placement** area contains **Activate Oil circuit 2**.
-2. Drag it into Startup **after Build Oil Pressure**, before fuel admission. This arms that switch only after the pressure-building stage.
+2. Drag it into Startup after the stage that establishes pressure in the monitored circuit, before fuel admission. **After Build Oil Pressure** is appropriate only if that block supplies this circuit too; an independent circuit needs its own preparation.
 3. If you also select **Deactivate when → Sequencer block**, drag its separate Deactivate card to the intended location. An unused card stays in the placement area.
 4. To move a placed block to another path, remove it and drag it back from the placement area. Save only after all required blocks are placed; check the editor's explanation if a controller is incomplete.
 

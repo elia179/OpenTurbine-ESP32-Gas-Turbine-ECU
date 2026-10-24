@@ -17,7 +17,7 @@ permalink: /reference/
 
 | Your goal | Start here |
 | --- | --- |
-| I am new to the board or wiring | [Install and connect]({{ '/get-started/' | relative_url }}), then [Level 1]({{ '/guided-builds/basic/' | relative_url }}) |
+| I am new to the board or wiring | [Install and connect]({{ '/get-started/' | relative_url }}), then [Build 1]({{ '/guided-builds/basic/' | relative_url }}) |
 | I want to add one input or output | [Wiring patterns]({{ '/hardware/#connection-patterns' | relative_url }}) and the [illustrated builds]({{ '/guided-builds/' | relative_url }}) |
 | I need a field definition | [Controllers and System field reference]({{ '/user-guide/#part-10-configure-controllers-and-system' | relative_url }}) |
 | I want the full setup procedure | [User Guide]({{ '/user-guide/' | relative_url }}) |
@@ -28,7 +28,7 @@ permalink: /reference/
 | Task | Direct instructions |
 | --- | --- |
 | Choose a supported board or sensor | [Boards]({{ '/hardware/#supported-esp32-targets' | relative_url }}) · [Compatible interfaces]({{ '/hardware/#supported-sensor-and-expansion-devices' | relative_url }}) |
-| Name a device and assign its connection | [Channel fields]({{ '/user-guide/#83-what-every-channel-card-field-means' | relative_url }}) · [Example S3 pin plan]({{ '/guided-builds/parts/#pin-plan' | relative_url }}) |
+| Name a device and assign its connection | [Channel fields]({{ '/user-guide/#83-what-every-channel-card-field-means' | relative_url }}) · [Classic and S3 pin plans]({{ '/guided-builds/parts/#pin-plan' | relative_url }}) |
 | Set up Dashboard warnings | [References and enable switches]({{ '/guided-builds/basic/#limits' | relative_url }}) |
 | Choose fixed, input or automatic idle—or turn idle off | [Running idle choices and screenshots]({{ '/guided-builds/control/#idle' | relative_url }}) |
 | Calibrate the fuel pump minimum | [Pump calibration and button states]({{ '/guided-builds/basic/#fuel' | relative_url }}) |
