@@ -140,8 +140,8 @@
     "height": 1673
   },
   "manual-tests": {
-    "width": 1440,
-    "height": 1250
+    "width": 1698,
+    "height": 1284
   },
   "n1-configured": {
     "width": 1248,
@@ -159,6 +159,10 @@
     "width": 1308,
     "height": 1677
   },
+  "n2-protection": {
+    "width": 1239,
+    "height": 1263
+  },
   "oil-feedback-settings": {
     "width": 1257,
     "height": 1671
@@ -166,6 +170,10 @@
   "oil-feedback": {
     "width": 1308,
     "height": 308
+  },
+  "oil-pressure-protection": {
+    "width": 1239,
+    "height": 879
   },
   "oil-pump-configured": {
     "width": 1248,
@@ -280,8 +288,8 @@
     "height": 1050
   },
   "tool-settings": {
-    "width": 1440,
-    "height": 1250
+    "width": 1260,
+    "height": 1350
   },
   "torque-configured": {
     "width": 1248,

@@ -37,20 +37,30 @@ An **input** reports a measurement or request. An **output** sends a command to 
 
 {% include build-screen.html file="stop-configured" step="Configure the Stop input" alt="Expanded Stop card with active-low polarity and internal pull-up selected." caption="Use the pin from your board column. Repeat on the separate Start input." %}
 
+{% include build-screen.html file="start-configured" step="Configure the separate Start input" alt="Start Hardware card with its own GPIO, active-low polarity and pull-up." caption="Start and Stop are separate inputs with separate pins; check both displayed states." %}
+
 **Check:** both contacts read inactive when released and active when pressed. Release Start after boot before trying a new press. These are ECU commands, separate from the physical energy-removing stop. Classic GPIO34–39 have no internal pull-ups; the example assigns the buttons elsewhere.
 
 <h2 id="n1">2 · Add speed, temperature and throttle</h2>
 
 Add one input at a time in **Hardware → Add input**. Save, then check its reading before continuing.
 
-**N1 speed.** Select **N1 speed**, name it **N1 Speed**, choose **Pulse / frequency input** and assign its GPIO. Enter the pickup's actual **pulses per revolution** (PPR). The example uses one counted pulse per revolution. Its conditioner supplies clean 3.3 V-compatible pulses; raw magnetic pickups and 5 V outputs need conditioning.
+**Choose your own names.** Use names that make sense on your engine; **N1 Speed** (or simply **N1**) and **Main TOT** are suggestions. Screenshots use these example names. In later selectors, choose the corresponding device you named.
+
+**N1 speed.** Select **N1 speed**, enter your chosen name (suggested: **N1 Speed**), choose **Hardware pulse counter (PCNT)** under **Signal type** and assign its GPIO. Enter the pickup's actual **pulses per revolution** (PPR). The example uses one counted pulse per revolution. Its conditioner supplies clean 3.3 V-compatible pulses; raw magnetic pickups and 5 V outputs need conditioning.
+
+{% include build-screen.html file="n1-configured" step="Configure the gas-generator speed input" alt="Expanded N1 Hardware card showing its name, pulse input, GPIO and pulses per revolution." caption="The example counts one pulse per revolution. Enter your pickup's actual PPR and your board's assigned GPIO; the name is your choice." %}
 
 {% include build-figure.html file="rpm" alt="A 3.3 V open-drain Hall demonstration input has supply bypass and an external pull-up on the pulse signal." caption="This explains an open-drain interface on the bench. The actual pickup and mounting must suit turbine speed; never attach the teaching magnet to a turbine rotor." %}
 
 The diagram uses an external pull-up. For compatible short bench wiring, **Input bias → Pull-up** can supply bias on a suitable pin instead. Verify pulse quality at the required rate. At {{ e.n1_full_rpm }} RPM and 1 PPR, a generator supplies **1000 Hz**; at 100 Hz the display should show 6000 RPM. Compare against an independent reference. A stationary magnet does not generate continuing RPM.
 
 <span id="temperature"></span>
-**Exhaust temperature.** Connect a K-type probe to a matching MAX31855 converter, not directly to GPIO. In **Hardware → Shared sensor buses → Edit buses**, enable SPI, assign **SCK** and **MISO** and save. This converter does not use MOSI. Add **TOT / EGT**, name it **Main TOT**, choose **MAX31855** and assign its separate **CS** pin.
+**Exhaust temperature.** Connect a K-type probe to a matching MAX31855 converter, not directly to GPIO. In **Hardware → Shared sensor buses → Edit buses**, enable SPI, assign **SCK** and **MISO** and save. This converter does not use MOSI.
+
+{% include build-screen.html file="spi-configured" step="Configure the shared SPI bus first" alt="Hardware shared SPI bus editor with the bus enabled and clock and MISO pins assigned." caption="Use the SCK and MISO pins from your board column. These bus signals are shared; each converter gets a separate CS pin." %}
+
+Add **TOT / EGT**, enter your chosen name (suggested: **Main TOT**), choose **MAX31855** and assign its separate **CS** pin.
 
 {% include build-figure.html file="thermocouple" alt="K-type probe connects to MAX31855; the ECU provides compatible supply, ground, shared SPI clock/data and unique CS." caption="CLK/SCK is clock, DO/MISO returns data, and CS selects the converter. Use a documented 3.3 V-compatible module." %}
 
@@ -62,6 +72,8 @@ The diagram uses an external pull-up. For compatible short bench wiring, **Input
 **Throttle.** Wire a 10 kΩ linear potentiometer with its ends at 3.3 V and GND and its wiper at the throttle ADC pin. Add **Throttle Input → Analog voltage input (ADC)** and save. On **Calibration**, jump to **Throttle Input**, hold the knob at intended minimum and select **Capture Min**; repeat with **Capture Max**, then **Save**.
 
 {% include build-figure.html file="throttle" alt="Potentiometer ends go to 3.3 V and ground; its wiper goes to the throttle ADC input." caption="Identify the wiper with a meter. Never use 5 V for this connection." %}
+
+{% include build-screen.html file="throttle-configured" step="Save the throttle Hardware input" alt="Throttle Hardware card with analog voltage interface and its ADC GPIO." caption="Configure and save the physical input before opening Calibration." %}
 
 {% include build-screen.html file="throttle-calibration" step="Capture the actual endpoints" alt="Throttle calibration card with endpoint capture and Save controls." caption="Capture at the physical command minimum and maximum. Saved endpoints are measurements, not numbers to copy." %}
 
@@ -78,6 +90,10 @@ The example uses a **0–10 bar gauge transducer with 0.5–4.5 V output**. Its 
 3. With the circuit safely depressurized, press **Start Calibration** to capture ambient. Apply a known pressure measured by a trusted gauge, enter it and select **Capture point**. Repeat at another point, select a straight-line fit for this sensor, then select **Compute Fit →** and **Save calibration**. Release pressure and verify zero.
 
 For this circuit, zero is **{{ e.pressure_zero_mv }} mV** and sensitivity **{{ e.pressure_mv_per_bar }} mV/bar at the ADC**. {{ e.oil_target_bar }} bar corresponds to 920 mV. Verify your actual transducer and gauge instead of assuming identical calibration. Optional pump-assisted calibration is separate and can operate the pump.
+
+{% include build-screen.html file="pressure-configured" step="Configure the oil-pressure Hardware input" alt="Oil Pressure Hardware card with analog voltage input and its assigned ADC pin." caption="Save this sensor before calibration. Its supply and divider must match your actual transducer." %}
+
+{% include build-screen.html file="pressure-calibration" step="Start oil-pressure calibration against a gauge" alt="Oil-pressure calibration panel with sensor-only mode, zero-bar gauge reference and Start Calibration button." caption="Leave pump-assisted calibration unchecked. Start with the circuit depressurized, then follow the point-capture and fit steps above using your own gauge readings." %}
 
 **Check:** zero and at least two reference pressures agree with the gauge, returning to zero afterward. An incorrectly scaled reading is not ready for protection.
 
@@ -98,15 +114,31 @@ For each, choose **Hardware → Add output**, its named purpose, driver and GPIO
 
 {% include build-figure.html file="servo" alt="An ESC receives command and signal ground; separate rated power supplies it." caption="Confirm arming and stop behavior before connecting starter power." %}
 
+**ESC with a BEC:** its red/positive receiver lead is a power output. **Never connect it to 3.3 V or a GPIO.** Leave it disconnected and insulated when powering the ECU separately. If the BEC provides regulated **5 V** with sufficient current, you may use it to feed the development board's documented **5 V power input**, with GND connected. Verify the actual board and BEC first; some BECs output higher voltages. Do not parallel it with USB power or another supply unless the board explicitly supports that arrangement. See [Espressif's DevKitC power-input guidance](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html#power-supply-options).
+
+{% include build-screen.html file="starter-configured" step="Configure the starter ESC signal" alt="Starter Hardware card showing RC servo or ESC output and pulse settings." caption="Match the ESC's signal endpoints and arming procedure. This GPIO carries the command, not starter power." %}
+
 {% include build-figure.html file="pwm" alt="PWM signal and reference connect to a driver; separate fused power carries load current." caption="Reuse this pattern for compatible fuel and oil drivers, each with its own load protection." %}
 
 {% include build-figure.html file="relay" alt="A relay interface receives a logic command; separately powered contacts switch a low-power demonstration load." caption="On/off wiring example: VCC supplies the module; COM is the contact common and NO is normally open. Use the actual ignition/valve driver's documented interface for the installation." %}
 
 {% include build-screen.html file="fuel-configured" step="Check a PWM output" alt="Fuel output card showing frequency, resolution, polarity and safe settings." caption="Minimum reliable pump command is calibrated separately from electrical endpoints." %}
 
+{% include build-screen.html file="igniter-configured" step="Configure the ignition command" alt="Igniter Hardware card showing its on/off interface, GPIO and safe state." caption="Confirm physical off at logical zero using a dummy load before connecting ignition energy." %}
+
+{% include build-screen.html file="oil-pump-configured" step="Configure the oil-pump driver" alt="Oil Pump Hardware card with its PWM pin and electrical output settings." caption="Check this pump's own driver ratings and direction; do not assume it matches the fuel pump." %}
+
+{% include build-screen.html file="shutoff-configured" step="Configure the fuel-shutoff command" alt="Fuel Shutoff Hardware card showing its on/off output and direction." caption="Verify which command opens and closes the valve, including loss of power." %}
+
 For each output, open **Tools → Tool settings**, review short test duration and demand, save, then run its test. Begin with dummy loads or signal measurement. Check physical direction and return to the safe state after expiry. Prove shutoff direction with a benign unpressurized test. A relay click does not prove valve state.
 
+{% include build-screen.html file="tool-settings" step="Review each test's demand and duration" alt="Tools settings showing actuator-test levels and timed durations." caption="Save conservative test settings before starting a test; connected outputs can energize." %}
+
+{% include build-screen.html file="manual-tests" step="Find the individual actuator tests" alt="Manual actuator test cards for the configured engine outputs." caption="Test one output at a time with suitable dummy loads or isolated equipment, and verify it stops." %}
+
 Calibrate the actual fuel pump through **Calibration → Minimum Reliable Fuel-Metering Output** on an isolated flow rig. Follow sweep, stop and repeatable-restart prompts. Do not run it dry unless permitted. This measures reliable metering, **not engine idle**. The assumed teaching results are {{ e.fuel_min_pct }}% reliable minimum and {{ e.fuel_idle_pct }}% idle; your measurements replace both.
+
+{% include build-screen.html file="fuel-minimum-calibration" step="Measure reliable fuel-metering output" alt="Fuel-metering minimum calibration panel with sweep and repeatable restart checks." caption="Use an isolated flow rig. The measured reliable minimum is different from the engine's idle command." %}
 
 <h2 id="ownership">5 · Give fuel and oil their normal commands</h2>
 
@@ -127,9 +159,13 @@ Under **Fuel-metering support → Idle**, select **Off — no idle floor**. Mapp
 
 {% include build-screen.html file="main-fuel-controller" step="The Running fuel controller" alt="Fuel controller mapping throttle travel to the teaching fuel range, activated on Running entry." caption="Sequence commands startup fuel. Running entry hands it to this controller." %}
 
+{% include build-screen.html file="automatic-idle-off" step="Keep this first build's idle support simple" alt="Idle support panel with the separate idle mode set to Off." caption="The Main Fuel controller's output-low value supplies this build's assumed idle demand." %}
+
 For oil, edit the existing pressure controller if one is already assigned to Oil Pump. Otherwise use the creator's separate **Oil pump** and **Pressure feedback** selectors, then **Create oil-pressure controller**. Open **Oil Pump → Oil Pressure Control**. Select **Oil Pressure**, the matching pump, **Pressure target set by → Fixed pressure**, and **{{ e.oil_target_bar }} bar**. Set its **Low-pressure threshold** to {{ e.oil_min_bar }} bar and **Low-pressure confirmation** to {{ e.oil_confirm_ms }} ms. Verify command bounds and failure responses against the oil rig. Use **Normal fault shutdown** for the teaching feedback-loss/low-pressure responses; [Build 2]({{ '/guided-builds/control/#feedback' | relative_url }}) explains the full card.
 
 **Check:** on an appropriate oil circuit, establish target pressure without excessive overshoot and compare the gauge. Response gain and pump duty depend on the pump. The sequence establishes lubrication before ignition and retains it during shutdown.
+
+{% include build-screen.html file="oil-feedback-settings" step="Set oil-pressure feedback and its failure responses" alt="Oil-pressure controller with fixed pressure target, low-pressure confirmation and fault responses." caption="Select your named sensor and pump. Compare the target and low-pressure threshold with the gauge before using them for protection." %}
 
 <h2 id="limits">6 · Set essential protection</h2>
 
@@ -144,6 +180,10 @@ Open **Controllers → Shutdown & Protection**. These are **assumed teaching thr
 Startup's oil check comes next. It permits pressure to build before ignition without treating zero Standby pressure as a running fault. With separate startup-temperature guard OFF, normal temperature shutdown applies during Startup too. Build 2 teaches a separate guard.
 
 {% include build-screen.html file="n1-warnings-configured" step="Enable protection separately from its limit" alt="N1 protection with the teaching speed limit and enabled shutdown." caption="The 60000 RPM operating example and higher assumed trip are distinct values." %}
+
+{% include build-screen.html file="temperature-warnings-configured" step="Check the temperature source and shutdown" alt="Temperature protection card showing the selected sensor, startup guard and running shutdown settings." caption="This build leaves the separate startup guard off, so normal temperature shutdown also protects Startup." %}
+
+{% include build-screen.html file="oil-pressure-protection" step="Enable oil protection in the intended phase" alt="Oil-pressure safety card with its low-pressure limit, confirmation time and operating-phase selection." caption="Monitor Running in this first build; Startup establishes pressure with its own required oil-prime check." %}
 
 **Dashboard:** retained N1/temperature limits set approach colours. Shutdown has its own enable switch; a marker is not proof of a physical trip test. Find limits through **Dashboard → Edit cards → Edit limit & safety**, or Controllers. [Build 2]({{ '/guided-builds/control/#limits' | relative_url }}) covers pressure markers and limiting.
 
@@ -186,6 +226,8 @@ Keep hazardous energy isolated. Use safe signal sources or simulation for condit
 - Save/reload and download the engine file from **System → Maintenance → Full engine file backup / restore**. Label it **Build 1 — basic turbojet**, recording physical versus simulated checks.
 
 You have one coherent configuration and know where its settings belong. Actual commissioning needs the engine's measured limits and verified starting behavior.
+
+{% include build-screen.html file="engine-backup-restore" step="Save a complete engine-file backup" alt="System maintenance card with full engine-file download and restore controls." caption="Download the file after saving and reopening your settings. Label it with the build stage and the checks actually completed." %}
 
 <span id="fuel-without-idle"></span><span id="a-complete-very-basic-dummy-load-sequence"></span>
 Alternative methods belong in the [User Guide]({{ '/user-guide/' | relative_url }}) and [optional workshops]({{ '/guided-builds/instruments/' | relative_url }}).

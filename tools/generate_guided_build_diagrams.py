@@ -149,7 +149,7 @@ def main():
     d.box(30,170,245,310,'ESP32 ECU');d.box(440,170,285,310,'Relay module');d.box(795,280,180,160,'Lamp / load')
     d.text(255,250,'On/off GPIO','','end');d.text(460,250,'IN');d.wire([(275,260),(440,260)])
     d.text(255,410,'GND','','end');d.text(460,410,'GND');d.wire([(275,420),(440,420)],GROUND)
-    d.text(30,120,'Module-rated regulated supply + → VCC');d.wire([(550,130),(550,170)],POWER)
+    d.text(30,120,'Module-rated regulated supply + → VCC')
     d.text(545,220,'Coil driver', 'small');d.text(545,248,'inside module','small')
     d.text(755,144,'Fused load +','small');d.wire([(850,155),(750,155),(750,285),(725,285)],POWER,True)
     d.text(695,278,'COM','','end');d.text(695,334,'NO','','end');d.text(695,385,'NC unused','small','end')

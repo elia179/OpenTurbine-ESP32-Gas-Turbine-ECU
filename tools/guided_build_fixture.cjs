@@ -47,6 +47,7 @@ function guidedFixture(original, level, {board='esp32s3', workshops=false}={}) {
   h.shutdown_seq=['ImmediateCut','RPMDrop','CooldownSpin','FinalStop'];h.shutdown_delay_ms=[0,0,0,0];h.shutdown_enter_actions=h.shutdown_seq.map(()=>[]);h.shutdown_exit_actions=h.shutdown_seq.map(()=>[]);
   h.ab_seq=[];h.ab_shut_seq=[];h.cluster_serial.enabled=false;h.mavlink.enabled=false;h.buzzer.enabled=false;
   s.controller_schema=1;s.profile_id=h.profile_id;
+  s.tools={...s.tools,start_test_pct:30,start_test_ms:2000};
   s.rules=[{controller_id:1,enabled:true,name:level>=3?'Main Fuel N2 Governor':'Main Fuel',kind:level>=3?2:1,source:level>=3?'n2_main':'operator_throttle',target:'main_fuel',input_min:0,input_max:1,output_min:(level===2?e.fuel_min_pct:e.fuel_idle_pct)/100,output_max:e.fuel_max_pct/100,target_source_type:0,target_fixed:e.n2_target_rpm,response_gain:.00001,integral_gain:.000001,deadband:250,off_value:0,activate_events:4,deactivate_events:24,mode_mask:4}];
   Object.assign(s.engine,{rpm_limit:e.n1_trip_rpm,n2_rpm_limit:e.n2_trip_rpm,tot_limit:e.tot_trip_c,tot_safe_margin:50,tot_cooldown_target:e.tot_cooldown_c,min_rpm:18000});
   Object.assign(s.safety,{egt_source:1,p1_trip_bar:e.p1_trip_bar,p1_trip_enabled:level>=2,p1_trip_confirm_ms:500,oil_pressure_modes:4,low_oil_confirm_ms:e.oil_confirm_ms});

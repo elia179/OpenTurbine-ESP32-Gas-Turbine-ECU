@@ -16,7 +16,6 @@
 <text x="460" y="410" class="" text-anchor="start">GND</text>
 <polyline points="275,420 440,420" class="net" stroke="#b6c4d2"/>
 <text x="30" y="120" class="" text-anchor="start">Module-rated regulated supply + → VCC</text>
-<polyline points="550,130 550,170" class="net" stroke="#ff9276"/>
 <text x="545" y="220" class="small" text-anchor="start">Coil driver</text>
 <text x="545" y="248" class="small" text-anchor="start">inside module</text>
 <text x="755" y="144" class="small" text-anchor="start">Fused load +</text>

@@ -152,7 +152,7 @@ Success means a new reader can explain what each channel does, find every requir
 
 ## Implementation review, 24 October 2026
 
-The three drafts, parts/worksheet and optional workshops are implemented on `work/guided-hx80-builds` (draft PR #18). Build 1 is approximately 3,000 source words instead of 6,754, with eight focused screenshot includes instead of 31. Source counts include markup; rendered wiring tables add reference detail, available in expandable tables.
+The three drafts, parts/worksheet and optional workshops are implemented on `work/guided-hx80-builds` (draft PR #18). Build 1 keeps its instructions shorter than the previous 6,754-word guide. Following reader review, every setup task now has a matching focused screenshot, including each Hardware input/output, shared SPI, calibration, normal controllers, protection, tests and backup. Screenshot count is not capped: the audit checks coverage and keeps prose length separate from image markup. Rendered wiring tables add reference detail, available in expandable tables.
 
 Meaningful walkthrough findings corrected in the draft: exact oil-calibration buttons and sensor-only selection, exact shutdown block name, explicit controller naming, P1 calibration field names and conversion, generic digital-input selection for independent switch logic, and re-entering fuel bounds after changing controller method/source. The N2 governor starts from the example's stable-idle command rather than treating reliable pump minimum as proof of stable engine idle.
 

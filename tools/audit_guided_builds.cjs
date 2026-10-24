@@ -34,7 +34,7 @@ const server = http.createServer((req,res) => {
   try {
     // Core milestones have focused views; specialist inventory stays optional.
     const configuredCards = {
-      basic: ['stop','tot','fuel','n1-warnings'],
+      basic: ['start','stop','n1','spi','tot','throttle','pressure','starter','fuel','igniter','oil-pump','shutoff','n1-warnings','temperature-warnings'],
       control: ['combustor','automatic-idle'],
       extend: ['n2'],
       instruments: ['battery','oil-temperature','fan','cover','torque','thrust','i2c','current','brightness','light']
@@ -46,11 +46,16 @@ const server = http.createServer((req,res) => {
     const basicHtml = fs.readFileSync(path.join(built,'guided-builds/basic/index.html'),'utf8');
     assert.ok(basicHtml.indexOf('enable SPI') < basicHtml.indexOf('tot-configured.png'),'SPI setup must precede temperature card');
     assert.ok(basicHtml.indexOf('Analog voltage input (ADC)') < basicHtml.indexOf('throttle-calibration.png'),'Hardware must precede throttle calibration');
-    for (const shot of ['sequence-engine-startup','sequence-engine-shutdown','main-fuel-controller'])
+    for (const shot of ['throttle-calibration','pressure-calibration','fuel-minimum-calibration','automatic-idle-off','oil-feedback-settings','oil-pressure-protection','tool-settings','manual-tests','engine-backup-restore','sequence-engine-startup','sequence-engine-shutdown','main-fuel-controller'])
       assert.ok(basicHtml.includes(`${shot}.png`), `complete sequence lacks ${shot}`);
     const basicSource=fs.readFileSync('site/guided-builds/basic.md','utf8');
-    assert.ok(basicSource.split(/\s+/).length<3300,'basic path remains manageable');
-    assert.ok((basicSource.match(/include build-screen/g)||[]).length<=12,'screenshots support the basic path without dominating it');
+    const basicProse=basicSource.replace(/{%[\s\S]*?%}/g,'').replace(/{{[\s\S]*?}}/g,'value');
+    assert.ok(basicProse.split(/\s+/).length<3300,'basic instructions remain manageable while every setup task has a view');
+    for(const heading of [...basicSource.matchAll(/<h2 id="([^"]+)">/g)]){
+      const section=basicSource.slice(heading.index+heading[0].length).split('<h2 ')[0];
+      assert.match(section,/include build-screen/,`${heading[1]} needs a matching screenshot`);
+    }
+    assert.ok(basicHtml.indexOf('spi-configured.png')<basicHtml.indexOf('tot-configured.png'),'shared bus screenshot precedes converter screenshot');
     const example=require('../site/_data/guided_example.json');
     assert.ok(example.fuel_min_pct<example.fuel_idle_pct&&example.fuel_idle_pct<example.fuel_max_pct);
     assert.ok(example.n1_idle_rpm<example.n1_full_rpm&&example.n1_full_rpm<example.n1_trip_rpm);

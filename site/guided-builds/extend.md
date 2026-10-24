@@ -24,7 +24,7 @@ The gas generator's normal full-power example is {{ e.n1_full_rpm }} RPM. That d
 
 Reuse the [conditioned N1 pulse-input pattern]({{ '/guided-builds/basic/#n1' | relative_url }}) on a separate pin. Select a pickup and conditioner suitable for the actual shaft speed, target and environment. Do not reuse N1's electrical signal as N2.
 
-1. In **Hardware → Add input**, choose **N2 speed**, name it **N2 Power Shaft**, select the pulse interface and assign its GPIO.
+1. In **Hardware → Add input**, choose **N2 speed**, enter your own name (suggested: **N2 Power Shaft**), select **Hardware pulse counter (PCNT)** and assign its GPIO.
 2. Enter the actual counted **pulses per shaft revolution**. If sensing after gearing, account for that ratio so the channel represents the shaft named in the guide. Write the relationship on the worksheet.
 3. Match the input bias to the conditioner. Open-drain needs an appropriate pull-up; push-pull typically does not. A raw magnetic pickup requires conditioning, not just a pull-up.
 4. Save, reopen and check the configured card.
@@ -36,6 +36,8 @@ Reuse the [conditioned N1 pulse-input pattern]({{ '/guided-builds/basic/#n1' | r
 <h2 id="limits">2 · Give N2 its own protection</h2>
 
 Open **Controllers → Shutdown & Protection → N2 Power Shaft protection**. Set **Maximum N2 Speed = {{ e.n2_trip_rpm }} RPM** for the teaching dataset, then turn **N2 overspeed shutdown ON**. Keep the independent N1 and engine-temperature protections from Build 2.
+
+{% include build-screen.html file="n2-protection" step="Set the separate N2 overspeed protection" alt="N2 safety card showing its retained maximum speed and enabled overspeed shutdown." caption="Use the power shaft's own verified limit. The teaching trip is 24000 RPM; it is independent of N1's limit." %}
 
 If using N2 fuel limiting, its gradual-reduction band must sit below this trip with operating margin around the normal target. Start with the **Simple** method and review its reduction authority. Predictive uses acceleration as well and requires separate validation. Do not clear a retained limit merely to disable automatic shutdown; use the enable switch.
 
@@ -101,6 +103,8 @@ Keep hazardous energy isolated for command tests; use test signals or the simula
 - Save/reload and download **Build 3 — free power turbine**, with a short list of completed and pending physical tests.
 
 At this point, you should be able to identify every measurement, controller and protection without following a different recipe for each one. That is the transferable skill: **check the interface → add Hardware → calibrate → define control → test normal and failed behavior → back up**.
+
+{% include build-screen.html file="engine-backup-restore" step="Save the Build 3 milestone" alt="System maintenance backup controls for downloading the complete engine configuration." caption="Keep this free-turbine configuration and its test notes separate from the earlier turbojet backups." %}
 
 <h2 id="instruments">6 · Choose useful instruments</h2>
 
