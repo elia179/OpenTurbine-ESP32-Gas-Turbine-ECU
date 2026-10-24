@@ -1,5 +1,7 @@
 # OpenTurbine Setup Tool
 
+Maintainer follow-up for the next software iteration: [final Wi-Fi reconnect and verification feedback](../../docs/internal/NEXT_ITERATION_BACKLOG.md). The waiting screen can remain visible after Continue while verification runs; the reported intermittent failure still needs reproduction and a matching support log.
+
 Windows setup/update helper for OpenTurbine boards.
 
 The home screen separates **Clean install / reinstall** (USB, erases the entire
