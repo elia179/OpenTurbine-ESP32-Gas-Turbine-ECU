@@ -145,17 +145,18 @@ def main():
     d.wire([(350,492),(350,395)],GROUND);d.dot(350,395,GROUND);d.text(30,511,'Supply − joins at the return point; load current does not pass through the ECU.','small')
     d.text(745,425,'Use driver-specified','small');d.text(745,450,'load suppression.','small');d.save('pwm')
 
-    d=Drawing('Relay control and switched power','Nonisolated module: its IN must accept 3.3 V. Module VCC is its rated supply.')
-    d.box(30,170,245,310,'ESP32 ECU');d.box(440,170,285,310,'Relay module');d.box(795,280,180,160,'Lamp / load')
-    d.text(255,250,'On/off GPIO','','end');d.text(460,250,'IN');d.wire([(275,260),(440,260)])
+    d=Drawing('Switch a spark ignition unit with a relay','Example: a self-contained DC spark unit. Relay IN must accept the ECU\'s 3.3 V signal.')
+    d.box(30,170,245,310,'ESP32 ECU');d.box(440,170,285,310,'Relay module');d.box(795,280,180,160,'Spark unit')
+    d.text(255,275,'Igniter GPIO','','end');d.text(460,275,'IN');d.wire([(275,285),(440,285)])
     d.text(255,410,'GND','','end');d.text(460,410,'GND');d.wire([(275,420),(440,420)],GROUND)
-    d.text(30,120,'Module-rated regulated supply + → VCC');d.wire([(550,130),(550,170)],POWER)
-    d.text(545,220,'Coil driver', 'small');d.text(545,248,'inside module','small')
-    d.text(755,144,'Fused load +','small');d.wire([(850,155),(750,155),(750,285),(725,285)],POWER,True)
+    d.text(30,120,'Relay-rated supply +');d.wire([(250,130),(350,130),(350,210),(440,210)],POWER)
+    d.text(460,205,'VCC');d.text(545,240,'Coil driver', 'small');d.text(545,263,'inside module','small')
+    d.text(755,144,'Fused igniter +','small');d.wire([(850,155),(750,155),(750,285),(725,285)],POWER,True)
     d.text(695,278,'COM','','end');d.text(695,334,'NO','','end');d.text(695,385,'NC unused','small','end')
     d.wire([(725,345),(795,345)],POWER,True)
+    d.text(810,350,'DC +','small');d.text(810,385,'HV → plug','small');d.text(810,423,'DC −','small')
     d.wire([(885,440),(885,495),(350,495)],GROUND,True);d.wire([(350,495),(350,420)],GROUND);d.dot(350,420,GROUND)
-    d.text(30,517,'Load − and module supply − join the supply return. Contacts do not power the coil.','small');d.save('relay')
+    d.text(30,517,'Igniter supply − and relay supply − join GND. Use an independent stop in the ignition supply.','small');d.save('relay')
 
     d=Drawing('Analog sensor signal conditioning','Example calculation: 0.5–4.5 V signal, 15 kΩ top and 10 kΩ bottom → 0.2–1.8 V.')
     d.box(30,165,240,270,'Pressure sensor');d.box(730,165,240,270,'ESP32 ECU')
@@ -236,13 +237,13 @@ def main():
         panels.append(svg)
     (OUT.parent/'sensor-switch-wiring.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1200" role="img" aria-label="Conditioned pressure, Hall speed, dry contact and thermocouple wiring patterns">'+''.join(panels)+'</svg>\n', encoding='utf-8')
 
-    for level in (1,2,3):
-        d=Drawing(f'Level {level}: one system that grows','Functional map — wiring details live in the individual steps. Orange borders mark additions.')
+    for level in (1,2):
+        d=Drawing(f'Build {level}: the same basic turbojet','Signal map — oil delivery and shutoff are present from Build 1. Orange marks the new input.')
         d.box(360,115,280,370,'OpenTurbine ECU')
         d.text(500,260,'Hardware', '', 'middle');d.text(500,308,'Controllers + protection','','middle');d.text(500,356,'Sequence + calibration','','middle')
         d.text(500,415,'Physical Start / Stop','','middle')
-        inputs=[('N1 pulses',1),('Turbine temperature',1),('Throttle',1),('Pressure + brightness knob',2),('N2 + auxiliary sensing',3),('Torque + I²C thrust',3)]
-        outputs=[('Starter signal',1),('Ignition command',1),('Fuel command',1),('Shutoff + oil + light',2),('Fan + instrumentation',3)]
+        inputs=[('N1 speed',1),('Main TOT',1),('Throttle input',1),('Oil pressure',1),('Combustor pressure',2)]
+        outputs=[('Starter ESC command',1),('Spark ignition command',1),('Fuel pump PWM',1),('Oil pump PWM',1),('Fuel shutoff command',1)]
         for column,items in ((0,inputs),(1,outputs)):
             for i,(label,added) in enumerate(items):
                 if added>level:continue
@@ -251,6 +252,28 @@ def main():
                 if added==level and level>1:d.items.append(f'<rect x="{x}" y="{y}" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>')
                 d.wire([(310 if column==0 else 640,y+26),(360 if column==0 else 690,y+26)])
         d.text(30,517,'Independent physical stop removes fuel / relevant load energy outside this software map.','small');d.save(f'level-{level}')
+
+    d=Drawing('Build 3: gas generator + free power turbine','Gas flow joins the stages. N1 and N2 are mechanically separate shafts.')
+    d.box(25,145,280,140,'Gas generator')
+    d.text(45,220,'Compressor + turbine: N1','small')
+    d.text(45,253,'Fuel / spark / starter','small')
+    d.box(405,145,250,140,'Free power turbine')
+    d.text(425,220,'Independent shaft: N2','small')
+    d.text(425,253,'Check its own oil supply','small')
+    d.box(755,145,220,140,'Driven load')
+    d.text(775,220,'Coupling / gearing','small')
+    d.text(775,253,'Defined load envelope','small')
+    d.wire([(305,205),(405,205)],POWER,True)
+    d.text(315,180,'Gas flow','small')
+    d.wire([(655,205),(755,205)],GROUND,True)
+    d.text(665,180,'Shaft','small')
+    d.text(40,325,'TOT location: after gas-generator turbine, before added free turbine.','small')
+    d.text(40,357,'Moving the probe changes what its readings and limits mean.','small')
+    d.box(180,400,640,95,'OpenTurbine: both speeds + temperature + oil')
+    d.wire([(165,285),(165,445),(180,445)])
+    d.wire([(530,285),(530,400)])
+    d.text(30,525,'Fuel governor uses N2; independent N1 / N2 / temperature protection remains active.','small')
+    d.save('level-3')
 
 
 if __name__=='__main__':

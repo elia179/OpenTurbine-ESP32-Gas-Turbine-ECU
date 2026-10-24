@@ -32,8 +32,11 @@ const { chromium } = require('playwright');
     const firmware = fs.readFileSync(path.join(__dirname, '../src/main.cpp'), 'utf8');
     const blocks = [...new Set([...firmware.matchAll(/addIssue\("([^"]+)"/g)].map(match => match[1]))];
     const sequenceRoutes = await page.evaluate(blocks => blocks.map(block => ({block, url:sequenceIssueDestination({block,msg:''})})), blocks);
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       stopSequenceTelemetry();
+      // A poll already in flight can otherwise erase the injected warnings.
+      const assertTelemetryIdle = await window.OTWaitForPageTelemetryIdle(10000);
+      if (!assertTelemetryIdle) throw new Error('Sequence telemetry did not become idle');
       _applySeqValidation({seq_has_errors:true, seq_issues:[
         {block:'P2 Hard Trip', msg:'P2 hard trip is configured without a P2 sensor', error:true},
         {block:'Oil Safety', msg:'No oil pressure sensor is configured', error:true},

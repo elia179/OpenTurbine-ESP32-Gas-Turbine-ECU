@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Level 2: one system that grows</title><desc id="desc">Functional map — wiring details live in the individual steps. Orange borders mark additions.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc"><title id="title">Build 2: the same basic turbojet</title><desc id="desc">Signal map — oil delivery and shutoff are present from Build 1. Orange marks the new input.</desc>
 <style>text{font-family:Arial,sans-serif;fill:#eef4f8;font-size:19px}.small{font-size:16px;fill:#bac9d6}.heading{font-size:26px;font-weight:bold}.net{fill:none;stroke-width:3;stroke-linejoin:round}.heavy{stroke-width:5}</style>
 <rect width="1000" height="600" rx="18" fill="#101922"/>
-<text x="30" y="42" class="heading" text-anchor="start">Level 2: one system that grows</text>
-<text x="30" y="76" class="small" text-anchor="start">Functional map — wiring details live in the individual steps. Orange borders mark additions.</text>
+<text x="30" y="42" class="heading" text-anchor="start">Build 2: the same basic turbojet</text>
+<text x="30" y="76" class="small" text-anchor="start">Signal map — oil delivery and shutoff are present from Build 1. Orange marks the new input.</text>
 <rect x="360" y="115" width="280" height="370" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
 <text x="500.0" y="147" class="" text-anchor="middle">OpenTurbine ECU</text>
 <text x="500" y="260" class="" text-anchor="middle">Hardware</text>
@@ -10,31 +10,36 @@
 <text x="500" y="356" class="" text-anchor="middle">Sequence + calibration</text>
 <text x="500" y="415" class="" text-anchor="middle">Physical Start / Stop</text>
 <rect x="30" y="125" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="157" class="" text-anchor="middle">N1 pulses</text>
+<text x="170.0" y="157" class="" text-anchor="middle">N1 speed</text>
 <polyline points="310,151 360,151" class="net" stroke="#74dcb7"/>
 <rect x="30" y="190" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="222" class="" text-anchor="middle">Turbine temperature</text>
+<text x="170.0" y="222" class="" text-anchor="middle">Main TOT</text>
 <polyline points="310,216 360,216" class="net" stroke="#74dcb7"/>
 <rect x="30" y="255" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="287" class="" text-anchor="middle">Throttle</text>
+<text x="170.0" y="287" class="" text-anchor="middle">Throttle input</text>
 <polyline points="310,281 360,281" class="net" stroke="#74dcb7"/>
 <rect x="30" y="320" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="170.0" y="352" class="" text-anchor="middle">Pressure + brightness knob</text>
-<rect x="30" y="320" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
+<text x="170.0" y="352" class="" text-anchor="middle">Oil pressure</text>
 <polyline points="310,346 360,346" class="net" stroke="#74dcb7"/>
+<rect x="30" y="385" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="170.0" y="417" class="" text-anchor="middle">Combustor pressure</text>
+<rect x="30" y="385" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
+<polyline points="310,411 360,411" class="net" stroke="#74dcb7"/>
 <rect x="690" y="125" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="157" class="" text-anchor="middle">Starter signal</text>
+<text x="830.0" y="157" class="" text-anchor="middle">Starter ESC command</text>
 <polyline points="640,151 690,151" class="net" stroke="#74dcb7"/>
 <rect x="690" y="190" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="222" class="" text-anchor="middle">Ignition command</text>
+<text x="830.0" y="222" class="" text-anchor="middle">Spark ignition command</text>
 <polyline points="640,216 690,216" class="net" stroke="#74dcb7"/>
 <rect x="690" y="255" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="287" class="" text-anchor="middle">Fuel command</text>
+<text x="830.0" y="287" class="" text-anchor="middle">Fuel pump PWM</text>
 <polyline points="640,281 690,281" class="net" stroke="#74dcb7"/>
 <rect x="690" y="320" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
-<text x="830.0" y="352" class="" text-anchor="middle">Shutoff + oil + light</text>
-<rect x="690" y="320" width="280" height="52" rx="10" fill="none" stroke="#ff9276" stroke-width="3"/>
+<text x="830.0" y="352" class="" text-anchor="middle">Oil pump PWM</text>
 <polyline points="640,346 690,346" class="net" stroke="#74dcb7"/>
+<rect x="690" y="385" width="280" height="52" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
+<text x="830.0" y="417" class="" text-anchor="middle">Fuel shutoff command</text>
+<polyline points="640,411 690,411" class="net" stroke="#74dcb7"/>
 <text x="30" y="517" class="small" text-anchor="start">Independent physical stop removes fuel / relevant load energy outside this software map.</text>
 <text x="30" y="558" class="small" text-anchor="start">Signal / command</text>
 <polyline points="190,552 242,552" class="net" stroke="#74dcb7"/>

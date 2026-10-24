@@ -19,14 +19,14 @@ PUBLIC_PAGES = [
     "reference.md", "index.md", "get-started.md", "example-system.md", "hardware.md", "user-guide.md", "troubleshooting.md",
     "safety.md", "faq.md", "developers.md", "about.md", "404.html",
     "guided-builds/index.md", "guided-builds/basic.md", "guided-builds/control.md",
-    "guided-builds/extend.md", "guided-builds/parts.md",
+    "guided-builds/extend.md", "guided-builds/parts.md", "guided-builds/instruments.md",
 ]
 PUBLIC_ROUTES = [
     "reference/index.html", "index.html", "get-started/index.html", "example-system/index.html", "hardware/index.html", "user-guide/index.html",
     "troubleshooting/index.html", "safety/index.html", "faq/index.html", "developers/index.html",
     "about/index.html", "404.html",
     "guided-builds/index.html", "guided-builds/basic/index.html", "guided-builds/control/index.html",
-    "guided-builds/extend/index.html", "guided-builds/parts/index.html",
+    "guided-builds/extend/index.html", "guided-builds/parts/index.html", "guided-builds/instruments/index.html",
 ]
 MARKDOWN_SOURCES = [
     ROOT / "README.md",

@@ -29,26 +29,43 @@ const server = http.createServer((req,res) => {
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
   const base = `http://127.0.0.1:${server.address().port}${prefix}`;
   const browser = await chromium.launch({headless:true,...(process.env.OT_BROWSER_EXECUTABLE?{executablePath:process.env.OT_BROWSER_EXECUTABLE}:{})});
-  const routes = ['','get-started/','reference/','user-guide/','hardware/','example-system/','troubleshooting/','faq/','safety/','developers/','about/','guided-builds/','guided-builds/basic/','guided-builds/control/','guided-builds/extend/','guided-builds/parts/'];
+  const routes = ['','get-started/','reference/','user-guide/','hardware/','example-system/','troubleshooting/','faq/','safety/','developers/','about/','guided-builds/','guided-builds/basic/','guided-builds/control/','guided-builds/extend/','guided-builds/parts/','guided-builds/instruments/'];
   const errors = [];
   try {
-    // Every channel introduced by a lesson must retain its configured-card view.
+    // Core milestones have focused views; specialist inventory stays optional.
     const configuredCards = {
-      basic: ['start','stop','n1','tot','throttle','starter','fuel','igniter','spi','n1-warnings','temperature-warnings','bench-fuel-zero'],
-      control: ['pressure','oil-pump','shutoff','brightness','light'],
-      extend: ['n2','battery','oil-temperature','fan','cover','torque','thrust','i2c','current']
+      basic: ['start','stop','n1','spi','tot','throttle','pressure','starter','fuel','igniter','oil-pump','shutoff','n1-warnings','temperature-warnings'],
+      control: ['combustor','automatic-idle'],
+      extend: ['n2'],
+      instruments: ['battery','oil-temperature','fan','cover','torque','thrust','i2c','current','brightness','light']
     };
     for (const [lesson, cards] of Object.entries(configuredCards)) {
       const html = fs.readFileSync(path.join(built,'guided-builds',lesson,'index.html'),'utf8');
       for (const card of cards) assert.ok(html.includes(`${card}-configured.png`), `${lesson} lacks configured ${card} card`);
     }
     const basicHtml = fs.readFileSync(path.join(built,'guided-builds/basic/index.html'),'utf8');
-    assert.ok(basicHtml.indexOf('spi-configured.png') < basicHtml.indexOf('tot-configured.png'),'SPI setup must precede temperature card');
-    assert.ok(basicHtml.indexOf('throttle-configured.png') < basicHtml.indexOf('throttle-calibration.png'),'Hardware must precede throttle calibration');
-    for (const shot of ['fuel-minimum-calibration','automatic-idle-off'])
-      assert.ok(basicHtml.includes(`${shot}.png`),`fuel/idle explanation lacks ${shot}`);
-    for (const shot of ['sequence-bench-startup','sequence-bench-shutdown','sequence-bench-fuel-action'])
+    assert.ok(basicHtml.indexOf('enable SPI') < basicHtml.indexOf('tot-configured.png'),'SPI setup must precede temperature card');
+    assert.ok(basicHtml.indexOf('Analog voltage input (ADC)') < basicHtml.indexOf('throttle-calibration.png'),'Hardware must precede throttle calibration');
+    for (const shot of ['throttle-calibration','pressure-calibration','fuel-minimum-calibration','automatic-idle-off','oil-feedback-settings','oil-pressure-protection','tool-settings','manual-tests','engine-backup-restore','sequence-engine-startup','sequence-engine-shutdown','main-fuel-controller'])
       assert.ok(basicHtml.includes(`${shot}.png`), `complete sequence lacks ${shot}`);
+    const basicSource=fs.readFileSync('site/guided-builds/basic.md','utf8');
+    const basicProse=basicSource.replace(/{%[\s\S]*?%}/g,'').replace(/{{[\s\S]*?}}/g,'value');
+    assert.ok(basicProse.split(/\s+/).length<3300,'basic instructions remain manageable while every setup task has a view');
+    for(const heading of [...basicSource.matchAll(/<h2 id="([^"]+)">/g)]){
+      const section=basicSource.slice(heading.index+heading[0].length).split('<h2 ')[0];
+      assert.match(section,/include build-screen/,`${heading[1]} needs a matching screenshot`);
+    }
+    assert.ok(basicHtml.indexOf('spi-configured.png')<basicHtml.indexOf('tot-configured.png'),'shared bus screenshot precedes converter screenshot');
+    const fuelShot=basicHtml.indexOf('fuel-configured.png'),relayDiagram=basicHtml.indexOf('relay.svg'),igniterShot=basicHtml.indexOf('igniter-configured.png');
+    assert.ok(fuelShot<relayDiagram&&relayDiagram<igniterShot,'relay wiring belongs beside the ignition Hardware card');
+    assert.equal((basicHtml.slice(relayDiagram,igniterShot).match(/build-screen-viewport/g)||[]).length,1,'only the ignition screenshot wrapper follows the relay wiring');
+    assert.ok(basicHtml.includes('Make the example your own.'),'basic path explains configurable examples and board differences');
+    const example=require('../site/_data/guided_example.json');
+    assert.ok(example.fuel_min_pct<example.fuel_idle_pct&&example.fuel_idle_pct<example.fuel_max_pct);
+    assert.ok(example.n1_idle_rpm<example.n1_full_rpm&&example.n1_full_rpm<example.n1_trip_rpm);
+    assert.ok(example.p1_normal_bar<example.p1_soft_bar&&example.p1_soft_bar<example.p1_full_reduction_bar&&example.p1_full_reduction_bar<example.p1_trip_bar);
+    assert.ok(example.oil_min_bar<example.oil_target_bar);
+    for(const bad of ['600 RPM target','1000 RPM is only','60 °C and 5 °C','sequence-bench-startup.png'])assert.ok(!basicHtml.includes(bad),'no signal-generator or competing bench recipe in basic');
     const settingRecords = JSON.parse(fs.readFileSync(path.resolve('site/_data/config_search.json'),'utf8'));
     const guideHtml = fs.readFileSync(path.join(built,'user-guide/index.html'),'utf8');
     assert.ok(guideHtml.includes('engine-backup-restore.png'),'restore procedure needs its focused card');
@@ -92,10 +109,9 @@ const server = http.createServer((req,res) => {
     await page.keyboard.press('Escape');
     assert.equal(await diagram.evaluate(el=>el===document.activeElement),true,'focus returns to diagram');
     assert.equal(await page.locator('[data-flow-toggle]').count(),0,'decorative animation removed');
-    await page.goto(`${base}/guided-builds/extend/`);
-    assert.equal(await page.locator('.build-hint').count(),0,'unsupported challenge removed');
-    assert.equal(await page.locator('#challenge').textContent(),'7 · Measure shaft torque with two pickups');
-    assert.equal(await page.locator('#thrust').textContent(),'8 · Measure thrust with an I²C load cell');
+    await page.goto(`${base}/guided-builds/instruments/`);
+    assert.equal(await page.locator('#challenge').textContent(),'Measure shaft torque with two pickups');
+    assert.equal(await page.locator('#thrust').textContent(),'Measure thrust with an I²C load cell');
     await page.locator('.menu-button').click();
     assert.equal(await page.locator('#site-nav').isVisible(),true);
     await page.getByRole('link',{name:'Guided Builds',exact:true}).click();
@@ -122,7 +138,7 @@ const server = http.createServer((req,res) => {
       await page.waitForFunction(key => document.querySelector(`#field-${key}`)?.closest('details')?.open, key);
       assert.equal(await page.locator(`#field-${key}`).isVisible(),true,'new idle reference opens from search');
     }
-    const extendHtml = fs.readFileSync(path.join(built,'guided-builds/extend/index.html'),'utf8');
+    const extendHtml = fs.readFileSync(path.join(built,'guided-builds/instruments/index.html'),'utf8');
     for (const shot of ['phase-torque-calibration','thrust-calibration'])
       assert.ok(extendHtml.includes(`${shot}.png`),`${shot} controls need their focused view`);
     await page.locator('#guide-contents > summary').click();
@@ -155,7 +171,7 @@ const server = http.createServer((req,res) => {
     await plain.goto(`${base}/guided-builds/basic/`);
     assert.equal(await plain.locator('#verify').isVisible(),true,'verification is available without JS');
     assert.equal(await plain.locator('.build-level-nav a').count(),4);
-    assert.ok(await plain.locator('.doc-outline a').count()>=10,'static section outline');
+    assert.ok(await plain.locator('.doc-outline a').count()>=9,'static section outline');
     assert.equal(await plain.locator('#site-nav').isVisible(),true,'no-JS navigation stays available');
     await noJS.close();
     assert.deepEqual(errors,[],'no JavaScript errors');
@@ -180,8 +196,8 @@ const server = http.createServer((req,res) => {
       await page.goto(`${base}/user-guide/#field-rpm_limit`);await readyImages();await page.screenshot({path:path.join(folder,'field-reference.png')});
       await page.goto(`${base}/user-guide/#backups`);await readyImages();await page.screenshot({path:path.join(folder,'guide-backup-restore.png')});
       await page.goto(`${base}/hardware/`);await readyImages();await page.screenshot({path:path.join(folder,'hardware-reference.png'),fullPage:true});
-      await page.goto(`${base}/guided-builds/control/`);await readyImages();
-      for (const name of ['controller-create','controller-mapping','controller-states','oil-feedback-settings']) {
+      for (const [name,lesson] of [['controller-create','instruments'],['controller-mapping','instruments'],['controller-states','instruments'],['oil-feedback-settings','control']]) {
+        await page.goto(`${base}/guided-builds/${lesson}/`);await readyImages();
         const figure=page.locator(`figure:has(img[src$="/${name}.png"])`);
         await figure.evaluate(el=>el.scrollIntoView({block:'start'}));
         await page.evaluate(()=>scrollBy(0,-75));

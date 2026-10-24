@@ -58,7 +58,7 @@ Do not copy pin numbers from another board or installation. Classic ESP32 and ES
 
 Open the existing Main Fuel Metering controller. If none owns that output yet, create it under **Controllers → Output controllers → + Create controller**; use the [illustrated steps]({{ '/guided-builds/basic/#ownership' | relative_url }}). A straightforward starting point is operator demand commanding the fuel output, with engine-specific limits and automatic idle left for later commissioning.
 
-Choose **Running Idle Mode** deliberately. **Off** adds no Running floor; Fixed, Input channel and Automatic Idle each provide one differently. Older files needing an explicit mode choice retain their behavior until you change Idle settings. See the [idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}) before setting the mapped minimum.
+Choose **Running Idle Mode** deliberately. **Off** adds no Running floor; Fixed, Input channel and Automatic Idle each provide one differently. Older files needing an explicit mode choice retain their behavior until you change Idle settings. See the [idle choices]({{ '/guided-builds/control/#idle' | relative_url }}) before setting the mapped minimum.
 
 If the oil pump is proportional and oil pressure is fitted, it may use an oil-pressure controller. A relay oil pump remains simple On/Off sequence hardware. Leave optional behavior disabled until its feedback and purpose are understood.
 

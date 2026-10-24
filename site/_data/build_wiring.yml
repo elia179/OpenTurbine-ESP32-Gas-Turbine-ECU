@@ -31,12 +31,12 @@ pwm:
   - [Power return, Driver power GND, Load supply − at the return point, Keep this current out of the ECU ground path.]
   - [Logic supply, Module-rated supply if the driver needs one, Driver VCC if fitted, The simplified figure omits a separate VCC for drivers that do not require it.]
 relay:
-  - [Command, On/off GPIO, Relay module IN, Confirm active-high or active-low behavior with switched load power disconnected.]
+  - [Command, ECU Igniter GPIO, Relay module IN, Confirm active-high or active-low behavior with ignition supply disconnected.]
   - [Coil power, Module-rated regulated supply +, Module VCC, The GPIO does not energize the coil directly.]
   - [Reference, ECU GND and module supply −, Module GND, This is a nonisolated example; follow different wiring for isolated modules.]
-  - [Switched supply, Fused load supply +, Relay COM, COM is the contact common; it is not module VCC.]
-  - [Switched output, Relay NO, Lamp or load +, NO means normally open; confirm contact ratings for the actual load.]
-  - [Load return, Lamp or load −, Load supply −, NC is unused in this lamp example; actual valve logic may differ.]
+  - [Switched supply, Igniter-rated supply + through fuse and independent stop, Relay COM, COM is the contact common; it is not module VCC.]
+  - [Switched output, Relay NO, Self-contained DC spark unit +, NO means normally open; contacts must handle the unit's voltage and inrush. Do not switch the high-voltage lead.]
+  - [Igniter return, Spark unit DC −, Igniter supply − and common GND reference, NC is unused. A bare ignition coil needs its own suitable ignition driver instead.]
 pressure:
   - [Sensor power, Manufacturer-specified regulated supply, Sensor VCC, Verify the sensor model and supply requirements before wiring.]
   - [Ground, Sensor GND, ECU GND and supply reference, The example is nonisolated.]

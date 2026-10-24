@@ -57,7 +57,7 @@ Open the active card and read its completion condition, input health and timeout
 
 ## Fuel does not fall to zero at low throttle
 
-With hazardous loads isolated, check **Controllers → Fuel-metering support → Idle → Running Idle Mode**, then the Main Fuel owner's **Output low (%)**. Idle **Off** removes the Running floor but does not change Output low; both must permit zero for a full-range bench mapping. Fixed, input and automatic idle can hold a floor in Running. Startup has its own Sequence commands. Do not erase a measured pump minimum to disable idle. Follow the [illustrated idle choices]({{ '/guided-builds/basic/#fuel-without-idle' | relative_url }}).
+With hazardous loads isolated, check **Controllers → Fuel-metering support → Idle → Running Idle Mode**, then the Main Fuel owner's **Output low (%)**. Idle **Off** removes the Running floor but does not change Output low; both must permit zero for a full-range bench mapping. Fixed, input and automatic idle can hold a floor in Running. Startup has its own Sequence commands. Do not erase a measured pump minimum to disable idle. Follow the [illustrated idle choices]({{ '/guided-builds/control/#idle' | relative_url }}).
 
 ## The fuel calibration Stop button is grey
 
