@@ -23,7 +23,10 @@ const { chromium } = require('playwright');
   });
   const base = liveBase || 'http://127.0.0.1:8779';
   try {
-    if (!liveBase) await page.request.post(base + '/__sim/scenario/full');
+    if (!liveBase) {
+      await page.request.post(base + '/__sim/scenario/full');
+      await page.request.post(base + '/__sim/data', {data:{mode:'STANDBY',config_locked:false,dev_mode:false}});
+    }
     await page.goto(base + '/sequence.html?v=20261023q');
     await page.waitForFunction(() => typeof loadedCfg !== 'undefined' && Object.keys(loadedCfg).length > 0 && document.body.textContent.includes('No unsaved changes'));
     const firmware = fs.readFileSync(path.join(__dirname, '../src/main.cpp'), 'utf8');
@@ -95,11 +98,25 @@ const { chromium } = require('playwright');
     await page.waitForFunction(() => window.__warningAuditConfigReady === true);
     await page.evaluate(() => {
       if (!hasRegistryInput('n1_speed')) throw new Error('N1 warning fixture requires a fitted N1 source');
-      document.getElementById('cf-pb_n1e').value = '1';
-      document.getElementById('cf-pb_n1e_on').checked = true;
-      document.getElementById('cf-pb_n1h').value = String(Number(document.getElementById('cf-rpm_limit').value) + 1000);
-      runValidation();
+      openProtection('n1');
     });
+    // Use real input events so the draft is page-owned before the first
+    // telemetry lock refresh. Bare DOM assignments can be legitimately reset.
+    await page.locator('#cf-pb_n1e_on').check();
+    await page.locator('#cf-pb_n1e').selectOption('1');
+    const pullbackLimit = String(Number(await page.locator('#cf-rpm_limit').inputValue()) + 1000);
+    await page.locator('#cf-pb_n1h').fill(pullbackLimit);
+    await page.locator('#cf-pb_n1h').press('Tab');
+    if (!liveBase) {
+      const retained = await page.evaluate(() => {
+        isLocked = true;
+        applyData({..._lastData, mode:'STANDBY', config_locked:false});
+        return {dirty:_cfgDirty, value:document.getElementById('cf-pb_n1h').value};
+      });
+      assert.equal(retained.dirty, true);
+      assert.equal(retained.value, pullbackLimit);
+    }
+    await page.locator('[data-protection="n1"]').evaluate(card => { card.open = false; });
     const inline = page.locator('[data-warnkey="warn-n1-pullback-trip"]');
     await inline.click();
     await page.locator('#cf-pb_n1e').waitFor({state:'visible'});
