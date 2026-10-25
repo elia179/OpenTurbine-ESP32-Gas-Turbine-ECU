@@ -74,3 +74,26 @@ On opening **System**, automatically expand all three main cards: **Identity & a
 - [ ] Apply the expanded default on initial load, navigation back into System and page reload. Keep manual collapsing available while the user is on the page.
 - [ ] Do not automatically expand every nested advanced setting or execute maintenance actions; this request concerns the three top-level cards only.
 - [ ] Check desktop/mobile layout and direct links into each section. Expanding sections must not change or save ECU configuration.
+
+## Landscape/tablet space: shared scroll-aware search and save bars
+
+Requested 25 October 2026 for **2.6.1**. Open design follow-up; no UI implementation changed yet.
+
+The Controllers page's sticky search/filter workspace and bottom save bar can leave only a narrow strip of usable content on a landscape tablet. Resolve this by viewport **height** as well as width, and apply the same save-bar behavior throughout the application.
+
+### Preferred interaction
+
+- Scroll down to read/edit: collapse the large heading/search/filter workspace to a compact page heading and collapse the bottom save controls. With unsaved changes, keep a small, clearly labelled **Unsaved changes · Show save controls** strip rather than losing all indication of pending edits.
+- Scroll up a short, deliberate distance: reveal the full search/filter and save controls immediately. Tapping the compact heading/search affordance or unsaved strip also reveals the respective controls; reveal alone never saves or discards anything.
+- At the page top, show the full workspace. At the bottom, make save controls available. Initial navigation should not open with controls mysteriously hidden.
+- Keep controls visible while their search/input/button has keyboard focus, a save/confirmation is in progress or an error needs attention. Keyboard focus navigation must reveal hidden controls. Do not slide the search box away while typing.
+- Use direction thresholds/hysteresis so tiny scroll movements, touch bounce, programmatic field jumps and orientation/keyboard changes do not make the bars flicker. Respect reduced motion and avoid content jumps or obscured focused fields.
+- Prioritize compact behavior on short viewports, especially landscape tablets; preserve comfortable desktop behavior when vertical space is ample. The user must always have an obvious non-gesture way to bring controls back.
+
+### Implementation scope and acceptance
+
+- [ ] Use one shared behavior for all persistent save bars, including Hardware, Controllers/Config, System and Sequence (`.save-bar` / `.seq-save-bar`), rather than separate page-specific scroll hacks. Ordinary inline calibration/action buttons are not floating save bars.
+- [ ] Coordinate Controllers' sticky workspace with the shared header/save-bar heights; account for the existing navigation bar, safe-area insets and scroll-to-field offsets.
+- [ ] Preserve dirty counts, errors, save/discard/recap semantics and unsaved-navigation warnings. Collapse is visual only and must not write configuration or discard state.
+- [ ] Verify landscape tablet, portrait phone, short desktop window, browser zoom and on-screen keyboard; cover touch, wheel and keyboard scrolling, field deep links, long cards, page bottom, orientation changes, validation failures and active saves.
+- [ ] Measure the recovered content area and check that no fields are trapped behind bars. Confirm the behavior is consistent on every page with a persistent save bar and that the unsaved strip remains readable/tappable.
