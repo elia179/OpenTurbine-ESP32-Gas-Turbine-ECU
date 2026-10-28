@@ -392,29 +392,43 @@
     var workspace = document.querySelector('.cfg-workspace');
     var saveHandle = document.createElement('button');
     saveHandle.type = 'button'; saveHandle.className = 'ot-save-handle';
-    saveHandle.setAttribute('aria-label','Show save controls');
+    bar.classList.add('ot-managed-save');
     var searchHandle = document.createElement('button');
     searchHandle.type = 'button'; searchHandle.className = 'ot-search-handle';
     searchHandle.textContent = 'Search & page controls';
     document.body.appendChild(saveHandle);
     if (workspace) document.body.appendChild(searchHandle);
+    var modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
+    function searchField(){var field=workspace&&workspace.querySelector('input[type="search"]');return field&&field.getClientRects().length?field:null;}
     var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
     function dirty() { return bar.classList.contains('is-dirty') || (!/no unsaved changes/i.test(bar.textContent) && /unsaved changes|save to apply/i.test(bar.textContent)); }
     function reveal() {
       document.body.classList.remove('ot-controls-collapsed');
       revealedUntil = Date.now()+800; distance=0;
     }
+    function needsAttention() {
+      return !!(bar.querySelector('button[disabled].primary') && /saving|uploading|rebooting|restarting/i.test(bar.textContent)) || /failed|error|could not|cannot save|warning:/i.test(bar.textContent);
+    }
     function pinned() {
       var active=document.activeElement;
-      if (active && (bar.contains(active) || workspace && workspace.contains(active))) return true;
-      if (bar.querySelector('button[disabled].primary') && /saving|uploading|rebooting|restarting/i.test(bar.textContent)) return true;
-      return !!document.querySelector('.ot-dialog-overlay.show,.save-recap-modal.show,[role="dialog"][aria-modal="true"]') || /failed|error|could not/i.test(bar.textContent);
+      if (active && ((active!==bar && bar.contains(active)) || workspace && workspace.contains(active))) return true;
+      if (needsAttention()) return true;
+      return Array.from(document.querySelectorAll(modalSelector)).some(function(el){return el.getClientRects().length && getComputedStyle(el).visibility!=='hidden';});
     }
     function update() {
       var short = window.innerHeight <= 700;
+      searchHandle.textContent=searchField()?'Search & page controls':'Page controls';
+      var nav=document.querySelector('nav'),edge=nav?Math.max(0,nav.getBoundingClientRect().bottom):0;
+      var control=workspace&&(searchField()||workspace.querySelector('button')||workspace);
+      document.body.classList.toggle('ot-search-offscreen',!!control && getComputedStyle(workspace).position!=='sticky' && control.getBoundingClientRect().bottom<=edge);
       saveHandle.textContent = dirty() ? 'Unsaved changes · Show save controls' : 'Show save controls';
       document.body.classList.toggle('ot-short-controls',short);
-      if (!short || pinned() || window.scrollY<32 || window.scrollY+innerHeight>=document.documentElement.scrollHeight-12) reveal();
+      document.body.classList.toggle('ot-has-unsaved',dirty());
+      document.body.classList.toggle('ot-save-attention',needsAttention());
+      document.documentElement.style.setProperty('--ot-save-space',(bar.offsetHeight+16)+'px');
+      if (!short || pinned() || window.scrollY<32 || window.scrollY+innerHeight>=document.documentElement.scrollHeight-12) {
+        document.body.classList.remove('ot-controls-collapsed');distance=0;
+      }
     }
     function scroll() {
       var y=Math.max(0,window.scrollY), delta=y-last; last=y;
@@ -427,11 +441,24 @@
       }
     }
     saveHandle.onclick=function(){reveal();bar.setAttribute('tabindex','-1');bar.focus({preventScroll:true});};
-    searchHandle.onclick=function(){reveal();var focus=workspace.querySelector('input,button');if(focus)focus.focus({preventScroll:true});};
-    document.addEventListener('focusin',function(e){if(bar.contains(e.target)||workspace&&workspace.contains(e.target))reveal();});
+    searchHandle.onclick=function(){
+      reveal();
+      var focus=searchField()||workspace.querySelector('button');
+      var bounds=workspace.getBoundingClientRect(),nav=document.querySelector('nav');
+      var top=nav?Math.max(0,nav.getBoundingClientRect().bottom):0;
+      // Narrow layouts keep this workspace in normal document flow.
+      if(bounds.bottom<=top || bounds.top>=innerHeight || bounds.top<top-1){
+        workspace.scrollIntoView({block:'start',behavior:'instant'});
+        window.scrollBy(0,-top);
+      }
+      if(focus)focus.focus({preventScroll:true});
+    };
+    document.addEventListener('focusin',function(e){if(bar.contains(e.target)||workspace&&workspace.contains(e.target))reveal();else if(e.target.closest(modalSelector))update();});
     window.addEventListener('scroll',scroll,{passive:true});
     window.addEventListener('resize',function(){reveal();last=window.scrollY;update();},{passive:true});
     window.addEventListener('hashchange',reveal);
+    document.querySelectorAll(modalSelector).forEach(function(el){new MutationObserver(update).observe(el,{attributes:true,attributeFilter:['style','class']});});
+    if(window.ResizeObserver)new ResizeObserver(update).observe(bar);
     new MutationObserver(update).observe(bar,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','disabled']});
     window.OTScrollControls={reveal:reveal}; update();
   }

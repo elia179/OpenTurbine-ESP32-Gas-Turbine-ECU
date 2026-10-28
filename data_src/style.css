@@ -838,11 +838,27 @@ input[type=range] { accent-color: var(--accent); cursor: pointer; }
 .sequence-action-value { color:var(--accent); font-family:var(--font-mono); }
 .sequence-action-card small { flex-basis:100%; color:var(--dim); }
 .ot-save-handle,.ot-search-handle { display:none; }
+/* Restoring Save must keep it beside the current field even where the normal
+   narrow-screen stylesheet puts the bar at the end of the document. */
+body.ot-short-controls.ot-has-unsaved,
+body.ot-short-controls.ot-save-attention { padding-bottom:var(--ot-save-space,100px); }
+body.ot-short-controls.ot-has-unsaved .ot-managed-save,
+body.ot-short-controls.ot-save-attention .ot-managed-save {
+  position:fixed; left:.5rem; right:.5rem; bottom:max(8px,env(safe-area-inset-bottom));
+  width:auto; max-width:1100px; margin:0 auto; z-index:90;
+  transform:none;
+}
+body.ot-short-controls.ot-save-attention .ot-managed-save { display:flex; flex-wrap:wrap; }
+body.ot-short-controls.ot-save-attention .ot-managed-save .save-msg {
+  display:block; flex-basis:100%; grid-column:1/-1; overflow-wrap:anywhere;
+}
+
 .ot-short-controls.ot-controls-collapsed .save-bar,
 .ot-short-controls.ot-controls-collapsed .seq-save-bar { transform:translateY(calc(100% + 8px)); visibility:hidden; }
 .ot-short-controls.ot-controls-collapsed .cfg-workspace { transform:translateY(calc(-100% - 64px)); visibility:hidden; pointer-events:none; }
-.ot-short-controls.ot-controls-collapsed .ot-save-handle { display:block; position:fixed; bottom:env(safe-area-inset-bottom,0px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:205; min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text); }
-.ot-short-controls.ot-controls-collapsed .ot-search-handle { display:block; position:fixed; top:48px; right:8px; z-index:105; min-height:44px; max-width:calc(100vw - 16px); background:var(--surface); }
+.ot-short-controls.ot-controls-collapsed.ot-has-unsaved .ot-save-handle { display:block; position:fixed; bottom:env(safe-area-inset-bottom,0px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:95; min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text); }
+.ot-short-controls.ot-controls-collapsed .ot-search-handle,
+.ot-short-controls.ot-search-offscreen .ot-search-handle { display:block; position:fixed; top:48px; right:8px; z-index:105; min-height:44px; max-width:calc(100vw - 16px); background:var(--surface); }
 .save-bar.is-dirty { border-color: var(--accent); box-shadow: none; }
 .save-bar.is-dirty .save-msg { color: var(--text); font-weight: 600; }
 .save-bar.is-dirty .save-status { color: var(--accent); font-weight: 600; }
@@ -1675,6 +1691,8 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
 
 .hw-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.65rem; align-items: start; }
 .hw-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.hw-field > select { min-width:0; width:100%; max-width:100%; overflow:hidden; }
+.registry-bindings-panel .hw-field { overflow-x:clip; }
 /* Hardware registry cards mix one-line and multi-line help in each row. Keep
    their controls on one baseline without stretching unrelated page sections. */
 .registry-card-editor .hw-grid { align-items: stretch; }

@@ -49,12 +49,12 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
     await p.locator('[data-group="safety"] > summary').click();
     await p.locator('[data-protection="egt"] > summary').click();
    }
-   await p.evaluate(()=>{document.activeElement.blur();scrollTo(0,0);});await p.waitForTimeout(850);
+   await p.evaluate(()=>{document.querySelector('.save-bar,.seq-save-bar').classList.add('is-dirty');document.activeElement.blur();scrollTo(0,0);});await p.waitForTimeout(850);
    await p.mouse.wheel(0,350);await p.waitForTimeout(200);
    const enough=await p.evaluate(()=>scrollY>80&&scrollY+innerHeight<document.documentElement.scrollHeight-20);
    if(enough){
     assert.ok(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),route+' collapses: '+await p.locator('.save-bar,.seq-save-bar').first().innerText());
-    await p.getByRole('button',{name:'Show save controls',exact:true}).click();
+    await p.getByRole('button',{name:/Show save controls/}).click();
     assert.ok(!await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),route+' restores');
    }
    assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,route+' no horizontal overflow');

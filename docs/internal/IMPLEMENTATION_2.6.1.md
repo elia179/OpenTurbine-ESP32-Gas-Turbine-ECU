@@ -38,7 +38,7 @@ Ignored detailed logs are under `artifacts/`; they are workstation evidence, not
 | Beta browser audit | 14 groups passed after cache-key update; `beta-261-final.txt` |
 | Broader browser suite | First 17 programs passed before a WebKit warning visibility timing assertion failed. The assertion now waits for visibility; that audit passed in all three engines/source+gzip. All 28 remaining programs passed. Logs: `ui-261-full.txt`, `dashboard-261-retest.txt`, `ui-261-remaining.txt`. This was resumed coverage, not one uninterrupted suite run. |
 
-The Classic image is 1,670,736 bytes, leaving 33,200 bytes in its OTA slot (required reserve 32,768). S3 is 1,657,648 bytes, leaving 1,488,080 bytes. The filesystem source payload is 442,333 bytes. Static DRAM headroom is 17,912 bytes Classic and 148,136 bytes S3. Existing reserves and partition sizes were retained. Shared adapter lookup and validation cleanup reduced duplicated flash code without removing checks.
+The Classic image is 1,670,736 bytes, leaving 33,200 bytes in its OTA slot (required reserve 32,768). S3 is 1,657,648 bytes, leaving 1,488,080 bytes. The filesystem source payload is 442,964 bytes. Static DRAM headroom is 17,912 bytes Classic and 148,136 bytes S3. Existing reserves and partition sizes were retained. Shared adapter lookup and validation cleanup reduced duplicated flash code without removing checks.
 
 Build IDs: Classic `268cf1be3900e35d`; S3 `b1668964bf92625e`.
 
@@ -76,3 +76,35 @@ asserted the pending-card count before the asynchronous telemetry-backed render
 completed. The audit now waits for initial cards and the expected pending-card
 render; all three browsers/source+gzip passed afterwards. This changed test
 synchronization, not the product's placement behavior.
+
+## Scroll controls and nearby usability review
+
+The shared short-screen policy now restores Save beside the current field on
+all four pages, including layouts whose ordinary save bar is inline. Dynamic
+bottom clearance keeps the last field reachable. Clean pages have no redundant
+Save shortcut; unsaved edits keep the compact affordance. Passive focus on the
+restored bar does not pin it forever, while focused controls, saves, errors and
+visible dialogs keep controls available. Passive layout updates no longer
+restart the explicit-reveal delay.
+
+Search restoration focuses the actual search input and returns it into view on
+narrow layouts. System instead offers Page controls, since its search UI is
+hidden. The shortcut remains reachable when those controls are off-screen.
+All legacy channel/block dialogs participate in pinning, and floating controls
+stay below dialog layers. Save-error text is visible in narrow layouts.
+
+The review also found WebKit allowing long native option labels in Hardware's
+advanced link fields to widen the page. Selects now fit their field; the advanced
+field container clips intrinsic horizontal overflow without changing the values
+or options.
+
+`tools/ui_scroll_controls_audit.cjs` passed 48 page/viewport/engine/asset cases:
+Hardware, Controllers, System and Sequence at 1024x600 and 390x600, Chromium,
+Firefox and WebKit, source and gzip. Cases cover restoration position, focused
+controls, dirty/clean state, visible errors, real recap/custom-dialog backdrops,
+content clearance, horizontal overflow, and normal controls on a taller desktop.
+Logs: `scroll-controls-261-tests.txt` and
+`scroll-controls-261-packaged-tests.txt`. The focused follow-up and 318 safety
+checks also passed. Both rebuilt filesystems and existing resource budgets pass.
+Actual touch/keyboard behavior on the user's tablet remains a physical review
+item; no live ECU writes were made.
