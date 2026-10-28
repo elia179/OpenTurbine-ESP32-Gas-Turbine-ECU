@@ -1,7 +1,8 @@
 # 2.6.1 hardware qualification worksheet
 
-Prepared 28 October 2026. All physical results below are **pending**. Do not reuse
-2.6.0 hardware evidence as proof for this build.
+Updated 28 October 2026. Both bare-board targets completed the focused no-load
+checks below; see [hardware evidence](HARDWARE_2.6.1_20261028.md). Assembled-PCB
+results remain pending. Do not reuse 2.6.0 evidence as proof for this build.
 
 ## Identify the installation
 
@@ -19,17 +20,17 @@ has different routing. Bare Classic/S3 development boards use no profile.
 
 | Check | Evidence to retain | Result |
 | --- | --- | --- |
-| USB installation, cold boot, reset and warm reboot | Tool log, serial boot output, exact identity | Pending |
-| Hardware/Controllers/System/Sequence browsing | Desktop and short landscape screenshots, console errors, repeated navigation | Pending |
-| Engine-file download and identical restore | Before/after semantic comparison and original backup | Pending |
-| Invalid engine-file rejection | Response and unchanged current configuration | Pending |
-| Wi-Fi application and web update | Both reconnects, visible verification progress, complete byte comparisons | Pending |
-| Delayed AP return and wrong Wi-Fi | Recoverable waiting/retry and useful support log | Pending |
-| Interrupted verification | Verification-only retry, no duplicate uploads, no false success | Pending |
-| Native Fault LED, Status LED and legacy configurations | Fault/clear, active-high/low, fallback, reboot persistence | Pending |
-| Sequencer expanded commands | Compare renamed and optional outputs with requested logical commands on a no-load fixture | Pending |
-| Short viewport controls | Touch/keyboard focus, dirty strip, save/error states, orientation changes | Pending |
-| Short soak and memory | No resets, unexplained stalls or declining memory during browsing/transfers | Pending |
+| USB installation, cold boot, reset and warm reboot | Tool log, serial boot output, exact identity | USB writes/reset/warm reboot passed both; cold power cycle pending |
+| Hardware/Controllers/System/Sequence browsing | Desktop and short landscape screenshots, console errors, repeated navigation | Passed both targets; no JS errors in focused UI audits |
+| Engine-file download and identical restore | Before/after semantic comparison and original backup | Passed both; backups retained privately |
+| Invalid engine-file rejection | Response and unchanged current configuration | Passed both |
+| Wi-Fi application and web update | Both reconnects, visible verification progress, complete byte comparisons | Windows Setup Tool passed both; 12/12 served files matched on each |
+| Delayed AP return and wrong Wi-Fi | Recoverable waiting/retry and useful support log | Classic disconnected timeout/recovery passed; deliberately wrong board pending |
+| Interrupted verification | Verification-only retry, no duplicate uploads, no false success | Passed Classic Windows tool; one firmware and one web upload |
+| Native Fault LED, Status LED and legacy configurations | Fault/clear, active-high/low, fallback, reboot persistence | Active-high separate indicator and clear passed both; other physical variants pending (host tests passed) |
+| Sequencer expanded commands | Compare renamed and optional outputs with requested logical commands on a no-load fixture | Live ImmediateCut cards/retained oil note passed both; broader variants host-tested |
+| Short viewport controls | Touch/keyboard focus, dirty strip, save/error states, orientation changes | Live restore/clean state passed both at 1024 and 390 width; actual tablet review pending |
+| Short soak and memory | No resets, unexplained stalls or declining memory during browsing/transfers | Passed focused browsing/saves/restores: Classic 248 s, S3 214 s; recovered transport resets recorded |
 
 Existing helpers include `tools/live_release_readonly_audit.cjs`,
 `tools/live_system_maintenance_audit.cjs`, `tools/live_engine_file_roundtrip.cjs`

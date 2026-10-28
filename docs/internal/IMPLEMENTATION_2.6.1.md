@@ -1,6 +1,6 @@
 # 2.6.1 local implementation — 28 October 2026
 
-Status: implemented and checked locally; **not released, flashed or qualified on the new PCB**. The user selected ESP32-S3-WROOM-1-N8 (8 MB flash, no PSRAM) with the existing routing and confirmed all components will be fitted. Plain development boards remain supported without a profile.
+Status: implemented, flashed and tested on both bare development-board targets; **not released or electrically qualified on the new PCB**. See [hardware results](HARDWARE_2.6.1_20261028.md). The user selected ESP32-S3-WROOM-1-N8 (8 MB flash, no PSRAM) with the existing routing and confirmed all components will be fitted. Plain development boards remain supported without a profile.
 
 ## Delivered behavior
 
@@ -45,7 +45,7 @@ Build IDs: Classic `268cf1be3900e35d`; S3 `b1668964bf92625e`.
 ## Before release / physical qualification
 
 - Review the new UI on the user's actual short-screen device.
-- Repeat real Wi-Fi updates on stopped Classic and S3 boards: both reconnects, delayed AP return, wrong Wi-Fi, transient reads, verification-only retry, backup preservation and support logs.
+- Real Windows Wi-Fi updates passed on both stopped development boards, including interrupted final verification and verification-only retry on Classic. Deliberately wrong-board Wi-Fi and cold-power scenarios remain additional qualification items; see the hardware report for exact coverage.
 - On the assembled N8 PCB, verify boot/reset output gate levels, power-only and pulse-only configurations, all output polarities, both LED pins, independent pull-up controls, I2C recovery and ADC scaling against measured voltage.
 - Check both thermocouples, all pulse inputs and outputs, start/stop, serial routing and battery divider against the actual fitted components.
 - Run the release gate, package/signing and user approval process after those checks. Do not publish this local build as a qualified release yet.

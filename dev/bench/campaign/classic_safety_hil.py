@@ -29,21 +29,25 @@ def hz(rpm):
 
 
 class ClassicSafetyHil:
+    expected_target = "esp32dev"
+    default_tester_port = "COM4"
+    result_prefix = "classic"
+    expected_stop_pin = 14
     def __init__(self):
         self.dut = DUT()
         self.dc = DutConfig(self.dut)
-        self.tester = Tester(os.environ.get("OTBENCH_PORT", "COM4")).open()
+        self.tester = Tester(os.environ.get("OTBENCH_PORT", self.default_tester_port)).open()
         self.tester_version = self.tester.ping()
         self.identity = self.dut.device_info()
-        if self.identity.get("target") != "esp32dev":
-            raise RuntimeError(f"Classic DUT required: {self.identity}")
+        if self.identity.get("target") != self.expected_target:
+            raise RuntimeError(f"{self.expected_target} DUT required: {self.identity}")
         self.physical_start = os.environ.get("OTBENCH_PHYSICAL_START") == "1"
         self.original_hw = self.dut.hardware()
         self.original_ecu = self.dut._get("/api/ecu_config")
         self.rows = []
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.result_path = os.path.join(
-            ROOT, "dev", "bench", "results", f"classic_safety_hil_{stamp}.json"
+            ROOT, "dev", "bench", "results", f"{self.result_prefix}_safety_hil_{stamp}.json"
         )
 
     def record(self, name, ok, **detail):
@@ -131,11 +135,11 @@ class ClassicSafetyHil:
         if code != 200 or not self.dc._wait_reboot(previous_boot):
             raise RuntimeError(f"Classic safety engine file rejected: {detail}")
         saved = self.dut._get("/api/ecu_config")
-        if (saved["hardware"]["controls"].get("stop_pin") != 14
+        if (saved["hardware"]["controls"].get("stop_pin") != self.expected_stop_pin
                 or saved["settings"]["engine"].get("rpm_limit") != 50000
                 or not any(c.get("id") == "main_fuel"
                            for c in saved["hardware"]["channel_registry"]["outputs"])):
-            raise RuntimeError("Classic safety engine file did not persist exactly")
+            raise RuntimeError("Safety engine file did not persist exactly")
 
     def start_running(self):
         self.tester.set("STOP", 0)
@@ -216,7 +220,7 @@ class ClassicSafetyHil:
         detail = str(data.get("fault_description") or data.get("last_event") or "")
         self.record(
             "N1 overspeed isolates fuel",
-            self.active(before) and tripped and "over-speed" in detail.lower()
+            self.active(before) and tripped and "overspeed" in detail.lower().replace("-", "")
             and self.isolated(after),
             elapsed_s=round(time.time() - t0, 3), event=detail,
             n1_before=running.get("n1"), n1_after=data.get("n1"),
@@ -248,7 +252,12 @@ class ClassicSafetyHil:
     def restore(self):
         self.recover()
         previous_boot = self.dut.data().get("boot_count")
-        code, detail = self.dut._post("/api/ecu_config", self.original_ecu)
+        for attempt in range(20):
+            code, detail = self.dut._post("/api/ecu_config", self.original_ecu)
+            if code != 409 or "storage is busy" not in str(detail).lower():
+                break
+            print(f"[RESTORE] storage busy; retry {attempt + 1}/20", flush=True)
+            time.sleep(1)
         ok = code == 200 and self.dc._wait_reboot(previous_boot)
         if ok:
             ok = self.dut._get("/api/ecu_config") == self.original_ecu
@@ -269,10 +278,10 @@ class ClassicSafetyHil:
             self.restore()
         payload = {
             "firmware": self.dut.data().get("fw_version", "unknown"),
-            "target": "esp32dev",
+            "target": self.identity["target"],
             "device": self.identity,
             "restored": True,
-            "tester": f"ESP32-S3 {self.tester_version}",
+            "tester": f"{'ESP32-S3' if self.expected_target == 'esp32dev' else 'ESP32 Classic'} {self.tester_version}",
             "repetitions": repetitions,
             "physical_start": self.physical_start,
             "passed": sum(row["ok"] for row in self.rows),
