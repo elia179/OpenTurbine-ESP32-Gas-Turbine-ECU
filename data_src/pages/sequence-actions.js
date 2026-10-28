@@ -9,6 +9,12 @@ function resolveSequenceActions(tab, sequence) {
     const write=(meta,value,phase='entry',note='')=>{
       if(!meta)return;
       rows.push({meta,value,phase,note});
+      for(const output of hwCfg.channel_registry?.outputs||[]){
+        if(!registryChannelInstalled(output) || output.mirror_of!==meta.target)continue;
+        rows.push({meta:{target:output.id,key:output.id,label:output.name||output.id,
+          purpose:output.purpose,mode:[4,11].includes(Number(output.driver))?'relay':'pct'},
+          value,phase,note:`Follows “${meta.label}”`});
+      }
       if(meta.ignition){if(Number(value)>0)ignition.add(meta.target);else if(Number(value)===0)ignition.delete(meta.target);}
     };
     const set=(key,value,phase,note)=>write(byKey(key),value,phase,note);
@@ -28,15 +34,15 @@ function resolveSequenceActions(tab, sequence) {
       write(selected(),value);
     }
     if(name==='OilPrime'){
-      set('oil_pump',sensorEnabled('oil_press')&&hwCfg.controllers?.oil_loop?'Pressure control':Number(param(name,'startup_oil_pct',80))/100,'during','Build oil pressure before ignition');
+      set('oil_pump',sensorEnabled('oil_press')&&hwCfg.controllers?.oil_loop?`Pressure control: ${param(name,'startup_oil_demand',2.5)} bar`:Number(param(name,'startup_oil_pct',80))/100,'during','Build oil pressure before ignition; Bench Mode or bypassed feedback uses the configured fixed pump duty');
       if(param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',1);
     }
     if(name==='StarterSpin'){set('starter',Number(param(name,'starter_demand',60))/100,'during','Ramps to configured demand');set('starter_en',1);}
     if(name==='FuelPumpIdle'||name==='ModifiedIdle'){
       const minimum=cfg?.throttle?.fuel_pump_min_pct??0;
-      const maximum=name==='FuelPumpIdle'?param(name,'fp_idle_max_pct',50):cfg?.throttle?.idle_max_pct??50;
+      const maximum=cfg?.throttle?.idle_max_pct??50;
       const input=registryInputPurpose('idle')||hwCfg.sensors?.idle_input?.enabled;
-      set('throttle',(input?`${minimum}–${maximum}% (idle input)`:`${maximum}% (fixed)`)+(name==='ModifiedIdle'?' × '+param(name,'modified_idle_multiplier',1):''),'during','Temporary startup command');
+      set('throttle',(input?`${minimum}–${maximum}% (idle input)`:`${name==='ModifiedIdle'?minimum:maximum}% (fixed)`)+(name==='ModifiedIdle'?' × '+param(name,'modified_idle_multiplier',1):''),'during','Temporary startup command');
     }
     if(name==='Spool')set('throttle',Number(cfg?.throttle?.fuel_pump_min_pct??0)/100);
     if(name==='ImmediateCut')for(const key of ['throttle','fuel_sol','igniter','igniter2','glow_plug','starter','starter_en','fuel_pump2','ab_sol','ab_pump'])set(key,0);
@@ -67,7 +73,6 @@ function resolveSequenceActions(tab, sequence) {
     if(name==='FuelPulse')write(selected(),0,'exit');
     if(name==='FuelPumpRamp')write(selected(),Number(param(name,'fp2_end_pct',80))/100,'exit','Ramp end');
     if(name==='ABIgnite'){
-      if(cfg.afterburner?.use_igniter)set('igniter2',0,'exit');
       // Removing an additive offset is not a command to turn the fuel pump off.
       if(cfg.afterburner?.use_torch??true)set('throttle','Ignition offset removed','exit');
     }
@@ -75,7 +80,8 @@ function resolveSequenceActions(tab, sequence) {
       if(param(name,'spool_cut_starter_on_exit',true))set('starter',0,'exit');
       if(param(name,'spool_cut_starter_en_on_exit',true))set('starter_en',0,'exit');
     }
-    if(name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
+    if(name==='OilPrime'&&param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',0,'exit');
+    if(name==='ABFlameConfirm'||name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
     if(name==='SafetyHold'){
       if(param(name,'safety_turn_off_starter',false))set('starter',0,'exit');
       if(param(name,'safety_turn_off_starter_en',false))set('starter_en',0,'exit');
@@ -85,7 +91,7 @@ function resolveSequenceActions(tab, sequence) {
       if(param(name,'cooldown_use_starter',true)){
         set('starter',Number(param(name,'cooldown_starter_pct',40))/100,'during','After combustion; skipped in Bench Mode');set('starter_en',1,'during');
       }
-      if(param(name,'cooldown_use_oil_pump',true))set('oil_pump',sensorEnabled('oil_press')?'Pressure control':Number(param(name,'cooldown_oil_pct',30))/100,'during','After combustion; skipped in Bench Mode');
+      if(param(name,'cooldown_use_oil_pump',true))set('oil_pump',sensorEnabled('oil_press')?`Pressure control: ${param(name,'cooldown_oil_pressure_bar',2)} bar`:Number(param(name,'cooldown_oil_pct',30))/100,'during','After combustion; skipped in Bench Mode');
       if(param(name,'cooldown_use_scavenge',false))set('oil_scavenge_pump',1,'during');
       for(const key of ['starter','starter_en','oil_pump','oil_scavenge_pump'])set(key,0,'exit');
     }
@@ -98,8 +104,8 @@ function resolveSequenceActions(tab, sequence) {
     if(name==='ImmediateCut'){
       const hazardous=new Set(['main_fuel','fuel_shutoff','fuel_pump','pilot_fuel','igniter','ab_igniter','ab_valve','ab_pump','glow_plug','starter','starter_enable','air_starter']);
       for(const output of hwCfg.channel_registry?.outputs||[]){
-        if(output.installed===false || !hazardous.has(output.purpose))continue;
-        const meta=byId(output.id)||{target:output.id,key:output.id,label:output.name||output.id,mode:[4,11].includes(Number(output.driver))?'relay':'pct'};
+        if(!registryChannelInstalled(output) || !hazardous.has(output.purpose))continue;
+        const meta=byId(output.id)||{target:output.id,key:output.id,label:output.name||output.id,purpose:output.purpose,mode:[4,11].includes(Number(output.driver))?'relay':'pct'};
         for(let i=rows.length-1;i>=0;i--)if(rows[i].meta.target===meta.target)rows.splice(i,1);
         write(meta,0,'entry','Protective shutdown cut');
       }
@@ -111,7 +117,7 @@ function resolveSequenceActions(tab, sequence) {
 function sequenceActionValue(meta,value) {
   if(typeof value==='string')return value;
   if(meta.mode==='pct')return `${Math.round(value*100)}%`;
-  return ['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)?value>=.5?'OPEN':'CLOSED':value>=.5?'ON':'OFF';
+  return (['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)||['fuel_shutoff','air_starter','ab_valve','bleed_valve','drain_valve'].includes(meta.purpose))?value>=.5?'OPEN':'CLOSED':value>=.5?'ON':'OFF';
 }
 
 function buildResolvedActionsHtml(name,index,tab) {

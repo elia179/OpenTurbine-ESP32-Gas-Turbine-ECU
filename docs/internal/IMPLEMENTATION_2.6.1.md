@@ -38,7 +38,7 @@ Ignored detailed logs are under `artifacts/`; they are workstation evidence, not
 | Beta browser audit | 14 groups passed after cache-key update; `beta-261-final.txt` |
 | Broader browser suite | First 17 programs passed before a WebKit warning visibility timing assertion failed. The assertion now waits for visibility; that audit passed in all three engines/source+gzip. All 28 remaining programs passed. Logs: `ui-261-full.txt`, `dashboard-261-retest.txt`, `ui-261-remaining.txt`. This was resumed coverage, not one uninterrupted suite run. |
 
-The Classic image is 1,670,736 bytes, leaving 33,200 bytes in its OTA slot (required reserve 32,768). S3 is 1,657,648 bytes, leaving 1,488,080 bytes. The filesystem source payload is 442,190 bytes. Static DRAM headroom is 17,912 bytes Classic and 148,136 bytes S3. Existing reserves and partition sizes were retained. Shared adapter lookup and validation cleanup reduced duplicated flash code without removing checks.
+The Classic image is 1,670,736 bytes, leaving 33,200 bytes in its OTA slot (required reserve 32,768). S3 is 1,657,648 bytes, leaving 1,488,080 bytes. The filesystem source payload is 442,333 bytes. Static DRAM headroom is 17,912 bytes Classic and 148,136 bytes S3. Existing reserves and partition sizes were retained. Shared adapter lookup and validation cleanup reduced duplicated flash code without removing checks.
 
 Build IDs: Classic `268cf1be3900e35d`; S3 `b1668964bf92625e`.
 
@@ -51,3 +51,22 @@ Build IDs: Classic `268cf1be3900e35d`; S3 `b1668964bf92625e`.
 - Run the release gate, package/signing and user approval process after those checks. Do not publish this local build as a qualified release yet.
 
 No live ECU configuration, flash, start command or actuator test was issued during this implementation.
+
+## Readiness audit after the first local review
+
+A second comparison with firmware found and corrected preview-only gaps:
+ABIgnite retains ignition until ABFlameConfirm releases it; OilPrime releases its
+optional scavenge pump on exit; no-input ModifiedIdle starts at the calibrated
+minimum before its multiplier; idle previews read the shared idle ceiling.
+Linked physical outputs now receive their own command cards and unwired outputs
+are excluded. Oil-control cards show their pressure targets.
+
+`tools/ui_261_command_model_audit.cjs` covers these cases in Chromium, Firefox and
+WebKit against source and gzip pages (`artifacts/commands-261-audit.txt`). The
+focused follow-up, sequence placement/recap and safety checks passed again.
+Setup Tool tests also cover delayed readiness and immediate rejection of stale
+asset bytes without a write or content-mismatch retry. These changes do not
+alter sequencer firmware behavior or the application build IDs above.
+
+Physical work is prepared in [QUALIFICATION_2.6.1.md](QUALIFICATION_2.6.1.md).
+No chip or assembled-board result is inferred from host/browser tests.

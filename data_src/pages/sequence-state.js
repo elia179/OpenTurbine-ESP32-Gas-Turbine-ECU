@@ -618,7 +618,7 @@ function buildFinalStateCard(tab, seq, idleRaw) {
   const valueText=(meta,value)=>{
     if(typeof value==='string')return value;
     if(meta.mode==='pct')return `${Math.round(value*100)}%`;
-    return ['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)
+    return (['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)||['fuel_shutoff','air_starter','ab_valve','bleed_valve','drain_valve'].includes(meta.purpose))
       ? value>=.5?'open':'closed' : value>=.5?'on':'off';
   };
   const write=(meta,value)=>{

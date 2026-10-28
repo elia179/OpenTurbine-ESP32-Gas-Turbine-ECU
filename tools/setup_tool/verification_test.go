@@ -75,6 +75,59 @@ func TestVerificationRejectsWrongIdentityWithoutAssetRequests(t *testing.T) {
 	}
 }
 
+func TestVerificationNeverAcceptsOrRetriesMismatchedAsset(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	assetReads := 0
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != "GET" {
+			t.Fatal("verification attempted a write")
+		}
+		body := `{"project":"OpenTurbine","firmware_version":"2.6.1","target":"esp32-s3","build_id":"test"}`
+		if r.URL.Path == "/index.html" {
+			assetReads++
+			body = "stale dashboard"
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})
+	var packed bytes.Buffer
+	writer := gzip.NewWriter(&packed)
+	writer.Write([]byte("current dashboard"))
+	writer.Close()
+	file := filepath.Join(t.TempDir(), "index.html.gz")
+	if err := os.WriteFile(file, packed.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err := verifyUpdatedECU("2.6.1", "esp32-s3", "test", []string{file})
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mismatched asset accepted: %v", err)
+	}
+	if assetReads != 1 {
+		t.Fatalf("mismatched bytes were retried %d times", assetReads)
+	}
+}
+
+func TestReconnectWaitsForReadyIdentity(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	calls := 0
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		status, body := 200, `{"project":"OpenTurbine"}`
+		if calls == 1 {
+			status, body = 503, "restarting"
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})
+	messages := []string{}
+	if err := waitForECUWithProgress(5*time.Second, func(s string) { messages = append(messages, s) }); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || len(messages) != 2 {
+		t.Fatalf("expected readiness retry and progress: %d requests, %d messages", calls, len(messages))
+	}
+}
+
 func TestReconnectRejectsHTTPErrorAndOtherDevice(t *testing.T) {
 	old := http.DefaultTransport
 	defer func() { http.DefaultTransport = old }()
