@@ -10,6 +10,7 @@ const {chromium,firefox,webkit}=require('playwright');
    if(gzip)await p.route(/\/(sequence\.html|app\.js|theme\.js|style\.css)(?:\?.*)?$/,r=>{const n=new URL(r.request().url()).pathname.slice(1);return r.fulfill({status:200,contentType:n.endsWith('html')?'text/html':n.endsWith('js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+n+'.gz'))});});
    await p.request.post(base+'/__sim/reset');await p.request.post(base+'/__sim/data',{data:{mode:'STANDBY',config_locked:false}});
    await p.goto(base+'/sequence.html');await p.waitForFunction(()=>typeof placeControllerBlock==='function'&&hwCfg.channel_registry&&cfg.rules);
+   await p.locator('#list-startup .block-card').first().waitFor();
    await p.evaluate(()=>{
     cfg.rules=[{controller_id:42,name:'Main <fuel>',target:registryOutputPurpose('main_fuel').id,enabled:true,activate_event:0,deactivate_events:17,kind:1,mode_mask:4}];cfg.controller_schema=1;
     hwCfg.controllers.governor=false;hwCfg.controllers.dynamic_idle=false;
@@ -17,6 +18,8 @@ const {chromium,firefox,webkit}=require('playwright');
     hwCfg.shutdown_seq=[];hwCfg.ab_seq=[];hwCfg.ab_shut_seq=[];syncControllerSequenceBlocks();renderAllTabsWithLiveIdle();switchTab('startup');
    });
    assert.equal(await p.locator('#controller-pending-blocks select').count(),0);
+   // renderAllTabsWithLiveIdle waits for a fresh telemetry read before rendering.
+   await p.waitForFunction(()=>document.querySelectorAll('[data-controller-key]').length===2);
    assert.equal(await p.locator('[data-controller-key]').count(),2);
    const on=p.locator('[data-controller-key="ControllerOn_42"]');await on.scrollIntoViewIfNeeded();
    let box=await on.boundingBox();await p.mouse.move(box.x+box.width/2,box.y+box.height/2);await p.mouse.down();await p.mouse.move(box.x+box.width/2+10,box.y+box.height/2+8);

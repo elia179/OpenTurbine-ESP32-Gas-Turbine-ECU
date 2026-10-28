@@ -17,6 +17,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
    const initial=await(await p.request.get(base+'/__sim/state')).json();
    await p.request.post(base+'/api/ecu_config',{data:guidedFixture(initial,1)});
    await p.goto(base+'/sequence.html');await p.waitForFunction(()=>typeof resolveSequenceActions==='function'&&hwCfg.channel_registry&&cfg.throttle&&cfg.sequence);
+   await p.locator('#list-startup .block-card').first().waitFor();
    const result=await p.evaluate(()=>{
     const outputs=hwCfg.channel_registry.outputs,main=registryOutputPurpose('main_fuel');
     outputs.push({id:'scavenge_extra',name:'Return Oil Pump',purpose:'scavenge_pump',role:'scavenge_pump',driver:4,pin:39,installed:true});

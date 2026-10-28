@@ -70,3 +70,9 @@ alter sequencer firmware behavior or the application build IDs above.
 
 Physical work is prepared in [QUALIFICATION_2.6.1.md](QUALIFICATION_2.6.1.md).
 No chip or assembled-board result is inferred from host/browser tests.
+
+The final placement audit exposed an intermittent WebKit test timing issue: it
+asserted the pending-card count before the asynchronous telemetry-backed render
+completed. The audit now waits for initial cards and the expected pending-card
+render; all three browsers/source+gzip passed afterwards. This changed test
+synchronization, not the product's placement behavior.
