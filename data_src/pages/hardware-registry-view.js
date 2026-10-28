@@ -1039,6 +1039,7 @@ function renderCommsIndicatorSummary() {
   const cluster = cfg.cluster_serial || {};
   const mav = cfg.mavlink || {};
   const led = cfg.actuators?.status_led || {};
+  const fault = cfg.actuators?.fault_led || {};
   if (cfg.platform !== 'esp32s3' && led.enabled !== false && (led.pin === undefined || led.pin === null || led.pin < 0)) {
     led.enabled = true;
     led.pin = 2;
@@ -1067,7 +1068,7 @@ function renderCommsIndicatorSummary() {
   const ledEnabled = led.enabled !== false;
   const ledType = Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
   const ledMode = Number(led.mode ?? 0);
-  const ledStatus = ledEnabled ? ((led.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
+  const ledStatus = ledEnabled ? ((pcbProfileActive() || (led.pin ?? -1) >= 0) ? 'Ready' : 'Pin missing') : 'Disabled';
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
   const cards = [
     profileAllows('cluster_serial') ? card('cluster_serial', 'OT Cluster serial',
@@ -1106,6 +1107,14 @@ function renderCommsIndicatorSummary() {
            <label>Shutdown <input class="${workflowDeviceFieldClass('status_led','shutdown_color')}" type="color" value="${colorToHex(led.shutdown_color, '#ff8000')}" onchange="setStatusLedColor('shutdown_color',this.value)"></label>
         </div></div>` : ''}
       </div></div>`) : '',
+    profileAllows('fault_led') ? card('fault_led','Fault LED',
+      pcbProfileActive()?'Fixed PCB fault indicator':'Dedicated rapid fault blink; Status LED keeps normal status indication',
+      fault.enabled || pcbProfileActive() ? (pcbProfileActive() || Number(fault.pin??-1)>=0 ? 'Ready':'Pin missing'):'Disabled',
+      pcbProfileActive() || !!fault.enabled,
+      `<div class="registry-card-editor" style="display:block"><div class="hw-grid">${pcbProfileActive()?'<div class="hw-field"><span class="hw-desc">Fixed by the board profile. This LED handles fault blinking separately from the Status LED.</span></div>':`
+      <div class="hw-field"><label><input type="checkbox" ${fault.enabled?'checked':''} onchange="setAct('fault_led','enabled',this.checked);renderHardwareWorkflowSummaries()"> Enable Fault LED</label></div>
+      <div class="hw-field"><span class="hw-label">Fault LED GPIO</span><select onchange="setAct('fault_led','pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(fault.pin??-1,'fault-led')}</select></div>
+      <div class="hw-field"><label><input type="checkbox" ${fault.active_h!==false?'checked':''} onchange="setAct('fault_led','active_h',this.checked)"> Active HIGH</label></div>`}</div></div>`) : '',
     profileAllows('buzzer') ? card('buzzer', 'Buzzer',
       buz.enabled ? (pcbProfileActive() ? 'Fixed PCB audible indicator' : `GPIO ${buz.pin ?? 'not set'}`) : 'Local audible indicator',
       buzStatus,

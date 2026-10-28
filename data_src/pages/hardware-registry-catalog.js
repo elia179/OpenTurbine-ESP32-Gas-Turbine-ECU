@@ -775,6 +775,8 @@ function registryInputOptionsEditor(direction, c, index) {
   if (Number(c.torque_interface || 0) === 2) return '';
   if (registryLoadCellIsHx711(c)) return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">HX711 wiring</span><span class="hw-desc">DOUT is an input and SCK is an output. No internal pull-up or pull-down is applied.</span></div>`;
   const d = Number(c.driver);
+  const pcbMode=pcbProfileActive()?(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.modes?.find(m=>m.id===c.physical_mode):null;
+  if(pcbMode?.external_pullup) return `<div class="hw-field"><span class="hw-label">PCB input pull-up</span><span class="hw-desc">Switch the external 3.3 V pull-up on this connector. The signal conditioner drives the MCU pin; internal GPIO bias is not used.</span><label class="hw-toggle"><input type="checkbox" ${c.pullup?'checked':''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Enable pull-up</label></div>`;
   const purpose = registryDerivedPurpose(direction,c);
   const activeStateEditor = (d === 8 || ([1,9].includes(d) &&
       (registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose))))

@@ -1,10 +1,14 @@
 # OpenTurbine Setup Tool
 
-This document describes the OpenTurbine 2.4.3 package and setup workflow. A 2.4.3
-release package must contain firmware and web assets built from the same commit
-and must report version `2.4.3` during post-install verification.
+Release packages must contain firmware and web assets built from the same commit
+and must report the packaged version/target/build during post-install verification.
 
-OpenTurbine 2.4.3 ships with Setup Tool 0.7.3. The Windows setup tool provides
+The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.4. Final Wi-Fi
+verification reports reconnect, identity and per-file progress, retries transient
+reads and offers verification-only retry after uploads have finished. The tool
+must never claim success on an identity or asset-content mismatch.
+
+The Windows setup tool provides
 two deliberately distinct paths: **Clean install
 / reinstall** erases a blank or previously used board over USB, while **Update
 and keep my setup** updates an existing OpenTurbine board over Wi-Fi without a

@@ -878,6 +878,13 @@ namespace Hardware {
             if (!ed.registryInputHealthy[i]) continue;
             uint8_t inputMode = GpioInputBias::safeMode(c.pin,
                 c.pullup ? INPUT_PULLUP : (c.pulldown ? INPUT_PULLDOWN : INPUT), INPUT);
+#if !defined(OT_PLATFORM_ESP32)
+            if(PcbProfileManager::active() && c.physicalPortId[0]){
+                const auto* port=PcbProfileManager::findPort(c.physicalPortId);
+                const auto* mode=port?PcbProfileManager::findMode(*port,c.physicalModeId):nullptr;
+                if(mode && mode->pullDeviceIndex>=0)inputMode=INPUT;
+            }
+#endif
             if (c.driver == ChannelRegistry::Digital) {
                 pinMode(c.pin, inputMode);
             } else if (c.driver == ChannelRegistry::Pulse) {
@@ -3329,6 +3336,7 @@ namespace Hardware {
     // ── Status LED init / tick ────────────────────────────────
     inline void initStatusLED() {
         auto& hw = HardwareConfig::instance();
+        StatusLED::tickFault();
         // Respect hasStatusLed on every platform. On the S3 this used to run
         // unconditionally, so disabling the status LED in the hardware config had
         // no effect and the onboard NeoPixel stayed lit. When disabled, actively
@@ -3338,6 +3346,7 @@ namespace Hardware {
     }
     inline void tickStatusLED() {
         if (HardwareConfig::instance().hasStatusLed) StatusLED::tick();
+        else StatusLED::tickFault();
     }
 
     // ── Controller init ───────────────────────────────────────

@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261023q',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261023q');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028a');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -281,6 +281,7 @@ function pinShareGroupForMode(mode) {
   return '';
 }
 function pinElectricalMode(mode) {
+  if (mode === 'fault-led') return 'out';
   if (mode === 'spi-miso') return 'in';
   if (mode === 'spi-clk' || mode === 'spi-mosi' || mode === 'i2c-scl') return 'out';
   return mode;
@@ -338,6 +339,8 @@ function collectPinUsage() {
   if (statusLed?.enabled !== false &&
       !(profileActive && pcbProfile?.fixed_functions?.status_led?.available))
     add(statusLed?.pin, 'Status LED');
+  if (cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
+    add(cfg.actuators.fault_led.pin,'Fault LED','fault-led');
   const cl = cfg.cluster_serial || {};
   if (cl.enabled && !(profileActive && pcbProfile?.fixed_functions?.cluster_serial?.available)) {
     add(cl.tx_pin, 'Cluster Serial TX'); add(cl.rx_pin, 'Cluster Serial RX');
@@ -1532,6 +1535,7 @@ const ACT_DEPENDENCIES = {
   airstarter_sol: { name:'Air starter valve', rules:[15], blocks:['AirstarterOn','AirstarterOff'], functions:['Air starter valve sequence blocks','rules driving the air starter valve'] },
   starter_en: { name:'Starter enable output', blocks:['StarterEnOn','StarterEnOff'], functions:['Starter enable sequencing managed automatically with starter demand'] },
   status_led: { name:'Status LED', functions:['mode blink indication','rapid fault flash','bench-test visual status'] },
+  fault_led: { name:'Fault LED', functions:['dedicated fault blink','suppresses Status LED fault blinking when fitted'] },
 };
 
 const SPECIAL_DEPENDENCIES = {
@@ -2541,6 +2545,8 @@ function registryInputOptionsEditor(direction, c, index) {
   if (Number(c.torque_interface || 0) === 2) return '';
   if (registryLoadCellIsHx711(c)) return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">HX711 wiring</span><span class="hw-desc">DOUT is an input and SCK is an output. No internal pull-up or pull-down is applied.</span></div>`;
   const d = Number(c.driver);
+  const pcbMode=pcbProfileActive()?(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.modes?.find(m=>m.id===c.physical_mode):null;
+  if(pcbMode?.external_pullup) return `<div class="hw-field"><span class="hw-label">PCB input pull-up</span><span class="hw-desc">Switch the external 3.3 V pull-up on this connector. The signal conditioner drives the MCU pin; internal GPIO bias is not used.</span><label class="hw-toggle"><input type="checkbox" ${c.pullup?'checked':''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Enable pull-up</label></div>`;
   const purpose = registryDerivedPurpose(direction,c);
   const activeStateEditor = (d === 8 || ([1,9].includes(d) &&
       (registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose))))
@@ -4123,6 +4129,7 @@ function renderCommsIndicatorSummary() {
   const cluster = cfg.cluster_serial || {};
   const mav = cfg.mavlink || {};
   const led = cfg.actuators?.status_led || {};
+  const fault = cfg.actuators?.fault_led || {};
   if (cfg.platform !== 'esp32s3' && led.enabled !== false && (led.pin === undefined || led.pin === null || led.pin < 0)) {
     led.enabled = true;
     led.pin = 2;
@@ -4151,7 +4158,7 @@ function renderCommsIndicatorSummary() {
   const ledEnabled = led.enabled !== false;
   const ledType = Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
   const ledMode = Number(led.mode ?? 0);
-  const ledStatus = ledEnabled ? ((led.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
+  const ledStatus = ledEnabled ? ((pcbProfileActive() || (led.pin ?? -1) >= 0) ? 'Ready' : 'Pin missing') : 'Disabled';
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
   const cards = [
     profileAllows('cluster_serial') ? card('cluster_serial', 'OT Cluster serial',
@@ -4190,6 +4197,14 @@ function renderCommsIndicatorSummary() {
            <label>Shutdown <input class="${workflowDeviceFieldClass('status_led','shutdown_color')}" type="color" value="${colorToHex(led.shutdown_color, '#ff8000')}" onchange="setStatusLedColor('shutdown_color',this.value)"></label>
         </div></div>` : ''}
       </div></div>`) : '',
+    profileAllows('fault_led') ? card('fault_led','Fault LED',
+      pcbProfileActive()?'Fixed PCB fault indicator':'Dedicated rapid fault blink; Status LED keeps normal status indication',
+      fault.enabled || pcbProfileActive() ? (pcbProfileActive() || Number(fault.pin??-1)>=0 ? 'Ready':'Pin missing'):'Disabled',
+      pcbProfileActive() || !!fault.enabled,
+      `<div class="registry-card-editor" style="display:block"><div class="hw-grid">${pcbProfileActive()?'<div class="hw-field"><span class="hw-desc">Fixed by the board profile. This LED handles fault blinking separately from the Status LED.</span></div>':`
+      <div class="hw-field"><label><input type="checkbox" ${fault.enabled?'checked':''} onchange="setAct('fault_led','enabled',this.checked);renderHardwareWorkflowSummaries()"> Enable Fault LED</label></div>
+      <div class="hw-field"><span class="hw-label">Fault LED GPIO</span><select onchange="setAct('fault_led','pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(fault.pin??-1,'fault-led')}</select></div>
+      <div class="hw-field"><label><input type="checkbox" ${fault.active_h!==false?'checked':''} onchange="setAct('fault_led','active_h',this.checked)"> Active HIGH</label></div>`}</div></div>`) : '',
     profileAllows('buzzer') ? card('buzzer', 'Buzzer',
       buz.enabled ? (pcbProfileActive() ? 'Fixed PCB audible indicator' : `GPIO ${buz.pin ?? 'not set'}`) : 'Local audible indicator',
       buzStatus,
@@ -6041,6 +6056,7 @@ function _snapshotFields() {
       cluster_serial: cfg.cluster_serial || {},
       mavlink: cfg.mavlink || {},
       status_led: cfg.actuators?.status_led || {},
+      fault_led: cfg.actuators?.fault_led || {},
       buzzer: cfg.buzzer || {}
     },
     controls: cfg.controls || {},
@@ -6536,12 +6552,13 @@ function _deviceDiffRows() {
     cluster_serial: cfg.cluster_serial || {},
     mavlink: cfg.mavlink || {},
     status_led: cfg.actuators?.status_led || {},
+    fault_led: cfg.actuators?.fault_led || {},
     buzzer: cfg.buzzer || {}
   };
   const deviceLabels = {
     i2c:'Shared I2C bus', spi:'Shared SPI bus',
     cluster_serial:'OT Cluster serial', mavlink:'MAVLink telemetry',
-    status_led:'Status LED', buzzer:'Buzzer'
+    status_led:'Status LED', fault_led:'Fault LED', buzzer:'Buzzer'
   };
   const fieldLabels = {
     enabled:'Installed', tx_pin:'TX GPIO', rx_pin:'RX GPIO', pin:'GPIO pin',

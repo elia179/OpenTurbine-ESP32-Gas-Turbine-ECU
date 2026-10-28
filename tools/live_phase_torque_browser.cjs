@@ -58,7 +58,7 @@ function browserBinary() {
           assert.equal(torqueUi.duplicate, false, `${width}px dashboard duplicated torque shaft speed card`);
           assert.match(torqueUi.powerLabel || '', /^shaft power:/i);
           assert.doesNotMatch(torqueUi.powerLabel || '', /N2 required/i);
-          assert.equal(torqueUi.cacheVersion, '20261023q');
+          assert.equal(torqueUi.cacheVersion, '20261028a');
         }
         if (route === '/hardware.html') {
           await page.waitForFunction(() => {

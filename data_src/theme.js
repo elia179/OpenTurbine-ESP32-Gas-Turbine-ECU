@@ -384,5 +384,58 @@
       document.body.insertBefore(notice, document.body.firstChild);
     });
   }
+  // Shared short-viewport controls: all persistent save bars use one policy.
+  function initializeScrollControls() {
+    if (window.OTScrollControls) return;
+    var bar = document.querySelector('.save-bar,.seq-save-bar');
+    if (!bar) return;
+    var workspace = document.querySelector('.cfg-workspace');
+    var saveHandle = document.createElement('button');
+    saveHandle.type = 'button'; saveHandle.className = 'ot-save-handle';
+    saveHandle.setAttribute('aria-label','Show save controls');
+    var searchHandle = document.createElement('button');
+    searchHandle.type = 'button'; searchHandle.className = 'ot-search-handle';
+    searchHandle.textContent = 'Search & page controls';
+    document.body.appendChild(saveHandle);
+    if (workspace) document.body.appendChild(searchHandle);
+    var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
+    function dirty() { return bar.classList.contains('is-dirty') || (!/no unsaved changes/i.test(bar.textContent) && /unsaved changes|save to apply/i.test(bar.textContent)); }
+    function reveal() {
+      document.body.classList.remove('ot-controls-collapsed');
+      revealedUntil = Date.now()+800; distance=0;
+    }
+    function pinned() {
+      var active=document.activeElement;
+      if (active && (bar.contains(active) || workspace && workspace.contains(active))) return true;
+      if (bar.querySelector('button[disabled].primary') && /saving|uploading|rebooting|restarting/i.test(bar.textContent)) return true;
+      return !!document.querySelector('.ot-dialog-overlay.show,.save-recap-modal.show,[role="dialog"][aria-modal="true"]') || /failed|error|could not/i.test(bar.textContent);
+    }
+    function update() {
+      var short = window.innerHeight <= 700;
+      saveHandle.textContent = dirty() ? 'Unsaved changes · Show save controls' : 'Show save controls';
+      document.body.classList.toggle('ot-short-controls',short);
+      if (!short || pinned() || window.scrollY<32 || window.scrollY+innerHeight>=document.documentElement.scrollHeight-12) reveal();
+    }
+    function scroll() {
+      var y=Math.max(0,window.scrollY), delta=y-last; last=y;
+      var next=delta>0?1:delta<0?-1:direction;
+      if (next!==direction) {distance=0;direction=next;}
+      distance+=Math.abs(delta);
+      update();
+      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=700 && y>80 && y+innerHeight<document.documentElement.scrollHeight-20) {
+        document.body.classList.toggle('ot-controls-collapsed',direction>0); distance=0;
+      }
+    }
+    saveHandle.onclick=function(){reveal();bar.setAttribute('tabindex','-1');bar.focus({preventScroll:true});};
+    searchHandle.onclick=function(){reveal();var focus=workspace.querySelector('input,button');if(focus)focus.focus({preventScroll:true});};
+    document.addEventListener('focusin',function(e){if(bar.contains(e.target)||workspace&&workspace.contains(e.target))reveal();});
+    window.addEventListener('scroll',scroll,{passive:true});
+    window.addEventListener('resize',function(){reveal();last=window.scrollY;update();},{passive:true});
+    window.addEventListener('hashchange',reveal);
+    new MutationObserver(update).observe(bar,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','disabled']});
+    window.OTScrollControls={reveal:reveal}; update();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initializeScrollControls,{once:true});
+  else initializeScrollControls();
   loadBootAssets();
 })();

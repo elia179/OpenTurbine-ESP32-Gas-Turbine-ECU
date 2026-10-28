@@ -5,6 +5,7 @@
 #include "hardware_profile.h"
 #include <Arduino.h>
 #include "esp32-hal-rgb-led.h"
+#include "../../hal/i2c/I2CDeviceManager.h"
 
 // ============================================================
 //  StatusLED — mode-driven blink indicator
@@ -57,6 +58,12 @@ static int _statusPin() {
 }
 
 static void _writeLed(int pin, bool on) {
+#if !defined(OT_PLATFORM_ESP32)
+    const auto* pcb=PcbProfileManager::catalog();
+    if(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0){
+        I2CDeviceManager::writeIndicator(false,on);return;
+    }
+#endif
     if (_isRgbStatusLed(pin)) {
         uint32_t c = on ? HardwareConfig::statusLedBlinkColor : 0;
         rgbLedWrite((uint8_t)pin,
@@ -121,7 +128,12 @@ static void _tickColorMode(int pin, unsigned long now, SysMode mode) {
 
 static void _writeStatusLed(bool on) {
     int pin = _statusPin();
-    if (pin >= 0) _writeLed(pin, on);
+#if !defined(OT_PLATFORM_ESP32)
+    const auto* pcb=PcbProfileManager::catalog();
+    if (pin >= 0 || (PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) _writeLed(pin, on);
+#else
+    if(pin>=0)_writeLed(pin,on);
+#endif
 }
 
 static int _blinksForMode(SysMode m) {
@@ -137,8 +149,13 @@ static int _blinksForMode(SysMode m) {
 
 inline void begin() {
     int pin = _statusPin();
-    if (pin < 0) return;
-    if (!_isRgbStatusLed(pin))
+#if !defined(OT_PLATFORM_ESP32)
+    const auto* pcb=PcbProfileManager::catalog();
+    if (pin < 0 && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
+#else
+    if(pin<0)return;
+#endif
+    if (pin>=0 && !_isRgbStatusLed(pin))
         pinMode(pin, OUTPUT);
     _writeStatusLed(false);
     _nextMs          = millis();
@@ -161,13 +178,39 @@ inline void begin() {
     }
 }
 
+__attribute__((noinline)) inline void tickFault() {
+    if(!HardwareConfig::hasFaultLed)return;
+    static unsigned long lastMs=0;
+    static bool on=false;
+    const unsigned long now=millis();
+    if(EngineData::instance().mode!=SysMode::FAULT){on=false;lastMs=now;}
+    else if(now-lastMs>=FAULT_PERIOD_MS){on=!on;lastMs=now;}
+#if !defined(OT_PLATFORM_ESP32)
+    const auto* pcb=PcbProfileManager::catalog();
+    if(PcbProfileManager::active() && pcb && pcb->faultLedDeviceIndex>=0) {
+        I2CDeviceManager::writeIndicator(true,on);
+    } else
+#endif
+    if(HardwareConfig::faultLedPin>=0) {
+        digitalWrite(HardwareConfig::faultLedPin,(on==HardwareConfig::faultLedActiveH)?HIGH:LOW);
+        pinMode(HardwareConfig::faultLedPin,OUTPUT);
+    }
+}
+
 inline void tick() {
+    tickFault();
     int pin = _statusPin();
-    if (pin < 0) return;
+#if !defined(OT_PLATFORM_ESP32)
+    const auto* pcb=PcbProfileManager::catalog();
+    if (pin < 0 && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
+#else
+    if(pin<0)return;
+#endif
     unsigned long now = millis();
     if ((int32_t)(now - _nextMs) < 0) return;
 
     SysMode mode = EngineData::instance().mode;
+    if(mode==SysMode::FAULT && HardwareConfig::hasFaultLed)mode=SysMode::STANDBY;
 
     if (_isRgbStatusLed(pin) && HardwareConfig::statusLedMode == 1) {
         _tickColorMode(pin, now, mode);

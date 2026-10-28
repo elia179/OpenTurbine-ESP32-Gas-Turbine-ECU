@@ -627,78 +627,9 @@ function buildFinalStateCard(tab, seq, idleRaw) {
     if(meta.ignition){if(Number(value)>0)ignition.add(meta.target);else if(Number(value)===0)ignition.delete(meta.target);}
   };
   const set=(key,value)=>write(byKey(key),value);
-  const param=(name,key,fallback)=>paramVals[name+'.'+key]??fallback;
-  const clearIgnition=()=>{for(const id of [...ignition])write(output(id),0);};
-  const side=(index,phase)=>{
-    for(const action of hwCfg[actionKey(tab,phase)]?.[index]||[])
-      if(action.enabled!==false)write(sideActionMeta(action),Number(action.value)||0);
-  };
-  const selected=(name,index)=>{
-    const explicit=hwCfg[deviceTargetSeqKey(tab)]?.[index];
-    if(explicit)return output(explicit);
-    if(isIgnitionBlock(name))return byKey(['igniter','igniter2','glow_plug'][Number(hwCfg[ignitionTargetSeqKey(tab)]?.[index]??0)]);
-    return primary(BLOCK_OUTPUT_PURPOSES[name]?.[0]);
-  };
-  for(let i=0;i<seq.length;i++){
-    const name=seq[i];
-    if(BLOCK_OUTPUT_PURPOSES[name]){
-      let value=/(?:Off|Close)$/.test(name)?0:1;
-      if(name==='OilPumpOn')value=Number(param(name,'oil_pump_on_pct',100))/100;
-      if(name==='ThrottleSet')value=Number(param(name,'throttle_set_pct',10))/100;
-      if(name==='FuelPump2Set')value=Number(param(name,'fp2_demand_pct',0))/100;
-      if(name==='FuelPumpRamp')value=Number(param(name,'fp2_end_pct',80))/100;
-      write(selected(name,i),value);
-    }
-    if(name==='OilPrime'){
-      set('oil_pump',sensorEnabled('oil_press')&&hwCfg.controllers?.oil_loop?'Pressure control':Number(param(name,'startup_oil_pct',80))/100);
-      if(param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',1);
-    }
-    if(name==='StarterSpin'){set('starter',Number(param(name,'starter_demand',60))/100);set('starter_en',1);}
-    if(name==='FuelPumpIdle'||name==='ModifiedIdle'){
-      const minimum=cfg?.throttle?.fuel_pump_min_pct??0;
-      const maximum=name==='FuelPumpIdle'?param(name,'fp_idle_max_pct',50):cfg?.throttle?.idle_max_pct??50;
-      const input=registryInputPurpose('idle')||hwCfg.sensors?.idle_input?.enabled;
-      const demand=input?`${minimum}–${maximum}% (idle input)`:`${maximum}% (fixed)`;
-      set('throttle',demand+(name==='ModifiedIdle'?' × '+param(name,'modified_idle_multiplier',1)+'; temporary startup demand, released on RUNNING':''));
-    }
-    if(name==='Spool')set('throttle',Number(cfg?.throttle?.fuel_pump_min_pct??0)/100);
-    if(name==='ImmediateCut')for(const key of ['throttle','fuel_sol','igniter','igniter2','glow_plug','starter','starter_en','fuel_pump2','ab_sol','ab_pump'])set(key,0);
-    if(name==='ABIgnite'){
-      set('ab_sol',1);set('ab_pump','Afterburner fuel control');
-      write(byKey(['igniter','igniter2','glow_plug'][Number(cfg?.afterburner?.ignition_target??1)]),1);
-    }
-    const ref=window.OTControllerTiming?.parse(name),rule=ref&&(cfg.rules||[]).find(r=>Number(r.controller_id)===ref.id);
-    if(rule&&rule.enabled!==false&&OTControllerTiming.selected(rule,ref)){
-      const meta=output(rule.target);
-      if(ref.on){write(meta,`Controlled by “${rule.name}”`);if(meta)commands.get(meta.target).controller=rule.controller_id;}
-      else write(meta,Number((hwCfg.channel_registry?.outputs||[]).find(c=>c.id===rule.target)?.safe_demand??0));
-    }
-    // Firmware applies entry side-actions after onEnter(), and custom steps
-    // execute while the block runs, before its normal exit cleanup.
-    side(i,'enter');
-    const custom=hwCfg.custom_blocks?.[name];
-    if(custom&&custom.type!=='wait')for(const step of custom.steps||[]){
-      if(step.type!=='set_act')continue;
-      const meta=step.target?output(step.target):byKey(step.act);
-      write(meta,meta?.mode==='pct'?Number(step.val)/100:Number(step.val));
-    }
-    if(name==='FuelPulse')write(selected(name,i),0);
-    if(name==='FuelPumpRamp')write(selected(name,i),Number(param(name,'fp2_end_pct',80))/100);
-    if(name==='ABIgnite')write(byKey(['igniter','igniter2','glow_plug'][Number(cfg?.afterburner?.ignition_target??1)]),0);
-    if(name==='Spool'){
-      set('throttle',Number(cfg?.throttle?.fuel_pump_min_pct??0)/100);
-      if(param(name,'spool_cut_starter_on_exit',true))set('starter',0);
-      if(param(name,'spool_cut_starter_en_on_exit',true))set('starter_en',0);
-    }
-    if(name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
-    if(name==='SafetyHold'){
-      if(param(name,'safety_turn_off_starter',false))set('starter',0);
-      if(param(name,'safety_turn_off_starter_en',false))set('starter_en',0);
-      if(param(name,'safety_turn_off_igniter',false))clearIgnition();
-    }
-    if(name==='CooldownSpin')for(const key of ['starter','starter_en','oil_pump','oil_scavenge_pump'])set(key,0);
-    if(name==='FinalStop')for(const key of ['oil_pump','oil_scavenge_pump'])set(key,0);
-    side(i,'exit');
+  for(const action of resolveSequenceActions(tab,seq).flat()){
+    write(action.meta,action.value);
+    if(action.controller)commands.get(action.meta.target).controller=action.controller;
   }
   const endOwners=window.OTControllerTiming?.ownersAtEnd(cfg.rules,hwCfg,tab)||new Map();
   for(const row of commands.values())if(row.controller&&!endOwners.has(row.meta.target)){

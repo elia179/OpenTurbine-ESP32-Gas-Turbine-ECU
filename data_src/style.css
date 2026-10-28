@@ -830,6 +830,19 @@ input[type=range] { accent-color: var(--accent); cursor: pointer; }
 }
 .save-msg { font-size: 0.78rem; color: var(--dim); flex: 1; min-width: 120px; }
 .cfg-desc a { color: var(--accent); text-underline-offset: .18em; }
+.sequence-actions { margin:1rem 0; padding:.85rem; border:1px solid var(--border-light); border-top:3px solid var(--accent); border-radius:8px; }
+.sequence-action-phase { color:var(--dim); font-size:.75rem; margin:.65rem 0 .35rem; }
+.sequence-action-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.5rem; }
+.sequence-action-card { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; padding:.65rem; border:1px solid var(--border); border-radius:6px; background:var(--surface-2); }
+.sequence-action-card strong { flex:1; min-width:0; overflow-wrap:anywhere; }
+.sequence-action-value { color:var(--accent); font-family:var(--font-mono); }
+.sequence-action-card small { flex-basis:100%; color:var(--dim); }
+.ot-save-handle,.ot-search-handle { display:none; }
+.ot-short-controls.ot-controls-collapsed .save-bar,
+.ot-short-controls.ot-controls-collapsed .seq-save-bar { transform:translateY(calc(100% + 8px)); visibility:hidden; }
+.ot-short-controls.ot-controls-collapsed .cfg-workspace { transform:translateY(calc(-100% - 64px)); visibility:hidden; pointer-events:none; }
+.ot-short-controls.ot-controls-collapsed .ot-save-handle { display:block; position:fixed; bottom:env(safe-area-inset-bottom,0px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:205; min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text); }
+.ot-short-controls.ot-controls-collapsed .ot-search-handle { display:block; position:fixed; top:48px; right:8px; z-index:105; min-height:44px; max-width:calc(100vw - 16px); background:var(--surface); }
 .save-bar.is-dirty { border-color: var(--accent); box-shadow: none; }
 .save-bar.is-dirty .save-msg { color: var(--text); font-weight: 600; }
 .save-bar.is-dirty .save-status { color: var(--accent); font-weight: 600; }

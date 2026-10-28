@@ -73,6 +73,7 @@ const ntc = read('src/hal/sensors/NTCSensor.h');
 const sequenceHtml = read('data_src/sequence.html');
 const sequenceRules = read('data_src/pages/sequence-editor.js');
 const sequenceState = read('data_src/pages/sequence-state.js');
+const sequenceActions = read('data_src/pages/sequence-actions.js');
 const sequenceIgnition = read('src/engine/sequencer/SequenceIgnition.h');
 const abIgnite = read('src/engine/sequencer/blocks/ABIgnite.h');
 const hardwareHtml = read('data_src/hardware.html');
@@ -972,7 +973,8 @@ expect('normal sequence ignition cleanup is exact while emergency cuts remain ca
   sequenceIgnition.includes('RulesEngine::applyActuatorDemand') &&
   sequenceIgnition.includes('ed.igniter2On = false') &&
   abIgnite.includes('setSequenceIgnitionTracked(outputIndex, true)') &&
-  sequenceState.includes('const clearIgnition=') && sequenceState.includes('for(const id of [...ignition])write(output(id),0)') &&
+  sequenceActions.includes('const clearIgnition=') && sequenceActions.includes("for(const id of [...ignition])write(byId(id),0,'exit'") &&
+  sequenceState.includes('resolveSequenceActions(tab,seq)') &&
   main.includes('cutCombustionAndStarterNow()'));
 expect('FinalStop waits for its timeout when N1 is missing or unhealthy',
   finalStop.includes('bool stopped = HardwareConfig::hasN1Rpm') &&

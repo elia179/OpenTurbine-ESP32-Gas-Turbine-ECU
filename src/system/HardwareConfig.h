@@ -170,6 +170,9 @@ public:
     static bool hasGovernor;         // N2 power turbine speed governor (turboshaft/APU)
     static bool hasMAVLink;          // MAVLink UART telemetry output
     static bool hasStatusLed;
+    static bool hasFaultLed;
+    static int faultLedPin;
+    static bool faultLedActiveH;
     static bool hasClusterSerial;
     static bool hasBuzzer;           // passive buzzer / piezo on buzzerPin
     static int  buzzerPin;

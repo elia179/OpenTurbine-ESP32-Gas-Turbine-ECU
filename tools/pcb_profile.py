@@ -182,6 +182,8 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     _require(isinstance(target, dict) and target.get("chip") in TARGET_IDS,
              "target.chip must be esp32 or esp32-s3")
     chip = target["chip"]
+    _require(chip != "esp32" or version["minor"] == 0,
+             "Classic ESP32 supports format 1.0 profiles; newer capabilities require S3")
     catalog = _target_catalog(chip)
     valid_gpio = set(catalog["gpio"])
     input_only = set(catalog.get("input_only_gpio", []))
@@ -277,12 +279,33 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
 
     fixed = profile.get("fixed_functions", {})
     _require(isinstance(fixed, dict), "fixed_functions must be an object")
-    for key in ("status_led", "buzzer"):
+    def claim_device_channel(device, channel, owner):
+        _require(device in device_ids and isinstance(channel,int) and 0 <= channel < 8,
+                 f"{owner} requires a fitted device and channel 0..7")
+        component=next(d for d in devices if d['id']==device)
+        _require(component.get('driver') in {'tca9534','tca9554'} and 0x20 <= component.get('address',0) <= 0x27,
+                 f"{owner} requires a TCA9534/TCA9554 endpoint")
+        prior=device_channel_owners.get((device,channel))
+        _require(prior is None or prior == owner,f"{owner} conflicts with device channel owned by {prior}")
+        device_channel_owners[(device,channel)]=owner
+
+    for key in ("status_led", "fault_led", "buzzer", "output_enable"):
         if key not in fixed:
             continue
         item = fixed[key]
+        if key in {'fault_led','output_enable'}:
+            _require(version['minor'] >= 1, f'{key} requires profile format 1.1')
+            _require(chip=='esp32-s3','These fixed PCB functions require ESP32-S3; generic GPIO Fault LEDs remain available on Classic')
+        if key in {'status_led','fault_led'} and isinstance(item,dict) and 'device' in item:
+            _require(version['minor'] >= 1, f'{key} expander endpoint requires profile format 1.1')
+            _require(chip=='esp32-s3','Expander-backed fixed indicators require ESP32-S3')
+            _require(item.get('type','gpio')=='gpio','Expander-backed indicators must use plain GPIO type')
+            _require('gpio' not in item and item.get('safe_demand')==0,f"{key} needs one endpoint and safe_demand 0")
+            claim_device_channel(item['device'],item.get('channel'),f"fixed_functions.{key}")
+            continue
         _require(isinstance(item, dict) and isinstance(item.get("gpio"), int),
                  f"fixed_functions.{key} requires gpio")
+        _require(item['gpio']>=0,f"fixed_functions.{key} requires an assigned GPIO")
         _require(item.get("safe_demand") == 0,
                  f"fixed_functions.{key} requires safe_demand 0")
         if key == "status_led":
@@ -379,6 +402,13 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
                 _require(mode["device"] in device_ids,
                          f"port {port_id}/{mode_id} refers to missing device")
             endpoint = mode.get("endpoint", {})
+            if 'pull_control' in mode:
+                _require(version['minor'] >= 1, 'pull_control requires profile format 1.1')
+                _require(chip=='esp32-s3','External PCB pull control requires ESP32-S3')
+                control=mode['pull_control']
+                _require(isinstance(control,dict) and isinstance(control.get('active_high'),bool),f"port {port_id} has invalid pull control")
+                _require(adapter in {'pcnt_input','rc_pwm_input','pwm_duty_input','digital_input'},f"port {port_id} pull control requires native digital input")
+                claim_device_channel(control.get('device'),control.get('channel'),f"pull_control.{port_id}")
             if isinstance(endpoint, dict) and "gpio" in endpoint:
                 output = adapter.endswith("_output") or adapter in {"relay_output", "pwm_output", "servo_output"}
                 gpio(endpoint["gpio"], f"port {port_id}/{mode_id}", output=output)

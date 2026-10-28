@@ -36,6 +36,7 @@ PAGE_MANIFEST = {
         (
             "controller-timing.js",
             "sequence-definitions.js",
+            "sequence-actions.js",
             "sequence-state.js",
             "sequence-editor.js",
             "sequence-runtime.js",

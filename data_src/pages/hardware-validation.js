@@ -146,6 +146,7 @@ function _snapshotFields() {
       cluster_serial: cfg.cluster_serial || {},
       mavlink: cfg.mavlink || {},
       status_led: cfg.actuators?.status_led || {},
+      fault_led: cfg.actuators?.fault_led || {},
       buzzer: cfg.buzzer || {}
     },
     controls: cfg.controls || {},

@@ -763,6 +763,7 @@ const ACT_DEPENDENCIES = {
   airstarter_sol: { name:'Air starter valve', rules:[15], blocks:['AirstarterOn','AirstarterOff'], functions:['Air starter valve sequence blocks','rules driving the air starter valve'] },
   starter_en: { name:'Starter enable output', blocks:['StarterEnOn','StarterEnOff'], functions:['Starter enable sequencing managed automatically with starter demand'] },
   status_led: { name:'Status LED', functions:['mode blink indication','rapid fault flash','bench-test visual status'] },
+  fault_led: { name:'Fault LED', functions:['dedicated fault blink','suppresses Status LED fault blinking when fitted'] },
 };
 
 const SPECIAL_DEPENDENCIES = {

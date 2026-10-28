@@ -104,6 +104,22 @@ Its ports remain visible for diagnosis but cannot be newly assigned.
 These functions own their physical routing. The web UI exposes only operational
 choices such as colours, baud rate, and update interval where applicable.
 
+### 2.6.1 profile additions
+
+The 28 October 2026 board uses `official/openturbine-s3-20261028.otpcb.json`;
+see its adjacent routing/assembly note. It requires an **ESP32-S3-WROOM-1-N8**,
+not N8R8. It is distinct from the older official S3 board profile.
+
+S3 profiles can define a separate native GPIO `fault_led` and a native GPIO
+`output_enable` (active polarity required, safe demand zero). On S3, fixed
+`status_led` / `fault_led` may instead specify `device`, `channel` and
+`active_high` on a TCA9534/TCA9554. Native digital/pulse input modes may
+specify `pull_control` with the same endpoint fields to switch a physical
+external pull-up. These control channels are reserved and cannot also be
+assigned as ordinary user ports. Expander-backed indicators/pull controls
+are S3 capabilities; Classic retains its configurable GPIO indicators and existing
+format 1.0 PCB profiles. Format 1.1 profiles require S3 firmware.
+
 ## Output safety
 
 Every output mode requires `safe_demand` from 0 to 1. Fixed LED and buzzer

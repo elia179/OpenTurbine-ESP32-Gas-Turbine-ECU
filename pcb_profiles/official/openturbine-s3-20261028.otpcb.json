@@ -1,0 +1,1022 @@
+{
+  "format": "openturbine-pcb-profile",
+  "format_version": {
+    "major": 1,
+    "minor": 1
+  },
+  "board": {
+    "id": "openturbine-s3-20261028",
+    "name": "OpenTurbine PCB",
+    "revision": "1.0-20261028",
+    "manufacturer": "OpenTurbine",
+    "description": "28 Oct 2026; ESP32-S3-WROOM-1-N8; all parts fitted; OpenTurbine 2.6.1 required"
+  },
+  "target": {
+    "chip": "esp32-s3",
+    "minimum_flash_mb": 8,
+    "reviewed_strapping_gpio": [
+      3,
+      45,
+      46
+    ]
+  },
+  "buses": [
+    {
+      "id": "sensor_i2c",
+      "kind": "i2c",
+      "pins": {
+        "sda": 4,
+        "scl": 5
+      },
+      "frequency_hz": 400000
+    },
+    {
+      "id": "thermocouple_spi",
+      "kind": "spi",
+      "pins": {
+        "sck": 12,
+        "miso": 13,
+        "mosi": 11
+      }
+    },
+    {
+      "id": "serial_0",
+      "kind": "uart",
+      "pins": {
+        "tx": 43,
+        "rx": 44
+      }
+    }
+  ],
+  "devices": [
+    {
+      "id": "tc1",
+      "driver": "max31856",
+      "bus": "thermocouple_spi",
+      "select": {
+        "gpio": 14
+      },
+      "expected": true
+    },
+    {
+      "id": "tc2",
+      "driver": "max31856",
+      "bus": "thermocouple_spi",
+      "select": {
+        "gpio": 3
+      },
+      "expected": true
+    },
+    {
+      "id": "adc",
+      "driver": "tla2528",
+      "bus": "sensor_i2c",
+      "address": 16,
+      "expected": true
+    },
+    {
+      "id": "io",
+      "driver": "tca9534",
+      "bus": "sensor_i2c",
+      "address": 32,
+      "expected": true
+    }
+  ],
+  "fixed_functions": {
+    "status_led": {
+      "device": "io",
+      "channel": 6,
+      "active_high": false,
+      "safe_demand": 0
+    },
+    "fault_led": {
+      "device": "io",
+      "channel": 7,
+      "active_high": false,
+      "safe_demand": 0
+    },
+    "output_enable": {
+      "gpio": 45,
+      "active_high": true,
+      "safe_demand": 0
+    },
+    "supply_voltage": {
+      "gpio": 10,
+      "divider": 37,
+      "reference_mv": 3300,
+      "label": "ECU supply voltage"
+    },
+    "cluster_serial": {
+      "bus": "serial_0"
+    },
+    "mavlink": {
+      "bus": "serial_0"
+    }
+  },
+  "ports": [
+    {
+      "id": "thermocouple_1",
+      "label": "Thermocouple 1",
+      "connector": "J43",
+      "modes": [
+        {
+          "id": "temperature",
+          "adapter": "spi_thermocouple",
+          "device": "tc1"
+        }
+      ]
+    },
+    {
+      "id": "thermocouple_2",
+      "label": "Thermocouple 2",
+      "connector": "J44",
+      "modes": [
+        {
+          "id": "temperature",
+          "adapter": "spi_thermocouple",
+          "device": "tc2"
+        }
+      ]
+    },
+    {
+      "id": "analog_1",
+      "label": "Analog input 1",
+      "connector": "J20",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 0,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 0,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_2",
+      "label": "Analog input 2",
+      "connector": "J21",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 1,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 1,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_3",
+      "label": "Analog input 3",
+      "connector": "J22",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 2,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 2,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_4",
+      "label": "Analog input 4",
+      "connector": "J23",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 3,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 3,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_5",
+      "label": "Analog input 5",
+      "connector": "J24",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 4,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 4,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_6",
+      "label": "Analog input 6",
+      "connector": "J25",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 5,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 5,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_7",
+      "label": "Analog input 7",
+      "connector": "J26",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 6,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 6,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "analog_8",
+      "label": "Analog input 8",
+      "connector": "J27",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
+      "modes": [
+        {
+          "id": "analog",
+          "adapter": "i2c_adc_input",
+          "device": "adc",
+          "channel": 7,
+          "reference_mv": 5000,
+          "limits": {
+            "minimum_mv": 0,
+            "maximum_mv": 5000
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "i2c_adc_digital_input",
+          "device": "adc",
+          "channel": 7,
+          "reference_mv": 5000
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_1",
+      "label": "Pulse input 1",
+      "connector": "J28",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 35
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 0,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 35
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 0,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 35
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 0,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 35
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 0,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_2",
+      "label": "Pulse input 2",
+      "connector": "J29",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 36
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 1,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 36
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 1,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 36
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 1,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 36
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 1,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_3",
+      "label": "Pulse input 3",
+      "connector": "J30",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 6
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 2,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 6
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 2,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 6
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 2,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 6
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 2,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_4",
+      "label": "Pulse input 4",
+      "connector": "J31",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 7
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 3,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 7
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 3,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 7
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 3,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 7
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 3,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_5",
+      "label": "Pulse input 5",
+      "connector": "J32",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 15
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 4,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 15
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 4,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 15
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 4,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 15
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 4,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_in_6",
+      "label": "Pulse input 6",
+      "connector": "J33",
+      "description": "Conditioned input; switchable external 3.3 V pull-up",
+      "modes": [
+        {
+          "id": "frequency",
+          "adapter": "pcnt_input",
+          "endpoint": {
+            "gpio": 16
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 5,
+            "active_high": false
+          }
+        },
+        {
+          "id": "rc",
+          "adapter": "rc_pwm_input",
+          "endpoint": {
+            "gpio": 16
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 5,
+            "active_high": false
+          }
+        },
+        {
+          "id": "duty",
+          "adapter": "pwm_duty_input",
+          "endpoint": {
+            "gpio": 16
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 5,
+            "active_high": false
+          }
+        },
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 16
+          },
+          "pull": "none",
+          "pull_control": {
+            "device": "io",
+            "channel": 5,
+            "active_high": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_1",
+      "label": "Pulse output 1",
+      "connector": "J34",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 18
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_1",
+      "label": "Power output 1",
+      "connector": "J3",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 37
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 37
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_2",
+      "label": "Pulse output 2",
+      "connector": "J35",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 8
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_2",
+      "label": "Power output 2",
+      "connector": "J5",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 38
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 38
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_3",
+      "label": "Pulse output 3",
+      "connector": "J36",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 9
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_3",
+      "label": "Power output 3",
+      "connector": "J7",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 41
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 41
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_4",
+      "label": "Pulse output 4",
+      "connector": "J37",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 39
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_4",
+      "label": "Power output 4",
+      "connector": "J9",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 42
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 42
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_5",
+      "label": "Pulse output 5",
+      "connector": "J38",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 40
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_5",
+      "label": "Power output 5",
+      "connector": "J11",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 2
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 2
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "pulse_out_6",
+      "label": "Pulse output 6",
+      "connector": "J39",
+      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "modes": [
+        {
+          "id": "servo",
+          "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 21
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "power_out_6",
+      "label": "Power output 6",
+      "connector": "J13",
+      "description": "Low-side switched battery load; shared hardware output enable",
+      "modes": [
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
+          "endpoint": {
+            "gpio": 1
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 1
+          },
+          "safe_demand": 0
+        }
+      ]
+    },
+    {
+      "id": "start_switch",
+      "label": "Start switch",
+      "connector": "J_START",
+      "modes": [
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 17
+          },
+          "active_high": false,
+          "pull": "up",
+          "default": {
+            "id": "start_switch",
+            "name": "Start Switch",
+            "role": "digital_switch",
+            "purpose": "start_switch"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop_switch",
+      "label": "Stop switch",
+      "connector": "J_STOP",
+      "modes": [
+        {
+          "id": "switch",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 48
+          },
+          "active_high": false,
+          "pull": "up",
+          "default": {
+            "id": "stop_switch",
+            "name": "Stop Switch",
+            "role": "digital_switch",
+            "purpose": "stop_switch"
+          }
+        }
+      ]
+    },
+    {
+      "id": "extension_46",
+      "label": "Extension GPIO46",
+      "connector": "J18",
+      "modes": [
+        {
+          "id": "input",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 46
+          }
+        }
+      ]
+    },
+    {
+      "id": "extension_47",
+      "label": "Extension GPIO47",
+      "connector": "J18",
+      "modes": [
+        {
+          "id": "input",
+          "adapter": "digital_input",
+          "endpoint": {
+            "gpio": 47
+          }
+        }
+      ]
+    }
+  ]
+}

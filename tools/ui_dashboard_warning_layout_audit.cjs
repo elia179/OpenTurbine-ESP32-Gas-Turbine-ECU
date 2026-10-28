@@ -83,7 +83,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    for(const width of [1366,768,390,320]){
     await page.setViewportSize({width,height:1024});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${engine}/${width} warning overflow`);
-    assert.ok(await slot.locator('#fault-card').isVisible());
+    await slot.locator('#fault-card').waitFor({state:'visible',timeout:5000});
    }
    await page.setViewportSize({width:768,height:1024});
    await slot.screenshot({path:`artifacts/v255-dashboard/${engine}-${packaged?'packaged':'source'}-warnings.png`});

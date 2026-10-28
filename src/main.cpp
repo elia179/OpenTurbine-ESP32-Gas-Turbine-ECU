@@ -3575,7 +3575,7 @@ static void handleCommand(const OTPacket& pkt) {
                             const auto& device = catalog->devices[i];
                             if (!device.expected) continue;
                             uint8_t driver = 255;
-                            if (!strcmp(device.driver, "tca9554")) driver = ChannelRegistry::I2cDigital;
+                            if (!strcmp(device.driver, "tca9554") || !strcmp(device.driver,"tca9534")) driver = ChannelRegistry::I2cDigital;
                             else if (!strcmp(device.driver, "tla2528")) driver = ChannelRegistry::I2cAnalog;
                             else if (!strcmp(device.driver, "nau7802")) driver = ChannelRegistry::I2cLoadCell;
                             else continue;
@@ -4422,6 +4422,7 @@ void setup() {
             startupState.mode != SysMode::FAULT);
     }
     Hardware::initStatusLED();
+    PcbProfileManager::setOutputsEnabled(EngineData::instance().hardwareReady);
     RCInput::begin();
 
     // ── DI pin mode + initial debounce state ──────────────────

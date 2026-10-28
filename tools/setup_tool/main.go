@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.3"
+	appVersion                  = "0.7.4"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -162,13 +162,10 @@ type sourcePCBProfile struct {
 		} `json:"select"`
 	} `json:"devices"`
 	FixedFunctions struct {
-		StatusLED *struct {
-			GPIO       int      `json:"gpio"`
-			ActiveHigh *bool    `json:"active_high"`
-			Type       string   `json:"type"`
-			SafeDemand *float64 `json:"safe_demand"`
-		} `json:"status_led"`
-		Buzzer *struct {
+		StatusLED    *pcbFixedOutput `json:"status_led"`
+		FaultLED     *pcbFixedOutput `json:"fault_led"`
+		OutputEnable *pcbFixedOutput `json:"output_enable"`
+		Buzzer       *struct {
 			GPIO       int      `json:"gpio"`
 			ActiveHigh *bool    `json:"active_high"`
 			SafeDemand *float64 `json:"safe_demand"`
@@ -194,12 +191,17 @@ type sourcePCBProfile struct {
 		ID    string `json:"id"`
 		Label string `json:"label"`
 		Modes []struct {
-			ID          string   `json:"id"`
-			Adapter     string   `json:"adapter"`
-			Device      string   `json:"device"`
-			Channel     int      `json:"channel"`
-			ActiveHigh  *bool    `json:"active_high"`
-			Pull        string   `json:"pull"`
+			ID          string `json:"id"`
+			Adapter     string `json:"adapter"`
+			Device      string `json:"device"`
+			Channel     int    `json:"channel"`
+			ActiveHigh  *bool  `json:"active_high"`
+			Pull        string `json:"pull"`
+			PullControl *struct {
+				Device     string `json:"device"`
+				Channel    int    `json:"channel"`
+				ActiveHigh *bool  `json:"active_high"`
+			} `json:"pull_control"`
 			SafeDemand  *float64 `json:"safe_demand"`
 			ReferenceMV float64  `json:"reference_mv"`
 			Default     struct {
@@ -213,6 +215,15 @@ type sourcePCBProfile struct {
 			} `json:"endpoint"`
 		} `json:"modes"`
 	} `json:"ports"`
+}
+
+type pcbFixedOutput struct {
+	GPIO       *int     `json:"gpio"`
+	Device     string   `json:"device"`
+	Channel    int      `json:"channel"`
+	ActiveHigh *bool    `json:"active_high"`
+	Type       string   `json:"type"`
+	SafeDemand *float64 `json:"safe_demand"`
 }
 
 type pcbTargetCatalog struct {
@@ -967,7 +978,14 @@ func (ui *NativeUI) click(x, y int) {
 			case "back":
 				ui.showHome()
 			case "continue":
-				if job != nil {
+				ui.mu.Lock()
+				canContinue := ui.screen == screenWait
+				if canContinue {
+					ui.screen = screenRunning
+					ui.primary = ""
+				}
+				ui.mu.Unlock()
+				if job != nil && canContinue {
 					select {
 					case job.continueCh <- struct{}{}:
 					default:
@@ -2346,22 +2364,82 @@ func (j *Job) runExistingUpdate() {
 		j.cancelToHome("Wi-Fi update was cancelled before final verification.")
 		return
 	}
-	if err := waitForECU(75 * time.Second); err != nil {
-		j.fail(errors.New("The files were uploaded, but the tool could not reconnect for final verification. Reconnect to the board Wi-Fi and run Update and keep my setup again; it is safe to repeat."))
-		return
-	}
-	if err := verifyUpdatedECU(version, target, pkg.Manifest.Targets[target].BuildID, assets); err != nil {
-		j.fail(fmt.Errorf("Final verification failed: %w", err))
-		return
+	for {
+		started := time.Now()
+		report := func(message string) {
+			j.set(9, total, 95, "Checking the updated board", message,
+				fmt.Sprintf("Elapsed: %s. Verification only — no files are being uploaded. Keep connected to the board Wi-Fi.", time.Since(started).Round(time.Second)), false)
+		}
+		report("Waiting for OpenTurbine to respond after restart…")
+		err := waitForECUWithProgress(75*time.Second, report)
+		if err == nil {
+			err = verifyUpdatedECUWithProgress(version, target, pkg.Manifest.Targets[target].BuildID, assets, report)
+		}
+		if err == nil {
+			break
+		}
+		j.addLog("Verification incomplete: " + err.Error())
+		j.writeLog("verification incomplete", err.Error())
+		j.set(9, total, 95, "Retry final verification", "Uploads have finished, but verification did not complete.\n\n"+err.Error()+"\n\nCheck the board Wi-Fi, then click Continue to retry verification only, or cancel.", "Your engine-file backup is retained. Retry does not upload firmware or dashboard files again.", true)
+		if !j.waitContinue() {
+			j.cancelToHome("Uploads finished; final verification was cancelled. The update is not confirmed. Keep the engine-file backup and verify the ECU before use.")
+			return
+		}
 	}
 	j.success("Update complete", "OpenTurbine was updated successfully.\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
 }
 
 func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, assetPaths []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	return verifyUpdatedECUWithProgress(expectedVersion, expectedTarget, expectedBuildID, assetPaths, nil)
+}
+
+// Retry reads only. Identity and byte mismatches never become successful retries.
+func readVerificationURL(parent context.Context, url string, report func(string)) ([]byte, error) {
+	var last error
+	for attempt := 1; attempt <= 3; attempt++ {
+		ctx, cancel := context.WithTimeout(parent, 8*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+		resp, err := http.DefaultClient.Do(req)
+		var body []byte
+		if err == nil {
+			body, err = io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024+1))
+			resp.Body.Close()
+			if err == nil && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+				err = fmt.Errorf("HTTP %d", resp.StatusCode)
+			}
+			if len(body) > 2*1024*1024 {
+				err = errors.New("response exceeds verification limit")
+			}
+		}
+		cancel()
+		if err == nil {
+			return body, nil
+		}
+		last = err
+		if parent.Err() != nil {
+			return nil, parent.Err()
+		}
+		if attempt < 3 {
+			if report != nil {
+				report(fmt.Sprintf("Read interrupted (%v). Retrying %d/3…", err, attempt+1))
+			}
+			select {
+			case <-parent.Done():
+				return nil, parent.Err()
+			case <-time.After(time.Second):
+			}
+		}
+	}
+	return nil, last
+}
+
+func verifyUpdatedECUWithProgress(expectedVersion, expectedTarget, expectedBuildID string, assetPaths []string, report func(string)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", ecuBaseURL+"/api/device_info", nil)
-	resp, err := http.DefaultClient.Do(req)
+	if report != nil {
+		report("Checking firmware version, target and build identity…")
+	}
+	body, err := readVerificationURL(ctx, ecuBaseURL+"/api/device_info", report)
 	if err != nil {
 		return fmt.Errorf("could not read firmware identity: %w", err)
 	}
@@ -2371,9 +2449,7 @@ func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, a
 		Target  string `json:"target"`
 		BuildID string `json:"build_id"`
 	}
-	decodeErr := json.NewDecoder(resp.Body).Decode(&info)
-	resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 || decodeErr != nil {
+	if json.Unmarshal(body, &info) != nil {
 		return fmt.Errorf("board did not return valid firmware identity")
 	}
 	if info.Project != "OpenTurbine" || info.Version != expectedVersion {
@@ -2384,21 +2460,15 @@ func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, a
 			info.Target, info.BuildID, expectedTarget, expectedBuildID)
 	}
 
-	for _, localPath := range assetPaths {
+	for index, localPath := range assetPaths {
 		name := filepath.Base(localPath)
-		urlPath := "/" + strings.TrimSuffix(name, ".gz")
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		req, _ := http.NewRequestWithContext(ctx, "GET", ecuBaseURL+urlPath+"?verify="+fmt.Sprint(time.Now().UnixNano()), nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			cancel()
-			return fmt.Errorf("could not read dashboard file %s: %w", name, err)
+		if report != nil {
+			report(fmt.Sprintf("Checking dashboard file %d of %d: %s", index+1, len(assetPaths), name))
 		}
-		remote, readErr := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
-		resp.Body.Close()
-		cancel()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 || readErr != nil {
-			return fmt.Errorf("dashboard file %s was not served correctly", name)
+		urlPath := "/" + strings.TrimSuffix(name, ".gz")
+		remote, err := readVerificationURL(ctx, ecuBaseURL+urlPath+"?verify="+fmt.Sprint(time.Now().UnixNano()), report)
+		if err != nil {
+			return fmt.Errorf("could not read dashboard file %s: %w", name, err)
 		}
 		local, err := readGzipFile(localPath)
 		if err != nil {
@@ -2414,6 +2484,9 @@ func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, a
 		}
 		if !bytes.Equal(remote, local) {
 			return fmt.Errorf("dashboard file %s does not match the update package", name)
+		}
+		if report != nil {
+			report(fmt.Sprintf("Verified dashboard file %d of %d: %s", index+1, len(assetPaths), name))
 		}
 	}
 	return nil
@@ -3380,10 +3453,29 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		profile.FormatVersion.Minor < 0 || profile.FormatVersion.Minor > 255 {
 		return "", nil, errors.New("custom PCB profile uses an unsupported format or major version")
 	}
+	needs261 := profile.FixedFunctions.FaultLED != nil || profile.FixedFunctions.OutputEnable != nil ||
+		(profile.FixedFunctions.StatusLED != nil && profile.FixedFunctions.StatusLED.Device != "")
+	for _, port := range profile.Ports {
+		for _, mode := range port.Modes {
+			needs261 = needs261 || mode.PullControl != nil
+		}
+	}
+	if needs261 && profile.FormatVersion.Minor < 1 {
+		return "", nil, errors.New("this PCB profile uses 2.6.1 capabilities and must declare format 1.1")
+	}
+	if profile.FormatVersion.Minor >= 1 {
+		compatible, err := versionAtLeast(pkg.Manifest.Version, "2.6.1")
+		if err != nil || !compatible {
+			return "", nil, errors.New("this PCB profile requires OpenTurbine 2.6.1 or newer; use the matching firmware setup package")
+		}
+	}
 	expectedChip := "esp32"
 	targetID := byte(1)
 	if target == "esp32s3dev" {
 		expectedChip, targetID = "esp32-s3", 2
+	}
+	if targetID == 1 && profile.FormatVersion.Minor > 0 {
+		return "", nil, errors.New("Classic ESP32 supports format 1.0 PCB profiles; newer capabilities require S3")
 	}
 	if profile.Target.Chip != expectedChip {
 		return "", nil, fmt.Errorf("custom PCB profile is for %s, but the detected board is %s",
@@ -3528,8 +3620,44 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		}
 		return nil
 	}
-	if fixed := profile.FixedFunctions.StatusLED; fixed != nil {
-		if err := checkFixedOutput("status_led", fixed.GPIO, fixed.SafeDemand, fixed.Type); err != nil {
+	deviceChannelOwners := map[string]string{}
+	for key, fixed := range map[string]*pcbFixedOutput{"status_led": profile.FixedFunctions.StatusLED, "fault_led": profile.FixedFunctions.FaultLED, "output_enable": profile.FixedFunctions.OutputEnable} {
+		if fixed == nil {
+			continue
+		}
+		if key != "status_led" && profile.Target.Chip != "esp32-s3" {
+			return "", nil, errors.New("these fixed PCB functions require ESP32-S3")
+		}
+		if key == "output_enable" && fixed.ActiveHigh == nil {
+			return "", nil, errors.New("output_enable requires active_high")
+		}
+		if fixed.Device != "" {
+			if fixed.Type != "" && fixed.Type != "gpio" {
+				return "", nil, errors.New("expander-backed indicators must use plain GPIO type")
+			}
+			if profile.Target.Chip != "esp32-s3" {
+				return "", nil, errors.New("expander-backed fixed indicators require ESP32-S3")
+			}
+			valid := false
+			for _, device := range profile.Devices {
+				if device.ID == fixed.Device && (device.Driver == "tca9534" || device.Driver == "tca9554") && device.Address != nil && *device.Address >= 0x20 && *device.Address <= 0x27 {
+					valid = true
+				}
+			}
+			if !valid || key == "output_enable" || fixed.Channel < 0 || fixed.Channel > 7 || fixed.SafeDemand == nil || *fixed.SafeDemand != 0 {
+				return "", nil, fmt.Errorf("invalid fixed I2C endpoint %s", key)
+			}
+			resource := fmt.Sprintf("%s:%d", fixed.Device, fixed.Channel)
+			if deviceChannelOwners[resource] != "" {
+				return "", nil, errors.New("fixed outputs share an I2C channel")
+			}
+			deviceChannelOwners[resource] = "fixed " + key
+			continue
+		}
+		if fixed.GPIO == nil || *fixed.GPIO < 0 {
+			return "", nil, fmt.Errorf("fixed function %s needs an assigned GPIO", key)
+		}
+		if err := checkFixedOutput(key, *fixed.GPIO, fixed.SafeDemand, fixed.Type); err != nil {
 			return "", nil, err
 		}
 	}
@@ -3578,7 +3706,6 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		"digital_output": true, "relay_output": true, "pwm_output": true, "servo_output": true,
 		"i2c_digital_output": true,
 	}
-	deviceChannelOwners := map[string]string{}
 	for _, port := range profile.Ports {
 		if err := claimID(port.ID, "port"); err != nil {
 			return "", nil, err
@@ -3617,6 +3744,26 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 					port.ID, mode.ID)
 			}
 			if mode.Endpoint.GPIO != nil {
+				if control := mode.PullControl; control != nil {
+					if profile.Target.Chip != "esp32-s3" {
+						return "", nil, errors.New("external PCB pull control requires ESP32-S3")
+					}
+					valid := false
+					for _, device := range profile.Devices {
+						if device.ID == control.Device && (device.Driver == "tca9534" || device.Driver == "tca9554") && device.Address != nil && *device.Address >= 0x20 && *device.Address <= 0x27 {
+							valid = true
+						}
+					}
+					if !valid || control.Channel < 0 || control.Channel > 7 || control.ActiveHigh == nil || isOutput {
+						return "", nil, fmt.Errorf("invalid pull control on %s", port.ID)
+					}
+					resource := fmt.Sprintf("%s:%d", control.Device, control.Channel)
+					owner := "pull " + port.ID
+					if prior := deviceChannelOwners[resource]; prior != "" && prior != owner {
+						return "", nil, fmt.Errorf("pull control conflicts with %s", prior)
+					}
+					deviceChannelOwners[resource] = owner
+				}
 				if err := checkPin(*mode.Endpoint.GPIO, isOutput, "port "+port.ID+"/"+mode.ID); err != nil {
 					return "", nil, err
 				}
@@ -4071,23 +4218,41 @@ func extractAssetsZipIfNeeded(zipPath string) ([]string, error) {
 }
 
 func waitForECU(timeout time.Duration) error {
+	return waitForECUWithProgress(timeout, nil)
+}
+
+func waitForECUWithProgress(timeout time.Duration, report func(string)) error {
 	deadline := time.Now().Add(timeout)
+	parent, stop := context.WithDeadline(context.Background(), deadline)
+	defer stop()
 	var last error
 	for time.Now().Before(deadline) {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		req, _ := http.NewRequestWithContext(ctx, "GET", ecuBaseURL+"/", nil)
+		if report != nil {
+			report(fmt.Sprintf("Waiting for OpenTurbine identity — %s remaining…", time.Until(deadline).Round(time.Second)))
+		}
+		ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, "GET", ecuBaseURL+"/api/device_info", nil)
 		resp, err := http.DefaultClient.Do(req)
-		cancel()
 		if err == nil {
-			io.Copy(io.Discard, resp.Body)
+			var identity struct {
+				Project string `json:"project"`
+			}
+			err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&identity)
 			resp.Body.Close()
-			if resp.StatusCode >= 200 && resp.StatusCode < 600 {
+			cancel()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 && err == nil && identity.Project == "OpenTurbine" {
 				return nil
 			}
+			last = fmt.Errorf("not a ready OpenTurbine identity (HTTP %d)", resp.StatusCode)
 		} else {
+			cancel()
 			last = err
 		}
-		time.Sleep(2 * time.Second)
+		select {
+		case <-parent.Done():
+			return last
+		case <-time.After(2 * time.Second):
+		}
 	}
 	if last != nil {
 		return last

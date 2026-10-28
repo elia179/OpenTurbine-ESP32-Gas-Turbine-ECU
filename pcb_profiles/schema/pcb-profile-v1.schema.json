@@ -44,7 +44,9 @@
     "fixed_functions": {
       "type": "object",
       "properties": {
-        "status_led": {"$ref": "#/$defs/fixedOutput"},
+        "status_led": {"$ref": "#/$defs/fixedIndicator"},
+        "fault_led": {"$ref": "#/$defs/fixedIndicator"},
+        "output_enable": {"$ref": "#/$defs/fixedEnable"},
         "buzzer": {"$ref": "#/$defs/fixedOutput"},
         "servo_output_enable": {"$ref": "#/$defs/fixedEnable"},
         "supply_voltage": {"$ref": "#/$defs/fixedAnalogInput"},
@@ -97,6 +99,14 @@
         "reference_mv": {"type": "number", "minimum": 1000, "maximum": 5500},
         "active_high": {"type": "boolean"},
         "pull": {"enum": ["none", "up", "down"]},
+        "pull_control": {
+          "type": "object", "required": ["device", "channel", "active_high"],
+          "properties": {
+            "device": {"$ref": "#/$defs/id"},
+            "channel": {"type": "integer", "minimum": 0, "maximum": 7},
+            "active_high": {"type": "boolean"}
+          }
+        },
         "safe_demand": {"type": "number", "minimum": 0, "maximum": 1}
       }
     },
@@ -114,6 +124,22 @@
           "maxItems": 4,
           "items": {"$ref": "#/$defs/mode"}
         }
+      }
+    },
+    "fixedIndicator": {
+      "oneOf": [
+        {"allOf": [{"$ref": "#/$defs/fixedOutput"}], "not": {"required": ["device"]}},
+        {"$ref": "#/$defs/fixedI2cOutput"}
+      ]
+    },
+    "fixedI2cOutput": {
+      "type": "object", "required": ["device", "channel", "safe_demand"],
+      "not": {"required": ["gpio"]},
+      "properties": {
+        "device": {"$ref": "#/$defs/id"},
+        "channel": {"type": "integer", "minimum": 0, "maximum": 7},
+        "active_high": {"type": "boolean"}, "type": {"const": "gpio"},
+        "safe_demand": {"const": 0}
       }
     },
     "fixedOutput": {

@@ -98,6 +98,7 @@ function pinShareGroupForMode(mode) {
   return '';
 }
 function pinElectricalMode(mode) {
+  if (mode === 'fault-led') return 'out';
   if (mode === 'spi-miso') return 'in';
   if (mode === 'spi-clk' || mode === 'spi-mosi' || mode === 'i2c-scl') return 'out';
   return mode;
@@ -155,6 +156,8 @@ function collectPinUsage() {
   if (statusLed?.enabled !== false &&
       !(profileActive && pcbProfile?.fixed_functions?.status_led?.available))
     add(statusLed?.pin, 'Status LED');
+  if (cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
+    add(cfg.actuators.fault_led.pin,'Fault LED','fault-led');
   const cl = cfg.cluster_serial || {};
   if (cl.enabled && !(profileActive && pcbProfile?.fixed_functions?.cluster_serial?.available)) {
     add(cl.tx_pin, 'Cluster Serial TX'); add(cl.rx_pin, 'Cluster Serial RX');

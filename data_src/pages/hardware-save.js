@@ -252,12 +252,13 @@ function _deviceDiffRows() {
     cluster_serial: cfg.cluster_serial || {},
     mavlink: cfg.mavlink || {},
     status_led: cfg.actuators?.status_led || {},
+    fault_led: cfg.actuators?.fault_led || {},
     buzzer: cfg.buzzer || {}
   };
   const deviceLabels = {
     i2c:'Shared I2C bus', spi:'Shared SPI bus',
     cluster_serial:'OT Cluster serial', mavlink:'MAVLink telemetry',
-    status_led:'Status LED', buzzer:'Buzzer'
+    status_led:'Status LED', fault_led:'Fault LED', buzzer:'Buzzer'
   };
   const fieldLabels = {
     enabled:'Installed', tx_pin:'TX GPIO', rx_pin:'RX GPIO', pin:'GPIO pin',

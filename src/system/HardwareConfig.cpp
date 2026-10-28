@@ -1784,7 +1784,7 @@ bool validatePlatformPins(const JsonDocument& doc,
         "throttle", "starter", "oil_pump", "fuel_sol", "igniter", "igniter2",
         "starter_en", "ab_sol", "airstarter_sol", "cool_fan", "ab_pump",
         "oil_scavenge_pump", "fuel_pump2", "bleed_valve", "prop_pitch",
-        "glow_plug", "status_led"
+        "glow_plug", "status_led", "fault_led"
     };
     auto actuatorPurpose = [](const char* key) -> const char* {
         if (!strcmp(key, "throttle")) return "main_fuel";
@@ -1811,6 +1811,9 @@ bool validatePlatformPins(const JsonDocument& doc,
         if (!hasAfterburner &&
             (strcmp(key, "ab_sol") == 0 || strcmp(key, "ab_pump") == 0)) continue;
         if (enabled(item)) {
+#if !defined(OT_PLATFORM_ESP32)
+            if(PcbProfileManager::active() && (!strcmp(key,"status_led") || !strcmp(key,"fault_led"))) continue;
+#endif
             const int pin = jsonPin(item, "pin");
             const bool remoteI2c = !strcmp(key, "bleed_valve")
                 ? registryOutputIdUsesI2c("bleed_valve")
@@ -2084,6 +2087,9 @@ bool validatePlatformPins(const JsonDocument& doc,
         JsonVariantConst item = actuators[key];
         if (!hasAfterburner &&
             (strcmp(key, "ab_sol") == 0 || strcmp(key, "ab_pump") == 0)) continue;
+#if !defined(OT_PLATFORM_ESP32)
+        if(PcbProfileManager::active() && (!strcmp(key,"status_led") || !strcmp(key,"fault_led"))) continue;
+#endif
         if (enabled(item) && !addPin(jsonPin(item, "pin"))) return false;
         if (strcmp(key, "glow_plug") == 0 && enabled(item) && ((item["type"] | 0) == 2) &&
             !addPin(item["fuel_pin"] | -1)) return false;
@@ -2446,6 +2452,9 @@ bool  HardwareConfig::hasOilPumpCurrentSensor    = false;
 bool  HardwareConfig::hasGovernor      = false;
 bool  HardwareConfig::hasMAVLink       = false;
 bool  HardwareConfig::hasStatusLed     = DEFAULT_STATUS_LED_PIN != -1;
+bool HardwareConfig::hasFaultLed = false;
+int HardwareConfig::faultLedPin = -1;
+bool HardwareConfig::faultLedActiveH = true;
 bool  HardwareConfig::hasClusterSerial = DEFAULT_HAS_CLUSTER_SERIAL;
 bool  HardwareConfig::hasBuzzer        = false;
 int   HardwareConfig::buzzerPin        = -1;
@@ -3074,6 +3083,7 @@ void HardwareConfig::applyDefaults() {
     hasGovernor = false; hasMAVLink = false;
     hasStatusLed = DEFAULT_STATUS_LED_PIN != -1; hasClusterSerial = DEFAULT_HAS_CLUSTER_SERIAL;
     statusLedActiveH = true;
+    hasFaultLed=false; faultLedPin=-1; faultLedActiveH=true;
     hasBuzzer = false; buzzerPin = -1;
 
     fuelPump2Pin = -1; fuelPump2Type = 1; fuelPump2MinUs = 1000; fuelPump2MaxUs = 2000;
@@ -4056,6 +4066,10 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     if (wetGlowFuelDelayMs < 0) wetGlowFuelDelayMs = 0;
 
     auto led = a["status_led"];
+    auto faultLed=a["fault_led"];
+    hasFaultLed=faultLed["enabled"] | false;
+    faultLedPin=faultLed["pin"] | -1;
+    faultLedActiveH=faultLed["active_h"] | true;
     const bool ledEnabledPresent = !led["enabled"].isNull();
     const bool ledPinPresent = !led["pin"].isNull();
     const bool ledTypePresent = !led["type"].isNull();

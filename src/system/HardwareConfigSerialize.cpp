@@ -250,6 +250,8 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     led["running_color"] = statusLedRunningColor;
     led["shutdown_color"] = statusLedShutdownColor;
     led["blink_color"] = statusLedBlinkColor;
+    auto faultLed=acts["fault_led"].to<JsonObject>();
+    faultLed["enabled"]=hasFaultLed; faultLed["pin"]=faultLedPin; faultLed["active_h"]=faultLedActiveH;
 
     auto clus = doc["cluster_serial"].to<JsonObject>();
     clus["enabled"] = hasClusterSerial; clus["tx_pin"] = clusterTxPin;

@@ -8,6 +8,19 @@ static constexpr int INPUT = 0, INPUT_PULLUP = 2, LOW = 0;
 inline void pinMode(int, int) {}
 inline int digitalRead(int) { return 1; }
 #include "../../src/hal/i2c/I2CDeviceManager.h"
+#include "fakes/PcbProfileState.h"
+
+void PcbProfileManager::begin() {
+    static Catalog board;
+    board.devices=new Device[1];board.deviceCount=1;board.devices[0].address=0x20;
+    board.ports=new Port[1];board.portCount=1;board.ports[0].modeCount=1;
+    auto& mode=board.ports[0].modes[0];mode.gpio=35;mode.pullDeviceIndex=0;mode.pullChannel=0;mode.pullActiveHigh=false;
+    board.hasStatusLed=board.hasFaultLed=true;
+    board.statusLedDeviceIndex=board.faultLedDeviceIndex=0;
+    board.statusLedChannel=6;board.faultLedChannel=7;
+    board.statusLedActiveHigh=board.faultLedActiveHigh=false;
+    _catalog=&board;_state=State::Valid;
+}
 
 static void tick(unsigned ms) {
     for (unsigned t=0; t<ms; t+=2) {
@@ -127,5 +140,17 @@ int main() {
         }
     }
     std::cout << "TLA2528 switch/flame inputs publish logical ON/OFF with polarity and threshold hysteresis before common contact filtering.\n";
-
+    PcbProfileManager::begin();
+    r.inputCount=1;r.outputCount=0;
+    r.inputs[0].driver=ChannelRegistry::Pulse;r.inputs[0].pin=35;r.inputs[0].pullup=true;
+    Wire=FakeWire{};Wire.tcaPresent=true;
+    I2CDeviceManager::begin(true,4,5,-1,400000,r);
+    assert(Wire.tca[3]==0x3E && Wire.tca[1]==0xC0);
+    assert(I2CDeviceManager::writeIndicator(true,true));assert(Wire.tca[1]==0x40);
+    assert(I2CDeviceManager::writeIndicator(false,true));assert(Wire.tca[1]==0);
+    assert(I2CDeviceManager::writeIndicator(true,false));assert(Wire.tca[1]==0x80);
+    r.inputs[0].pullup=false;
+    I2CDeviceManager::begin(true,4,5,-1,400000,r);
+    assert(Wire.tca[1]==0xC1);
+    std::cout << "PCB expander: safe LED states, active-low fault/status independence and external pull-up isolation passed.\n";
 }

@@ -104,6 +104,9 @@ bool applyMode(ChannelRegistry::Channel& channel,
         channel.pullup = mode.pull == 1;
         channel.pulldown = mode.pull == 2;
     }
+#if !defined(OT_PLATFORM_ESP32)
+    if(input && mode.pullDeviceIndex>=0) channel.pulldown=false;
+#endif
     if (!input) channel.safeDemand = mode.safeDemand;
 
     if (channel.driver == Driver::I2cDigital || channel.driver == Driver::I2cAnalog ||
@@ -277,6 +280,13 @@ void PcbProfileResolver::applyFixedPeripherals() {
     HardwareConfig::statusLedPin = catalog->hasStatusLed ? catalog->statusLedGpio : -1;
     HardwareConfig::statusLedType = catalog->statusLedType;
     HardwareConfig::statusLedActiveH = catalog->statusLedActiveHigh;
+#if !defined(OT_PLATFORM_ESP32)
+    HardwareConfig::hasFaultLed=catalog->hasFaultLed;
+    HardwareConfig::faultLedPin=catalog->faultLedGpio;
+    HardwareConfig::faultLedActiveH=catalog->faultLedActiveHigh;
+#else
+    HardwareConfig::hasFaultLed=false;HardwareConfig::faultLedPin=-1;
+#endif
     HardwareConfig::hasBuzzer = catalog->hasBuzzer;
     HardwareConfig::buzzerPin = catalog->hasBuzzer ? catalog->buzzerGpio : -1;
 

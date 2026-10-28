@@ -825,6 +825,7 @@ function revealSystemWifiPassword() {
 function renderSystemSetup() {
   const root = document.getElementById('system-device-setup');
   if (!root || CONFIG_SURFACE !== 'system') return;
+  const categoryState = new Map([...root.querySelectorAll('details.system-category')].map(card=>[card.id,card.open]));
   const openGroups = new Set(Array.from(root.querySelectorAll('details.config-group[open] > summary .group-title'))
     .map(node => node.textContent.trim()));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -943,15 +944,16 @@ function renderSystemSetup() {
       group('Instrument cluster','Optional OpenTurbine serial display',clusterFields,false) +
       group('MAVLink telemetry','Optional serial telemetry for external systems',mavFields,false) +
       group('ECU runtime','Control-loop scheduling and device-wide execution',runtimeFields,false) +
-      group('ECU loop timing','Main ECU loop speed and execution timing diagnostics',loopTimingFields,false,'loop-diag-card'),false,'system-connections-runtime') +
+      group('ECU loop timing','Main ECU loop speed and execution timing diagnostics',loopTimingFields,false,'loop-diag-card'),true,'system-connections-runtime') +
     category('Maintenance','Backups, advanced updates, and recovery actions',
       group('Backup & restore','Download or restore the complete configuration file',backupRestoreFields,false,'system-backup-restore') +
       group('Manual firmware & web update','Advanced update controls for matching compiled files',manualUpdateFields,false,'manual-update-tools') +
-      group('Factory reset','Permanently erase all configuration and logs to restore factory defaults',factoryResetFields,false,'card-factory-reset'),false,'system-maintenance');
+      group('Factory reset','Permanently erase all configuration and logs to restore factory defaults',factoryResetFields,false,'card-factory-reset'),true,'system-maintenance');
   root.querySelectorAll('details.config-group').forEach(card => {
     const title = card.querySelector('.group-title')?.textContent.trim();
     if (openGroups.size) card.open = openGroups.has(title);
   });
+  root.querySelectorAll('details.system-category').forEach(card=>{if(categoryState.has(card.id))card.open=categoryState.get(card.id);});
   if (window.OTTheme?.renderPicker) {
     window.OTTheme.setDashboardAccents(cfg.dashboard_accents === true, true);
     window.OTTheme.renderPicker(document.getElementById('appearance-picker'));

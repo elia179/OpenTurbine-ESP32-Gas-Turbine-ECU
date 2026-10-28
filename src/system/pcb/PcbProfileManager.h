@@ -49,6 +49,11 @@ public:
         int8_t gpio = -1;
         bool activeHigh = true;
         uint8_t pull = 0; // 0=none/external, 1=internal pull-up, 2=internal pull-down
+#if !defined(OT_PLATFORM_ESP32)
+        int8_t pullDeviceIndex = -1;
+        uint8_t pullChannel = 0;
+        bool pullActiveHigh = true;
+#endif
         float safeDemand = 0.0f;
         bool hasSafeDemand = false;
         float minimumHz = 0.0f;
@@ -102,6 +107,15 @@ public:
         int8_t statusLedGpio = -1, buzzerGpio = -1;
         uint8_t statusLedType = 0;
         bool statusLedActiveHigh = true, buzzerActiveHigh = true;
+#if !defined(OT_PLATFORM_ESP32)
+        int8_t statusLedDeviceIndex = -1;
+        uint8_t statusLedChannel = 0;
+        bool hasFaultLed = false, faultLedActiveHigh = true;
+        int8_t faultLedGpio = -1, faultLedDeviceIndex = -1;
+        uint8_t faultLedChannel = 0;
+        bool hasOutputEnable = false, outputEnableActiveHigh = true;
+        int8_t outputEnableGpio = -1;
+#endif
         bool hasServoOutputEnable = false;
         int8_t servoOutputEnableGpio = -1;
         bool servoOutputEnableActiveHigh = true;
@@ -139,6 +153,7 @@ public:
     // The shared buffer is kept disabled until every configured servo waveform
     // has been attached and initialized.
     static void setServoOutputsEnabled(bool enabled);
+    static void setOutputsEnabled(bool enabled);
     static void toJson(JsonObject out, bool includePorts = true,
                        uint8_t portOffset = 0, uint8_t portLimit = MAX_PORTS);
 

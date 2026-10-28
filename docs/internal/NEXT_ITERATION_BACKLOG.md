@@ -1,4 +1,10 @@
-# Planned 2.6.1 follow-ups
+# 2.6.1 follow-ups — implementation and qualification
+
+Local implementation is recorded in [IMPLEMENTATION_2.6.1.md](IMPLEMENTATION_2.6.1.md).
+The reports, source observations and acceptance lists below are the original
+pre-implementation record. Their unchecked boxes must not be read as current
+implementation status. Physical-board and real Wi-Fi update qualification remain
+open; no 2.6.1 release has been published.
 
 ## Setup Tool Wi-Fi update: final reconnect appears stuck
 

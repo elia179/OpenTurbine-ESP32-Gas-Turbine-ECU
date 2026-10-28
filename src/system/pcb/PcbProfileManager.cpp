@@ -27,7 +27,7 @@ struct __attribute__((packed)) ProfileHeader {
 };
 static_assert(sizeof(ProfileHeader) == 32, "PCB profile container header changed");
 
-bool idValid(const char* value, size_t maxLength) {
+__attribute__((noinline)) bool idValid(const char* value, size_t maxLength) {
     if (!value || !value[0] || strlen(value) >= maxLength) return false;
     if (!(value[0] >= 'a' && value[0] <= 'z') && !(value[0] >= '0' && value[0] <= '9'))
         return false;
@@ -39,34 +39,34 @@ bool idValid(const char* value, size_t maxLength) {
 
 PcbProfileManager::Adapter parseAdapter(const char* value) {
     using Adapter = PcbProfileManager::Adapter;
-    static const char* const names[] = {
-        "digital_input", "analog_input", "pcnt_input", "rc_pwm_input",
-        "pwm_duty_input", "spi_thermocouple", "onewire_temperature",
-        "i2c_digital_input", "i2c_adc_input", "i2c_adc_digital_input", "i2c_load_cell",
-        "digital_output", "relay_output", "pwm_output", "servo_output",
-        "i2c_digital_output"
-    };
-    for (uint8_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
-        if (!strcmp(names[i], value)) return static_cast<Adapter>(i + 1);
+    for (uint8_t i = 1; i <= static_cast<uint8_t>(Adapter::I2cDigitalOutput); ++i)
+        if (!strcmp(PcbProfileManager::adapterName(static_cast<Adapter>(i)), value))
+            return static_cast<Adapter>(i);
     return Adapter::Unknown;
 }
 
-bool adapterDriver(const char* adapter, ChannelRegistry::Driver& driver) {
+bool adapterDriver(PcbProfileManager::Adapter adapter, ChannelRegistry::Driver& driver) {
+    using Adapter = PcbProfileManager::Adapter;
     using Driver = ChannelRegistry::Driver;
-    if (!strcmp(adapter, "digital_input")) driver = Driver::Digital;
-    else if (!strcmp(adapter, "analog_input") || !strcmp(adapter, "spi_thermocouple") ||
-             !strcmp(adapter, "onewire_temperature")) driver = Driver::Analog;
-    else if (!strcmp(adapter, "pcnt_input")) driver = Driver::Pulse;
-    else if (!strcmp(adapter, "rc_pwm_input")) driver = Driver::RcPwm;
-    else if (!strcmp(adapter, "pwm_duty_input")) driver = Driver::PwmDuty;
-    else if (!strcmp(adapter, "i2c_digital_input")) driver = Driver::I2cDigital;
-    else if (!strcmp(adapter, "i2c_adc_input") || !strcmp(adapter, "i2c_adc_digital_input")) driver = Driver::I2cAnalog;
-    else if (!strcmp(adapter, "i2c_load_cell")) driver = Driver::I2cLoadCell;
-    else if (!strcmp(adapter, "digital_output") || !strcmp(adapter, "relay_output")) driver = Driver::Relay;
-    else if (!strcmp(adapter, "pwm_output")) driver = Driver::Pwm;
-    else if (!strcmp(adapter, "servo_output")) driver = Driver::Servo;
-    else if (!strcmp(adapter, "i2c_digital_output")) driver = Driver::I2cRelay;
-    else return false;
+    switch (adapter) {
+        case Adapter::DigitalInput: driver = Driver::Digital; break;
+        case Adapter::AnalogInput:
+        case Adapter::SpiThermocouple:
+        case Adapter::OneWireTemperature: driver = Driver::Analog; break;
+        case Adapter::PcntInput: driver = Driver::Pulse; break;
+        case Adapter::RcPwmInput: driver = Driver::RcPwm; break;
+        case Adapter::PwmDutyInput: driver = Driver::PwmDuty; break;
+        case Adapter::I2cDigitalInput: driver = Driver::I2cDigital; break;
+        case Adapter::I2cAdcInput:
+        case Adapter::I2cAdcDigitalInput: driver = Driver::I2cAnalog; break;
+        case Adapter::I2cLoadCell: driver = Driver::I2cLoadCell; break;
+        case Adapter::DigitalOutput:
+        case Adapter::RelayOutput: driver = Driver::Relay; break;
+        case Adapter::PwmOutput: driver = Driver::Pwm; break;
+        case Adapter::ServoOutput: driver = Driver::Servo; break;
+        case Adapter::I2cDigitalOutput: driver = Driver::I2cRelay; break;
+        default: return false;
+    }
     return true;
 }
 
@@ -116,7 +116,7 @@ uint32_t PcbProfileManager::crc32(const uint8_t* data, size_t length) {
     return ~crc;
 }
 
-bool PcbProfileManager::copyText(char* dst, size_t size, const char* value,
+__attribute__((noinline)) bool PcbProfileManager::copyText(char* dst, size_t size, const char* value,
                                  bool required, const char* field) {
     if (!value) value = "";
     if ((required && !value[0]) || strlen(value) >= size) {
@@ -127,7 +127,7 @@ bool PcbProfileManager::copyText(char* dst, size_t size, const char* value,
     return true;
 }
 
-bool PcbProfileManager::validTargetPin(int pin, bool output) {
+__attribute__((noinline)) bool PcbProfileManager::validTargetPin(int pin, bool output) {
     if (pin == -1) return true;
 #if defined(OT_PLATFORM_ESP32S3)
     static const int8_t pins[] = {
@@ -256,6 +256,12 @@ void PcbProfileManager::driveEarlySafeStates() {
         driveInactive(_catalog->statusLedGpio, _catalog->statusLedActiveHigh);
     if (_catalog->hasBuzzer)
         driveInactive(_catalog->buzzerGpio, _catalog->buzzerActiveHigh);
+#if !defined(OT_PLATFORM_ESP32)
+    if (_catalog->hasFaultLed)
+        driveInactive(_catalog->faultLedGpio, _catalog->faultLedActiveHigh);
+    if (_catalog->hasOutputEnable)
+        driveInactive(_catalog->outputEnableGpio, _catalog->outputEnableActiveHigh);
+#endif
     if (_catalog->hasServoOutputEnable)
         driveInactive(_catalog->servoOutputEnableGpio,
                       _catalog->servoOutputEnableActiveHigh);
@@ -286,6 +292,9 @@ void PcbProfileManager::driveEarlySafeStates() {
 bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                      uint8_t formatMajor, uint8_t formatMinor,
                                      Origin origin) {
+#if defined(OT_PLATFORM_ESP32)
+    if(formatMinor>0){strlcpy(_fault,"PCB profile capabilities require S3",sizeof(_fault));return false;}
+#endif
     JsonDocument doc;
     // The partition payload already belongs exclusively to this boot-time
     // parser. ArduinoJson can therefore tokenize it in place instead of
@@ -320,6 +329,13 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
         strlcpy(_fault, "not enough memory for PCB port catalog", sizeof(_fault));
         return false;
     }
+    // Share catalog cleanup across validation failures without duplicating it
+    // at every field check on the flash-constrained Classic target.
+    auto reject = [&](const char* reason) __attribute__((noinline)) {
+        delete catalog;
+        strlcpy(_fault, reason, sizeof(_fault));
+        return false;
+    };
     catalog->formatMajor = formatMajor;
     catalog->formatMinor = formatMinor;
     catalog->origin = origin;
@@ -336,14 +352,12 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
 
     JsonArrayConst buses = root["buses"].as<JsonArrayConst>();
     if (buses.size() > MAX_BUSES) {
-        delete catalog; strlcpy(_fault, "too many PCB buses", sizeof(_fault)); return false;
+        return reject("too many PCB buses");
     }
     if (buses.size()) {
         catalog->buses = new (std::nothrow) Bus[buses.size()];
         if (!catalog->buses) {
-            delete catalog;
-            strlcpy(_fault, "not enough memory for PCB buses", sizeof(_fault));
-            return false;
+            return reject("not enough memory for PCB buses");
         }
     }
     for (JsonObjectConst source : buses) {
@@ -365,28 +379,26 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                   (!strcmp(bus.kind, "uart") && bus.tx >= 0 && bus.tx != bus.rx) ||
                                   (!strcmp(bus.kind, "onewire") && bus.data >= 0);
         if (!validKind || !requiredPins) {
-            delete catalog; strlcpy(_fault, "PCB bus kind or required pins are invalid", sizeof(_fault)); return false;
+            return reject("PCB bus kind or required pins are invalid");
         }
         const int inputPins[] = {bus.miso, bus.rx, bus.interrupt, bus.data};
         const int outputPins[] = {bus.sda, bus.scl, bus.sck, bus.mosi, bus.tx};
         for (int pin : inputPins) if (!validTargetPin(pin, false)) {
-            delete catalog; strlcpy(_fault, "bus uses invalid input GPIO", sizeof(_fault)); return false;
+            return reject("bus uses invalid input GPIO");
         }
         for (int pin : outputPins) if (!validTargetPin(pin, true)) {
-            delete catalog; strlcpy(_fault, "bus uses invalid output GPIO", sizeof(_fault)); return false;
+            return reject("bus uses invalid output GPIO");
         }
     }
 
     JsonArrayConst devices = root["devices"].as<JsonArrayConst>();
     if (devices.size() > MAX_DEVICES) {
-        delete catalog; strlcpy(_fault, "too many PCB devices", sizeof(_fault)); return false;
+        return reject("too many PCB devices");
     }
     if (devices.size()) {
         catalog->devices = new (std::nothrow) Device[devices.size()];
         if (!catalog->devices) {
-            delete catalog;
-            strlcpy(_fault, "not enough memory for PCB devices", sizeof(_fault));
-            return false;
+            return reject("not enough memory for PCB devices");
         }
     }
     for (JsonObjectConst source : devices) {
@@ -402,10 +414,10 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
             bool found = false;
             for (uint8_t i = 0; i < catalog->busCount; ++i)
                 if (!strcmp(catalog->buses[i].id, device.busId)) { found = true; break; }
-            if (!found) { delete catalog; strlcpy(_fault, "device refers to missing bus", sizeof(_fault)); return false; }
+            if (!found) { return reject("device refers to missing bus"); }
         }
         if (!validTargetPin(device.selectGpio, true)) {
-            delete catalog; strlcpy(_fault, "device uses invalid select GPIO", sizeof(_fault)); return false;
+            return reject("device uses invalid select GPIO");
         }
     }
 
@@ -415,10 +427,30 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                    bool& activeHigh, uint8_t* type) {
             JsonObjectConst source = fixed[key].as<JsonObjectConst>();
             if (source.isNull()) return true;
+#if !defined(OT_PLATFORM_ESP32)
+            if(!strcmp(key,"output_enable") && source["active_high"].isNull())return false;
+#endif
+#if !defined(OT_PLATFORM_ESP32)
+            if (!source["device"].isNull() && (!strcmp(key,"status_led") || !strcmp(key,"fault_led"))) {
+                const char* id=source["device"] | "";
+                const int channel=source["channel"] | -1;
+                if(strcmp(source["type"] | "gpio","gpio"))return false;
+                if(channel<0 || channel>7 || (source["safe_demand"] | -1.0f)!=0) return false;
+                int index=-1;
+                for(uint8_t i=0;i<catalog->deviceCount;i++)
+                    if(!strcmp(catalog->devices[i].id,id) && (!strcmp(catalog->devices[i].driver,"tca9534") || !strcmp(catalog->devices[i].driver,"tca9554"))) index=i;
+                if(index<0 || catalog->devices[index].address<0x20 || catalog->devices[index].address>0x27) return false;
+                if(!strcmp(key,"status_led")){catalog->statusLedDeviceIndex=index;catalog->statusLedChannel=channel;}
+                else {catalog->faultLedDeviceIndex=index;catalog->faultLedChannel=channel;}
+                present=true; gpio=-1; activeHigh=source["active_high"] | true;
+                if(type)*type=0;
+                return true;
+            }
+#endif
             if (source["gpio"].isNull() || source["safe_demand"].isNull() ||
                 (source["safe_demand"] | -1.0f) != 0.0f) return false;
             const int pin = source["gpio"].as<int>();
-            if (!validTargetPin(pin, true)) return false;
+            if (pin<0 || !validTargetPin(pin, true)) return false;
             present = true;
             gpio = static_cast<int8_t>(pin);
             activeHigh = source["active_high"] | true;
@@ -433,20 +465,26 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
         if (!readFixedOutput("status_led", catalog->hasStatusLed,
                              catalog->statusLedGpio, catalog->statusLedActiveHigh,
                              &catalog->statusLedType) ||
+#if !defined(OT_PLATFORM_ESP32)
+            !readFixedOutput("fault_led", catalog->hasFaultLed,
+                             catalog->faultLedGpio, catalog->faultLedActiveHigh,nullptr) ||
+            !readFixedOutput("output_enable", catalog->hasOutputEnable,
+                             catalog->outputEnableGpio, catalog->outputEnableActiveHigh,nullptr) ||
+#endif
             !readFixedOutput("buzzer", catalog->hasBuzzer,
                              catalog->buzzerGpio, catalog->buzzerActiveHigh, nullptr)) {
-            delete catalog; strlcpy(_fault, "fixed PCB output has invalid GPIO or safe state", sizeof(_fault)); return false;
+            return reject("fixed PCB output has invalid GPIO or safe state");
         }
         JsonObjectConst servoEnable = fixed["servo_output_enable"].as<JsonObjectConst>();
         if (!servoEnable.isNull()) {
             if (servoEnable["gpio"].isNull() ||
                 servoEnable["active_high"].isNull() ||
                 (servoEnable["safe_demand"] | -1.0f) != 0.0f) {
-                delete catalog; strlcpy(_fault, "servo-output enable has invalid safe state", sizeof(_fault)); return false;
+                return reject("servo-output enable has invalid safe state");
             }
             const int pin = servoEnable["gpio"].as<int>();
             if (!validTargetPin(pin, true)) {
-                delete catalog; strlcpy(_fault, "servo-output enable uses invalid GPIO", sizeof(_fault)); return false;
+                return reject("servo-output enable uses invalid GPIO");
             }
             catalog->hasServoOutputEnable = true;
             catalog->servoOutputEnableGpio = static_cast<int8_t>(pin);
@@ -461,7 +499,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                           sizeof(catalog->supplyVoltageLabel),
                           supply["label"] | "ECU supply voltage", false,
                           "supply_voltage.label")) {
-                delete catalog; strlcpy(_fault, "fixed supply-voltage monitor is invalid", sizeof(_fault)); return false;
+                return reject("fixed supply-voltage monitor is invalid");
             }
             catalog->hasSupplyVoltage = true;
             catalog->supplyVoltageGpio = static_cast<int8_t>(pin);
@@ -483,35 +521,29 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                         sizeof(catalog->clusterSerialBusId)) ||
             !readSerial("mavlink", catalog->mavlinkBusId,
                         sizeof(catalog->mavlinkBusId))) {
-            delete catalog; strlcpy(_fault, "fixed serial function refers to a missing UART bus", sizeof(_fault)); return false;
+            return reject("fixed serial function refers to a missing UART bus");
         }
     }
 
     JsonArrayConst ports = root["ports"].as<JsonArrayConst>();
     if (!ports.size() || ports.size() > MAX_PORTS) {
-        delete catalog; strlcpy(_fault, "PCB profile needs 1..48 ports", sizeof(_fault)); return false;
+        return reject("PCB profile needs 1..48 ports");
     }
     catalog->ports = new (std::nothrow) Port[ports.size()];
     if (!catalog->ports) {
-        delete catalog;
-        strlcpy(_fault, "not enough memory for PCB ports", sizeof(_fault));
-        return false;
+        return reject("not enough memory for PCB ports");
     }
     uint16_t defaultCount = 0;
     for (JsonObjectConst source : ports)
         for (JsonObjectConst modeSource : source["modes"].as<JsonArrayConst>())
             if (!modeSource["default"].as<JsonObjectConst>().isNull()) ++defaultCount;
     if (defaultCount > UINT8_MAX) {
-        delete catalog;
-        strlcpy(_fault, "too many PCB default assignments", sizeof(_fault));
-        return false;
+        return reject("too many PCB default assignments");
     }
     if (defaultCount) {
         catalog->defaults = new (std::nothrow) DefaultAssignment[defaultCount];
         if (!catalog->defaults) {
-            delete catalog;
-            strlcpy(_fault, "not enough memory for PCB default assignments", sizeof(_fault));
-            return false;
+            return reject("not enough memory for PCB default assignments");
         }
     }
     for (JsonObjectConst source : ports) {
@@ -523,11 +555,11 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
             !idValid(port.id, sizeof(port.id))) { delete catalog; return false; }
         for (uint8_t i = 0; i + 1 < catalog->portCount; ++i)
             if (!strcmp(catalog->ports[i].id, port.id)) {
-                delete catalog; strlcpy(_fault, "duplicate PCB port ID", sizeof(_fault)); return false;
+                return reject("duplicate PCB port ID");
             }
         JsonArrayConst modes = source["modes"].as<JsonArrayConst>();
         if (!modes.size() || modes.size() > MAX_MODES_PER_PORT) {
-            delete catalog; strlcpy(_fault, "PCB port needs 1..4 modes", sizeof(_fault)); return false;
+            return reject("PCB port needs 1..4 modes");
         }
         for (JsonObjectConst modeSource : modes) {
             Mode& mode = port.modes[port.modeCount++];
@@ -557,20 +589,31 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                          strlen(defaultPurpose) < sizeof(catalog->defaults[0].purpose);
             if (hasDefault && (!completeDefault ||
                 !idValid(defaultId, sizeof(catalog->defaults[0].id)))) {
-                delete catalog;
-                strlcpy(_fault, "PCB port mode has an incomplete or invalid default assignment",
-                        sizeof(_fault));
-                return false;
+                return reject("PCB port mode has an incomplete or invalid default assignment");
             }
             mode.channel = modeSource["channel"] | 0;
             mode.gpio = modeSource["endpoint"]["gpio"] | -1;
             mode.activeHigh = modeSource["active_high"] | true;
             const char* pull = modeSource["pull"] | "none";
+#if !defined(OT_PLATFORM_ESP32)
+            if(modeSource["pull_control"].is<JsonObjectConst>()) {
+                auto control=modeSource["pull_control"];
+                const char* device=control["device"] | "";
+                const int channel=control["channel"] | -1;
+                for(uint8_t d=0;d<catalog->deviceCount;d++) if(!strcmp(catalog->devices[d].id,device)) mode.pullDeviceIndex=d;
+                if(mode.pullDeviceIndex<0 || channel<0 || channel>7 ||
+                   mode.gpio<0 || (mode.adapter!=Adapter::DigitalInput && mode.adapter!=Adapter::PcntInput && mode.adapter!=Adapter::RcPwmInput && mode.adapter!=Adapter::PwmDutyInput) ||
+                   (strcmp(catalog->devices[mode.pullDeviceIndex].driver,"tca9534") && strcmp(catalog->devices[mode.pullDeviceIndex].driver,"tca9554"))) {
+                    return reject("Invalid PCB pull-control endpoint");
+                }
+                mode.pullChannel=channel; mode.pullActiveHigh=control["active_high"] | true;
+            }
+#endif
             if (!strcmp(pull, "none")) mode.pull = 0;
             else if (!strcmp(pull, "up")) mode.pull = 1;
             else if (!strcmp(pull, "down")) mode.pull = 2;
             else {
-                delete catalog; strlcpy(_fault, "PCB port mode has invalid pull setting", sizeof(_fault)); return false;
+                return reject("PCB port mode has invalid pull setting");
             }
             mode.hasSafeDemand = modeSource["safe_demand"].is<float>() || modeSource["safe_demand"].is<int>();
             mode.safeDemand = modeSource["safe_demand"] | 0.0f;
@@ -580,7 +623,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
             mode.maximumMv = modeSource["limits"]["maximum_mv"] | 3300.0f;
             mode.referenceMv = modeSource["reference_mv"] | 3300.0f;
             if (mode.referenceMv < 1000.0f || mode.referenceMv > 5500.0f) {
-                delete catalog; strlcpy(_fault, "PCB port mode has invalid ADC reference", sizeof(_fault)); return false;
+                return reject("PCB port mode has invalid ADC reference");
             }
             if (mode.adapter == Adapter::Unknown) {
                 // Forward-compatible: retain the port so UI can report that a
@@ -593,7 +636,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                 ChannelRegistry::Driver driver;
                 if (!ChannelRegistry::roleValid(direction, defaultRole) ||
                     !ChannelRegistry::purposeValid(direction, defaultPurpose) ||
-                    !adapterDriver(adapterText, driver) ||
+                    !adapterDriver(mode.adapter, driver) ||
                     !ChannelRegistry::purposeRoleDriverValid(direction, defaultPurpose,
                                                              defaultRole, driver) ||
                     (!strcmp(adapterText, "spi_thermocouple") &&
@@ -603,18 +646,15 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                      strcmp(defaultPurpose, "oil_temperature") &&
                      strcmp(defaultPurpose, "coolant_temp") &&
                      strcmp(defaultPurpose, "intake_temperature"))) {
-                    delete catalog;
-                    strlcpy(_fault, "PCB port mode default is incompatible with its electrical adapter",
-                            sizeof(_fault));
-                    return false;
+                    return reject("PCB port mode default is incompatible with its electrical adapter");
                 }
             }
             if (!validTargetPin(mode.gpio, output) ||
                 (output && (!mode.hasSafeDemand || mode.safeDemand < 0.0f || mode.safeDemand > 1.0f))) {
-                delete catalog; strlcpy(_fault, "PCB port mode has invalid GPIO or safe state", sizeof(_fault)); return false;
+                return reject("PCB port mode has invalid GPIO or safe state");
             }
             if (deviceId[0] && mode.deviceIndex < 0) {
-                delete catalog; strlcpy(_fault, "port mode refers to missing device", sizeof(_fault)); return false;
+                return reject("port mode refers to missing device");
             }
             if (hasDefault) {
                 DefaultAssignment& assignment = catalog->defaults[catalog->defaultCount++];
@@ -651,10 +691,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                 const bool secondLevel = secondProportional ? !second.activeHigh :
                     RelayDemand::physicalLevel(second.safeDemand, !second.activeHigh);
                 if (firstLevel != secondLevel) {
-                    delete catalog;
-                    strlcpy(_fault, "multipurpose PCB output modes disagree on boot-safe level",
-                            sizeof(_fault));
-                    return false;
+                    return reject("multipurpose PCB output modes disagree on boot-safe level");
                 }
             }
         }
@@ -664,7 +701,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
     // ports may not silently name the same GPIO or device channel.
     int16_t gpioOwner[49];
     for (auto& owner : gpioOwner) owner = -1;
-    auto claimGpio = [&](int pin, int16_t owner, bool sameOwnerAllowed) {
+    auto claimGpio = [&](int pin, int16_t owner, bool sameOwnerAllowed) __attribute__((noinline)) {
         if (pin < 0) return true;
         if (pin >= static_cast<int>(sizeof(gpioOwner) / sizeof(gpioOwner[0])))
             return false;
@@ -679,14 +716,19 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
         for (int pin : {bus.sda, bus.scl, bus.interrupt, bus.sck, bus.miso,
                         bus.mosi, bus.tx, bus.rx, bus.data})
             if (!claimGpio(pin, fixedOwner++, false)) {
-                delete catalog; strlcpy(_fault, "PCB buses share an exclusive GPIO", sizeof(_fault)); return false;
+                return reject("PCB buses share an exclusive GPIO");
             }
     }
     for (uint8_t i = 0; i < catalog->deviceCount; ++i)
         if (!claimGpio(catalog->devices[i].selectGpio, fixedOwner++, false)) {
-            delete catalog; strlcpy(_fault, "PCB device select conflicts with another GPIO use", sizeof(_fault)); return false;
+            return reject("PCB device select conflicts with another GPIO use");
         }
-    if ((catalog->hasStatusLed &&
+    if (
+#if !defined(OT_PLATFORM_ESP32)
+        (catalog->hasFaultLed && !claimGpio(catalog->faultLedGpio,fixedOwner++,false)) ||
+        (catalog->hasOutputEnable && !claimGpio(catalog->outputEnableGpio,fixedOwner++,false)) ||
+#endif
+        (catalog->hasStatusLed &&
          !claimGpio(catalog->statusLedGpio, fixedOwner++, false)) ||
         (catalog->hasBuzzer &&
          !claimGpio(catalog->buzzerGpio, fixedOwner++, false)) ||
@@ -694,14 +736,14 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
          !claimGpio(catalog->servoOutputEnableGpio, fixedOwner++, false)) ||
         (catalog->hasSupplyVoltage &&
          !claimGpio(catalog->supplyVoltageGpio, fixedOwner++, false))) {
-        delete catalog; strlcpy(_fault, "fixed PCB output conflicts with another GPIO use", sizeof(_fault)); return false;
+        return reject("fixed PCB output conflicts with another GPIO use");
     }
     for (uint8_t i = 0; i < catalog->portCount; ++i) {
         const Port& port = catalog->ports[i];
         for (uint8_t j = 0; j < port.modeCount; ++j) {
             const Mode& mode = port.modes[j];
             if (!claimGpio(mode.gpio, i, true)) {
-                delete catalog; strlcpy(_fault, "separate PCB ports share an exclusive GPIO", sizeof(_fault)); return false;
+                return reject("separate PCB ports share an exclusive GPIO");
             }
             if (mode.deviceIndex < 0) continue;
             for (uint8_t priorPort = 0; priorPort < i; ++priorPort) {
@@ -709,11 +751,28 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                 for (uint8_t priorMode = 0; priorMode < prior.modeCount; ++priorMode)
                     if (prior.modes[priorMode].deviceIndex == mode.deviceIndex &&
                         prior.modes[priorMode].channel == mode.channel) {
-                        delete catalog; strlcpy(_fault, "separate PCB ports share a device channel", sizeof(_fault)); return false;
+                        return reject("separate PCB ports share a device channel");
                     }
             }
         }
     }
+#if !defined(OT_PLATFORM_ESP32)
+    uint8_t channelOwners[MAX_DEVICES][8] = {};
+    auto claimChannel=[&](int device,int channel,uint8_t owner){
+        if(device<0)return true;
+        if(device>=catalog->deviceCount || channel<0 || channel>7)return false;
+        uint8_t& prior=channelOwners[device][channel];
+        if(prior && prior!=owner)return false;
+        prior=owner; return true;
+    };
+    bool endpointOk=claimChannel(catalog->statusLedDeviceIndex,catalog->statusLedChannel,253) &&
+                    claimChannel(catalog->faultLedDeviceIndex,catalog->faultLedChannel,254);
+    for(uint8_t i=0;i<catalog->portCount;i++) for(uint8_t j=0;j<catalog->ports[i].modeCount;j++){
+        const auto& m=catalog->ports[i].modes[j];
+        endpointOk=endpointOk && claimChannel(m.deviceIndex,m.channel,i+1) && claimChannel(m.pullDeviceIndex,m.pullChannel,i+60);
+    }
+    if(!endpointOk){return reject("PCB fixed/port/control device channels conflict");}
+#endif
     _catalog = catalog;
     return true;
 }
@@ -766,7 +825,12 @@ bool PcbProfileManager::gpioReserved(int gpio) {
     }
     for (uint8_t i = 0; i < _catalog->deviceCount; ++i)
         if (_catalog->devices[i].selectGpio == gpio) return true;
-    if ((_catalog->hasStatusLed && _catalog->statusLedGpio == gpio) ||
+    if (
+#if !defined(OT_PLATFORM_ESP32)
+        (_catalog->hasFaultLed && _catalog->faultLedGpio == gpio) ||
+        (_catalog->hasOutputEnable && _catalog->outputEnableGpio == gpio) ||
+#endif
+        (_catalog->hasStatusLed && _catalog->statusLedGpio == gpio) ||
         (_catalog->hasBuzzer && _catalog->buzzerGpio == gpio) ||
         (_catalog->hasServoOutputEnable && _catalog->servoOutputEnableGpio == gpio) ||
         (_catalog->hasSupplyVoltage && _catalog->supplyVoltageGpio == gpio))
@@ -776,6 +840,15 @@ bool PcbProfileManager::gpioReserved(int gpio) {
     // claims the connector. Keeping every possible port mode in this list made
     // an otherwise unused header pin unavailable for a user-added I2C/SPI bus.
     return false;
+}
+
+void PcbProfileManager::setOutputsEnabled(bool enabled) {
+#if !defined(OT_PLATFORM_ESP32)
+    if(!active() || !_catalog->hasOutputEnable || _catalog->outputEnableGpio<0) return;
+    const bool high=enabled ? _catalog->outputEnableActiveHigh : !_catalog->outputEnableActiveHigh;
+    digitalWrite(_catalog->outputEnableGpio,high?HIGH:LOW);
+    pinMode(_catalog->outputEnableGpio,OUTPUT);
+#endif
 }
 
 void PcbProfileManager::setServoOutputsEnabled(bool enabled) {
@@ -816,6 +889,12 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
     }
     if (_catalog->hasBuzzer)
         fixed["buzzer"]["available"] = true;
+#if !defined(OT_PLATFORM_ESP32)
+    if (_catalog->hasFaultLed)
+        fixed["fault_led"]["available"] = true;
+    if (_catalog->hasOutputEnable)
+        fixed["output_enable"]["available"] = true;
+#endif
     if (_catalog->hasServoOutputEnable)
         fixed["servo_output_enable"]["available"] = true;
     if (_catalog->hasSupplyVoltage) {
@@ -850,6 +929,9 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
             if (mode.gpio >= 0) m["gpio"] = mode.gpio;
             m["active_high"] = mode.activeHigh;
             m["pull"] = mode.pull == 1 ? "up" : mode.pull == 2 ? "down" : "none";
+#if !defined(OT_PLATFORM_ESP32)
+            if(mode.pullDeviceIndex>=0) m["external_pullup"] = true;
+#endif
             const Device* device = deviceForMode(mode);
             if (device) {
                 m["device"] = device->id;

@@ -8,6 +8,7 @@ static constexpr int INPUT = 0, INPUT_PULLUP = 2, LOW = 0;
 inline void pinMode(int, int) {}
 inline int digitalRead(int) { return 1; }
 #include "../../src/hal/i2c/I2CDeviceManager.h"
+#include "fakes/PcbProfileState.h"
 
 static ChannelRegistry registry(bool dual = false) {
     ChannelRegistry r;

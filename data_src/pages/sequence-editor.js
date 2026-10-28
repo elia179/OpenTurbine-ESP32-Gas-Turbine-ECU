@@ -418,7 +418,7 @@ function buildParamsHtml(bname, idx, tab) {
       ? `<div style="font-size:.7rem;color:#f06060;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.55);border-radius:5px;padding:.35rem .65rem;margin-bottom:.4rem;line-height:1.5">This block cannot run with the current Hardware inventory. Restore its required device or remove this block before saving.</div>`
       : '';
   const warningHtml = unavailableHtml + _buildHwWarningHtml(def);
-  const sideHtml = buildSideActionsHtml(tab, idx);
+  const sideHtml = `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>` + buildSideActionsHtml(tab, idx);
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
   if (bname === 'WaitForInput' || bname === 'WaitForInputOff') {
@@ -598,6 +598,10 @@ function onParamChangeSelect(bname, pkey, configKey, rawVal) {
 }
 
 function refreshParamVisibility(bname) {
+  document.querySelectorAll('.block-card .resolved-block-actions').forEach(holder=>{
+    const card=holder.closest('.block-card');
+    holder.innerHTML=buildResolvedActionsHtml(card.dataset.block,Number(card.dataset.idx),card.dataset.tab);
+  });
   const def = BLOCKS[bname] || customBlocks[bname];
   if (!def) return;
   def.params.forEach(p => {

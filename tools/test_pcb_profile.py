@@ -21,6 +21,13 @@ class PcbProfileValidationTests(unittest.TestCase):
              "openturbine-ecu-s3-v1.otpcb.json").read_text(encoding="utf-8")
         )
 
+    def test_classic_rejects_s3_profile_format(self):
+        profile = copy.deepcopy(self.official)
+        profile["target"]["chip"] = "esp32"
+        profile["format_version"]["minor"] = 1
+        with self.assertRaisesRegex(pcb_profile.ProfileError, "Classic ESP32 supports format 1.0"):
+            pcb_profile.validate_profile(profile, strict=True)
+
     def test_official_profile_matches_runtime_text_limits(self):
         self.assertEqual([], pcb_profile.validate_profile(self.official, strict=True))
 
@@ -86,6 +93,32 @@ class PcbProfileValidationTests(unittest.TestCase):
             "analog_input", "generic", "pressure"))
         self.assertFalse(pcb_profile._default_compatible(
             "i2c_load_cell", "generic", "pressure"))
+
+
+class CurrentBoardTests(unittest.TestCase):
+    def setUp(self):
+        self.profile=json.loads((ROOT/'pcb_profiles/official/openturbine-s3-20261028.otpcb.json').read_text(encoding='utf-8'))
+
+    def test_current_board_geometry(self):
+        pcb_profile.validate_profile(self.profile)
+        self.assertEqual(self.profile['target']['minimum_flash_mb'],8)
+        ports={p['id']:p for p in self.profile['ports']}
+        self.assertEqual([ports[f'pulse_in_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[35,36,6,7,15,16])
+        self.assertEqual([ports[f'power_out_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[37,38,41,42,2,1])
+        self.assertEqual([ports[f'pulse_out_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[18,8,9,39,40,21])
+        self.assertEqual(self.profile['fixed_functions']['supply_voltage']['divider'],37)
+
+    def test_shared_indicator_rejected(self):
+        self.profile['fixed_functions']['fault_led']['channel']=6
+        with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
+
+    def test_pull_control_cannot_steal_indicator(self):
+        for mode in self.profile['ports'][10]['modes']: mode['pull_control']['channel']=6
+        with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
+
+    def test_missing_control_device_rejected(self):
+        self.profile['fixed_functions']['fault_led']['device']='not_fitted'
+        with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
 
 
 if __name__ == "__main__":

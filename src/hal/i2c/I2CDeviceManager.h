@@ -8,6 +8,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "../../system/ChannelRegistry.h"
+#include "../../system/pcb/PcbProfileManager.h"
 
 // One shared, allocation-free I2C bus. Discovery is informational: only
 // explicitly assigned registry channels affect control or consume slots.
@@ -129,6 +130,23 @@ public:
         }
         if (!ok) _markMissing(c.i2cAddress, Tca9554);
         return ok;
+    }
+
+    static bool writeIndicator(bool fault, bool on) {
+#if defined(OT_PLATFORM_ESP32)
+        return false; // Expander-backed fixed indicators are an S3 PCB capability.
+#else
+        const auto* p=PcbProfileManager::catalog();
+        if(!PcbProfileManager::active() || !p) return false;
+        int index=fault?p->faultLedDeviceIndex:p->statusLedDeviceIndex;
+        if(index<0 || index>=p->deviceCount) return false;
+        ChannelRegistry::Channel c;
+        c.driver=ChannelRegistry::I2cRelay;
+        c.i2cAddress=p->devices[index].address;
+        c.deviceChannel=fault?p->faultLedChannel:p->statusLedChannel;
+        c.inverted=!(fault?p->faultLedActiveHigh:p->statusLedActiveHigh);
+        return writeOutput(c,on?1.0f:0.0f);
+#endif
     }
 
     static bool channelAvailable(const ChannelRegistry::Channel& c) {
@@ -370,6 +388,30 @@ private:
         uint8_t direction = 0xFF, latch = 0;
         bool assigned = false;
         const uint8_t configuredBit = (uint8_t)(1U << (address - 0x20));
+#if !defined(OT_PLATFORM_ESP32)
+        const auto* pcb=PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;
+        auto fixedBit=[&](int index,uint8_t channel,bool high){
+            if(!pcb || index<0 || index>=pcb->deviceCount || pcb->devices[index].address!=address || channel>7)return;
+            const uint8_t bit=1U<<channel; assigned=true;direction&=~bit;if(high)latch|=bit;
+        };
+        if(pcb){
+            fixedBit(pcb->statusLedDeviceIndex,pcb->statusLedChannel,!pcb->statusLedActiveHigh);
+            fixedBit(pcb->faultLedDeviceIndex,pcb->faultLedChannel,!pcb->faultLedActiveHigh);
+            for(uint8_t p=0;p<pcb->portCount;p++){
+                const auto& port=pcb->ports[p];
+                for(uint8_t m=0;m<port.modeCount;m++){
+                    const auto& mode=port.modes[m];
+                    if(mode.pullDeviceIndex<0)continue;
+                    bool enabled=false;
+                    for(uint8_t i=0;i<_registry->inputCount;i++){
+                        const auto& c=_registry->inputs[i];
+                        if(c.installed && c.pin==mode.gpio && c.pullup)enabled=true;
+                    }
+                    fixedBit(mode.pullDeviceIndex,mode.pullChannel,enabled?mode.pullActiveHigh:!mode.pullActiveHigh);
+                }
+            }
+        }
+#endif
         for (uint8_t i = 0; i < _registry->inputCount; ++i) {
             const auto& c = _registry->inputs[i];
             if (c.installed && c.driver == ChannelRegistry::I2cDigital &&

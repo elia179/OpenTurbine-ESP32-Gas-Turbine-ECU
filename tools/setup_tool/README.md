@@ -1,6 +1,6 @@
 # OpenTurbine Setup Tool
 
-Maintainer follow-up for the next software iteration: [final Wi-Fi reconnect and verification feedback](../../docs/internal/NEXT_ITERATION_BACKLOG.md). The waiting screen can remain visible after Continue while verification runs; the reported intermittent failure still needs reproduction and a matching support log.
+The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. Hardware update qualification is still pending; see the [iteration record](../../docs/internal/NEXT_ITERATION_BACKLOG.md).
 
 Windows setup/update helper for OpenTurbine boards.
 

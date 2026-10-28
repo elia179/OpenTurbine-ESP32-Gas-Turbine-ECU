@@ -139,6 +139,8 @@ def main() -> int:
             ("phase_registry", [str(ROOT / "dev" / "host" / "phase_registry_behavior.cpp")], []),
             ("i2c_loadcell_behavior", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], []),
             ("i2c_peripheral_behavior", [str(ROOT / "dev" / "host" / "i2c_peripheral_behavior.cpp")], []),
+            ("status_indicator_behavior", [str(ROOT / "dev" / "host" / "status_indicator_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("status_indicator_behavior_s3", [str(ROOT / "dev" / "host" / "status_indicator_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("sensor_driver_behavior", [str(ROOT / "dev" / "host" / "sensor_driver_behavior.cpp")], []),
         ]
         for name, sources, extra_flags in tests:
