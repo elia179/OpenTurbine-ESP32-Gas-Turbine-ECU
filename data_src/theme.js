@@ -411,12 +411,14 @@
     }
     function pinned() {
       var active=document.activeElement;
-      if (active && ((active!==bar && bar.contains(active)) || workspace && workspace.contains(active))) return true;
+      // Filter/page buttons retain focus after a mouse or touch click. Only an
+      // editable workspace control needs to stay visible while scrolling.
+      if (active && ((active!==bar && bar.contains(active)) || workspace && workspace.contains(active) && active.matches('input,select,textarea,[contenteditable="true"]'))) return true;
       if (needsAttention()) return true;
       return Array.from(document.querySelectorAll(modalSelector)).some(function(el){return el.getClientRects().length && getComputedStyle(el).visibility!=='hidden';});
     }
     function update() {
-      var short = window.innerHeight <= 700;
+      var short = window.innerHeight <= 1000;
       searchHandle.textContent=searchField()?'Search & page controls':'Page controls';
       var nav=document.querySelector('nav'),edge=nav?Math.max(0,nav.getBoundingClientRect().bottom):0;
       var control=workspace&&(searchField()||workspace.querySelector('button')||workspace);
@@ -436,7 +438,7 @@
       if (next!==direction) {distance=0;direction=next;}
       distance+=Math.abs(delta);
       update();
-      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=700 && y>80 && y+innerHeight<document.documentElement.scrollHeight-20) {
+      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=1000 && y>80 && y+innerHeight<document.documentElement.scrollHeight-20) {
         document.body.classList.toggle('ot-controls-collapsed',direction>0); distance=0;
       }
     }

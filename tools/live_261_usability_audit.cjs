@@ -29,7 +29,17 @@ const base=process.argv[2]||'http://192.168.4.1',target=process.argv[3],out=proc
    const rect=await p.locator('.cfg-workspace button').first().boundingBox();
    assert.ok(rect&&rect.y>=44&&rect.y+rect.height<=600);
   }
-  await p.goto(base+'/sequence.html?v=20261028a',{timeout:45000});
+  await p.setViewportSize({width:1280,height:1000});
+  await p.goto(base+'/controllers.html?v=20261028b',{timeout:45000});
+  await p.locator('[data-group="safety"]').waitFor();
+  await p.getByRole('button',{name:'Explore all features',exact:true}).click();
+  await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));
+  await p.mouse.move(150,300);await p.waitForTimeout(850);await p.mouse.wheel(0,300);
+  await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
+  assert.equal(await p.locator('.cfg-workspace').isVisible(),false);
+  assert.equal(await p.locator('.save-bar').isVisible(),false);
+  if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:out+'/controllers-1000-collapsed.png'});}
+  await p.goto(base+'/sequence.html?v=20261028b',{timeout:45000});
   await p.waitForFunction(()=>hwCfg.channel_registry&&cfg.rules&&typeof resolveSequenceActions==='function');
   await p.locator('#list-startup .block-card').first().waitFor({timeout:30000});
   await p.getByRole('button',{name:'Shutdown',exact:true}).click();

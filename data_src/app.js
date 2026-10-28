@@ -1588,7 +1588,7 @@ function applyData(d) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
       if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261028a';
+        link.href = '/sequence.html?v=20261028b';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }

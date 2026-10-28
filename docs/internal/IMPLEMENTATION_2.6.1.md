@@ -108,3 +108,20 @@ Logs: `scroll-controls-261-tests.txt` and
 checks also passed. Both rebuilt filesystems and existing resource budgets pass.
 Actual touch/keyboard behavior on the user's tablet remains a physical review
 item; no live ECU writes were made.
+
+## User review follow-up: scroll controls
+
+The user observed that the bars only started hiding after browser zoom. The
+previous cutoff was 700 CSS viewport pixels; at the user's request it is now
+1,000, shared by every managed save bar. Browser zoom affects this CSS height.
+Separately, a reproduced filter-click regression left both bars pinned because
+the clicked workspace button retained focus. Workspace focus now pins controls
+only for editable fields; save controls, dialogs and visible errors retain their
+existing protections. The audit now clicks a real Controllers filter before
+scrolling and checks the 1,000-pixel boundary and a taller 1,100-pixel viewport.
+Web cache key for this follow-up is `20261028b`; the earlier hardware report
+describes the preceding `20261028a` payload.
+
+All 24 packaged page/viewport cases passed in Chromium, Firefox and WebKit,
+plus the 1,000/1,100-pixel boundary checks in each engine. Both LittleFS images
+rebuilt successfully. Log: `artifacts/261-ui/scroll-1000-packaged.txt`.

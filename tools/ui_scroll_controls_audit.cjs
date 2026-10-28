@@ -35,8 +35,10 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
       const status=bar.querySelector('#save-msg,#save-status');if(status)status.textContent='Unsaved changes';
       document.activeElement.blur();scrollTo(0,0);
      });
+     // A normal filter click leaves the button focused. It must not pin both bars.
+     if(route==='controllers')await p.getByRole('button',{name:'Explore all features',exact:true}).click();
      await p.waitForTimeout(850);await p.mouse.wheel(0,250);
-     await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
+     await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'),null,{timeout:5000});
      const handle=p.getByRole('button',{name:/Unsaved changes.*Show save controls/});
      await handle.waitFor({state:'visible'});
      assert.ok((await handle.boundingBox()).height>=44);
@@ -99,7 +101,13 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
      console.log(engine.name(),packed?'gzip':'source',viewport.width,route,'restore position, focus, dirty state, error and recap policy passed');
     }
    }
-   await p.setViewportSize({width:1024,height:900});
+   await p.setViewportSize({width:1280,height:1000});
+   await p.goto(base+'/system.html');await p.locator('#system-maintenance').waitFor();
+   await p.evaluate(()=>{document.querySelectorAll('details').forEach(d=>d.open=true);document.activeElement.blur();});
+   await p.mouse.move(150,200);await p.waitForTimeout(850);await p.mouse.wheel(0,250);
+   await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
+   assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-short-controls')),true,'1000px viewport compacts controls');
+   await p.setViewportSize({width:1024,height:1100});
    await p.goto(base+'/system.html');await p.locator('#system-maintenance').waitFor();
    await p.mouse.wheel(0,250);
    assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-short-controls')),false,'tall desktop retains normal controls');
