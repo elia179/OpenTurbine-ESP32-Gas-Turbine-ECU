@@ -41,19 +41,25 @@ public:
     void begin(HardwareSerial& serial) {
         _serial = &serial;
         _seq    = 0;
+        _rrStart = 0;
+        _lastMs = 0;
+        _lastHeartbeatMs = millis() - 1000UL;
     }
 
     // Call each ECU loop tick — internally rate-limited
     void tick() {
         if (!_serial) return;
         unsigned long now = millis();
+        // Link discovery must not depend on the selected sensor update rate.
+        if (now - _lastHeartbeatMs >= 1000UL) {
+            if (_sendHeartbeat()) _lastHeartbeatMs = now;
+        }
         auto& hw = HardwareConfig::instance();
         unsigned long interval = hw.mavlinkIntervalMs >= 20
                                ? (unsigned long)hw.mavlinkIntervalMs : 100UL;
         if ((now - _lastMs) < interval) return;
         _lastMs = now;
 
-        _sendHeartbeat();
         _sendEngineData();
     }
 
@@ -68,23 +74,15 @@ private:
     uint8_t  _seq           = 0;
     uint8_t  _rrStart       = 0;   // round-robin start for NAMED_VALUE_FLOATs
     unsigned long _lastMs   = 0;
+    unsigned long _lastHeartbeatMs = 0;
 
     // ── CRC-16/MCRF4XX (X25) ─────────────────────────────────
     static uint16_t _crc16(const uint8_t* buf, size_t len, uint8_t extra) {
         uint16_t crc = 0xFFFF;
-        while (len--) {
-            uint8_t b = *buf++;
-            crc ^= (uint16_t)b;
-            for (int i = 0; i < 8; i++) {
-                if (crc & 1) crc = (crc >> 1) ^ 0x8408;
-                else         crc >>= 1;
-            }
-        }
-        // Extra byte (CRC_EXTRA from message definition)
-        crc ^= (uint16_t)extra;
-        for (int i = 0; i < 8; i++) {
-            if (crc & 1) crc = (crc >> 1) ^ 0x8408;
-            else         crc >>= 1;
+        for (size_t i = 0; i <= len; ++i) {
+            uint8_t t = (i < len ? buf[i] : extra) ^ (uint8_t)crc;
+            t ^= t << 4;
+            crc = (crc >> 8) ^ ((uint16_t)t << 8) ^ ((uint16_t)t << 3) ^ (t >> 4);
         }
         return crc;
     }
@@ -95,47 +93,20 @@ private:
         size_t packetLen = (size_t)payLen + 8;
         if (_serial->availableForWrite() < (int)packetLen) return false;
 
-        uint8_t hdr[6] = {
-            0xFE,    // magic
-            payLen,  // payload length
-            _seq++,  // sequence
-            SYS_ID,
-            COMP_ID,
-            msgId
-        };
-        // CRC covers header bytes 1..5, then payload, then crcExtra (MAVLink v1 spec).
-        // Process inline — do not call _crc16() with extra=0, because _crc16 always
-        // runs the extra byte through the polynomial and 0x00 is not a no-op.
-        uint16_t crc = 0xFFFF;
-        for (int i = 1; i <= 5; i++) {
-            crc ^= (uint16_t)hdr[i];
-            for (int j = 0; j < 8; j++) {
-                if (crc & 1) crc = (crc >> 1) ^ 0x8408;
-                else         crc >>= 1;
-            }
-        }
-        for (uint8_t i = 0; i < payLen; i++) {
-            uint8_t b = payload[i];
-            crc ^= b;
-            for (int j = 0; j < 8; j++) {
-                if (crc & 1) crc = (crc >> 1) ^ 0x8408;
-                else         crc >>= 1;
-            }
-        }
-        crc ^= (uint16_t)crcExtra;
-        for (int j = 0; j < 8; j++) {
-            if (crc & 1) crc = (crc >> 1) ^ 0x8408;
-            else         crc >>= 1;
-        }
-
-        _serial->write(hdr, 6);
-        _serial->write(payload, payLen);
-        _serial->write((uint8_t)(crc & 0xFF));
-        _serial->write((uint8_t)(crc >> 8));
-        return true;
+        // Largest supported payload is STATUSTEXT (51 bytes). Build one
+        // bounded packet so CRC framing is shared and the UART gets one write.
+        if (payLen > 51) return false;
+        uint8_t packet[59];
+        packet[0]=0xFE; packet[1]=payLen; packet[2]=_seq++;
+        packet[3]=SYS_ID; packet[4]=COMP_ID; packet[5]=msgId;
+        memcpy(packet + 6, payload, payLen);
+        const uint16_t crc = _crc16(packet + 1, (size_t)payLen + 5, crcExtra);
+        packet[6 + payLen] = (uint8_t)crc;
+        packet[7 + payLen] = (uint8_t)(crc >> 8);
+        return _serial->write(packet, packetLen) == packetLen;
     }
 
-    void _sendHeartbeat() {
+    bool _sendHeartbeat() {
         // HEARTBEAT: msg_id=0, CRC_EXTRA=50, payload=9 bytes
         // custom_mode(4), type(1), autopilot(1), base_mode(1), system_status(1), mavlink_version(1)
         const auto& ed = EngineData::instance();
@@ -143,26 +114,25 @@ private:
         if (ed.mode == SysMode::RUNNING || ed.mode == SysMode::STARTUP) sysStatus = MAV_STATE_ACTIVE;
         if (ed.mode == SysMode::FAULT)   sysStatus = MAV_STATE_EMERGENCY;
 
-        uint8_t payload[9] = {};
+        uint8_t payload[9];
         // custom_mode = (uint32_t)mode — little endian
         uint32_t cm = (uint32_t)ed.mode;
-        payload[0] = cm & 0xFF; payload[1] = (cm>>8)&0xFF;
-        payload[2] = (cm>>16)&0xFF; payload[3] = (cm>>24)&0xFF;
+        memcpy(payload, &cm, sizeof(cm));
         payload[4] = MAV_TYPE_GENERIC;
         payload[5] = MAV_AUTOPILOT_INVALID;
         payload[6] = 0;              // base_mode
         payload[7] = sysStatus;
         payload[8] = 3;              // mavlink_version
-        _sendPacket(0, 50, payload, 9);
+        return _sendPacket(0, 50, payload, 9);
     }
 
     // Send one NAMED_VALUE_FLOAT message (msg_id=251, CRC_EXTRA=170)
     // payload: time_boot_ms(4) + value(4) + name(10) = 18 bytes
     bool _sendNamedFloat(const char* name, float value) {
-        uint8_t payload[18] = {};
+        if (!isfinite(value)) return true; // unhealthy numeric samples are not live values
+        uint8_t payload[18];
         uint32_t t = millis();
-        payload[0] = t & 0xFF; payload[1] = (t>>8)&0xFF;
-        payload[2] = (t>>16)&0xFF; payload[3] = (t>>24)&0xFF;
+        memcpy(payload, &t, sizeof(t));
         // value at offset 4 (little-endian IEEE754)
         memcpy(payload + 4, &value, 4);
         // name: 10 bytes, null-padded
@@ -173,7 +143,7 @@ private:
     void _sendEngineData() {
         const auto& ed = EngineData::instance();
         struct Item { const char* name; float value; };
-        Item items[12];
+        Item items[14];
         uint8_t n = 0;
         if (HardwareConfig::hasN1Rpm && ed.n1Healthy)       items[n++] = { "N1_RPM",   ed.n1Rpm };
         if (HardwareConfig::hasTot && ed.totHealthy)        items[n++] = { "TOT_C",    ed.tot };
@@ -185,7 +155,9 @@ private:
         if (HardwareConfig::hasTorque && ed.torqueHealthy)  items[n++] = { "TORQ_NM",  ed.torque };
         if (HardwareConfig::hasThrust && ed.thrustHealthy)  items[n++] = { "THRUST_N", ed.thrust };
         if (HardwareConfig::hasTit && ed.titHealthy)        items[n++] = { "TIT_C",    ed.tit };
-        if (HardwareConfig::hasFuelFlow) items[n++] = { "FUEL_FLOW", ed.fuelFlow };
+        if (HardwareConfig::hasFuelFlow && ed.fuelFlowHealthy) items[n++] = { "FUEL_FLOW", ed.fuelFlow };
+        if (HardwareConfig::hasP1 && ed.p1Healthy) items[n++] = { "P1_BAR", ed.p1 };
+        if (HardwareConfig::hasP2 && ed.p2Healthy) items[n++] = { "P2_BAR", ed.p2 };
         if (HardwareConfig::hasThrottle) items[n++] = { "THR_PCT",  ed.throttleDemand * 100.0f };
         if (!n) return;
 
@@ -206,7 +178,7 @@ private:
     void _sendStatusText(const char* text) {
         // STATUSTEXT: msg_id=253, CRC_EXTRA=83, payload=51 bytes
         // severity(1) + text(50)
-        uint8_t payload[51] = {};
+        uint8_t payload[51];
         payload[0] = 3; // MAV_SEVERITY_ERROR
         strncpy((char*)(payload + 1), text, 50);
         _sendPacket(253, 83, payload, 51);

@@ -178,6 +178,7 @@ struct FieldDef {
 };
 
 bool yes() { return true; }
+bool hasN1() { return HardwareConfig::hasN1Rpm; }
 bool hasN2() { return HardwareConfig::hasN2Rpm; }
 bool hasTot() { return HardwareConfig::hasTot; }
 bool hasTit() { return HardwareConfig::hasTit; }
@@ -307,7 +308,7 @@ float rDI3() { return EngineData::instance().diState[2] ? 1.0f : 0.0f; }
 float rDI4() { return EngineData::instance().diState[3] ? 1.0f : 0.0f; }
 
 static const FieldDef FIELDS[] = {
-    { F_N1_RPM,         U_RPM,     0, "N1_RPM",         "N1 RPM",         yes,            rN1,               true },
+    { F_N1_RPM,         U_RPM,     0, "N1_RPM",         "N1 RPM",         hasN1,          rN1,               true },
     { F_N2_RPM,         U_RPM,     0, "N2_RPM",         "N2 RPM",         hasN2,          rN2,               true },
     { F_TOT_C,          U_DEG_C,   1, "TOT_C",          "TOT C",          hasTot,         rTot,              true },
     { F_TIT_C,          U_DEG_C,   1, "TIT_C",          "TIT C",          hasTit,         rTit,              true },
@@ -362,7 +363,7 @@ static const FieldDef FIELDS[] = {
     { F_IDLE_INPUT_RAW,  U_RAW,    0, "IDLE_INPUT_RAW",  "Idle raw",      hasIdleInput,   rIdleRaw,          false },
     { F_AB_INPUT_RAW,    U_RAW,    0, "AB_INPUT_RAW",    "AB raw",        hasAbInput,     rAbRaw,            false },
     { F_AB_INPUT_NORM,   U_PERCENT,1, "AB_INPUT_NORM",   "AB input pct",  hasAbInput,     rAbNorm,           false },
-    { F_MAX_N1_RPM,      U_RPM,    0, "MAX_N1_RPM",      "Max N1",        yes,            rMaxN1,            false },
+    { F_MAX_N1_RPM,      U_RPM,    0, "MAX_N1_RPM",      "Max N1",        hasN1,          rMaxN1,            false },
     { F_MAX_N2_RPM,      U_RPM,    0, "MAX_N2_RPM",      "Max N2",        hasN2,          rMaxN2,            false },
     { F_MAX_TOT_C,       U_DEG_C,  1, "MAX_TOT_C",       "Max TOT",       hasTot,         rMaxTot,           false },
     { F_MAX_TIT_C,       U_DEG_C,  1, "MAX_TIT_C",       "Max TIT",       hasTit,         rMaxTit,           false },
@@ -423,6 +424,10 @@ uint32_t healthFlags(const EngineData& ed) {
     if (HardwareConfig::hasIdleInput && ed.rcIdleValid) f |= 1UL << 13;
     if (ed.configVersionMismatch) f |= 1UL << 14;
     if (ed.seqHasErrors) f |= 1UL << 15;
+    if (HardwareConfig::hasP1 && ed.p1Healthy) f |= 1UL << 16;
+    if (HardwareConfig::hasP2 && ed.p2Healthy) f |= 1UL << 17;
+    if (HardwareConfig::hasFuelFlow && ed.fuelFlowHealthy) f |= 1UL << 18;
+    if (HardwareConfig::hasThrust && ed.thrustHealthy) f |= 1UL << 19;
     return f;
 }
 
@@ -581,7 +586,7 @@ void ClusterSerial::_sendSchema() {
     bool ok = true;
     uint8_t hello[80] = {};
     hello[0] = 1; // OTC protocol major
-    hello[1] = 0; // minor
+    hello[1] = 1; // minor: additional health bits, no field ID/layout changes
     uint16_t caps = CAP_SCHEMA | CAP_TELEMETRY;
     if (HardwareConfig::clusterRxPin >= 0) caps |= CAP_RX_COMMANDS | CAP_SUBSCRIPTIONS;
     put16(hello + 2, caps);
