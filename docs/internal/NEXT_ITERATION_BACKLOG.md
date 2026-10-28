@@ -97,3 +97,15 @@ The Controllers page's sticky search/filter workspace and bottom save bar can le
 - [ ] Preserve dirty counts, errors, save/discard/recap semantics and unsaved-navigation warnings. Collapse is visual only and must not write configuration or discard state.
 - [ ] Verify landscape tablet, portrait phone, short desktop window, browser zoom and on-screen keyboard; cover touch, wheel and keyboard scrolling, field deep links, long cards, page bottom, orientation changes, validation failures and active saves.
 - [ ] Measure the recovered content area and check that no fields are trapped behind bars. Confirm the behavior is consistent on every page with a persistent save bar and that the unsaved strip remains readable/tappable.
+
+## Optional dedicated Fault LED alongside Status LED
+
+Requested 28 October 2026 for **2.6.1**. Open; no implementation changed yet.
+
+Add an optional, separately configured **Fault LED** in addition to the existing Status LED. When the Fault LED is fitted/enabled, route the fault blink indication to it and suppress fault blinking on the Status LED; the Status LED continues its ordinary status indication. Without a fitted/enabled Fault LED, retain the existing Status LED fault indication for backward compatibility. This is a separate physical indicator, not a replacement for the existing Status LED.
+
+- [ ] Provide clear Hardware configuration for the Fault LED's GPIO and electrical polarity, with appropriate pin validation and an inactive safe state. Do not allocate a pin or assume an additional LED exists in old configurations.
+- [ ] Reuse the existing fault blink meaning/pattern on the dedicated indicator. Avoid duplicating fault blinking on both LEDs when the dedicated LED is configured.
+- [ ] Keep the Fault LED inactive when no fault indication is required; clearing the fault must clear its indication according to the existing fault lifecycle.
+- [ ] Review `src/platform/esp32/StatusLED.h` and Hardware configuration persistence together. Cover normal status behavior, existing RGB/status LED options, reboot and configuration changes.
+- [ ] Test Status LED only, both LEDs, Fault LED only and neither fitted on Classic ESP32 and ESP32-S3; check fault entry/clear, polarity, pin conflicts, save/reload and old engine-file compatibility.
