@@ -134,3 +134,40 @@ Controllers save/error/recap regression also passed. Logs are
 `artifacts/261-ui/scroll-animation-*.txt`. Cache key: `20261028c`.
 The user declined a navigation redesign or extra per-page fullscreen controls;
 fullscreen behavior remains unchanged.
+
+## User review follow-up: reverted drafts and serial telemetry
+
+Reverting an edit now clears pending-save state on System, Controllers, Hardware
+and Sequence. System hardware paths compare with their original values, including
+omitted legacy enable defaults. Controller and ordinary numeric-field comparisons
+drive the same save count, highlights and bar state. Hardware compares its model
+without transient I2C discovery; Sequence compares its normalized edit baseline.
+Save entry points skip empty drafts. Calibration checks current device values and
+skips identical hardware/settings PATCH requests. Failed or unconfirmed saves
+still retain the draft.
+
+`ui_reverted_edits_audit.cjs` covers System, 110 Controllers fields (including
+unfitted controls), rules, Hardware inventory, Sequence timing and calibration
+no-op writes in Chromium/Firefox/WebKit, source and packaged assets. Existing
+save lifecycle, Hardware single-edit and sequencer placement/recap audits passed.
+Private logs: `artifacts/261-ui/reverted-*.txt`. Web cache key: `20261028d`.
+
+Cluster OTC 1.1 retains the v1 wire layout and existing IDs, omits unfitted N1
+from the default schema, and adds P1/P2, fuel-flow and thrust health flags. The
+example client and protocol/setup notes were updated. MAVLink retains existing
+names and TX-only behavior, adds healthy P1/P2, filters non-finite values and
+sends heartbeat at 1 Hz independently of the sensor interval. Packet assembly
+uses one bounded UART write and shared CRC handling. Both production encoders
+passed native Classic/S3 framing/checksum, fitment/health and FIFO tests; MAVLink
+also passed complete-field fairness and heartbeat cadence checks. Logs:
+`artifacts/261-ui/serial-native-final.txt`. These do not replace a real UART
+receiver/cluster integration test; no receiver is attached now. See
+[MAVLink setup](../MAVLINK_TELEMETRY.md) and [OTC protocol](../OTC_CLUSTER_PROTOCOL.md).
+
+This follow-up rebuild has Classic ID `94371a6275b882f6` (1,671,040 bytes;
+32,896-byte OTA reserve) and S3 ID `f3d65c261816d531` (1,657,904 bytes).
+Both target image/linker/filesystem budgets passed without reducing reserves.
+The earlier two-board physical report applies to its recorded earlier build IDs;
+the new serial changes were host-tested on both targets, not electrically tested
+with a receiver or on the assembled PCB. Classic was backed up and updated for
+live UI review. No public release or tag was created.

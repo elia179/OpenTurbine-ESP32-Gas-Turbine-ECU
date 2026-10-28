@@ -19,10 +19,14 @@ schema, and exposes live values as ordinary variables.
 - Default telemetry interval: 50 ms
 - ECU TX is required
 - ECU RX is optional; leave `cluster_serial.rx_pin = -1` for telemetry-only
-- Hardware > Cluster Serial is the single link enable. When enabled with a
-  valid TX connection, the ECU transmits live frames.
-- Config contains the fitted cluster's warning/display thresholds and field
-  choices; it does not contain a second transmission enable.
+- Assign serial GPIO under **Hardware → Communications**. Enable the link and
+  choose baud/interval under **System → Connections & runtime → Instrument cluster** (the
+  Hardware enable edits the same setting). Save the page and allow the reboot.
+- **Controllers → External Instrument Cluster Display** contains display-only
+  warning thresholds. Field selection is automatic or requested by the receiver.
+- OTC 1.1 in ECU 2.6.1 keeps the v1 frame layout and existing field identifiers.
+  N1 is advertised only when fitted. Additional health bits are listed below.
+  This is a primary-channel protocol, not arbitrary user-named registry export.
 
 ## Handshake Modes
 
@@ -150,6 +154,16 @@ not block on a large UART write.
 | 13 | RC idle signal valid |
 | 14 | config version mismatch |
 | 15 | sequence validation has errors |
+| 16 | P1 healthy (OTC 1.1) |
+| 17 | P2 healthy (OTC 1.1) |
+| 18 | fuel flow healthy (OTC 1.1) |
+| 19 | thrust healthy (OTC 1.1) |
+
+Bits 12/13 describe valid throttle/idle inputs, including analogue inputs after
+calibration; they are not restricted to RC PWM. Use fitment, health and receiver
+signal-loss detection together. An unhealthy sensor's last numeric value may
+remain in telemetry: do not present it as a fresh healthy reading. Ignore unknown
+health bits and field identifiers for compatibility with future firmware.
 
 ## Optional RX Commands
 

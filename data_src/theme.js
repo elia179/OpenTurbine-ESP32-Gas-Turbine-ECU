@@ -5,6 +5,28 @@
   var bootScript = document.currentScript;
   var KEY = 'ot_theme';
   var ONBOARD = 'ot_theme_onboarded_v1';
+  // Compare saved configuration values independently of object property order.
+  window.OTConfigEqual = function equal(a,b) {
+    if(a===b)return true;
+    if(!a||!b||typeof a!=='object'||typeof b!=='object')return false;
+    if(Array.isArray(a)!==Array.isArray(b))return false;
+    var ak=Object.keys(a),bk=Object.keys(b);
+    return ak.length===bk.length&&ak.every(function(k){return Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]);});
+  };
+  window.OTFieldValueEqual = function(el,a,b) {
+    if(el.type==='number'&&String(a).trim()!==''&&String(b).trim()!==''){
+      var x=Number(a),y=Number(b);
+      return Number.isFinite(x)&&Number.isFinite(y)&&x===y;
+    }
+    return String(a)===String(b);
+  };
+  window.OTConfigPatchChanged = function changed(current,patch) {
+    return Object.keys(patch).some(function(key){
+      var next=patch[key],before=current&&current[key];
+      return next&&typeof next==='object'&&!Array.isArray(next)
+        ? changed(before,next) : !window.OTConfigEqual(before,next);
+    });
+  };
 
   // key, display name, tag, and a few colors for the swatch previews
   var THEMES = [

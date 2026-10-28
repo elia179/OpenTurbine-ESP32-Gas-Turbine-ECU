@@ -310,6 +310,11 @@ public:
   bool health(uint8_t bit) const {
     return bit < 32 && (healthFlags & (1UL << bit));
   }
+  // OTC 1.1 adds these health bits without changing existing field IDs.
+  bool p1Healthy() const { return health(16); }
+  bool p2Healthy() const { return health(17); }
+  bool fuelFlowHealthy() const { return health(18); }
+  bool thrustHealthy() const { return health(19); }
 
   bool commandsAvailable() const {
     return (capabilities & (1u << 2)) != 0;

@@ -371,8 +371,9 @@ function _controllerHardwareChanges() {
 function _controllerRuleChanges() {
   const changes = [];
   const normalize=rule=>{
-    if(!window.OTControllerTiming?.scheduled(rule))return rule;
-    const next={...rule,activate_events:OTControllerTiming.starts(rule)};delete next.activate_event;return next;
+    const next={...rule,enabled:rule.enabled!==false};
+    if(!window.OTControllerTiming?.scheduled(rule))return next;
+    next.activate_events=OTControllerTiming.starts(rule);delete next.activate_event;return next;
   };
   const beforeRules = _controllerRulesSnap.map(normalize);
   const afterRules = (cfg.rules || []).map(normalize);
@@ -458,7 +459,7 @@ function _buildChanges() {
       if (!(el.id in _fieldSnap)) return;
       const cur  = (el.type === 'checkbox') ? el.checked : el.value;
       const snap = _fieldSnap[el.id];
-      if (String(cur) === String(snap)) return;
+      if (OTFieldValueEqual(el,cur,snap)) return;
       const wrap = el.closest('.cfg-field');
       const inactive = _fieldIsHardwareInactive(wrap);
       changes.push({
@@ -489,6 +490,7 @@ function _buildChanges() {
     for (const path of _systemHardwareChangedPaths) {
       const original = _systemHardwareOriginalValues.get(path);
       const current = getPath(hwCfg, path.split('.'));
+      if (OTConfigEqual(original,current)) continue;
       const labels = {
         profile_id:'Engine / Wi-Fi name', profile_desc:'Engine description',
         wifi_password:'Wi-Fi access password', wifi_tx_power_dbm:'Wi-Fi transmit power',
@@ -515,7 +517,7 @@ function _refreshChangedBorders() {
     .forEach(el => {
       if (!(el.id in _fieldSnap)) return;
       const cur = (el.type === 'checkbox') ? el.checked : el.value;
-      const changed = String(cur) !== String(_fieldSnap[el.id]);
+      const changed = !OTFieldValueEqual(el,cur,_fieldSnap[el.id]);
       el.classList.toggle('field-changed', changed);
       if (changed) {
         const group = el.closest('.config-group');
@@ -544,15 +546,17 @@ function _clearChangedBorders() {
 let _cfgSavePending = false;
 
 function _markDirty() {
-  _cfgDirty = true;
+  if (_controllerRulesDirty) _controllerRulesDirty = _controllerRuleChanges().length > 0;
+  if (_controllerHardwareDirty) _controllerHardwareDirty = _controllerHardwareChanges().length > 0;
+  _cfgDirty = _buildChanges().length > 0;
   const btn  = document.getElementById('btn-save');
   const discard = document.getElementById('btn-discard');
   const bar  = document.querySelector('.save-bar');
   const msg  = document.getElementById('save-msg');
-  if (btn) { btn.disabled = isLocked || _cfgSavePending; btn.classList.add('primary'); }
-  if (discard) discard.disabled = _cfgSavePending;
-  if (bar) bar.classList.add('is-dirty');
-  if (msg && !msg.textContent.startsWith('✓')) msg.textContent = 'Unsaved changes';
+  if (btn) { btn.disabled = !_cfgDirty || isLocked || _cfgSavePending; btn.classList.toggle('primary',_cfgDirty); }
+  if (discard) discard.disabled = !_cfgDirty || _cfgSavePending;
+  if (bar) bar.classList.toggle('is-dirty',_cfgDirty);
+  if (msg) msg.textContent = _cfgDirty ? 'Unsaved changes' : 'No unsaved changes';
   _refreshChangedBorders();
 }
 function _clearDirty() {

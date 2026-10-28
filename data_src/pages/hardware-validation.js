@@ -123,6 +123,12 @@ function checkPinConflicts() {
 //   en-* : sensor/actuator enable checkboxes — yellow border on the
 //           containing .hw-item-card so the whole card highlights
 let _fieldSnap = {};
+let _hardwareModelSnap = null;
+function hardwareEditState() {
+  const state={...cfg};delete state._i2c_discovery;
+  for(const key of ['cluster_serial','mavlink'])state[key]={...cfg[key],enabled:!!cfg[key]?.enabled};
+  return state;
+}
 let _workflowSnap = {controllers:{}, safety:{}, devices:{}, controls:{}, labels:{}, ab_trigger:{}};
 
 function _hardwareFieldUsesModelReview(el) {
@@ -130,6 +136,7 @@ function _hardwareFieldUsesModelReview(el) {
 }
 
 function _snapshotFields() {
+  _hardwareModelSnap = JSON.parse(JSON.stringify(hardwareEditState()));
   _fieldSnap = {};
   document.querySelectorAll(
     'input[id^="f-"], select[id^="f-"], textarea[id^="f-"], input[id^="en-"]'
@@ -166,7 +173,7 @@ function _refreshChangedBorders() {
     .forEach(el => {
       if (!(el.id in _fieldSnap)) return;
       const cur = (el.type === 'checkbox') ? el.checked : el.value;
-      const changed = String(cur) !== String(_fieldSnap[el.id]);
+      const changed = !OTFieldValueEqual(el,cur,_fieldSnap[el.id]);
       el.classList.toggle('field-changed', changed);
       const card = el.closest('.hw-item-card');
       if (changed && card) changedCards.add(card);
@@ -195,7 +202,7 @@ function _changedFieldCount() {
     if (!(el.id in _fieldSnap)) return;
     if (el.offsetParent === null) return;
     const cur = (el.type === 'checkbox') ? el.checked : el.value;
-    if (String(cur) !== String(_fieldSnap[el.id])) count++;
+    if (!OTFieldValueEqual(el,cur,_fieldSnap[el.id])) count++;
   });
   count += _registryDiffRows('input').length + _registryDiffRows('output').length +
     _registryBindingDiffRows().length + _workflowDiffRows().length + _deviceDiffRows().length +
@@ -236,14 +243,14 @@ function reconcileRegistryDigitalInputs() {
 function dirty() {
   normalizeUnavailableInputBias();
   reconcileRegistryDigitalInputs();
-  _hwDirty = true;
+  _hwDirty = !OTConfigEqual(hardwareEditState(),_hardwareModelSnap);
   document.getElementById('save-msg').textContent = 'Unsaved changes — save to apply';
   const changed = _changedFieldCount();
   document.getElementById('save-msg').textContent = changed
     ? `${changed} unsaved field change${changed === 1 ? '' : 's'} — review before saving`
-    : 'Unsaved inventory changes — review before saving';
-  document.querySelector('.save-bar').classList.add('is-dirty');
-  document.getElementById('btn-discard').disabled = false;
+    : _hwDirty ? 'Unsaved inventory changes — review before saving' : 'No unsaved changes';
+  document.querySelector('.save-bar').classList.toggle('is-dirty',_hwDirty);
+  document.getElementById('btn-discard').disabled = !_hwDirty;
   _refreshChangedBorders();
   renderHardwareWorkflowSummaries();
   checkPinConflicts();

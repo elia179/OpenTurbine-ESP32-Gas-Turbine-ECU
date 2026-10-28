@@ -109,6 +109,10 @@ def main() -> int:
                    tempfile.TemporaryDirectory(prefix="ot-native-"))
     with tmp_context as tmp:
         tests = [
+            ("mavlink_behavior", [str(ROOT / "dev/host/mavlink_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("cluster_behavior", [str(ROOT / "dev/host/cluster_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("mavlink_behavior_s3", [str(ROOT / "dev/host/mavlink_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
+            ("cluster_behavior_s3", [str(ROOT / "dev/host/cluster_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("rule_fields_behavior", [str(ROOT / "dev" / "host" / "rule_fields_behavior.cpp")], []),
             ("switch_timing_behavior", [str(ROOT / "dev" / "host" / "switch_timing_behavior.cpp")], []),
             ("startup_temperature_integration", [str(ROOT / "dev" / "host" / "startup_temperature_integration.cpp")], []),

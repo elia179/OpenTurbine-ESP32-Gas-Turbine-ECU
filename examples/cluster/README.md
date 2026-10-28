@@ -45,11 +45,19 @@ Never connect two push-pull TX pins together. Confirm voltage levels before wiri
 ## Configure the ECU
 
 1. Open **Hardware**.
-2. Enable **Cluster Serial**.
-3. Choose ECU TX, optional ECU RX, and baud rate.
-4. Save Hardware and reboot.
-5. Open **Config → Cluster** only to review the fitted display's warning
-   thresholds and field choices. Hardware is the single transmission enable.
+2. Under **Communications**, choose the cluster ECU TX and optional ECU RX pins.
+3. Save Hardware and allow the reboot.
+4. Open **System → Connections & runtime → Instrument cluster**. Enable the link, set matching
+   baud and start with a 50 ms interval. Save and allow the reboot. Hardware and
+   System edit the same enable; there is no second independent transmission switch.
+5. Open **Controllers → External Instrument Cluster Display** to review display
+   warning thresholds. They do not cause shutdown. Field selection is automatic;
+   a two-way receiver may request a subset using subscriptions.
+
+OTC 1.1 retains existing frame/field IDs and adds P1/P2, fuel-flow and thrust
+health flags. N1 appears only when fitted. Check `signalLost()` and the relevant
+health bit before displaying a sensor as valid; last numeric values can remain
+after a sensor fails. Custom registry names do not rename protocol field keys.
 
 The default link is UART 8N1 at 115200 baud with a nominal 50 ms telemetry interval.
 

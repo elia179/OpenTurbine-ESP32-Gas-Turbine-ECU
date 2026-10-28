@@ -40,7 +40,7 @@ const {chromium,firefox,webkit}=require('playwright');
    await p.evaluate(()=>{window.__save=_doSave();});await(await captured(writes,4)).fulfill({status:200,contentType:'application/json',body:'{"ok":true}'});await p.evaluate(()=>__save);
    assert.equal(await p.evaluate(()=>_cfgDirty),false);
    // Page-owned Hardware rejection must not clear dirty state or send phase two.
-   await p.evaluate(surface=>{_markDirty();if(surface==='system'){_systemHardwareDirty=true;_systemHardwareChangedPaths.add('profile_id');hwCfg.profile_id='Pending test';}else _controllerHardwareDirty=true;window.__save=_doSave();},surface);
+   await p.evaluate(surface=>{if(surface==='system'){setSystemHardware('profile_id','Pending test');}else{hwCfg.safety.overtemp=!hwCfg.safety.overtemp;_controllerHardwareDirty=true;_markDirty();}window.__save=_doSave();},surface);
    await(await captured(hardware,1)).fulfill({status:200,contentType:'application/json',body:'{}'});await p.evaluate(()=>__save);
    assert.ok(await p.evaluate(()=>_cfgDirty));assert.equal(writes.length,4);assert.match(await p.locator('#save-msg').textContent(),/unconfirmed/i);
    // Exercise a stalled real helper call through the page save lifecycle.

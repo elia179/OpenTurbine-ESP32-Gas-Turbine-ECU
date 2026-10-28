@@ -562,6 +562,7 @@ function collectConfigFields() {
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
   if (_cfgSavePending) return;
+  if (!_buildChanges().length) { _markDirty(); return; }
   if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
   collectConfigFields();
 
@@ -597,8 +598,7 @@ async function saveConfig() {
     changes.push({key:'controller_links',label:'Inactive controller sequence blocks',was:`${cleanup.removed.length} linked block(s)`,now:'Remove these blocks; retain every other sequence action'});
   }
   if (!changes.length) {
-    // Nothing differs from snapshot — skip recap and save directly
-    _doSave();
+    _markDirty(); // No difference means no recap, network write or reboot.
     return;
   }
 
@@ -750,6 +750,7 @@ function _setConfigSavePending(pending) {
 // Stage 2: user confirmed — actually send to device.
 async function _doSave() {
   if (_cfgSavePending) return;
+  if (!_buildChanges().length) { _markDirty(); return; }
   if (isLocked) {
     document.getElementById('save-msg').textContent = 'Settings are locked — stop the engine before saving.';
     return;

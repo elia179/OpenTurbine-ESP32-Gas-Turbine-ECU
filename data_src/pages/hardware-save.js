@@ -280,6 +280,7 @@ function _deviceDiffRows() {
     const newDevice = after[device] || {};
     for (const key of new Set([...Object.keys(oldDevice), ...Object.keys(newDevice)])) {
       const was = oldDevice[key], now = newDevice[key];
+      if (key==='enabled' && !!was===!!now) continue;
       if (JSON.stringify(was) === JSON.stringify(now)) continue;
       rows.push({
         label:`${deviceLabels[device]} / ${fieldLabels[key] || key.replaceAll('_',' ')}`,
@@ -378,7 +379,7 @@ function _buildChanges() {
     if (!(el.id in _fieldSnap)) return;
     const cur  = (el.type === 'checkbox') ? el.checked : el.value;
     const snap = _fieldSnap[el.id];
-    if (String(cur) === String(snap)) return;
+    if (OTFieldValueEqual(el,cur,snap)) return;
     if (el.disabled) return;
     if (el.offsetParent === null) return;
     changes.push({
@@ -441,6 +442,7 @@ function _releaseInactivePinConflicts() {
 }
 
 async function saveHardware() {
+  if (OTConfigEqual(hardwareEditState(),_hardwareModelSnap)) { dirty(); return; }
   normalizeUnavailableInputBias();
   reconcileRegistryDigitalInputs();
   _releaseInactivePinConflicts();

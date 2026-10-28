@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028c');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -525,8 +525,9 @@ function _controllerHardwareChanges() {
 function _controllerRuleChanges() {
   const changes = [];
   const normalize=rule=>{
-    if(!window.OTControllerTiming?.scheduled(rule))return rule;
-    const next={...rule,activate_events:OTControllerTiming.starts(rule)};delete next.activate_event;return next;
+    const next={...rule,enabled:rule.enabled!==false};
+    if(!window.OTControllerTiming?.scheduled(rule))return next;
+    next.activate_events=OTControllerTiming.starts(rule);delete next.activate_event;return next;
   };
   const beforeRules = _controllerRulesSnap.map(normalize);
   const afterRules = (cfg.rules || []).map(normalize);
@@ -612,7 +613,7 @@ function _buildChanges() {
       if (!(el.id in _fieldSnap)) return;
       const cur  = (el.type === 'checkbox') ? el.checked : el.value;
       const snap = _fieldSnap[el.id];
-      if (String(cur) === String(snap)) return;
+      if (OTFieldValueEqual(el,cur,snap)) return;
       const wrap = el.closest('.cfg-field');
       const inactive = _fieldIsHardwareInactive(wrap);
       changes.push({
@@ -643,6 +644,7 @@ function _buildChanges() {
     for (const path of _systemHardwareChangedPaths) {
       const original = _systemHardwareOriginalValues.get(path);
       const current = getPath(hwCfg, path.split('.'));
+      if (OTConfigEqual(original,current)) continue;
       const labels = {
         profile_id:'Engine / Wi-Fi name', profile_desc:'Engine description',
         wifi_password:'Wi-Fi access password', wifi_tx_power_dbm:'Wi-Fi transmit power',
@@ -669,7 +671,7 @@ function _refreshChangedBorders() {
     .forEach(el => {
       if (!(el.id in _fieldSnap)) return;
       const cur = (el.type === 'checkbox') ? el.checked : el.value;
-      const changed = String(cur) !== String(_fieldSnap[el.id]);
+      const changed = !OTFieldValueEqual(el,cur,_fieldSnap[el.id]);
       el.classList.toggle('field-changed', changed);
       if (changed) {
         const group = el.closest('.config-group');
@@ -698,15 +700,17 @@ function _clearChangedBorders() {
 let _cfgSavePending = false;
 
 function _markDirty() {
-  _cfgDirty = true;
+  if (_controllerRulesDirty) _controllerRulesDirty = _controllerRuleChanges().length > 0;
+  if (_controllerHardwareDirty) _controllerHardwareDirty = _controllerHardwareChanges().length > 0;
+  _cfgDirty = _buildChanges().length > 0;
   const btn  = document.getElementById('btn-save');
   const discard = document.getElementById('btn-discard');
   const bar  = document.querySelector('.save-bar');
   const msg  = document.getElementById('save-msg');
-  if (btn) { btn.disabled = isLocked || _cfgSavePending; btn.classList.add('primary'); }
-  if (discard) discard.disabled = _cfgSavePending;
-  if (bar) bar.classList.add('is-dirty');
-  if (msg && !msg.textContent.startsWith('✓')) msg.textContent = 'Unsaved changes';
+  if (btn) { btn.disabled = !_cfgDirty || isLocked || _cfgSavePending; btn.classList.toggle('primary',_cfgDirty); }
+  if (discard) discard.disabled = !_cfgDirty || _cfgSavePending;
+  if (bar) bar.classList.toggle('is-dirty',_cfgDirty);
+  if (msg) msg.textContent = _cfgDirty ? 'Unsaved changes' : 'No unsaved changes';
   _refreshChangedBorders();
 }
 function _clearDirty() {
@@ -1545,11 +1549,16 @@ function removeControllerOilLoop(index) {
 }
 // OT_SYSTEM_ONLY_BEGIN
 function setSystemHardware(path, value) {
-  if (!_systemHardwareOriginalValues.has(path))
-    _systemHardwareOriginalValues.set(path, getPath(hwCfg, path.split('.')));
+  if (!_systemHardwareOriginalValues.has(path)) {
+    const defaults={'cluster_serial.enabled':false,'mavlink.enabled':false,
+      'cluster_serial.baud':115200,'cluster_serial.interval_ms':50,
+      'mavlink.baud':57600,'mavlink.interval_ms':100,profile_desc:''};
+    _systemHardwareOriginalValues.set(path, getPath(hwCfg, path.split('.')) ?? defaults[path]);
+  }
   setPath(hwCfg, path.split('.'), value);
-  _systemHardwareDirty = true;
-  _systemHardwareChangedPaths.add(path);
+  if(OTConfigEqual(_systemHardwareOriginalValues.get(path),value))_systemHardwareChangedPaths.delete(path);
+  else _systemHardwareChangedPaths.add(path);
+  _systemHardwareDirty = _systemHardwareChangedPaths.size > 0;
   _markDirty();
   renderSystemSetup();
   // The System groups are rebuilt after each edit. Recompute the fixed save
@@ -1585,14 +1594,14 @@ function renderSystemSetup() {
       <label class="cfg-field" id="system-wifi-password-editor" style="display:none"><span class="cfg-label">${wifiIsOpen?'Add Wi-Fi password':'New Wi-Fi password'}</span><span class="cfg-desc">Enter 8–63 characters. The network security changes after Save and reboot.</span><input id="system-wifi-password" type="password" autocomplete="new-password" minlength="8" maxlength="63" placeholder="8–63 characters" onchange="if(this.value)setSystemHardware('wifi_password',this.value)"></label>
       <label class="cfg-field"><span class="cfg-label">Wi-Fi transmit power (dBm)</span><span class="cfg-desc">Use only as much radio power as the installation needs.</span><input id="system-wifi-tx-power" type="number" min="2" max="20" step="1" value="${Number(hwCfg.wifi_tx_power_dbm ?? 8)}" onchange="setSystemHardware('wifi_tx_power_dbm',+this.value)"></label>`;
   const clusterFields = `
-      <div class="cfg-field"><span class="cfg-label">Instrument-cluster link</span><label><input type="checkbox" ${cluster.enabled?'checked':''} onchange="setSystemHardware('cluster_serial.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(cluster.tx_pin??-1)>=0?`TX GPIO ${cluster.tx_pin}${(cluster.rx_pin??-1)>=0?` / RX GPIO ${cluster.rx_pin}`:' / one-way'}`:'Assign its serial GPIO on Hardware first.'}</span><span class="cfg-desc">The default stream is chosen automatically from fitted primary sensors and actuators: N1 plus any configured N2, EGT/TIT, oil, fuel, electrical, torque/thrust and output data. With RX connected, a compatible cluster may request all or a named subset at runtime; field selection is therefore not duplicated in this ECU page.</span></div>
+      <div class="cfg-field"><span class="cfg-label">Instrument-cluster link</span><label><input type="checkbox" ${cluster.enabled?'checked':''} onchange="setSystemHardware('cluster_serial.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(cluster.tx_pin??-1)>=0?`TX GPIO ${cluster.tx_pin}${(cluster.rx_pin??-1)>=0?` / RX GPIO ${cluster.rx_pin}`:' / one-way'}`:'Assign its serial GPIO on Hardware first.'}</span><span class="cfg-desc">OTC binary display link, 3.3 V UART / shared ground. Streams fitted primary sensors and output commands in ECU units, with schema, health and status. With RX wired, a compatible cluster can select fields or request supported commands; the ECU still enforces its safety checks. Custom input names are not transmitted as field IDs. Display warning thresholds live in Controllers → External Instrument Cluster Display.</span></div>
       ${cluster.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('cluster_serial.baud',+this.value)">${[9600,19200,38400,57600,115200,230400,460800,921600].map(v=>`<option value="${v}"${Number(cluster.baud||115200)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="10" max="5000" value="${Number(cluster.interval_ms??200)}" onchange="setSystemHardware('cluster_serial.interval_ms',+this.value)"></label>`:''}
+      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="10" max="5000" value="${Number(cluster.interval_ms??50)}" onchange="setSystemHardware('cluster_serial.interval_ms',+this.value)"><span class="cfg-desc">Time between telemetry chunks. Start with 50 ms at 115200 baud; large field sets or slower links take longer to complete a cycle.</span></label>`:''}
       <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
   const mavFields = `
-      <div class="cfg-field"><span class="cfg-label">MAVLink telemetry</span><label><input type="checkbox" ${mav.enabled?'checked':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}`:'Assign its TX GPIO on Hardware first.'}</span></div>
+      <div class="cfg-field"><span class="cfg-label">MAVLink telemetry</span><label><input type="checkbox" ${mav.enabled?'checked':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}`:'Assign its TX GPIO on Hardware first.'}</span><span class="cfg-desc">TX-only MAVLink v1: heartbeat at 1 Hz, healthy fitted primary readings as named floats, and fault text. Includes P1/P2 pressure. This is a telemetry component (system 1 / component 200), not an autopilot: no MAVLink commands, parameter editing or automatic ground-station vehicle setup. Use a MAVLink inspector or receiver; 3.3 V UART / shared ground.</span></div>
       ${mav.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('mavlink.baud',+this.value)">${[57600,115200,230400].map(v=>`<option value="${v}"${Number(mav.baud||57600)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="50" max="5000" step="50" value="${Number(mav.interval_ms??200)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"></label>`:''}
+      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="50" max="5000" step="50" value="${Number(mav.interval_ms??100)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"><span class="cfg-desc">Sensor send interval; heartbeat remains 1 Hz. If the UART buffer fills, remaining readings continue next interval.</span></label>`:''}
       <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
   const appearanceFields = `
       <div class="cfg-field" style="grid-column:1/-1">
@@ -1821,6 +1830,8 @@ function setConfigSearch(value) {
 function _updateWorkspaceState() {
   const changes = _buildChanges();
   const count = changes.length;
+  _cfgDirty = count > 0;
+  document.querySelector('.save-bar')?.classList.toggle('is-dirty',_cfgDirty);
   const state = document.getElementById('cfg-state-badge');
   const saveCount = document.getElementById('save-change-count');
   const discard = document.getElementById('btn-discard');
@@ -3016,6 +3027,7 @@ function collectConfigFields() {
 // Stage 1: collect form values into cfg, validate, then show recap modal.
 async function saveConfig() {
   if (_cfgSavePending) return;
+  if (!_buildChanges().length) { _markDirty(); return; }
   if (isLocked) { alert('Settings are locked - stop the engine first. Live editing requires Developer Mode to be enabled from Tools while in STANDBY.'); return; }
   collectConfigFields();
 
@@ -3051,8 +3063,7 @@ async function saveConfig() {
     changes.push({key:'controller_links',label:'Inactive controller sequence blocks',was:`${cleanup.removed.length} linked block(s)`,now:'Remove these blocks; retain every other sequence action'});
   }
   if (!changes.length) {
-    // Nothing differs from snapshot — skip recap and save directly
-    _doSave();
+    _markDirty(); // No difference means no recap, network write or reboot.
     return;
   }
 
@@ -3204,6 +3215,7 @@ function _setConfigSavePending(pending) {
 // Stage 2: user confirmed — actually send to device.
 async function _doSave() {
   if (_cfgSavePending) return;
+  if (!_buildChanges().length) { _markDirty(); return; }
   if (isLocked) {
     document.getElementById('save-msg').textContent = 'Settings are locked — stop the engine before saving.';
     return;

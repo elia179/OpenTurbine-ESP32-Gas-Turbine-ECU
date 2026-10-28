@@ -199,14 +199,17 @@ function updateSequenceSaveControls() {
   if (discard) discard.disabled = !_seqDirty;
 }
 
+let _sequenceEditSnap = null;
+function sequenceEditState() { return {hardware:hwCfg,settings:cfg}; }
 function markSequenceDirty(message) {
-  _seqDirty = true;
-  document.getElementById('sequence-save-bar')?.classList.add('is-dirty');
-  setSaveStatus(message || 'Unsaved changes — save to apply');
+  _seqDirty = !OTConfigEqual(sequenceEditState(),_sequenceEditSnap);
+  document.getElementById('sequence-save-bar')?.classList.toggle('is-dirty',_seqDirty);
+  setSaveStatus(_seqDirty ? message || 'Unsaved changes — save to apply' : 'No unsaved changes');
   updateSequenceSaveControls();
 }
 
 function clearSequenceDirty(message) {
+  _sequenceEditSnap = cloneSequenceJson(sequenceEditState());
   _seqDirty = false;
   document.getElementById('sequence-save-bar')?.classList.remove('is-dirty');
   setSaveStatus(message || 'No unsaved changes');

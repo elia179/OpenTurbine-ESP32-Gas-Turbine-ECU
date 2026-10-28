@@ -804,11 +804,16 @@ function removeControllerOilLoop(index) {
 }
 // OT_SYSTEM_ONLY_BEGIN
 function setSystemHardware(path, value) {
-  if (!_systemHardwareOriginalValues.has(path))
-    _systemHardwareOriginalValues.set(path, getPath(hwCfg, path.split('.')));
+  if (!_systemHardwareOriginalValues.has(path)) {
+    const defaults={'cluster_serial.enabled':false,'mavlink.enabled':false,
+      'cluster_serial.baud':115200,'cluster_serial.interval_ms':50,
+      'mavlink.baud':57600,'mavlink.interval_ms':100,profile_desc:''};
+    _systemHardwareOriginalValues.set(path, getPath(hwCfg, path.split('.')) ?? defaults[path]);
+  }
   setPath(hwCfg, path.split('.'), value);
-  _systemHardwareDirty = true;
-  _systemHardwareChangedPaths.add(path);
+  if(OTConfigEqual(_systemHardwareOriginalValues.get(path),value))_systemHardwareChangedPaths.delete(path);
+  else _systemHardwareChangedPaths.add(path);
+  _systemHardwareDirty = _systemHardwareChangedPaths.size > 0;
   _markDirty();
   renderSystemSetup();
   // The System groups are rebuilt after each edit. Recompute the fixed save
@@ -844,14 +849,14 @@ function renderSystemSetup() {
       <label class="cfg-field" id="system-wifi-password-editor" style="display:none"><span class="cfg-label">${wifiIsOpen?'Add Wi-Fi password':'New Wi-Fi password'}</span><span class="cfg-desc">Enter 8–63 characters. The network security changes after Save and reboot.</span><input id="system-wifi-password" type="password" autocomplete="new-password" minlength="8" maxlength="63" placeholder="8–63 characters" onchange="if(this.value)setSystemHardware('wifi_password',this.value)"></label>
       <label class="cfg-field"><span class="cfg-label">Wi-Fi transmit power (dBm)</span><span class="cfg-desc">Use only as much radio power as the installation needs.</span><input id="system-wifi-tx-power" type="number" min="2" max="20" step="1" value="${Number(hwCfg.wifi_tx_power_dbm ?? 8)}" onchange="setSystemHardware('wifi_tx_power_dbm',+this.value)"></label>`;
   const clusterFields = `
-      <div class="cfg-field"><span class="cfg-label">Instrument-cluster link</span><label><input type="checkbox" ${cluster.enabled?'checked':''} onchange="setSystemHardware('cluster_serial.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(cluster.tx_pin??-1)>=0?`TX GPIO ${cluster.tx_pin}${(cluster.rx_pin??-1)>=0?` / RX GPIO ${cluster.rx_pin}`:' / one-way'}`:'Assign its serial GPIO on Hardware first.'}</span><span class="cfg-desc">The default stream is chosen automatically from fitted primary sensors and actuators: N1 plus any configured N2, EGT/TIT, oil, fuel, electrical, torque/thrust and output data. With RX connected, a compatible cluster may request all or a named subset at runtime; field selection is therefore not duplicated in this ECU page.</span></div>
+      <div class="cfg-field"><span class="cfg-label">Instrument-cluster link</span><label><input type="checkbox" ${cluster.enabled?'checked':''} onchange="setSystemHardware('cluster_serial.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(cluster.tx_pin??-1)>=0?`TX GPIO ${cluster.tx_pin}${(cluster.rx_pin??-1)>=0?` / RX GPIO ${cluster.rx_pin}`:' / one-way'}`:'Assign its serial GPIO on Hardware first.'}</span><span class="cfg-desc">OTC binary display link, 3.3 V UART / shared ground. Streams fitted primary sensors and output commands in ECU units, with schema, health and status. With RX wired, a compatible cluster can select fields or request supported commands; the ECU still enforces its safety checks. Custom input names are not transmitted as field IDs. Display warning thresholds live in Controllers → External Instrument Cluster Display.</span></div>
       ${cluster.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('cluster_serial.baud',+this.value)">${[9600,19200,38400,57600,115200,230400,460800,921600].map(v=>`<option value="${v}"${Number(cluster.baud||115200)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="10" max="5000" value="${Number(cluster.interval_ms??200)}" onchange="setSystemHardware('cluster_serial.interval_ms',+this.value)"></label>`:''}
+      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="10" max="5000" value="${Number(cluster.interval_ms??50)}" onchange="setSystemHardware('cluster_serial.interval_ms',+this.value)"><span class="cfg-desc">Time between telemetry chunks. Start with 50 ms at 115200 baud; large field sets or slower links take longer to complete a cycle.</span></label>`:''}
       <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
   const mavFields = `
-      <div class="cfg-field"><span class="cfg-label">MAVLink telemetry</span><label><input type="checkbox" ${mav.enabled?'checked':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}`:'Assign its TX GPIO on Hardware first.'}</span></div>
+      <div class="cfg-field"><span class="cfg-label">MAVLink telemetry</span><label><input type="checkbox" ${mav.enabled?'checked':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}`:'Assign its TX GPIO on Hardware first.'}</span><span class="cfg-desc">TX-only MAVLink v1: heartbeat at 1 Hz, healthy fitted primary readings as named floats, and fault text. Includes P1/P2 pressure. This is a telemetry component (system 1 / component 200), not an autopilot: no MAVLink commands, parameter editing or automatic ground-station vehicle setup. Use a MAVLink inspector or receiver; 3.3 V UART / shared ground.</span></div>
       ${mav.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('mavlink.baud',+this.value)">${[57600,115200,230400].map(v=>`<option value="${v}"${Number(mav.baud||57600)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="50" max="5000" step="50" value="${Number(mav.interval_ms??200)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"></label>`:''}
+      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="50" max="5000" step="50" value="${Number(mav.interval_ms??100)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"><span class="cfg-desc">Sensor send interval; heartbeat remains 1 Hz. If the UART buffer fills, remaining readings continue next interval.</span></label>`:''}
       <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
   const appearanceFields = `
       <div class="cfg-field" style="grid-column:1/-1">
@@ -1173,6 +1178,8 @@ function setConfigSearch(value) {
 function _updateWorkspaceState() {
   const changes = _buildChanges();
   const count = changes.length;
+  _cfgDirty = count > 0;
+  document.querySelector('.save-bar')?.classList.toggle('is-dirty',_cfgDirty);
   const state = document.getElementById('cfg-state-badge');
   const saveCount = document.getElementById('save-change-count');
   const discard = document.getElementById('btn-discard');
