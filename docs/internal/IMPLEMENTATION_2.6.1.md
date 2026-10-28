@@ -125,3 +125,12 @@ describes the preceding `20261028a` payload.
 All 24 packaged page/viewport cases passed in Chromium, Firefox and WebKit,
 plus the 1,000/1,100-pixel boundary checks in each engine. Both LittleFS images
 rebuilt successfully. Log: `artifacts/261-ui/scroll-1000-packaged.txt`.
+
+The next user follow-up adds a 240 ms slide with a 200 ms fade to the shared
+bars. Visibility is delayed until the outgoing transition ends; reduced-motion
+preferences disable the transitions. Animation/focus/reduced-motion checks
+passed in Chromium, Firefox and WebKit with source and gzip assets; the focused
+Controllers save/error/recap regression also passed. Logs are
+`artifacts/261-ui/scroll-animation-*.txt`. Cache key: `20261028c`.
+The user declined a navigation redesign or extra per-page fullscreen controls;
+fullscreen behavior remains unchanged.

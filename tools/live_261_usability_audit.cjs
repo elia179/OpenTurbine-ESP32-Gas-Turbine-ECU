@@ -26,6 +26,7 @@ const base=process.argv[2]||'http://192.168.4.1',target=process.argv[3],out=proc
    await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
    assert.equal(await p.locator('.ot-save-handle').isVisible(),false);
    await p.getByRole('button',{name:'Page controls',exact:true}).click();
+   await p.waitForTimeout(280);
    const rect=await p.locator('.cfg-workspace button').first().boundingBox();
    assert.ok(rect&&rect.y>=44&&rect.y+rect.height<=600);
   }
@@ -36,6 +37,8 @@ const base=process.argv[2]||'http://192.168.4.1',target=process.argv[3],out=proc
   await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));
   await p.mouse.move(150,300);await p.waitForTimeout(850);await p.mouse.wheel(0,300);
   await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
+  await p.locator('.cfg-workspace').waitFor({state:'hidden'});
+  await p.locator('.save-bar').waitFor({state:'hidden'});
   assert.equal(await p.locator('.cfg-workspace').isVisible(),false);
   assert.equal(await p.locator('.save-bar').isVisible(),false);
   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:out+'/controllers-1000-collapsed.png'});}

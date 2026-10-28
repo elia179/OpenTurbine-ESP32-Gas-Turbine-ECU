@@ -43,6 +43,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
      await handle.waitFor({state:'visible'});
      assert.ok((await handle.boundingBox()).height>=44);
      await handle.click();
+     await p.waitForTimeout(280);
      const rect=await p.locator('.ot-managed-save').boundingBox();
      assert.ok(rect.y>=48&&rect.y+rect.height<=viewport.height+1,route+' restores Save inside viewport');
      if(engine===chromium&&viewport.width===390&&route==='controllers'){await fs.promises.mkdir('artifacts/261-ui',{recursive:true});await p.screenshot({path:'artifacts/261-ui/scroll-controls-mobile-save.png'});}
@@ -54,6 +55,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      if(route==='controllers'||route==='system'){
       await p.getByRole('button',{name:route==='controllers'?'Search & page controls':'Page controls',exact:true}).click();
+      await p.waitForTimeout(280);
       const search=route==='controllers'?p.locator('.cfg-workspace input[type="search"]').first():p.locator('.cfg-workspace button').first();
       const r=await search.boundingBox();
       assert.ok(r.y>=48&&r.y+r.height<=viewport.height,'Search is visible after restoration');
@@ -67,6 +69,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
       const status=bar.querySelector('#save-msg,#save-status');if(status)status.textContent='Error: save failed; retry when connected';
      });
      await p.waitForFunction(()=>document.body.classList.contains('ot-save-attention'));
+     await p.waitForTimeout(280);
      await p.mouse.wheel(0,250);
      assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'save errors remain visible');
      const error=p.locator('.ot-managed-save #save-msg,.ot-managed-save #save-status').first();
