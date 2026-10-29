@@ -23,11 +23,11 @@ const executablePath = [process.env.PROGRAMFILES, process.env.LOCALAPPDATA]
       const chunks = [];
       for await (const chunk of await download.createReadStream()) chunks.push(chunk);
       const text = Buffer.concat(chunks).toString('utf8');
-      assert.ok(text.length > 0, `${name} is empty`);
       if (name.endsWith('.ndjson')) {
-        const records = text.trim().split('\n').map(line => JSON.parse(line));
+        const records = text.trim() ? text.trim().split('\n').map(line => JSON.parse(line)) : [];
+        if(!records.length){const response=await page.request.get(base+'/api/log');assert.ok(response.ok());assert.deepEqual(await response.json(),[],'An empty NDJSON download must correspond to an empty event log');}
         assert.ok(records.every(record => typeof record.ev === 'string'));
-        assert.ok(records.some(record => /^[A-Z_]+$/.test(record.ev)), 'raw event identifiers must remain intact');
+        assert.ok(!records.length||records.some(record => /^[A-Z_]+$/.test(record.ev)), 'raw event identifiers must remain intact');
       } else assert.match(text, /(?:event|ev)/i);
       console.log(`PASS: browser downloaded ${name}, ${Buffer.byteLength(text)} bytes; raw diagnostic format intact.`);
     }

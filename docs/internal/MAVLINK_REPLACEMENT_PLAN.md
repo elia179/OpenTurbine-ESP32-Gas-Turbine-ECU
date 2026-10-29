@@ -242,3 +242,15 @@ Controllers/System now constrain their inline navigation to a scrolling containe
 before shared CSS arrives. The viewport matrix includes a separate theme-503
 case and confirms System remains reachable without document overflow. The local
 three-engine/five-viewport matrix passed, including these asset-failure cases.
+
+
+## Local no-push hardware follow-up
+
+The user requested completion without further pushes. Local hardware testing
+found an existing empty-event-log download returning HTTP 500: the dependency's
+filesystem/path constructor treats available()==0 as a missing file and tries
+.gz. Event and session downloads now use explicitly opened File responses,
+including valid zero-byte files, with clear open-failure errors and raw-log
+reader cleanup. The browser download audit accepts zero-byte NDJSON only when
+the ECU's event list is also empty; the simulated download audit covers this
+case independently of nonempty exports.

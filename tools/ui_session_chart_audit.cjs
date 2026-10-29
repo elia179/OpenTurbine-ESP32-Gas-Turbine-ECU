@@ -63,6 +63,14 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       const refresh=page.waitForRequest(r=>r.url().endsWith('/api/session/log?run=42'));
       await page.locator('#session-preview-refresh').click();await refresh;
       await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='Run #42 - 2 rows');
+      const empty=route=>route.fulfill({status:200,contentType:'application/x-ndjson',body:''});
+      await page.route('**/api/log/raw',empty);
+      const emptyReady=page.waitForEvent('download');
+      await page.getByRole('button',{name:'Event NDJSON',exact:true}).click();
+      const emptyFile=await emptyReady;
+      assert.equal(emptyFile.suggestedFilename(),'event_log.ndjson');
+      assert.equal(fs.readFileSync(await emptyFile.path()).length,0,'Empty logs remain valid downloadable files');
+      await page.unroute('**/api/log/raw',empty);
       const rejection=async route=>route.fulfill({status:423,contentType:'application/json',body:JSON.stringify({error:'Raw log download requires STANDBY with standby logging disabled'})});
       await page.route('**/api/log/raw',rejection);
       await page.getByRole('button',{name:'Event NDJSON',exact:true}).click();

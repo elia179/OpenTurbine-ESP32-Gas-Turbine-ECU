@@ -488,6 +488,10 @@ expect('event log routes preserve specific downloads and reject malformed displa
   (web.match(/RecentEventLog::seekTail\(f\)/g) || []).length === 2 &&
   (web.match(/if \(!_gateLogRead\(req\)\) return;/g) || []).length === 3 &&
   web.includes('Another log view or download is in progress; retry shortly'));
+expect('empty raw event logs use an opened file without compressed fallback',
+  web.includes('File log = LittleFS.open(FlightRecorder::PATH, "r")') &&
+  web.includes('log, String(FlightRecorder::PATH), "application/x-ndjson"') &&
+  web.includes('Event log could not be opened; retry the download'));
 expect('windmilling oil setup warns when it cannot activate or command oil',
   configHtml.includes('windmilling oil protection can never activate') &&
   configHtml.includes('both zero; this protection would command no oil'));

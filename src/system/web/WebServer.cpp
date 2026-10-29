@@ -3435,12 +3435,22 @@ void WebServer::_setupRoutes() {
         }
         if (!_gateLogRead(req)) return;
         FlightRecorder::beginRawDownload();
+        // The filesystem/path response treats an empty file as missing and
+        // tries a .gz alternative. An opened File preserves a valid empty
+        // event log as a zero-byte NDJSON download.
+        File log = LittleFS.open(FlightRecorder::PATH, "r");
+        if (!log) {
+            FlightRecorder::endRawDownload();
+            _releaseLogRead(req);
+            req->send(500, "application/json", "{\"error\":\"Event log could not be opened; retry the download\"}");
+            return;
+        }
+        AsyncWebServerResponse* resp = req->beginResponse(
+            log, String(FlightRecorder::PATH), "application/x-ndjson", false, nullptr);
         req->onDisconnect([req]() {
             FlightRecorder::endRawDownload();
             _releaseLogRead(req);
         });
-        AsyncWebServerResponse* resp = req->beginResponse(
-            LittleFS, FlightRecorder::PATH, "application/x-ndjson");
         resp->addHeader("Content-Disposition", "attachment; filename=\"event_log.ndjson\"");
         resp->addHeader("Cache-Control", "no-store");
         resp->addHeader("Connection", "close");
@@ -3799,7 +3809,13 @@ void WebServer::_setupRoutes() {
         fname = fname ? fname + 1 : path;
         char disp[64];
         snprintf(disp, sizeof(disp), "attachment; filename=\"%s\"", fname);
-        AsyncWebServerResponse* resp = req->beginResponse(LittleFS, path, "text/csv");
+        File session = LittleFS.open(path, "r");
+        if (!session) {
+            req->send(500, "application/json", "{\"error\":\"Session log could not be opened; retry the download\"}");
+            return;
+        }
+        AsyncWebServerResponse* resp = req->beginResponse(
+            session, String(path), "text/csv", false, nullptr);
         resp->addHeader("Content-Disposition", disp);
         resp->addHeader("Cache-Control", "no-store");
         resp->addHeader("Connection", "close");
