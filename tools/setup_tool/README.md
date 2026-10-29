@@ -4,9 +4,11 @@ The 2.6.1 implementation shows final reconnect/identity/file-verification progre
 
 Windows setup/update helper for OpenTurbine boards.
 
-Version 0.7.5 scales its custom layout, fonts and mouse hit testing with the
-monitor DPI and follows Windows' suggested bounds on monitor changes. Final
-reconnect and verification retry have distinct action labels; completion lists
+Version 0.7.6 scales its custom layout, fonts and mouse hit testing with the
+monitor DPI and follows Windows' suggested bounds on monitor changes. The Wi-Fi update asks for the initial connection once, then automatically waits
+for the expected version, chip target, build identity and maintenance readiness
+after each restart. It asks again only if those checks fail. Verification retry
+has a distinct action label; completion lists
 the version, board target and number of verified web files. The drawing model
 follows [Microsoft's GDI mapping guidance](https://learn.microsoft.com/en-us/windows/win32/gdi/application-defined-mapping-modes).
 

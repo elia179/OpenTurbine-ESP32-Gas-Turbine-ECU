@@ -16,7 +16,7 @@ Target release: **2.6.1**.
 - Add the 28 October 2026 OpenTurbine PCB profile for ESP32-S3-WROOM-1-N8, including I²C indicators, switchable pulse-input pull-ups and the shared output enable. Plain development boards retain profile-free configuration.
 - Expand the three main System sections on entry and share scroll-aware search/save controls on short viewports.
 - Show per-output commands and entry/during/exit actions inside compound sequencer blocks, using the same command model as the final-state recap.
-- Give the Wi-Fi Setup Tool visible final-verification progress, bounded read retries, identity-based readiness and verification-only retry after uploads finish.
+- Give the Wi-Fi Setup Tool one initial connection prompt, automatic checks after both restarts, visible final-verification progress, bounded read retries and verification-only retry after uploads finish. Readiness checks match the requested version, chip and build and wait for maintenance completion, including same-image updates.
 - Replace the legacy Cluster protocol with MAVLink 2, a named-channel catalogue, explicit remote engine-command permission, correlated results, and an expiring throttle input for Controllers. Include a matching Cluster client and an ArduPilot companion example.
 - Preserve MAVLink-input controllers when loading settings, and show mapped controllers' input-loss output behavior.
 - Improve Setup Tool display scaling, use verification-specific reconnect actions, and report the firmware and web files actually verified.

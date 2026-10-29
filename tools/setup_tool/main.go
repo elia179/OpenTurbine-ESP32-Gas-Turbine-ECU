@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.5"
+	appVersion                  = "0.7.6"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -2381,7 +2381,7 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(5, total, 50, "Updating OpenTurbine "+version, "Target: "+friendlyTarget(target)+".\n\nDo not unplug power. The board will restart after this step.", "Package target: "+target+". If Windows disconnects from the board Wi‑Fi after restart, the tool will pause and tell you what to do.", false)
+	j.set(5, total, 50, "Updating OpenTurbine "+version, "Target: "+friendlyTarget(target)+".\n\nDo not unplug power. The board will restart after this step.", "Package target: "+target+". The tool will check the connection automatically after restart and ask only if it cannot reconnect.", false)
 	if err := postFirmwareChunks(ecuBaseURL+"/api/firmware_chunk", firmware, 10*time.Minute, func(done, totalBytes int64) {
 		if totalBytes > 0 {
 			p := 50 + int((done*15)/totalBytes)
@@ -2392,17 +2392,24 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(6, total, 68, "Check Wi‑Fi connection", "The board restarted. Windows may have switched away from the board Wi‑Fi.\n\nCheck that this computer is connected to the correct board Wi‑Fi again before continuing. The Wi‑Fi name may be OpenTurbine, or it may be your own engine/project name.\n\nThen click Continue.", "This check is important before dashboard files are sent to the board.", true)
-	if !j.waitContinue() {
-		j.cancelToHome("Wi-Fi update was cancelled before dashboard files were sent.")
-		return
+	for {
+		started := time.Now()
+		report := func(message string) {
+			j.set(6, total, 68, "Reconnecting after restart", message,
+				fmt.Sprintf("Elapsed: %s. Checking the installed firmware automatically. Keep connected to the board Wi-Fi.", time.Since(started).Round(time.Second)), false)
+		}
+		err := waitForUpdatedECUWithProgress(75*time.Second, version, target, pkg.Manifest.Targets[target].BuildID, report)
+		if err == nil {
+			break
+		}
+		j.addLog("Automatic reconnect incomplete: " + err.Error())
+		j.set(6, total, 68, "Reconnect to board Wi-Fi", "The tool could not confirm the updated board.\n\n"+err.Error()+"\n\nReconnect to this board's Wi-Fi, then click Continue to check again, or cancel.", "Firmware upload has finished. Retrying checks the board only; it does not upload firmware again.", true)
+		if !j.waitContinue() {
+			j.cancelToHome("Firmware upload finished; reconnect was cancelled before dashboard files were sent. Keep the engine-file backup.")
+			return
+		}
 	}
-
-	j.set(7, total, 72, "Finding board again", "The tool is checking that the board is back online at http://192.168.4.1.", "If this fails, reconnect to the board Wi‑Fi and run the update again.", false)
-	if err := waitForECU(75 * time.Second); err != nil {
-		j.fail(errors.New("The board software was uploaded, but the tool could not reconnect after restart. Check that this computer is connected to the board Wi‑Fi, then try again."))
-		return
-	}
+	j.set(7, total, 72, "Board software verified", "The expected firmware is running on the board. Preparing dashboard files.", "", false)
 
 	assets, err := webAssetPaths(pkg, target)
 	if err != nil {
@@ -2420,11 +2427,6 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(9, total, 94, "Reconnect for final verification", "The dashboard files were accepted and the board is restarting.\n\nWindows may have switched back to another network. Connect to this OpenTurbine board's Wi-Fi again, wait a few seconds, then click Continue.", "The tool will verify the firmware version and all dashboard files; it will not report success merely because upload returned quickly.", true)
-	if !j.waitContinue() {
-		j.cancelToHome("Wi-Fi update was cancelled before final verification.")
-		return
-	}
 	for {
 		started := time.Now()
 		report := func(message string) {
@@ -2432,7 +2434,7 @@ func (j *Job) runExistingUpdate() {
 				fmt.Sprintf("Elapsed: %s. Verification only — no files are being uploaded. Keep connected to the board Wi-Fi.", time.Since(started).Round(time.Second)), false)
 		}
 		report("Waiting for OpenTurbine to respond after restart…")
-		err := waitForECUWithProgress(75*time.Second, report)
+		err := waitForUpdatedECUWithProgress(75*time.Second, version, target, pkg.Manifest.Targets[target].BuildID, report)
 		if err == nil {
 			err = verifyUpdatedECUWithProgress(version, target, pkg.Manifest.Targets[target].BuildID, assets, report)
 		}
@@ -2448,6 +2450,14 @@ func (j *Job) runExistingUpdate() {
 		}
 	}
 	j.success("Update complete", "Verified OpenTurbine "+version+" for "+friendlyTarget(target)+".\nFirmware identity and all "+strconv.Itoa(len(assets))+" dashboard files match the update package.\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
+}
+
+type firmwareIdentity struct {
+	Project    string `json:"project"`
+	Version    string `json:"firmware_version"`
+	Target     string `json:"target"`
+	BuildID    string `json:"build_id"`
+	OTAAllowed bool   `json:"ota_allowed"`
 }
 
 func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, assetPaths []string) error {
@@ -2504,12 +2514,7 @@ func verifyUpdatedECUWithProgress(expectedVersion, expectedTarget, expectedBuild
 	if err != nil {
 		return fmt.Errorf("could not read firmware identity: %w", err)
 	}
-	var info struct {
-		Project string `json:"project"`
-		Version string `json:"firmware_version"`
-		Target  string `json:"target"`
-		BuildID string `json:"build_id"`
-	}
+	var info firmwareIdentity
 	if json.Unmarshal(body, &info) != nil {
 		return fmt.Errorf("board did not return valid firmware identity")
 	}
@@ -4283,6 +4288,17 @@ func waitForECU(timeout time.Duration) error {
 }
 
 func waitForECUWithProgress(timeout time.Duration, report func(string)) error {
+	return waitForECUIdentityWithProgress(timeout, report, nil)
+}
+
+func waitForUpdatedECUWithProgress(timeout time.Duration, version, target, buildID string, report func(string)) error {
+	// A same-image update already has the expected version/build before reboot.
+	// Maintenance readiness stays false until the completed upload restarts.
+	expected := firmwareIdentity{Project: "OpenTurbine", Version: version, Target: target, BuildID: buildID, OTAAllowed: true}
+	return waitForECUIdentityWithProgress(timeout, report, &expected)
+}
+
+func waitForECUIdentityWithProgress(timeout time.Duration, report func(string), expected *firmwareIdentity) error {
 	deadline := time.Now().Add(timeout)
 	parent, stop := context.WithDeadline(context.Background(), deadline)
 	defer stop()
@@ -4295,16 +4311,22 @@ func waitForECUWithProgress(timeout time.Duration, report func(string)) error {
 		req, _ := http.NewRequestWithContext(ctx, "GET", ecuBaseURL+"/api/device_info", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil {
-			var identity struct {
-				Project string `json:"project"`
-			}
+			var identity firmwareIdentity
 			err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&identity)
 			resp.Body.Close()
 			cancel()
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 && err == nil && identity.Project == "OpenTurbine" {
-				return nil
+				if expected == nil || identity == *expected {
+					return nil
+				}
+				if !identity.OTAAllowed {
+					last = errors.New("board is still completing the update or is not ready for maintenance")
+				} else {
+					last = fmt.Errorf("waiting for version %s, target %s, build %s; board currently reports %s, %s, %s", expected.Version, expected.Target, expected.BuildID, identity.Version, identity.Target, identity.BuildID)
+				}
+			} else {
+				last = fmt.Errorf("not a ready OpenTurbine identity (HTTP %d)", resp.StatusCode)
 			}
-			last = fmt.Errorf("not a ready OpenTurbine identity (HTTP %d)", resp.StatusCode)
 		} else {
 			cancel()
 			last = err

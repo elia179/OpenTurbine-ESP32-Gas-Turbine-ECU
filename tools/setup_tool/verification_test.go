@@ -144,6 +144,57 @@ func TestReconnectRejectsHTTPErrorAndOtherDevice(t *testing.T) {
 	}
 }
 
+func TestAutomaticReconnectWaitsForInstalledBuild(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	calls := 0
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != "GET" || r.URL.Path != "/api/device_info" {
+			t.Fatal("reconnect must only read identity")
+		}
+		calls++
+		build := "old-build"
+		if calls > 1 {
+			build = "new-build"
+		}
+		ready := "true"
+		if calls == 2 {
+			ready = "false"
+		}
+		body := `{"project":"OpenTurbine","firmware_version":"2.6.1-dev","target":"esp32s3dev","build_id":"` + build + `","ota_allowed":` + ready + `}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})
+	if err := waitForUpdatedECUWithProgress(8*time.Second, "2.6.1-dev", "esp32s3dev", "new-build", nil); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("old firmware was accepted or readiness was not retried: %d reads", calls)
+	}
+}
+
+func TestAutomaticReconnectRejectsWrongFirmwareIdentity(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	for _, identity := range []firmwareIdentity{
+		{Project: "Other", Version: "2.6.1-dev", Target: "esp32dev", BuildID: "new", OTAAllowed: true},
+		{Project: "OpenTurbine", Version: "2.6.0", Target: "esp32dev", BuildID: "new", OTAAllowed: true},
+		{Project: "OpenTurbine", Version: "2.6.1-dev", Target: "esp32s3dev", BuildID: "new", OTAAllowed: true},
+		{Project: "OpenTurbine", Version: "2.6.1-dev", Target: "esp32dev", BuildID: "old", OTAAllowed: true},
+		{Project: "OpenTurbine", Version: "2.6.1-dev", Target: "esp32dev", BuildID: "new", OTAAllowed: false},
+	} {
+		data, _ := json.Marshal(identity)
+		http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Method != "GET" {
+				t.Fatal("reconnect must never upload")
+			}
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
+		})
+		if waitForUpdatedECUWithProgress(5*time.Millisecond, "2.6.1-dev", "esp32dev", "new", nil) == nil {
+			t.Fatalf("accepted wrong identity: %+v", identity)
+		}
+	}
+}
+
 func TestVerificationHonorsCancelledDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
