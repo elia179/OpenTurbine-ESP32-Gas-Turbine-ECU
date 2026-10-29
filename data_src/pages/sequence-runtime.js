@@ -129,7 +129,7 @@ function _applySeqValidation(d) {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const tripSensor = {'P1 Hard Trip':'P1', 'P2 Hard Trip':'P2', 'Torque Hard Trip':'torque'}[iss.block];
     const guidance = tripSensor && /without.*sensor/i.test(iss.msg || '')
-      ? ` Assign the intended ${tripSensor} sensor in Hardware, or set this shutdown limit to 0 if that measurement is not used.` : '';
+      ? ` Assign the intended ${tripSensor} sensor in Hardware, or switch off Fault shutdown in this protection card. Keep the limit if you still want its Dashboard reference.` : '';
     const msg = String((iss.msg || '') + guidance).replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     html += `<a class="${cls}" data-ot-warning-link href="${sequenceIssueDestination(iss)}">` +
