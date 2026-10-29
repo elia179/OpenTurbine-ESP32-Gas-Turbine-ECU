@@ -343,3 +343,17 @@ A full native retry was blocked by Windows Application Control at telemetry
 catalogue; this revision does not yet have a completed full release gate.
 The previous final review package is superseded and must be rebuilt before
 publication. No push or public deployment is authorized/performed.
+
+
+PCB workflow parity follow-up: indicator settings now stay in the normal
+communications/indicators section, with named Connected to selectors. Their
+registry-backed routing is internal, not a second set of visible output cards.
+Disabling an indicator releases its connection for ordinary output use; an
+occupied or unavailable default never silently moves to another connector.
+An explicit alternative can be chosen in the same normal indicator section.
+Off/on restores the original assignment and position. Direct spare-GPIO wiring
+is under Advanced; the primary path offers named compatible connectors once.
+Source/compressed tests pass in Chromium, Firefox and WebKit; custom PCB and
+both-target isolated hardware-edit tests pass. Filesystem builds pass on both.
+These interface changes do not complete the outstanding full native/release
+rerun noted above. No push or deployment was performed.

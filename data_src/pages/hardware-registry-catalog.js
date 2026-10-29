@@ -293,8 +293,6 @@ const REGISTRY_OUTPUT_PRESETS=[
   {group:'Engine actuators',role:'prop_pitch',label:'Prop pitch',id:'prop_pitch',name:'Prop Pitch',driver:6},
   {group:'Engine actuators',purpose:'ab_valve',role:'valve',label:'Afterburner fuel shutoff valve',id:'ab_solenoid',name:'AB Fuel Valve',driver:4},
   {group:'Engine actuators',role:'ab_pump',label:'Afterburner fuel pump',id:'ab_pump',name:'AB Fuel Pump',driver:5},
-  {group:'Warnings and indicators',purpose:'status_led',role:'indicator',label:'Status LED',id:'status_led',name:'Status LED',driver:4},
-  {group:'Warnings and indicators',purpose:'fault_led',role:'indicator',label:'Fault LED',id:'fault_led',name:'Fault LED',driver:4},
   {group:'Warnings and indicators',purpose:'warning_indicator',role:'indicator',label:'Warning / indicator light',id:'warning_indicator',name:'Warning Light',driver:4},
   {group:'Generic outputs',role:'generic',label:'Relay output',id:'generic_relay_output',name:'Relay Output',driver:4},
   {group:'Generic outputs',role:'generic',label:'PWM output',id:'generic_pwm_output',name:'PWM Output',driver:5},

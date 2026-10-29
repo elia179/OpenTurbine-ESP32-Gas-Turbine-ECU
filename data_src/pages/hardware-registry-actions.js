@@ -721,8 +721,8 @@ function selectRegistryAddPreset(index) {
     box.innerHTML = `<div class="hw-desc" style="margin-bottom:.65rem">Choose a labelled PCB connection when available. Advanced builders may instead use a genuinely spare ESP32 GPIO; reserved PCB pins remain blocked.</div>
       <div class="registry-add-group"><div class="registry-add-group-title">Compatible connections</div><div class="registry-add-group-grid">
       ${choices.map(choice=>`<button type="button" class="registry-add-option" ${choice.mode.available===false?'disabled aria-disabled="true"':''} onclick="selectRegistryProfilePort(${index},'${choice.port.id}','${choice.mode.id}')">${escapeHtmlText(pcbChoiceLabel(choice))}<small>${escapeHtmlText(choice.mode.available===false?(choice.mode.status||'Fitted device is not responding'):(choice.port.description || choice.mode.adapter.replaceAll('_',' ')))}</small></button>`).join('')}
-      <button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">Spare ESP32 GPIO<small>Direct wiring; choose a valid unreserved pin on the device card.</small></button>
-      </div></div>`;
+      </div></div><details><summary>Advanced: direct wiring to a spare GPIO</summary><div class="registry-add-group-grid"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">Spare ESP32 GPIO<small>Only pins left electrically free by this PCB are available.</small></button>
+      </div></details>`;
     const panel = document.querySelector('#registry-add-modal .registry-add-panel');
     if (panel) panel.scrollTop = 0;
     return;

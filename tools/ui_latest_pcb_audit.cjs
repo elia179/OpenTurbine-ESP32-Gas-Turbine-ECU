@@ -48,13 +48,18 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
     await p.getByRole('button',{name:connection}).click();
     return p.locator('#registry-'+direction+'s .registry-card').last();
    };
-   // Default indicators are ordinary editable outputs, not reserved fixed functions.
-   const statusCard=p.locator('[data-registry-id="status_led"]');
-   await statusCard.getByRole('button',{name:'Edit',exact:true}).click();
-   await statusCard.locator('select[onchange*="purpose"]').selectOption('warning_indicator');
-   assert.equal(await p.evaluate(()=>registryRoot().outputs.find(c=>c.id==='status_led').purpose),'warning_indicator');
-   await statusCard.locator('select[onchange*="purpose"]').selectOption('status_led');
-   await statusCard.getByRole('button',{name:'Done',exact:true}).click();
+   // Indicators remain in their normal section; disabling releases the connector.
+   assert.equal(await p.locator('#registry-outputs [data-registry-id="status_led"]').count(),0);
+   await p.locator('#btn-edit-comms').click();
+   const statusCard=p.locator('[data-pcb-indicator="status_led"]');
+   assert.equal(await statusCard.count(),1);
+   const indicatorsBefore=await p.evaluate(()=>JSON.stringify(registryRoot().outputs));
+   await statusCard.getByRole('checkbox').uncheck();
+   assert.equal(await p.evaluate(()=>pcbCompatibleChoices('output','warning_indicator','indicator').some(c=>c.port.id==='status_led')),true);
+   await statusCard.getByRole('checkbox').check();
+   assert.equal(await p.evaluate(()=>JSON.stringify(registryRoot().outputs)),indicatorsBefore,'off/on preserves the original indicator configuration and order');
+   assert.equal(await p.evaluate(()=>pcbCompatibleChoices('output','warning_indicator','indicator').some(c=>c.port.id==='status_led')),false);
+   await p.locator('#btn-edit-comms').click();
    await p.getByRole('button',{name:'+ Add output',exact:true}).click();
    await p.getByRole('button',{name:/^Oil pump /}).click();
    const connectorLabels=await p.locator('#registry-add-catalog .registry-add-option').allTextContents();
@@ -114,7 +119,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    });
    await p.locator('#registry-outputs .registry-card').last().getByRole('button',{name:'Done',exact:true}).click();
    await p.locator('#btn-edit-buses').click();assert.equal(await p.locator('#en-i2c').isDisabled(),true);assert.equal(await p.locator('#en-spi').isDisabled(),true);await shot('06-fixed-buses','#hardware-buses-panel');
-   await p.locator('#btn-edit-comms').click();assert.equal(await p.locator('#hardware-comms-panel').getByText('Status LED',{exact:true}).count(),0);assert.equal(await p.getByText('NeoPixel mode',{exact:true}).count(),0);await shot('07-indicators-and-serial','#hardware-comms-panel');
+   await p.locator('#btn-edit-comms').click();assert.equal(await p.locator('#hardware-comms-panel [data-pcb-indicator="status_led"] strong').count(),1);assert.equal(await p.getByText('NeoPixel mode',{exact:true}).count(),0);await shot('07-indicators-and-serial','#hardware-comms-panel');
    assert.deepEqual(errors,[]);console.log(engine.name(),packed?'packaged':'source','latest PCB catalogue, labelled inputs/outputs, fixed buses, indicators and serial passed');
   }finally{await browser.close();}
  }

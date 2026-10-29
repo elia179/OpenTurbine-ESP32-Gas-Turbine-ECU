@@ -1051,6 +1051,39 @@ function renderSafetySummary() {
     ? enabledRows.map(r => workflowCard(r[1], r[2], 'Enabled')).join('') + availability
     : `<div class="registry-empty"><div>No safety interlocks enabled.${available ? ` ${available} available to enable.` : ''}</div></div>`);
 }
+function pcbConfigurableIndicators() {
+  return pcbProfileActive() && (pcbProfile.ports||[]).some(p=>p.id==='status_led');
+}
+const _pcbIndicatorRemoved = new Map();
+function pcbIndicatorCard(purpose,editing) {
+  const rows=registryRoot().outputs, c=rows.find(c=>c.purpose===purpose), index=rows.indexOf(c);
+  const title=purpose==='status_led'?'Status LED':'Fault LED';
+  const choices=pcbConnectorChoices(pcbCompatibleChoices('output',purpose,'indicator',c?.physical_port||''),c,4);
+  const connected=c?(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.label:'';
+  const status=c?registryStatus(c):{kind:'ok',text:'Disabled'};
+  const connectionChange=c?`updateRegistryProfilePort('output',${index},this.value)`:`if(this.value)setPcbIndicator('${purpose}',true,this.value)`;
+  const options=(!c?'<option value="">Choose connection</option>':'')+choices.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.port.id===c?.physical_port?' selected':''}${choice.mode.available===false&&choice.port.id!==c?.physical_port?' disabled':''}>${escapeHtmlText(choice.port.label)}</option>`).join('');
+  return `<div class="hw-item-card" data-pcb-indicator="${purpose}">
+    <div class="registry-card-summary"><div><strong>${title}</strong><div class="hw-desc">${c?escapeHtmlText(connected||'Connection missing'):'Disabled'} · ${purpose==='status_led'?'Engine status blink pattern':'Dedicated fault blinking'}</div></div><span class="registry-status registry-status-${status.kind}">${escapeHtmlText(c?status.text:'Disabled')}</span></div>
+    ${editing?`<div class="registry-card-editor" style="display:block"><div class="hw-grid">
+      <div class="hw-field"><label class="hw-toggle"><input type="checkbox" ${c?'checked':''} onchange="setPcbIndicator('${purpose}',this.checked)"><span></span> Enable ${title}</label></div>
+      <div class="hw-field"><span class="hw-label">Connected to</span><select onchange="${connectionChange}">${options}</select><span class="hw-desc">Disable this indicator to use its connection for another output function.${!c?' Choosing a connection enables the indicator.':''}</span></div>
+    </div></div>`:''}</div>`;
+}
+function setPcbIndicator(purpose,enabled,connection = '') {
+  const rows=registryRoot().outputs,index=rows.findIndex(c=>c.purpose===purpose);
+  if(!enabled&&index>=0){_pcbIndicatorRemoved.set(purpose,{channel:structuredClone(rows[index]),index});cleanupRegistryReferences('output',rows[index].id);shiftRegistryNumericHandlesAfterRemoval('output',index,rows.length);rows.splice(index,1);}
+  if(enabled&&index<0){
+    const choices=pcbConnectorChoices(pcbCompatibleChoices('output',purpose,'indicator'),null,4);
+    const removed=_pcbIndicatorRemoved.get(purpose),previous=removed?.channel;
+    const choice=choices.find(c=>(connection?c.port.id+'|'+c.mode.id===connection:c.port.id===(previous?.physical_port||purpose))&&c.mode.available!==false);
+    if(!choice){alert('The default indicator connection is unavailable or assigned elsewhere. Free that connection in Outputs, or choose another connection below.');renderHardwareWorkflowSummaries();return;}
+    if(rows.length>=registryCapacity('output')){alert('Output capacity is full. Remove an unused output first.');return;}
+    const c=previous&&!rows.some(row=>row.id===previous.id)?structuredClone(previous):{id:registryUniqueId(purpose),name:purpose==='status_led'?'Status LED':'Fault LED',purpose,role:'indicator',installed:true,driver:4,pin:-1,min:0,max:1,safe_demand:0,boot_safe_demand:0};
+    rows.splice(previous?Math.min(removed.index,rows.length):rows.length,0,c);if(!previous||connection)updateRegistryProfilePort('output',rows.indexOf(c),choice.port.id+'|'+choice.mode.id);
+  }
+  dirty();renderRegistryInventory();updateSaveButton();
+}
 function renderCommsIndicatorSummary() {
   const box = document.getElementById('hardware-comms-summary');
   if (!box || !cfg) return;
@@ -1086,6 +1119,7 @@ function renderCommsIndicatorSummary() {
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
   const migrationNote=mav.migration_review?`<div class="hw-field"><span class="hw-desc">Two legacy links were enabled. Choose which wiring to retain; remote commands stay off.</span><button type="button" onclick="chooseMavlinkRoute(false)">Use MAVLink wiring (TX ${mav.tx_pin})</button><button type="button" onclick="chooseMavlinkRoute(true)">Use old Cluster wiring (TX ${mav.legacy_cluster?.tx_pin??'?'})</button></div>`:'';
   const cards = [
+    pcbConfigurableIndicators()?pcbIndicatorCard('status_led',editing)+pcbIndicatorCard('fault_led',editing):'',
     profileAllows('mavlink') ? card('mavlink', 'MAVLink connection',
       mav.enabled ? `${pcbProfileActive() ? 'Fixed PCB serial connection' : `TX GPIO ${mav.tx_pin ?? 'not set'}`} / ${mav.baud || 57600} baud / ${mav.interval_ms || 200} ms` : 'MAVLink telemetry output',
       mavStatus,
@@ -1228,7 +1262,7 @@ function renderRegistryInventory() {
   const render = (direction, target) => {
     const rows = r[direction + 's'];
     let visibleRows = rows.map((c, i) => ({c, i})).filter(({c}) => {
-      if (direction !== 'input') return true;
+      if (direction !== 'input') return !(pcbConfigurableIndicators()&&['status_led','fault_led'].includes(c.purpose));
       if (String(c?.mirror_of || '')) return false;
       const purpose = registryDerivedPurpose('input', c);
       if (!['oil_flow','scavenge_flow'].includes(purpose)) return true;

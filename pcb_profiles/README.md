@@ -195,7 +195,7 @@ and pressure **ADC 1**. Each connector appears once; choose its supported signal
 type inside the card. Names, sensor calibration and supported
 operating choices remain editable. GPIO routing and fitted buses are fixed.
 Start/Stop must be assigned before commissioning. Status and Fault LEDs are
-ordinary output cards with default automatic indicator purposes. They can be
+configurable connections in the normal indicators section, with default automatic indicator purposes. They can be
 renamed, repurposed, moved or removed. These expander-backed connections offer
 on/off signals; they have no hardware PWM or servo timing.
 
