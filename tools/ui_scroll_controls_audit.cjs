@@ -28,13 +28,14 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
      await p.locator(ready).first().waitFor();
      await p.waitForFunction(()=>!!window.OTScrollControls);
      await p.mouse.move(150,200);
-     await p.evaluate(()=>{
+     await p.evaluate(route=>{
       document.querySelectorAll('details').forEach(d=>d.open=true);
-      const bar=document.querySelector('.save-bar,.seq-save-bar');
-      bar.classList.add('is-dirty');
-      const status=bar.querySelector('#save-msg,#save-status');if(status)status.textContent='Unsaved changes';
+      if(route==='hardware'){window.__scrollOriginal=cfg.profile_desc;cfg.profile_desc=String(cfg.profile_desc||'')+' scroll test';dirty();}
+      else if(route==='controllers'){const field=document.getElementById('cf-tot_limit');window.__scrollOriginal=field.value;field.value=Number(field.value)+1;field.dispatchEvent(new Event('input',{bubbles:true}));_markDirty();}
+      else if(route==='system'){window.__scrollOriginal=hwCfg.profile_desc;setSystemHardware('profile_desc',String(hwCfg.profile_desc||'')+' scroll test');}
+      else {window.__scrollOriginal=hwCfg.startup_delay_ms;hwCfg.startup_delay_ms=[...(hwCfg.startup_delay_ms||[]),151];markSequenceDirty();}
       document.activeElement.blur();scrollTo(0,0);
-     });
+     },route);
      // A normal filter click leaves the button focused. It must not pin both bars.
      if(route==='controllers')await p.getByRole('button',{name:'Explore all features',exact:true}).click();
      await p.waitForTimeout(850);await p.mouse.wheel(0,250);
@@ -62,12 +63,16 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
       assert.equal(await search.evaluate(el=>el===document.activeElement),true);
       await p.mouse.wheel(0,150);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'typing keeps search visible');
      }
-     await p.evaluate(()=>{
+     await p.evaluate(route=>{
+      if(route==='hardware'){cfg.profile_desc=window.__scrollOriginal;dirty();}
+      else if(route==='controllers'){const field=document.getElementById('cf-tot_limit');field.value=window.__scrollOriginal;field.dispatchEvent(new Event('input',{bubbles:true}));_markDirty();}
+      else if(route==='system')setSystemHardware('profile_desc',window.__scrollOriginal);
+      else {hwCfg.startup_delay_ms=window.__scrollOriginal;markSequenceDirty();}
       document.activeElement.blur();
       const bar=document.querySelector('.ot-managed-save');
       bar.classList.remove('is-dirty');
       const status=bar.querySelector('#save-msg,#save-status');if(status)status.textContent='Error: save failed; retry when connected';
-     });
+     },route);
      await p.waitForFunction(()=>document.body.classList.contains('ot-save-attention'));
      await p.waitForTimeout(280);
      await p.mouse.wheel(0,250);

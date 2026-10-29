@@ -1,7 +1,8 @@
 # Build a MAVLink Cluster receiver
 
-This development example replaces the OTC Cluster client. Hardware qualification
-of the replacement is still pending; do not treat host tests as a live-engine test.
+This development example replaces the OTC Cluster client. Wired no-load command,
+throttle and fault-acknowledgement tests have passed on Classic ESP32 and ESP32-S3.
+Assembled-PCB and live-engine qualification remain separate requirements.
 
 1. Copy `libraries/OpenTurbineMavlink` into your Arduino sketchbook's `libraries`
    directory, or add that directory as a local PlatformIO library dependency.

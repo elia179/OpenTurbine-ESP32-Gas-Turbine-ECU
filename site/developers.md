@@ -1,8 +1,8 @@
 ---
 layout: document
 title: OpenTurbine developer documentation and source build
-description: Build OpenTurbine from source, validate firmware and web changes, package the Windows Setup Tool, or integrate the OpenTurbine Cluster protocol.
-lede: Build source, validate changes, package releases, or integrate the OpenTurbine Cluster protocol.
+description: Build OpenTurbine from source, validate firmware and web changes, package the Windows Setup Tool, or integrate its MAVLink engine connection.
+lede: Build source, validate changes, package releases, or integrate the MAVLink engine connection.
 ---
 
 For installation without a source build, use [the Windows Setup Tool]({{ '/get-started/' | relative_url }}).

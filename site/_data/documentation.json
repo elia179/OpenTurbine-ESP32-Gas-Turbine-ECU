@@ -586,7 +586,7 @@
       "title": "OpenTurbine developer documentation and source build",
       "context": "Documentation",
       "url": "/developers/",
-      "text": "Build OpenTurbine from source, validate firmware and web changes, package the Windows Setup Tool, or integrate the OpenTurbine Cluster protocol."
+      "text": "Build OpenTurbine from source, validate firmware and web changes, package the Windows Setup Tool, or integrate its MAVLink engine connection."
     },
     {
       "title": "Useful entry points",
