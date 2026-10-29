@@ -2375,7 +2375,7 @@ func (j *Job) runExistingUpdate() {
 
 	target, err := chooseTargetForOTA(pkg)
 	if err != nil {
-		j.fail(errors.New("The tool could not identify this board safely, so no firmware was uploaded. Do not guess the target. If the ECU still opens in a browser, download its complete engine file from Tools first. A clean USB reinstall can recover a supported board, but it erases the board and the engine file must then be restored."))
+		j.fail(errors.New("The tool could not identify this board safely, so no firmware was uploaded. Do not guess the target. Your complete engine-file backup was saved before this check. Keep that backup before attempting recovery. A clean USB reinstall can recover a supported board, but it erases the board and the engine file must then be restored."))
 		return
 	}
 	if target != "" {
