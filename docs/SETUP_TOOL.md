@@ -3,7 +3,7 @@
 Release packages must contain firmware and web assets built from the same commit
 and must report the packaged version/target/build during post-install verification.
 
-The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.8. Wi-Fi updates ask for the initial connection once, then check both restarts automatically.
+The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.8. Wi-Fi updates ask for the initial connection once, then check both restarts automatically. If a long Wi-Fi interruption expires the dashboard transfer, the tool rechecks that the engine is safe and restarts the complete dashboard set once. It does not resend firmware; a second failure or a safety rejection stops the update.
 Verification reports identity and per-file progress, retries transient reads and
 offers verification-only retry after uploads have finished. USB setup reports the
 current port and elapsed activity, rechecks the chip before erase, and distinguishes

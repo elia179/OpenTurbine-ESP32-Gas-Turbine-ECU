@@ -2425,7 +2425,7 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 	j.set(8, total, 82, "Updating dashboard", "Do not unplug power. The tool is updating the OpenTurbine dashboard files.", "Keep this computer connected to the board Wi‑Fi until this step finishes.", false)
-	if err := postWebAssetChunks(ecuBaseURL+"/api/web_asset_chunk", assets, 10*time.Minute, func(done, totalBytes int64) {
+	if err := postWebAssetChunksWithRecovery(ecuBaseURL+"/api/web_asset_chunk", assets, 10*time.Minute, checkSafeStatus, j.addLog, func(done, totalBytes int64) {
 		if totalBytes > 0 {
 			p := 82 + int((done*10)/totalBytes)
 			j.ui().update(uiUpdate{screen: screenRunning, title: "Updating dashboard", subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Sending dashboard files to the OpenTurbine board... %d%%", int((done*100)/totalBytes)), detail: "Keep this computer connected to the board Wi-Fi until this finishes.", step: 8, totalSteps: total, progress: p, mode: j.mode})
@@ -4601,6 +4601,45 @@ func postWebAssetChunks(endpoint string, paths []string, timeout time.Duration, 
 	return nil
 }
 
+// A long Wi-Fi gap can expire the ECU's staged dashboard transfer. Only
+// its explicit request to start a complete set permits one bounded restart;
+// safety rejections and other HTTP failures must remain authoritative.
+type chunkHTTPError struct {
+	code         int
+	status, body string
+}
+
+func (e *chunkHTTPError) Error() string {
+	return fmt.Sprintf("board returned %s: %s", e.status, e.body)
+}
+func postWebAssetChunksWithRecovery(endpoint string, paths []string, timeout time.Duration, safe func() error, report func(string), progress func(done, total int64)) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		err := postWebAssetChunks(endpoint, paths, timeout, progress)
+		if err == nil {
+			return nil
+		}
+		var rejection *chunkHTTPError
+		var body struct {
+			Error string `json:"error"`
+		}
+		expired := errors.As(err, &rejection) && rejection.code == http.StatusBadRequest &&
+			json.Unmarshal([]byte(rejection.body), &body) == nil && body.Error == "Web asset chunk rejected; upload the complete set again"
+		if attempt != 0 || !expired {
+			return err
+		}
+		if safe == nil {
+			return err
+		}
+		if safeErr := safe(); safeErr != nil {
+			return fmt.Errorf("dashboard retry stopped by safety check: %w", safeErr)
+		}
+		if report != nil {
+			report("Dashboard transfer was interrupted. Sending the complete dashboard set again; firmware will not be uploaded again.")
+		}
+	}
+	return errors.New("dashboard transfer did not complete")
+}
+
 // The ECU's bounded upload endpoints are offset-idempotent. Retry only
 // transport failures: a 4xx response is an authoritative safety/configuration
 // rejection, while a missing response may mean the board already committed the
@@ -4623,7 +4662,7 @@ func postRawChunkWithRetry(client *http.Client, endpoint string, payload []byte)
 			if readErr != nil {
 				lastErr = readErr
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return fmt.Errorf("board returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
+				return &chunkHTTPError{code: resp.StatusCode, status: resp.Status, body: strings.TrimSpace(string(respBody))}
 			} else {
 				return nil
 			}

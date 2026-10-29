@@ -254,3 +254,12 @@ including valid zero-byte files, with clear open-failure errors and raw-log
 reader cleanup. The browser download audit accepts zero-byte NDJSON only when
 the ECU's event list is also empty; the simulated download audit covers this
 case independently of nonempty exports.
+
+
+The Classic hardware test now passes empty NDJSON through the browser. A
+controlled 32-second pause reproduced the ECU's dashboard-batch timeout. The
+flasher now recognizes only that explicit HTTP 400 complete-set rejection,
+rechecks safe state and restarts the dashboard batch once, without resending
+firmware. The real Classic recovered and verified all twelve exact assets.
+Six unit cases cover bounded retries, a newly unsafe engine, unrelated 400,
+423 and 500 failures. No additional remote pushes were made.

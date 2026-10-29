@@ -24,7 +24,7 @@ function registryMatches(actual, expected, suppliedFile) {
   if (!suppliedFile) return JSON.stringify(actual) === JSON.stringify(expected);
   // Firmware exports omit these documented defaults and expand other fields.
   // Compare every supplied, stored field rather than JSON property order.
-  const defaults = {installed:true, pulses_per_unit:1, safe_demand:0};
+  const defaults = {installed:true, pulses_per_unit:1, safe_demand:0, boot_safe_demand:0};
   for (const group of ['inputs','outputs','bindings']) {
     if (actual[group].length !== expected[group].length) return false;
     for (const entry of expected[group]) {
