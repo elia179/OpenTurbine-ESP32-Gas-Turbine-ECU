@@ -18,8 +18,10 @@ bool purposeAcceptsAdapter(const ChannelRegistry::Channel& channel, const char* 
     using Driver = ChannelRegistry::Driver;
     const bool lowTemperature = !strcmp(channel.purpose, "oil_temperature") ||
                                 !strcmp(channel.purpose, "coolant_temp") ||
-                                !strcmp(channel.purpose, "intake_temperature");
-    const bool thermocoupleTemperature = !strcmp(channel.purpose, "oil_temperature") ||
+                                !strcmp(channel.purpose, "intake_temperature") ||
+                                !strcmp(channel.purpose, "general_temperature") ||
+                                (!strcmp(channel.purpose, "generic") && !strcmp(channel.role, "temperature"));
+    const bool thermocoupleTemperature = lowTemperature ||
                                          !strcmp(channel.purpose, "tot") ||
                                          !strcmp(channel.purpose, "tit");
     if (!strcmp(adapter, "spi_thermocouple") && !thermocoupleTemperature) return false;
@@ -90,6 +92,8 @@ bool applyMode(ChannelRegistry::Channel& channel,
     else if (!strcmp(adapter, "i2c_digital_output") && !input) channel.driver = Driver::I2cRelay;
     else return fail(reason, reasonSize, "PCB port mode is incompatible with channel direction or firmware");
 
+    if (input && !strcmp(channel.role,"temperature") && strcmp(adapter,"spi_thermocouple") && strcmp(adapter,"onewire_temperature"))
+        channel.temperatureInterface=0;
     channel.pin = mode.gpio;
     // GPIO routing and the electrical adapter belong to the immutable PCB
     // profile. Polarity and internal bias belong to the engine assignment: a

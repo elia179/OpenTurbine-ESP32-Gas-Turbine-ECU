@@ -107,7 +107,16 @@ function updateRegistryChannel(direction, index, key, value) {
   const r = registryRoot();
   const c = r[direction + 's'][index];
   if (!c) return;
+  if(registryFixedProfileFunction(direction,c)&&key!=='name')return;
   if (key === 'pin') value = Number.isFinite(value) ? value : -1;
+  if(direction==='input'&&['digital_threshold_raw','digital_hysteresis_raw'].includes(key)){
+    if(!Number.isFinite(Number(value)))return;
+    if(key==='digital_threshold_raw')c.digital_threshold_raw=Math.max(0,Math.min(4095,Math.round(Number(value))));
+    const threshold=Number(c.digital_threshold_raw??2048),maxHysteresis=Math.min(2047,2*Math.min(threshold,4095-threshold));
+    c.digital_hysteresis_raw=Math.max(0,Math.min(maxHysteresis,Math.round(Number(key==='digital_hysteresis_raw'?value:(c.digital_hysteresis_raw??64)))));
+    dirty();updateSaveButton();renderRegistryInventory();return;
+  }
+
   if (direction === 'input' && (key === 'loadcell_gain' || key === 'loadcell_rate_sps')) {
     value = Number(value);
     (r.inputs || []).forEach(row => {
@@ -185,6 +194,12 @@ function updateRegistryChannel(direction, index, key, value) {
       alert(`${value === 'n1_speed' ? 'N1' : 'N2'} speed is already supplied by the torque reference pickup.`);
       renderRegistryInventory(); return;
     }
+    const oldRole=c.role;
+    const physicalPort=pcbProfileActive()?(pcbProfile.ports||[]).find(port=>port.id===c.physical_port):null;
+    const currentMode=physicalPort?.modes?.find(mode=>mode.id===c.physical_mode);
+    const nextMode=physicalPort?(pcbModeCompatible(direction,def.value,def.role,currentMode)?currentMode:physicalPort.modes.find(mode=>pcbModeCompatible(direction,def.value,def.role,mode))):null;
+    if(physicalPort&&!nextMode){alert('This connector cannot provide that function. Choose another connector first.');return;}
+    if(nextMode&&nextMode.id!==c.physical_mode&&nextMode.available===false){alert(nextMode.status||'That fitted device is not responding. Choose another connection.');return;}
     const oldPurpose = registryDerivedPurpose(direction,c);
     const oldCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
     c.purpose = def.value;
@@ -211,9 +226,8 @@ function updateRegistryChannel(direction, index, key, value) {
     if (direction === 'input') {
       if (c.role !== 'temperature') c.temp_interface = 0;
       // Do not retain an interface that the new purpose cannot use. Without
-      // this, changing Coolant/Intake to TOT could leave a hidden DS18B20/NTC
-      // selection, and the inverse change could retain hidden SPI pins.
-      if (['coolant_temp','intake_temperature'].includes(def.value) && Number(c.temp_interface) >= 1 && Number(c.temp_interface) <= 3) c.temp_interface = 0;
+      // this, changing a low-temperature function to TOT could retain an
+      // unsuitable DS18B20/NTC selection.
       if (['tot','tit'].includes(def.value) && [4,5].includes(Number(c.temp_interface))) c.temp_interface = 0;
       if (registryIsSwitchRole(c.role) || (def.value === 'idle' && Number(c.driver) === 0)) {
         c.active_high = false; c.pullup = true; c.pulldown = false;
@@ -247,6 +261,8 @@ function updateRegistryChannel(direction, index, key, value) {
         else if (registryRoot().bindings.length < 24) registryRoot().bindings.push({key:bindingKey,channel:c.id});
       }
     }
+    if(direction==='input'&&oldRole!==c.role&&[1,9].includes(Number(c.driver)))Object.assign(c,registryDefaultAnalogCalibration(c.role));
+    if(nextMode&&nextMode.id!==c.physical_mode)updateRegistryProfilePort(direction,index,physicalPort.id+'|'+nextMode.id);
     if ((!c.name || !String(c.name).trim()) && oldPurpose !== def.value) c.name = def.label.slice(0,23);
     dirty(); updateSaveButton(); renderRegistryInventory(); return;
   }
@@ -719,6 +735,10 @@ function selectRegistryProfilePort(presetIndex, portId, modeId) {
   const mode = port?.modes?.find(row=>row.id===modeId);
   if (!port || !mode) return registryAddError('That PCB connection is no longer available. Close this window and try again.');
   if (mode.available === false) return registryAddError(mode.status || 'That fitted PCB device is not responding.');
+  const presets=_registryAddDirection==='input'?REGISTRY_INPUT_PRESETS:REGISTRY_OUTPUT_PRESETS;
+  const preset=presets[presetIndex];
+  if(!preset||!pcbCompatibleChoices(_registryAddDirection,preset.purpose||registryDerivedPurpose(_registryAddDirection,preset),preset.role).some(choice=>choice.port.id===portId&&choice.mode.id===modeId))
+    return registryAddError('That PCB connection is already assigned or does not support this function. Choose another connection.');
   createRegistryChannelFromPreset(presetIndex, {port,mode});
 }
 function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {

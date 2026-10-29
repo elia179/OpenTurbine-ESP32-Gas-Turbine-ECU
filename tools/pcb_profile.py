@@ -76,22 +76,20 @@ def _default_compatible(adapter: str, purpose: str, role: str) -> bool:
         "flow": ({"fuel_flow", "general_flow", "oil_flow", "scavenge_flow"},
                  ANALOG_INPUTS | {"pcnt_input"}),
         "current": ({"general_current"}, ANALOG_INPUTS),
-        "pressure": ({"oil_pressure", "fuel_pressure", "p1_pressure", "p2_pressure", "coolant_pressure"},
+        "pressure": ({"oil_pressure", "fuel_pressure", "p1_pressure", "p2_pressure", "coolant_pressure", "general_pressure"},
                      ANALOG_INPUTS),
         "flame": ({"flame", "ab_flame"}, ANALOG_INPUTS | DIGITAL_INPUTS),
-        "torque": ({"torque"}, ANALOG_INPUTS | {"i2c_load_cell"}),
-        "thrust": ({"thrust"}, ANALOG_INPUTS | {"i2c_load_cell"}),
-        "voltage": ({"battery_voltage"}, ANALOG_INPUTS),
+        "torque": ({"torque", "general_torque"}, ANALOG_INPUTS | {"i2c_load_cell"}),
+        "thrust": ({"thrust", "general_thrust"}, ANALOG_INPUTS | {"i2c_load_cell"}),
+        "voltage": ({"battery_voltage", "general_voltage"}, ANALOG_INPUTS),
     }
     for expected_role, (purposes, adapters) in input_groups.items():
         if purpose in purposes:
             return role == expected_role and adapter in adapters
     if purpose in {"tot", "tit"}:
         return role == "temperature" and adapter in ANALOG_INPUTS | {"spi_thermocouple"}
-    if purpose == "oil_temperature":
+    if purpose in {"oil_temperature", "coolant_temp", "intake_temperature", "general_temperature"}:
         return role == "temperature" and adapter in ANALOG_INPUTS | {"spi_thermocouple", "onewire_temperature"}
-    if purpose in {"coolant_temp", "intake_temperature"}:
-        return role == "temperature" and adapter in ANALOG_INPUTS | {"onewire_temperature"}
     if purpose == "throttle":
         return role == "operator" and adapter in ANALOG_INPUTS | {"pcnt_input", "rc_pwm_input", "pwm_duty_input"}
     if purpose == "idle":
@@ -101,7 +99,7 @@ def _default_compatible(adapter: str, purpose: str, role: str) -> bool:
 
     switch_roles = {
         "start_switch": "digital_switch", "stop_switch": "digital_switch",
-        "digital_switch": "digital_switch", "inhibit_start": "inhibit_start",
+        "digital_switch": "digital_switch", "chip_detector": "digital_switch", "diff_press_switch": "digital_switch", "inhibit_start": "inhibit_start",
         "estop": "estop", "fault": "fault", "low_oil_switch": "low_oil_switch",
         "oil_zero_switch": "oil_zero_switch", "sequence_gate": "sequence_gate",
         "ab_arm": "ab_arm", "ab_fire": "ab_fire", "limp_mode": "limp_mode",

@@ -189,11 +189,11 @@ function registryDerivedPurpose(direction, c) {
 }
 function registryPurposeOptions(direction, selected, channel = null) {
   let defs=registryPurposeDefinitions(direction);
-  let assignedMode = null;
+  let assignedMode = null, assignedPort = null;
   if (pcbProfileActive() && channel?.physical_port && channel?.physical_mode) {
     const port = (pcbProfile.ports || []).find(row=>row.id===channel.physical_port);
-    assignedMode = port?.modes?.find(row=>row.id===channel.physical_mode) || null;
-    if (assignedMode) defs = defs.filter(p=>p.value===selected || pcbModeCompatible(direction,p.value,p.role,assignedMode));
+    assignedPort=port;assignedMode = port?.modes?.find(row=>row.id===channel.physical_mode) || null;
+    if (assignedPort) defs = defs.filter(p=>p.value===selected || assignedPort.modes.some(mode=>pcbModeCompatible(direction,p.value,p.role,mode)));
   }
   const rows = registryRoot()[direction+'s'] || [];
   const groups=[];
@@ -203,7 +203,7 @@ function registryPurposeOptions(direction, selected, channel = null) {
       !!registryPhaseShaftOwner(p.value === 'n1_speed' ? 1 : 2, channel);
     const duplicate = (p.value!==selected && registryPurposeIsSingleton(direction,p.value) &&
       rows.some(row=>row!==channel && registryDerivedPurpose(direction,row)===p.value)) || phaseOwnsShaft;
-    const incompatible = assignedMode && p.value===selected && !pcbModeCompatible(direction,p.value,p.role,assignedMode);
+    const incompatible = assignedPort && p.value===selected && !assignedPort.modes.some(mode=>pcbModeCompatible(direction,p.value,p.role,mode));
     const suffix = duplicate ? ' — already assigned' : (incompatible ? ' — incompatible with connector' : '');
     return `<option value="${p.value}"${p.value===selected?' selected':''}${duplicate?' disabled':''}>${escapeHtmlText(p.label+suffix)}</option>`;
   }).join('')}</optgroup>`).join('');
@@ -758,7 +758,7 @@ function registryTemperatureInterfaceEditor(c, index) {
     return `<div class="hw-field"><span class="hw-label">${key.replace('spi_','').toUpperCase()} GPIO</span><span class="hw-desc">Dedicated chip-select output for this sensor on the shared SPI bus.</span><select class="${pinClass}" onchange="updateRegistryChannel('input',${index},'${key}',+this.value)">${buildPinOptions(c[key] ?? -1, busMode)}</select></div>`;
   };
   let choices = `${option(0,'Analog temperature transmitter')}`;
-  if (turbineGas || oil || general) choices += `${option(1,'MAX6675 (K-type)')}${option(2,'MAX31855 (K-type)')}${option(3,'MAX31856 (configurable TC type)')}`;
+  if (turbineGas || lowTemperature) choices += `${option(1,'MAX6675 (K-type)')}${option(2,'MAX31855 (K-type)')}${option(3,'MAX31856 (configurable TC type)')}`;
   if (lowTemperature) choices += `${option(4,'NTC thermistor (ADC divider)')}${option(5,'DS18B20 (OneWire)')}`;
   const heading = iface >= 1 && iface <= 3
     ? 'Dedicated turbine-rated thermocouple amplifier on the shared SPI bus. Every sensor needs its own CS GPIO.'
@@ -1272,9 +1272,13 @@ function registryI2cEditor(direction, c, index) {
 }
 function registryProfileInputTuningEditor(direction, c, index) {
   if (!pcbProfileActive() || direction !== 'input') return '';
+  if(c.role==='temperature'&&Number(c.temp_interface)===3)return `<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the fitted probe alloy. The MAX31856 chip and SPI wiring are fixed by the PCB.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(value=>`<option value="${value}"${String(c.tc_type||'K')===value?' selected':''}>${value}</option>`).join('')}</select></div>`;
+  if(c.role==='temperature'&&Number(c.temp_interface)===5)return `<div class="hw-field"><span class="hw-label">OneWire resolution</span><select onchange="updateRegistryChannel('input',${index},'temp_resolution',+this.value)">${[9,10,11,12].map(value=>`<option value="${value}"${Number(c.temp_resolution??10)===value?' selected':''}>${value} bit</option>`).join('')}</select></div>`;
+
   const purpose = registryDerivedPurpose(direction,c);
   const isSwitch = registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose);
-  if (!isSwitch) return '';
+  const isFlame=['flame','ab_flame'].includes(purpose);
+  if (!isSwitch&&!isFlame) return '';
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
     if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
@@ -1287,10 +1291,12 @@ function registryProfileInputTuningEditor(direction, c, index) {
   if (Number(c.driver) !== 9) return polarity;
   const referenceMv = Number(c.i2c_reference_mv ?? 5000);
   const thresholdV = Number(c.digital_threshold_raw ?? 2048) * referenceMv / 4095 / 1000;
-  const hysteresisV = Number(c.digital_hysteresis_raw ?? 64) * referenceMv / 4095 / 1000;
+  const maxHysteresisRaw=Math.min(2047,2*Math.min(Number(c.digital_threshold_raw??2048),4095-Number(c.digital_threshold_raw??2048)));
+  const hysteresisV = Math.min(maxHysteresisRaw,Number(c.digital_hysteresis_raw ?? 64)) * referenceMv / 4095 / 1000;
+  const maxHysteresisV=maxHysteresisRaw*referenceMv/4095/1000;
   return `${polarity}
     <div class="hw-field"><span class="hw-label">Switch threshold (V)</span><span class="hw-desc">Defaults to 50% of this connector's ${registryFormatValue(referenceMv/1000,1)} V measurement range.</span><input type="number" min="0" max="${referenceMv/1000}" step="0.01" value="${registryFormatValue(thresholdV,2)}" onchange="updateRegistryChannel('input',${index},'digital_threshold_raw',Math.round(Math.max(0,Math.min(${referenceMv/1000},+this.value))*1000/${referenceMv}*4095))"></div>
-    <div class="hw-field"><span class="hw-label">Switch hysteresis (V)</span><span class="hw-desc">Prevents a noisy voltage near the threshold from rapidly switching On and Off.</span><input type="number" min="0" max="${referenceMv/2000}" step="0.01" value="${registryFormatValue(hysteresisV,2)}" onchange="updateRegistryChannel('input',${index},'digital_hysteresis_raw',Math.round(Math.max(0,Math.min(${referenceMv/2000},+this.value))*1000/${referenceMv}*4095))"></div>`;
+    <div class="hw-field"><span class="hw-label">Switch hysteresis (V)</span><span class="hw-desc">Prevents chatter near the threshold; limited by the nearest ADC rail.</span><input type="number" min="0" max="${maxHysteresisV}" step="0.01" value="${registryFormatValue(hysteresisV,2)}" onchange="updateRegistryChannel('input',${index},'digital_hysteresis_raw',Math.round(Math.max(0,Math.min(${maxHysteresisV},+this.value))*1000/${referenceMv}*4095))"></div>`;
 }
 function registryDriverOptions(direction, selected) {
   const role = arguments.length > 2 ? arguments[2] : null;

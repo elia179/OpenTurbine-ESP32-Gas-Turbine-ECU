@@ -145,8 +145,9 @@ function installedBrowser() {
     await page.getByRole('button',{name:/Idle input/}).click();
     assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 1/}).count(), 0,
       'an assigned multipurpose port must be reserved as a whole');
-    assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 2/}).count(), 1);
-    await page.getByRole('button',{name:/Servo \/ pulse input 2/}).click();
+    assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 2/}).count(), 3,
+      'idle accepts RC pulses, frequency or a contact switch on this connector');
+    await page.getByRole('button',{name:/Servo \/ pulse input 2.*RC servo pulse/}).click();
 
     await page.getByRole('button',{name:'+ Add output'}).click();
     await page.getByRole('button',{name:/^Starter Electric starter/}).click();

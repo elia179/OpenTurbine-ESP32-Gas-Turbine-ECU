@@ -53,6 +53,12 @@ class BuildSetupPackageTests(unittest.TestCase):
             shipped = manifest["targets"]["esp32s3dev"]["pcb_profile"]["official_profiles"]
             self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261028"])
             self.assertEqual(shipped[0]["revision"], "1.0-20261028")
+            source = __import__("json").loads((ROOT / "pcb_profiles/official/openturbine-s3-20261028.otpcb.json").read_text(encoding="utf-8"))
+            labels = {p["label"] for p in source["ports"]}
+            expected = {"Start", "Stop"} | {f"Thermocouple {n}" for n in range(1,3)}
+            for prefix, count in [("Input",6),("OUT",6),("PWM",6),("ADC",8)]:
+                expected |= {f"{prefix} {n}" for n in range(1,count+1)}
+            self.assertTrue(expected <= labels)
             self.assertFalse(any("openturbine-ecu-s3-v1" in str(p) for p in stage.rglob("*")))
             for target in manifest["targets"].values():
                 self.assertRegex(target["build_id"], r"^[0-9a-f]{16}$")

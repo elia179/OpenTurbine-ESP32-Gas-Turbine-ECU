@@ -280,6 +280,26 @@ int main() {
     assert(ChannelRegistry::purposeRoleDriverValid(ChannelRegistry::Output,
         "generic", "indicator", D::I2cRelay));
 
+    // Supported thermocouple purposes must agree in generic and PCB workflows.
+    for (const char* purpose : {"tot","tit","oil_temperature","coolant_temp","intake_temperature","general_temperature","generic"}) {
+        ChannelRegistry::Channel channel;
+        channel.direction=ChannelRegistry::Input;channel.driver=ChannelRegistry::Analog;
+        std::strcpy(channel.id,"temperature");channel.installed=true;channel.pin=4;channel.minValue=0;channel.maxValue=4095;
+        std::strcpy(channel.role,"temperature");std::strcpy(channel.purpose,purpose);
+        const auto accepted=[](const ChannelRegistry::Channel& candidate){ChannelRegistry registry;return registry.add(candidate)&&registry.validate();};
+        channel.spiClk=12;channel.spiMiso=13;channel.spiCs=14;channel.spiMosi=11;
+        for (int interface=1;interface<=3;++interface) {
+            channel.temperatureInterface=interface;
+            assert(accepted(channel));
+        }
+        channel.temperatureInterface=3;channel.spiMosi=-1;
+        assert(!accepted(channel));
+        channel.temperatureInterface=5;channel.pin=4;
+        if (!std::strcmp(purpose,"tot") || !std::strcmp(purpose,"tit"))
+            assert(!accepted(channel));
+        else assert(accepted(channel));
+    }
+
     auto& ed = EngineData::instance();
     PowerTurbineGovernor governor;
     governor.targetRpm = 10000;

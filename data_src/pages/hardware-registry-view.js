@@ -39,7 +39,7 @@ function registryPurposeIsSingleton(direction, purpose) {
 }
 function registryFixedProfileFunction(direction, c) {
   if (!pcbProfileActive() || direction !== 'input') return '';
-  if (registryDerivedPurpose(direction,c) === 'battery_voltage' &&
+  if ((c.id==='battery_voltage'||registryDerivedPurpose(direction,c) === 'battery_voltage') &&
       pcbProfile?.fixed_functions?.supply_voltage?.available === true)
     return 'supply_voltage';
   return '';
@@ -90,7 +90,7 @@ function registryStatus(c) {
     if (mode.available === false)
       return {kind:'error', text:mode.status || 'Fitted PCB device is not responding'};
   }
-  if (Number(c.temp_interface || 0) >= 1 && Number(c.temp_interface || 0) <= 3 && !['tot','tit','oil_temperature','general_temperature'].includes(purpose)) return {kind:'error', text:'Thermocouple interface requires a turbine, oil, or general temperature purpose'};
+  if (Number(c.temp_interface || 0) >= 1 && Number(c.temp_interface || 0) <= 3 && !['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose)) return {kind:'error', text:'Thermocouple interface requires a temperature purpose'};
   if ([4,5].includes(Number(c.temp_interface || 0)) && !['oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose)) return {kind:'error', text:'NTC and DS18B20 interfaces require a low-range or general temperature purpose'};
   const remote = Number(c.driver) >= 8;
   const thermocouple = registryTemperatureIsSpi(c);
@@ -257,7 +257,8 @@ function registryProfilePortEditor(direction, c, index) {
     const suffix = unavailable ? ` — ${choice.mode.status || 'not responding'}` : '';
     return `<option value="${key}"${key===currentKey?' selected':''}${unavailable && key!==currentKey?' disabled':''}>${escapeHtmlText(pcbChoiceLabel(choice)+suffix)}</option>`;
   }).join('');
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select></div>`;
+  const connectionDescription=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.description;
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>`;
 }
 function updateRegistryProfilePort(direction,index,value) {
   if (!pcbProfileActive()) return;
@@ -266,6 +267,21 @@ function updateRegistryProfilePort(direction,index,value) {
   const mode = port?.modes?.find(row=>row.id===modeId);
   const c = registryRoot()[direction+'s']?.[index];
   if (!c || !port || !mode) return;
+  if (!pcbModeCompatible(direction,registryDerivedPurpose(direction,c),c.role,mode) || mode.available===false) {
+    alert(mode.status || 'That connection cannot provide this function. Choose a compatible responding connection.'); return;
+  }
+  if ([...registryRoot().inputs,...registryRoot().outputs].some(other=>other!==c&&String(other.physical_port||'')===portId)) {
+    alert('That PCB connector is already assigned. Remove its other assignment first.'); return;
+  }
+  const oldDriver=Number(c.driver),nextDriver=PCB_ADAPTER_DRIVER[mode.adapter];
+  const oldMode=(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.modes?.find(m=>m.id===c.physical_mode);
+  if (oldDriver!==nextDriver) {
+    Object.assign(c,registryDefaultRange(direction,nextDriver,c.role));
+    if(direction==='input'){c.calibration_points=[];c.torque_interface=0;c.phase_speed_source=0;}
+    if(direction==='output'&&nextDriver===4)c.min_run_demand=0;
+    if(direction==='output'&&nextDriver===5){c.pwm_freq_hz??=5000;c.pwm_res_bits??=10;}
+  }
+  if(direction==='input'&&c.role==='temperature'&&oldMode?.adapter!==mode.adapter)c.calibration_points=[];
   c.physical_port = portId;
   c.physical_mode = modeId;
   c.driver = PCB_ADAPTER_DRIVER[mode.adapter];
@@ -281,6 +297,7 @@ function updateRegistryProfilePort(direction,index,value) {
     c.temp_interface = ({max6675:1,max31855:2,max31856:3})[mode.device_driver] || 1;
   }
   if (mode.adapter === 'onewire_temperature') c.temp_interface = 5;
+  else if(mode.adapter!=='spi_thermocouple'&&c.role==='temperature')c.temp_interface=0;
   dirty(); renderRegistryInventory(); updateSaveButton();
 }
 function registrySignalSummary(c) {
@@ -1272,7 +1289,7 @@ function renderRegistryInventory() {
         ${mirrorSource ? `<div class="hw-item-card registry-subcard" style="margin:0 0 .6rem"><div class="registry-card-summary"><div><strong>Mirrored command</strong><div class="hw-desc">This physical output follows ${escapeHtmlText(registryDisplayName('output', mirrorSource, mirrorSource.id))}. Use an independent output instead when it needs its own controller or sequence command.</div></div><button type="button" onclick="makeRegistryOutputIndependent(${i})">Make independent</button></div></div>` : ''}
         <div class="hw-grid">
            <div class="hw-field"><span class="hw-label">Display name</span><span class="hw-desc">Plain name shown on Dashboard, Sequence and Tools. Example: Oil pump, Idle input, Flame sensor.</span><input class="${nameClass}" type="text" maxlength="23" value="${escapeHtmlText(displayName)}" oninput="updateRegistryChannel('${direction}',${i},'name',this.value)"></div>
-           <div class="hw-field"><span class="hw-label">Purpose</span><span class="hw-desc">${pcbProfileActive() ? 'What this compatible connector does in the ECU. Only uses supported by its electrical mode are offered.' : 'What this channel does in the ECU. This controls which safety, controller, sequence and rule options can use it.'}</span><select class="${purposeClass}" onchange="updateRegistryChannel('${direction}',${i},'purpose',this.value)">${registryPurposeOptions(direction, registryDerivedPurpose(direction,c), c)}</select></div>
+           <div class="hw-field"><span class="hw-label">Purpose</span><span class="hw-desc">${pcbProfileActive() ? 'What this compatible connector does in the ECU. Only uses supported by its electrical mode are offered.' : 'What this channel does in the ECU. This controls which safety, controller, sequence and rule options can use it.'}</span><select class="${purposeClass}" ${registryFixedProfileFunction(direction,c)?'disabled title="This supply monitor is permanently wired by the PCB profile."':''} onchange="updateRegistryChannel('${direction}',${i},'purpose',this.value)">${registryPurposeOptions(direction, registryDerivedPurpose(direction,c), c)}</select></div>
            ${registryProfilePortEditor(direction,c,i)}
            ${pcbProfileActive() ? '' : registrySignalTypeEditor(direction, c, i, driverClass)}
            ${pcbProfileActive() ? '' : registryI2cEditor(direction, c, i)}

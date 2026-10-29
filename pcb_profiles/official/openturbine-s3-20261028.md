@@ -15,10 +15,10 @@ Plain development boards continue to work without any PCB profile. On this PCB, 
 | Serial J16 | TX GPIO43, RX GPIO44; MAVLink engine connection |
 | Thermocouple 1 J43 / U20 | MAX31856, CS GPIO14 |
 | Thermocouple 2 J44 / U21 | MAX31856, CS GPIO3 |
-| Analog inputs J20–J27 | U8 TLA2528 channels 0–7, address 0x10, 5 V reference |
-| Pulse inputs J28–J33 | GPIO35, 36, 6, 7, 15, 16 respectively |
-| Pulse outputs J34–J39 | GPIO18, 8, 9, 39, 40, 21 respectively |
-| Power outputs J3, J5, J7, J9, J11, J13 | GPIO37, 38, 41, 42, 2, 1 respectively |
+| ADC 1–8 / J20–J27 | U8 TLA2528 channels 0–7, address 0x10, 5 V reference |
+| Input 1–6 / J28–J33 | GPIO35, 36, 6, 7, 15, 16 respectively |
+| OUT 1–6 (5 V signal) / J34–J39 | GPIO18, 8, 9, 39, 40, 21 respectively |
+| PWM 1–6 (VIN load switching) / J3, J5, J7, J9, J11, J13 | GPIO37, 38, 41, 42, 2, 1 respectively |
 | Start / J_START | GPIO17, active-low, pull-up |
 | Stop / J_STOP | GPIO48, active-low, pull-up |
 | J18 additional inputs | GPIO46 (input-only), GPIO47 |
@@ -35,6 +35,18 @@ U8 ADDR is left unconnected in this project: TI's address table specifies **0x10
 U17 A0–A2 are grounded, so its address is **0x20**. Initialize all six pull-up controls high (off) and both LED outputs high (off) before changing expander directions. A pulse channel's pull-up setting controls the external PMOS circuit, not an internal resistor on the conditioned MCU input. [TI TCA9534 documentation](https://www.ti.com/product/TCA9534).
 
 The power-stage output-enable also enables the pulse buffers through board logic. It must stay inactive through boot, profile validation and actuator initialization. Do not infer current ratings from software labels; actual load limits require thermal/electrical qualification. J4/J6/J8/J10/J12/J14 expose power-command service signals and are not additional independent output channels.
+
+Connector capabilities follow the physical board labels:
+
+| Label | Supported uses |
+| --- | --- |
+| PWM 1–6 | VIN load switching: PWM duty or on/off. No servo pulse mode. |
+| OUT 1–6 | Buffered 5 V signals: servo/ESC pulses, PWM duty or on/off. Not load-power outputs. |
+| Input 1–6 | Frequency, RC pulse, PWM duty or contact switch |
+| ADC 1–8 | Analogue measurements or voltage-threshold switches |
+| Thermocouple 1–2 | Temperature measurement; choose the fitted probe alloy |
+
+OUT signal capabilities follow the routed SN74LVC4245A buffer; see [TI's device documentation](https://www.ti.com/product/SN74LVC4245A). The labels do not change current limits or routing. Confirm operating limits on the assembled board before connecting loads.
 
 Regenerate and validate:
 

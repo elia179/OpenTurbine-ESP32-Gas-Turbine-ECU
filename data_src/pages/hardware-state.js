@@ -450,22 +450,22 @@ function pcbModeCompatible(direction, purpose, role, mode) {
     const switchPurposes = ['digital_switch','chip_detector','diff_press_switch','inhibit_start','estop','fault','low_oil_switch',
       'oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode','start_switch','stop_switch'];
     if (['throttle','idle','ab_command'].includes(purpose) &&
-        ![...analog,'rc_pwm_input','pwm_duty_input'].includes(adapter)) return false;
+        ![...analog,'rc_pwm_input','pwm_duty_input',...(purpose!=='ab_command'?['pcnt_input']:[]),...(purpose==='idle'?digital:[])].includes(adapter)) return false;
     if (switchPurposes.includes(purpose) && !digital.includes(adapter)) return false;
     if (['n1_speed','n2_speed','shaft_speed','fuel_flow','general_flow','oil_flow','scavenge_flow'].includes(purpose) &&
         ![...analog,'pcnt_input'].includes(adapter)) return false;
     if (['oil_pressure','fuel_pressure','p1_pressure','p2_pressure','coolant_pressure',
-         'battery_voltage'].includes(purpose) && !analog.includes(adapter)) return false;
-    if (['torque','thrust'].includes(purpose) &&
+         'battery_voltage','general_pressure','general_voltage'].includes(purpose) && !analog.includes(adapter)) return false;
+    if (['torque','thrust','general_torque','general_thrust'].includes(purpose) &&
         ![...analog,'i2c_load_cell'].includes(adapter)) return false;
     if (['flame','ab_flame'].includes(purpose) &&
         ![...analog,...digital].includes(adapter)) return false;
-    if (['tot','tit','oil_temperature','coolant_temp','intake_temperature'].includes(purpose) &&
+    if (['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose) &&
         ![...analog,'spi_thermocouple','onewire_temperature'].includes(adapter)) return false;
   }
-  if (adapter === 'spi_thermocouple' && !['tot','tit','oil_temperature'].includes(purpose)) return false;
-  if (adapter === 'onewire_temperature' && !['oil_temperature','coolant_temp','intake_temperature'].includes(purpose)) return false;
-  if (adapter === 'i2c_load_cell' && !['torque','thrust'].includes(purpose)) return false;
+  if (adapter === 'spi_thermocouple' && !(role==='temperature' && ['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose))) return false;
+  if (adapter === 'onewire_temperature' && !(role==='temperature' && ['oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose))) return false;
+  if (adapter === 'i2c_load_cell' && !['torque','thrust','general_torque','general_thrust'].includes(purpose)) return false;
   return true;
 }
 function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
@@ -474,8 +474,12 @@ function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
   const choices = [];
   for (const port of (pcbProfile.ports || [])) {
     if (claimed.has(String(port.id))) continue;
-    for (const mode of (port.modes || []))
+    for (const mode of (port.modes || [])) {
+      const thresholdUse=registryIsSwitchRole(role)||['start_switch','stop_switch','flame','ab_flame'].includes(purpose);
+      const retainedMode=port.id===currentPort&&[...registryRoot().inputs,...registryRoot().outputs].some(c=>c.physical_port===currentPort&&c.physical_mode===mode.id);
+      if(mode.adapter==='i2c_adc_digital_input'&&!thresholdUse&&!retainedMode)continue;
       if (pcbModeCompatible(direction,purpose,role,mode)) choices.push({port,mode});
+    }
   }
   const score = choice => {
     const adapter = String(choice.mode?.adapter || '');
@@ -514,7 +518,7 @@ function pcbModeLabel(mode) {
     i2c_digital_input:'Digital on/off', pcnt_input:'Pulse / frequency',
     rc_pwm_input:'RC servo pulse', pwm_duty_input:'PWM duty input',
     servo_output:'Servo / ESC pulse', pwm_output:'PWM output',
-    digital_output:'Digital on/off output', relay_output:'On/off power output',
+    digital_output:'Digital on/off output', relay_output:'On/off output',
     i2c_digital_output:'Low-current on/off output', i2c_load_cell:'Load cell'
   };
   return labels[String(mode?.adapter || '')] || String(mode?.id || '').replaceAll('_',' ');

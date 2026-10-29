@@ -893,11 +893,9 @@ private:
         const bool lowTemperaturePurpose = !strcmp(c.purpose, "oil_temperature") ||
                                            !strcmp(c.purpose, "coolant_temp") ||
                                            !strcmp(c.purpose, "intake_temperature") ||
-                                           !strcmp(c.purpose, "general_temperature");
+                                           !strcmp(c.purpose, "general_temperature") || !strcmp(c.purpose, "generic");
         if (c.temperatureInterface >= 1 && c.temperatureInterface <= 3) {
-            const bool thermocouplePurpose = turbineGasPurpose ||
-                                              !strcmp(c.purpose, "oil_temperature") ||
-                                              !strcmp(c.purpose, "general_temperature");
+            const bool thermocouplePurpose = turbineGasPurpose || lowTemperaturePurpose;
             if (!thermocouplePurpose) return false;
             if (c.spiClk < 0 || c.spiCs < 0 || c.spiMiso < 0) return false;
             return c.temperatureInterface != 3 || c.spiMosi >= 0;

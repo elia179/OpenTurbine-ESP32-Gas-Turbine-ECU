@@ -137,7 +137,7 @@
     },
     {
       "id": "analog_1",
-      "label": "Analog input 1",
+      "label": "ADC 1",
       "connector": "J20",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -163,7 +163,7 @@
     },
     {
       "id": "analog_2",
-      "label": "Analog input 2",
+      "label": "ADC 2",
       "connector": "J21",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -189,7 +189,7 @@
     },
     {
       "id": "analog_3",
-      "label": "Analog input 3",
+      "label": "ADC 3",
       "connector": "J22",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -215,7 +215,7 @@
     },
     {
       "id": "analog_4",
-      "label": "Analog input 4",
+      "label": "ADC 4",
       "connector": "J23",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -241,7 +241,7 @@
     },
     {
       "id": "analog_5",
-      "label": "Analog input 5",
+      "label": "ADC 5",
       "connector": "J24",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -267,7 +267,7 @@
     },
     {
       "id": "analog_6",
-      "label": "Analog input 6",
+      "label": "ADC 6",
       "connector": "J25",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -293,7 +293,7 @@
     },
     {
       "id": "analog_7",
-      "label": "Analog input 7",
+      "label": "ADC 7",
       "connector": "J26",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -319,7 +319,7 @@
     },
     {
       "id": "analog_8",
-      "label": "Analog input 8",
+      "label": "ADC 8",
       "connector": "J27",
       "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
@@ -345,7 +345,7 @@
     },
     {
       "id": "pulse_in_1",
-      "label": "Pulse input 1",
+      "label": "Input 1",
       "connector": "J28",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -405,7 +405,7 @@
     },
     {
       "id": "pulse_in_2",
-      "label": "Pulse input 2",
+      "label": "Input 2",
       "connector": "J29",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -465,7 +465,7 @@
     },
     {
       "id": "pulse_in_3",
-      "label": "Pulse input 3",
+      "label": "Input 3",
       "connector": "J30",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -525,7 +525,7 @@
     },
     {
       "id": "pulse_in_4",
-      "label": "Pulse input 4",
+      "label": "Input 4",
       "connector": "J31",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -585,7 +585,7 @@
     },
     {
       "id": "pulse_in_5",
-      "label": "Pulse input 5",
+      "label": "Input 5",
       "connector": "J32",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -645,7 +645,7 @@
     },
     {
       "id": "pulse_in_6",
-      "label": "Pulse input 6",
+      "label": "Input 6",
       "connector": "J33",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -705,13 +705,29 @@
     },
     {
       "id": "pulse_out_1",
-      "label": "Pulse output 1",
+      "label": "OUT 1",
       "connector": "J34",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 18
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 18
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 18
           },
@@ -721,9 +737,9 @@
     },
     {
       "id": "power_out_1",
-      "label": "Power output 1",
+      "label": "PWM 1",
       "connector": "J3",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -745,13 +761,29 @@
     },
     {
       "id": "pulse_out_2",
-      "label": "Pulse output 2",
+      "label": "OUT 2",
       "connector": "J35",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 8
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 8
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 8
           },
@@ -761,9 +793,9 @@
     },
     {
       "id": "power_out_2",
-      "label": "Power output 2",
+      "label": "PWM 2",
       "connector": "J5",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -785,13 +817,29 @@
     },
     {
       "id": "pulse_out_3",
-      "label": "Pulse output 3",
+      "label": "OUT 3",
       "connector": "J36",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 9
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 9
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 9
           },
@@ -801,9 +849,9 @@
     },
     {
       "id": "power_out_3",
-      "label": "Power output 3",
+      "label": "PWM 3",
       "connector": "J7",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -825,13 +873,29 @@
     },
     {
       "id": "pulse_out_4",
-      "label": "Pulse output 4",
+      "label": "OUT 4",
       "connector": "J37",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 39
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 39
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 39
           },
@@ -841,9 +905,9 @@
     },
     {
       "id": "power_out_4",
-      "label": "Power output 4",
+      "label": "PWM 4",
       "connector": "J9",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -865,13 +929,29 @@
     },
     {
       "id": "pulse_out_5",
-      "label": "Pulse output 5",
+      "label": "OUT 5",
       "connector": "J38",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 40
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 40
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 40
           },
@@ -881,9 +961,9 @@
     },
     {
       "id": "power_out_5",
-      "label": "Power output 5",
+      "label": "PWM 5",
       "connector": "J11",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -905,13 +985,29 @@
     },
     {
       "id": "pulse_out_6",
-      "label": "Pulse output 6",
+      "label": "OUT 6",
       "connector": "J39",
-      "description": "Buffered 5 V command; servo power source selected by board jumper",
+      "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
         {
           "id": "servo",
           "adapter": "servo_output",
+          "endpoint": {
+            "gpio": 21
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "pwm",
+          "adapter": "pwm_output",
+          "endpoint": {
+            "gpio": 21
+          },
+          "safe_demand": 0
+        },
+        {
+          "id": "on_off",
+          "adapter": "relay_output",
           "endpoint": {
             "gpio": 21
           },
@@ -921,9 +1017,9 @@
     },
     {
       "id": "power_out_6",
-      "label": "Power output 6",
+      "label": "PWM 6",
       "connector": "J13",
-      "description": "Low-side switched battery load; shared hardware output enable",
+      "description": "Low-side VIN load: PWM duty or on/off; shared hardware output enable",
       "modes": [
         {
           "id": "on_off",
@@ -945,7 +1041,7 @@
     },
     {
       "id": "start_switch",
-      "label": "Start switch",
+      "label": "Start",
       "connector": "J_START",
       "modes": [
         {
@@ -967,7 +1063,7 @@
     },
     {
       "id": "stop_switch",
-      "label": "Stop switch",
+      "label": "Stop",
       "connector": "J_STOP",
       "modes": [
         {

@@ -634,18 +634,19 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
             if (hasDefault) {
                 const auto direction = output ? ChannelRegistry::Output : ChannelRegistry::Input;
                 ChannelRegistry::Driver driver;
+                const bool lowTemperatureDefault = !strcmp(defaultRole,"temperature") &&
+                    (!strcmp(defaultPurpose,"oil_temperature") || !strcmp(defaultPurpose,"coolant_temp") ||
+                     !strcmp(defaultPurpose,"intake_temperature") || !strcmp(defaultPurpose,"general_temperature") ||
+                     !strcmp(defaultPurpose,"generic"));
+                const bool thermocoupleDefault = lowTemperatureDefault ||
+                    !strcmp(defaultPurpose,"tot") || !strcmp(defaultPurpose,"tit");
                 if (!ChannelRegistry::roleValid(direction, defaultRole) ||
                     !ChannelRegistry::purposeValid(direction, defaultPurpose) ||
                     !adapterDriver(mode.adapter, driver) ||
                     !ChannelRegistry::purposeRoleDriverValid(direction, defaultPurpose,
                                                              defaultRole, driver) ||
-                    (!strcmp(adapterText, "spi_thermocouple") &&
-                     strcmp(defaultPurpose, "tot") && strcmp(defaultPurpose, "tit") &&
-                     strcmp(defaultPurpose, "oil_temperature")) ||
-                    (!strcmp(adapterText, "onewire_temperature") &&
-                     strcmp(defaultPurpose, "oil_temperature") &&
-                     strcmp(defaultPurpose, "coolant_temp") &&
-                     strcmp(defaultPurpose, "intake_temperature"))) {
+                    (!strcmp(adapterText,"spi_thermocouple") && !thermocoupleDefault) ||
+                    (!strcmp(adapterText,"onewire_temperature") && !lowTemperatureDefault)) {
                     return reject("PCB port mode default is incompatible with its electrical adapter");
                 }
             }

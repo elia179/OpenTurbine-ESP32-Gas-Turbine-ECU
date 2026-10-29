@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029c');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029d');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1215,22 +1215,22 @@ function pcbModeCompatible(direction, purpose, role, mode) {
     const switchPurposes = ['digital_switch','chip_detector','diff_press_switch','inhibit_start','estop','fault','low_oil_switch',
       'oil_zero_switch','sequence_gate','ab_arm','ab_fire','limp_mode','start_switch','stop_switch'];
     if (['throttle','idle','ab_command'].includes(purpose) &&
-        ![...analog,'rc_pwm_input','pwm_duty_input'].includes(adapter)) return false;
+        ![...analog,'rc_pwm_input','pwm_duty_input',...(purpose!=='ab_command'?['pcnt_input']:[]),...(purpose==='idle'?digital:[])].includes(adapter)) return false;
     if (switchPurposes.includes(purpose) && !digital.includes(adapter)) return false;
     if (['n1_speed','n2_speed','shaft_speed','fuel_flow','general_flow','oil_flow','scavenge_flow'].includes(purpose) &&
         ![...analog,'pcnt_input'].includes(adapter)) return false;
     if (['oil_pressure','fuel_pressure','p1_pressure','p2_pressure','coolant_pressure',
-         'battery_voltage'].includes(purpose) && !analog.includes(adapter)) return false;
-    if (['torque','thrust'].includes(purpose) &&
+         'battery_voltage','general_pressure','general_voltage'].includes(purpose) && !analog.includes(adapter)) return false;
+    if (['torque','thrust','general_torque','general_thrust'].includes(purpose) &&
         ![...analog,'i2c_load_cell'].includes(adapter)) return false;
     if (['flame','ab_flame'].includes(purpose) &&
         ![...analog,...digital].includes(adapter)) return false;
-    if (['tot','tit','oil_temperature','coolant_temp','intake_temperature'].includes(purpose) &&
+    if (['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose) &&
         ![...analog,'spi_thermocouple','onewire_temperature'].includes(adapter)) return false;
   }
-  if (adapter === 'spi_thermocouple' && !['tot','tit','oil_temperature'].includes(purpose)) return false;
-  if (adapter === 'onewire_temperature' && !['oil_temperature','coolant_temp','intake_temperature'].includes(purpose)) return false;
-  if (adapter === 'i2c_load_cell' && !['torque','thrust'].includes(purpose)) return false;
+  if (adapter === 'spi_thermocouple' && !(role==='temperature' && ['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose))) return false;
+  if (adapter === 'onewire_temperature' && !(role==='temperature' && ['oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose))) return false;
+  if (adapter === 'i2c_load_cell' && !['torque','thrust','general_torque','general_thrust'].includes(purpose)) return false;
   return true;
 }
 function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
@@ -1239,8 +1239,12 @@ function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
   const choices = [];
   for (const port of (pcbProfile.ports || [])) {
     if (claimed.has(String(port.id))) continue;
-    for (const mode of (port.modes || []))
+    for (const mode of (port.modes || [])) {
+      const thresholdUse=registryIsSwitchRole(role)||['start_switch','stop_switch','flame','ab_flame'].includes(purpose);
+      const retainedMode=port.id===currentPort&&[...registryRoot().inputs,...registryRoot().outputs].some(c=>c.physical_port===currentPort&&c.physical_mode===mode.id);
+      if(mode.adapter==='i2c_adc_digital_input'&&!thresholdUse&&!retainedMode)continue;
       if (pcbModeCompatible(direction,purpose,role,mode)) choices.push({port,mode});
+    }
   }
   const score = choice => {
     const adapter = String(choice.mode?.adapter || '');
@@ -1279,7 +1283,7 @@ function pcbModeLabel(mode) {
     i2c_digital_input:'Digital on/off', pcnt_input:'Pulse / frequency',
     rc_pwm_input:'RC servo pulse', pwm_duty_input:'PWM duty input',
     servo_output:'Servo / ESC pulse', pwm_output:'PWM output',
-    digital_output:'Digital on/off output', relay_output:'On/off power output',
+    digital_output:'Digital on/off output', relay_output:'On/off output',
     i2c_digital_output:'Low-current on/off output', i2c_load_cell:'Load cell'
   };
   return labels[String(mode?.adapter || '')] || String(mode?.id || '').replaceAll('_',' ');
@@ -1940,11 +1944,11 @@ function registryDerivedPurpose(direction, c) {
 }
 function registryPurposeOptions(direction, selected, channel = null) {
   let defs=registryPurposeDefinitions(direction);
-  let assignedMode = null;
+  let assignedMode = null, assignedPort = null;
   if (pcbProfileActive() && channel?.physical_port && channel?.physical_mode) {
     const port = (pcbProfile.ports || []).find(row=>row.id===channel.physical_port);
-    assignedMode = port?.modes?.find(row=>row.id===channel.physical_mode) || null;
-    if (assignedMode) defs = defs.filter(p=>p.value===selected || pcbModeCompatible(direction,p.value,p.role,assignedMode));
+    assignedPort=port;assignedMode = port?.modes?.find(row=>row.id===channel.physical_mode) || null;
+    if (assignedPort) defs = defs.filter(p=>p.value===selected || assignedPort.modes.some(mode=>pcbModeCompatible(direction,p.value,p.role,mode)));
   }
   const rows = registryRoot()[direction+'s'] || [];
   const groups=[];
@@ -1954,7 +1958,7 @@ function registryPurposeOptions(direction, selected, channel = null) {
       !!registryPhaseShaftOwner(p.value === 'n1_speed' ? 1 : 2, channel);
     const duplicate = (p.value!==selected && registryPurposeIsSingleton(direction,p.value) &&
       rows.some(row=>row!==channel && registryDerivedPurpose(direction,row)===p.value)) || phaseOwnsShaft;
-    const incompatible = assignedMode && p.value===selected && !pcbModeCompatible(direction,p.value,p.role,assignedMode);
+    const incompatible = assignedPort && p.value===selected && !assignedPort.modes.some(mode=>pcbModeCompatible(direction,p.value,p.role,mode));
     const suffix = duplicate ? ' — already assigned' : (incompatible ? ' — incompatible with connector' : '');
     return `<option value="${p.value}"${p.value===selected?' selected':''}${duplicate?' disabled':''}>${escapeHtmlText(p.label+suffix)}</option>`;
   }).join('')}</optgroup>`).join('');
@@ -2509,7 +2513,7 @@ function registryTemperatureInterfaceEditor(c, index) {
     return `<div class="hw-field"><span class="hw-label">${key.replace('spi_','').toUpperCase()} GPIO</span><span class="hw-desc">Dedicated chip-select output for this sensor on the shared SPI bus.</span><select class="${pinClass}" onchange="updateRegistryChannel('input',${index},'${key}',+this.value)">${buildPinOptions(c[key] ?? -1, busMode)}</select></div>`;
   };
   let choices = `${option(0,'Analog temperature transmitter')}`;
-  if (turbineGas || oil || general) choices += `${option(1,'MAX6675 (K-type)')}${option(2,'MAX31855 (K-type)')}${option(3,'MAX31856 (configurable TC type)')}`;
+  if (turbineGas || lowTemperature) choices += `${option(1,'MAX6675 (K-type)')}${option(2,'MAX31855 (K-type)')}${option(3,'MAX31856 (configurable TC type)')}`;
   if (lowTemperature) choices += `${option(4,'NTC thermistor (ADC divider)')}${option(5,'DS18B20 (OneWire)')}`;
   const heading = iface >= 1 && iface <= 3
     ? 'Dedicated turbine-rated thermocouple amplifier on the shared SPI bus. Every sensor needs its own CS GPIO.'
@@ -3023,9 +3027,13 @@ function registryI2cEditor(direction, c, index) {
 }
 function registryProfileInputTuningEditor(direction, c, index) {
   if (!pcbProfileActive() || direction !== 'input') return '';
+  if(c.role==='temperature'&&Number(c.temp_interface)===3)return `<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the fitted probe alloy. The MAX31856 chip and SPI wiring are fixed by the PCB.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(value=>`<option value="${value}"${String(c.tc_type||'K')===value?' selected':''}>${value}</option>`).join('')}</select></div>`;
+  if(c.role==='temperature'&&Number(c.temp_interface)===5)return `<div class="hw-field"><span class="hw-label">OneWire resolution</span><select onchange="updateRegistryChannel('input',${index},'temp_resolution',+this.value)">${[9,10,11,12].map(value=>`<option value="${value}"${Number(c.temp_resolution??10)===value?' selected':''}>${value} bit</option>`).join('')}</select></div>`;
+
   const purpose = registryDerivedPurpose(direction,c);
   const isSwitch = registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose);
-  if (!isSwitch) return '';
+  const isFlame=['flame','ab_flame'].includes(purpose);
+  if (!isSwitch&&!isFlame) return '';
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
     if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
@@ -3038,10 +3046,12 @@ function registryProfileInputTuningEditor(direction, c, index) {
   if (Number(c.driver) !== 9) return polarity;
   const referenceMv = Number(c.i2c_reference_mv ?? 5000);
   const thresholdV = Number(c.digital_threshold_raw ?? 2048) * referenceMv / 4095 / 1000;
-  const hysteresisV = Number(c.digital_hysteresis_raw ?? 64) * referenceMv / 4095 / 1000;
+  const maxHysteresisRaw=Math.min(2047,2*Math.min(Number(c.digital_threshold_raw??2048),4095-Number(c.digital_threshold_raw??2048)));
+  const hysteresisV = Math.min(maxHysteresisRaw,Number(c.digital_hysteresis_raw ?? 64)) * referenceMv / 4095 / 1000;
+  const maxHysteresisV=maxHysteresisRaw*referenceMv/4095/1000;
   return `${polarity}
     <div class="hw-field"><span class="hw-label">Switch threshold (V)</span><span class="hw-desc">Defaults to 50% of this connector's ${registryFormatValue(referenceMv/1000,1)} V measurement range.</span><input type="number" min="0" max="${referenceMv/1000}" step="0.01" value="${registryFormatValue(thresholdV,2)}" onchange="updateRegistryChannel('input',${index},'digital_threshold_raw',Math.round(Math.max(0,Math.min(${referenceMv/1000},+this.value))*1000/${referenceMv}*4095))"></div>
-    <div class="hw-field"><span class="hw-label">Switch hysteresis (V)</span><span class="hw-desc">Prevents a noisy voltage near the threshold from rapidly switching On and Off.</span><input type="number" min="0" max="${referenceMv/2000}" step="0.01" value="${registryFormatValue(hysteresisV,2)}" onchange="updateRegistryChannel('input',${index},'digital_hysteresis_raw',Math.round(Math.max(0,Math.min(${referenceMv/2000},+this.value))*1000/${referenceMv}*4095))"></div>`;
+    <div class="hw-field"><span class="hw-label">Switch hysteresis (V)</span><span class="hw-desc">Prevents chatter near the threshold; limited by the nearest ADC rail.</span><input type="number" min="0" max="${maxHysteresisV}" step="0.01" value="${registryFormatValue(hysteresisV,2)}" onchange="updateRegistryChannel('input',${index},'digital_hysteresis_raw',Math.round(Math.max(0,Math.min(${maxHysteresisV},+this.value))*1000/${referenceMv}*4095))"></div>`;
 }
 function registryDriverOptions(direction, selected) {
   const role = arguments.length > 2 ? arguments[2] : null;
@@ -3110,7 +3120,7 @@ function registryPurposeIsSingleton(direction, purpose) {
 }
 function registryFixedProfileFunction(direction, c) {
   if (!pcbProfileActive() || direction !== 'input') return '';
-  if (registryDerivedPurpose(direction,c) === 'battery_voltage' &&
+  if ((c.id==='battery_voltage'||registryDerivedPurpose(direction,c) === 'battery_voltage') &&
       pcbProfile?.fixed_functions?.supply_voltage?.available === true)
     return 'supply_voltage';
   return '';
@@ -3161,7 +3171,7 @@ function registryStatus(c) {
     if (mode.available === false)
       return {kind:'error', text:mode.status || 'Fitted PCB device is not responding'};
   }
-  if (Number(c.temp_interface || 0) >= 1 && Number(c.temp_interface || 0) <= 3 && !['tot','tit','oil_temperature','general_temperature'].includes(purpose)) return {kind:'error', text:'Thermocouple interface requires a turbine, oil, or general temperature purpose'};
+  if (Number(c.temp_interface || 0) >= 1 && Number(c.temp_interface || 0) <= 3 && !['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature','generic'].includes(purpose)) return {kind:'error', text:'Thermocouple interface requires a temperature purpose'};
   if ([4,5].includes(Number(c.temp_interface || 0)) && !['oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose)) return {kind:'error', text:'NTC and DS18B20 interfaces require a low-range or general temperature purpose'};
   const remote = Number(c.driver) >= 8;
   const thermocouple = registryTemperatureIsSpi(c);
@@ -3328,7 +3338,8 @@ function registryProfilePortEditor(direction, c, index) {
     const suffix = unavailable ? ` — ${choice.mode.status || 'not responding'}` : '';
     return `<option value="${key}"${key===currentKey?' selected':''}${unavailable && key!==currentKey?' disabled':''}>${escapeHtmlText(pcbChoiceLabel(choice)+suffix)}</option>`;
   }).join('');
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select></div>`;
+  const connectionDescription=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.description;
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>`;
 }
 function updateRegistryProfilePort(direction,index,value) {
   if (!pcbProfileActive()) return;
@@ -3337,6 +3348,21 @@ function updateRegistryProfilePort(direction,index,value) {
   const mode = port?.modes?.find(row=>row.id===modeId);
   const c = registryRoot()[direction+'s']?.[index];
   if (!c || !port || !mode) return;
+  if (!pcbModeCompatible(direction,registryDerivedPurpose(direction,c),c.role,mode) || mode.available===false) {
+    alert(mode.status || 'That connection cannot provide this function. Choose a compatible responding connection.'); return;
+  }
+  if ([...registryRoot().inputs,...registryRoot().outputs].some(other=>other!==c&&String(other.physical_port||'')===portId)) {
+    alert('That PCB connector is already assigned. Remove its other assignment first.'); return;
+  }
+  const oldDriver=Number(c.driver),nextDriver=PCB_ADAPTER_DRIVER[mode.adapter];
+  const oldMode=(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.modes?.find(m=>m.id===c.physical_mode);
+  if (oldDriver!==nextDriver) {
+    Object.assign(c,registryDefaultRange(direction,nextDriver,c.role));
+    if(direction==='input'){c.calibration_points=[];c.torque_interface=0;c.phase_speed_source=0;}
+    if(direction==='output'&&nextDriver===4)c.min_run_demand=0;
+    if(direction==='output'&&nextDriver===5){c.pwm_freq_hz??=5000;c.pwm_res_bits??=10;}
+  }
+  if(direction==='input'&&c.role==='temperature'&&oldMode?.adapter!==mode.adapter)c.calibration_points=[];
   c.physical_port = portId;
   c.physical_mode = modeId;
   c.driver = PCB_ADAPTER_DRIVER[mode.adapter];
@@ -3352,6 +3378,7 @@ function updateRegistryProfilePort(direction,index,value) {
     c.temp_interface = ({max6675:1,max31855:2,max31856:3})[mode.device_driver] || 1;
   }
   if (mode.adapter === 'onewire_temperature') c.temp_interface = 5;
+  else if(mode.adapter!=='spi_thermocouple'&&c.role==='temperature')c.temp_interface=0;
   dirty(); renderRegistryInventory(); updateSaveButton();
 }
 function registrySignalSummary(c) {
@@ -4343,7 +4370,7 @@ function renderRegistryInventory() {
         ${mirrorSource ? `<div class="hw-item-card registry-subcard" style="margin:0 0 .6rem"><div class="registry-card-summary"><div><strong>Mirrored command</strong><div class="hw-desc">This physical output follows ${escapeHtmlText(registryDisplayName('output', mirrorSource, mirrorSource.id))}. Use an independent output instead when it needs its own controller or sequence command.</div></div><button type="button" onclick="makeRegistryOutputIndependent(${i})">Make independent</button></div></div>` : ''}
         <div class="hw-grid">
            <div class="hw-field"><span class="hw-label">Display name</span><span class="hw-desc">Plain name shown on Dashboard, Sequence and Tools. Example: Oil pump, Idle input, Flame sensor.</span><input class="${nameClass}" type="text" maxlength="23" value="${escapeHtmlText(displayName)}" oninput="updateRegistryChannel('${direction}',${i},'name',this.value)"></div>
-           <div class="hw-field"><span class="hw-label">Purpose</span><span class="hw-desc">${pcbProfileActive() ? 'What this compatible connector does in the ECU. Only uses supported by its electrical mode are offered.' : 'What this channel does in the ECU. This controls which safety, controller, sequence and rule options can use it.'}</span><select class="${purposeClass}" onchange="updateRegistryChannel('${direction}',${i},'purpose',this.value)">${registryPurposeOptions(direction, registryDerivedPurpose(direction,c), c)}</select></div>
+           <div class="hw-field"><span class="hw-label">Purpose</span><span class="hw-desc">${pcbProfileActive() ? 'What this compatible connector does in the ECU. Only uses supported by its electrical mode are offered.' : 'What this channel does in the ECU. This controls which safety, controller, sequence and rule options can use it.'}</span><select class="${purposeClass}" ${registryFixedProfileFunction(direction,c)?'disabled title="This supply monitor is permanently wired by the PCB profile."':''} onchange="updateRegistryChannel('${direction}',${i},'purpose',this.value)">${registryPurposeOptions(direction, registryDerivedPurpose(direction,c), c)}</select></div>
            ${registryProfilePortEditor(direction,c,i)}
            ${pcbProfileActive() ? '' : registrySignalTypeEditor(direction, c, i, driverClass)}
            ${pcbProfileActive() ? '' : registryI2cEditor(direction, c, i)}
@@ -4479,7 +4506,16 @@ function updateRegistryChannel(direction, index, key, value) {
   const r = registryRoot();
   const c = r[direction + 's'][index];
   if (!c) return;
+  if(registryFixedProfileFunction(direction,c)&&key!=='name')return;
   if (key === 'pin') value = Number.isFinite(value) ? value : -1;
+  if(direction==='input'&&['digital_threshold_raw','digital_hysteresis_raw'].includes(key)){
+    if(!Number.isFinite(Number(value)))return;
+    if(key==='digital_threshold_raw')c.digital_threshold_raw=Math.max(0,Math.min(4095,Math.round(Number(value))));
+    const threshold=Number(c.digital_threshold_raw??2048),maxHysteresis=Math.min(2047,2*Math.min(threshold,4095-threshold));
+    c.digital_hysteresis_raw=Math.max(0,Math.min(maxHysteresis,Math.round(Number(key==='digital_hysteresis_raw'?value:(c.digital_hysteresis_raw??64)))));
+    dirty();updateSaveButton();renderRegistryInventory();return;
+  }
+
   if (direction === 'input' && (key === 'loadcell_gain' || key === 'loadcell_rate_sps')) {
     value = Number(value);
     (r.inputs || []).forEach(row => {
@@ -4557,6 +4593,12 @@ function updateRegistryChannel(direction, index, key, value) {
       alert(`${value === 'n1_speed' ? 'N1' : 'N2'} speed is already supplied by the torque reference pickup.`);
       renderRegistryInventory(); return;
     }
+    const oldRole=c.role;
+    const physicalPort=pcbProfileActive()?(pcbProfile.ports||[]).find(port=>port.id===c.physical_port):null;
+    const currentMode=physicalPort?.modes?.find(mode=>mode.id===c.physical_mode);
+    const nextMode=physicalPort?(pcbModeCompatible(direction,def.value,def.role,currentMode)?currentMode:physicalPort.modes.find(mode=>pcbModeCompatible(direction,def.value,def.role,mode))):null;
+    if(physicalPort&&!nextMode){alert('This connector cannot provide that function. Choose another connector first.');return;}
+    if(nextMode&&nextMode.id!==c.physical_mode&&nextMode.available===false){alert(nextMode.status||'That fitted device is not responding. Choose another connection.');return;}
     const oldPurpose = registryDerivedPurpose(direction,c);
     const oldCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
     c.purpose = def.value;
@@ -4583,9 +4625,8 @@ function updateRegistryChannel(direction, index, key, value) {
     if (direction === 'input') {
       if (c.role !== 'temperature') c.temp_interface = 0;
       // Do not retain an interface that the new purpose cannot use. Without
-      // this, changing Coolant/Intake to TOT could leave a hidden DS18B20/NTC
-      // selection, and the inverse change could retain hidden SPI pins.
-      if (['coolant_temp','intake_temperature'].includes(def.value) && Number(c.temp_interface) >= 1 && Number(c.temp_interface) <= 3) c.temp_interface = 0;
+      // this, changing a low-temperature function to TOT could retain an
+      // unsuitable DS18B20/NTC selection.
       if (['tot','tit'].includes(def.value) && [4,5].includes(Number(c.temp_interface))) c.temp_interface = 0;
       if (registryIsSwitchRole(c.role) || (def.value === 'idle' && Number(c.driver) === 0)) {
         c.active_high = false; c.pullup = true; c.pulldown = false;
@@ -4619,6 +4660,8 @@ function updateRegistryChannel(direction, index, key, value) {
         else if (registryRoot().bindings.length < 24) registryRoot().bindings.push({key:bindingKey,channel:c.id});
       }
     }
+    if(direction==='input'&&oldRole!==c.role&&[1,9].includes(Number(c.driver)))Object.assign(c,registryDefaultAnalogCalibration(c.role));
+    if(nextMode&&nextMode.id!==c.physical_mode)updateRegistryProfilePort(direction,index,physicalPort.id+'|'+nextMode.id);
     if ((!c.name || !String(c.name).trim()) && oldPurpose !== def.value) c.name = def.label.slice(0,23);
     dirty(); updateSaveButton(); renderRegistryInventory(); return;
   }
@@ -5091,6 +5134,10 @@ function selectRegistryProfilePort(presetIndex, portId, modeId) {
   const mode = port?.modes?.find(row=>row.id===modeId);
   if (!port || !mode) return registryAddError('That PCB connection is no longer available. Close this window and try again.');
   if (mode.available === false) return registryAddError(mode.status || 'That fitted PCB device is not responding.');
+  const presets=_registryAddDirection==='input'?REGISTRY_INPUT_PRESETS:REGISTRY_OUTPUT_PRESETS;
+  const preset=presets[presetIndex];
+  if(!preset||!pcbCompatibleChoices(_registryAddDirection,preset.purpose||registryDerivedPurpose(_registryAddDirection,preset),preset.role).some(choice=>choice.port.id===portId&&choice.mode.id===modeId))
+    return registryAddError('That PCB connection is already assigned or does not support this function. Choose another connection.');
   createRegistryChannelFromPreset(presetIndex, {port,mode});
 }
 function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {

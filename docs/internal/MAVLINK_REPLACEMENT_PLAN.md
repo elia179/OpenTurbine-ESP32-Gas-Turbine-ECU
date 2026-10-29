@@ -211,3 +211,27 @@ These checks simulate fitted devices and do not qualify an assembled PCB.
 The documentation draft on b235acd passed Jekyll, built links/anchors/images,
 browser review and guide recipes; deploy was skipped as intended:
 https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40874111220.
+
+
+## PCB connector capability follow-up (29 October)
+
+Confirmed the user's PCB v1 silkscreen: PWM 1–6 are the VIN load stages;
+OUT 1–6 are the buffered 5 V signals. Corrected importer, generated profile,
+preview and package assertions without changing stable connector IDs or routing.
+The connection editor shows each selected connector's electrical description.
+PWM load stages offer PWM/on-off; OUT signals offer servo/PWM/on-off.
+ADC connectors offer measurements and threshold switches, with rail-limited
+hysteresis. Fixed MAX31856 cards expose probe alloy; low-range thermocouple
+purposes are accepted consistently by UI, authoring validator and firmware.
+DS18B20/NTC remain excluded from turbine gas temperature purposes.
+
+Assignment changes reject occupied, incompatible and unavailable connectors;
+changing between servo and duty/on-off resets electrical endpoints. Role changes
+reset role-specific analogue calibration. A built-in supply monitor cannot be
+repurposed. Tests exercise these behaviors against the latest generated profile,
+including source and compressed pages in Chromium, Firefox and WebKit.
+Development boards remain profile-free; no connector cards are pre-created.
+
+Both firmware targets and filesystem budget checks passed locally. Hardware
+single-edit, legacy custom PCB, channel-name and 24-profile configuration-fuzz
+audits passed. These are software checks; an assembled PCB remains unqualified.

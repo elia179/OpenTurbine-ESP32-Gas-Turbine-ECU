@@ -52,6 +52,7 @@ def make_profile(parts):
     def check(ref, pad, net):
         if parts[ref]['pads'].get(str(pad)) != net:
             raise ValueError(f'{ref} pad {pad}: expected {net}, got {parts[ref]["pads"].get(str(pad))}')
+    check('U18',1,'+5V_MAIN');check('U18',2,'GND');check('U18',22,'PULSE_OE_N');check('U18',23,'+3V3');check('U18',24,'+3V3')
     check('U8', 11, '')  # Floating ADDR is 0x10 per TI address-selection table.
     for pad in (1,2,3): check('U17', pad, 'GND')
     for ref,channel in [('U20',1),('U21',2)]: check(ref,9,'TC_CS' if channel==1 else 'TC2_CS')
@@ -79,23 +80,23 @@ def make_profile(parts):
         ports.append({'id':f'thermocouple_{i}','label':f'Thermocouple {i}','connector':f'J{42+i}','modes':[{'id':'temperature','adapter':'spi_thermocouple','device':f'tc{i}'}]})
     for i in range(1,9):
         check(f'J{19+i}',1,f'ANALOG_EXT{i}')
-        ports.append({'id':f'analog_{i}','label':f'Analog input {i}','connector':f'J{19+i}','description':'0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail','modes':[
+        ports.append({'id':f'analog_{i}','label':f'ADC {i}','connector':f'J{19+i}','description':'0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail','modes':[
             {'id':'analog','adapter':'i2c_adc_input','device':'adc','channel':i-1,'reference_mv':5000,'limits':{'minimum_mv':0,'maximum_mv':5000}},
             {'id':'switch','adapter':'i2c_adc_digital_input','device':'adc','channel':i-1,'reference_mv':5000}]})
     for i in range(1,7):
         check(f'J{27+i}',1,f'PULSE_EXT{i}')
         check('U17', [4,5,6,7,9,10][i-1],f'PULSE_PU_CTL{i}')
-        ports.append({'id':f'pulse_in_{i}','label':f'Pulse input {i}','connector':f'J{27+i}','description':'Conditioned input; switchable external 3.3 V pull-up','modes':[
+        ports.append({'id':f'pulse_in_{i}','label':f'Input {i}','connector':f'J{27+i}','description':'Conditioned input; switchable external 3.3 V pull-up','modes':[
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_IN{i}')},'pull':'none','pull_control':{'device':'io','channel':i-1,'active_high':False}}
             for kind,adapter in [('frequency','pcnt_input'),('rc','rc_pwm_input'),('duty','pwm_duty_input'),('switch','digital_input')]]})
     for i in range(1,7):
         check(f'J{33+i}',1,f'PULSE_OUT{i}')
-        ports.append({'id':f'pulse_out_{i}','label':f'Pulse output {i}','connector':f'J{33+i}','description':'Buffered 5 V command; servo power source selected by board jumper','modes':[{'id':'servo','adapter':'servo_output','endpoint':{'gpio':gpio(f'PULSE_CMD{i}')},'safe_demand':0}]})
-        ports.append({'id':f'power_out_{i}','label':f'Power output {i}','connector':f'J{2*i+1}','description':'Low-side switched battery load; shared hardware output enable','modes':[
+        ports.append({'id':f'pulse_out_{i}','label':f'OUT {i}','connector':f'J{33+i}','description':'5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.','modes':[{'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_CMD{i}')},'safe_demand':0} for kind,adapter in [('servo','servo_output'),('pwm','pwm_output'),('on_off','relay_output')]]})
+        ports.append({'id':f'power_out_{i}','label':f'PWM {i}','connector':f'J{2*i+1}','description':'Low-side VIN load: PWM duty or on/off; shared hardware output enable','modes':[
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PWM_RAW{i}')},'safe_demand':0}
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:
-        ports.append({'id':f'{name}_switch','label':name.title()+' switch','connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':f'{name}_switch','name':name.title()+' Switch','role':'digital_switch','purpose':f'{name}_switch'}}]})
+        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':f'{name}_switch','name':name.title()+' Switch','role':'digital_switch','purpose':f'{name}_switch'}}]})
     for pin in (46,47):
         ports.append({'id':f'extension_{pin}','label':f'Extension GPIO{pin}','connector':'J18','modes':[{'id':'input','adapter':'digital_input','endpoint':{'gpio':pin}}]})
     return profile
