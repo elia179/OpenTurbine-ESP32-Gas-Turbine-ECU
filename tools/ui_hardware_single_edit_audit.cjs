@@ -1,3 +1,4 @@
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {gunzipSync}=require('node:zlib');
@@ -116,7 +117,7 @@ const {chromium}=require('playwright');
    await page.evaluate(()=>{_registryEditOpen.add(registryEditKey('output',0));renderRegistryInventory();});
    await page.locator('input[oninput*="setRegistryWetGlowDelaySeconds"]').fill('9.5');
    await page.evaluate(()=>{_registryEditOpen.clear();renderRegistryInventory();});
-   await page.locator('#btn-save').click();
+   await clickSaveControls(page);
    await page.locator('#save-recap-modal').waitFor({state:'visible'});
    assert.match(await page.locator('#save-recap-body').innerText(),/Workshop wet plug.*Pilot-fuel delay.*8.*9\.5/s);
    await page.setViewportSize({width:400,height:900});

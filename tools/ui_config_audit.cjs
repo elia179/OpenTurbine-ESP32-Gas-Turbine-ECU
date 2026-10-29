@@ -1,3 +1,4 @@
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -146,12 +147,6 @@ async function patchData(page, patch) {
 async function goto(page, route, waitSelector) {
   await page.goto(`${base}/${route}`);
   await page.waitForSelector(waitSelector, { state: 'attached' });
-}
-
-async function clickSave(page) {
-  const handle = page.getByRole('button', {name:/Show save controls/});
-  if (await handle.isVisible()) await handle.click();
-  await page.locator('#btn-save').click();
 }
 
 (async () => {
@@ -732,7 +727,7 @@ async function clickSave(page) {
     if (!(await liveThrottleCard.evaluate(el => el.open)))
       await liveThrottleCard.locator(':scope > summary').click();
     await page.locator('#cf-th_ru').fill('1700');
-    await clickSave(page);
+    await clickSaveControls(page);
     if (await page.locator('#ot-app-dialog.show').isVisible()) await page.locator('#ot-dialog-confirm').click();
     await page.waitForSelector('#save-recap-modal', {state:'visible'});
     await page.locator('#save-recap-confirm-btn').click();
@@ -740,7 +735,7 @@ async function clickSave(page) {
     let simState = await (await page.request.get(`${base}/__sim/state`)).json();
     assert.deepEqual(simState.last_config_patch, { throttle:{ ramp_up_ms:1700 } });
     await stalePage.locator('#cf-th_rd').fill('1800');
-    await clickSave(stalePage);
+    await clickSaveControls(stalePage);
     if (await stalePage.locator('#ot-app-dialog.show').isVisible()) await stalePage.locator('#ot-dialog-confirm').click();
     await stalePage.waitForSelector('#save-recap-modal', {state:'visible'});
     await stalePage.locator('#save-recap-confirm-btn').click();

@@ -1,3 +1,4 @@
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -624,7 +625,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       await dialog.dismiss();
     };
     page.on('dialog', captureSaveDialog);
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await page.waitForTimeout(250);
     const hiddenSaveState = await page.evaluate(() => ({
       message: document.getElementById('save-msg')?.textContent || '',
@@ -758,7 +759,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.equal(await stopCard.evaluate(el => el.classList.contains('field-changed')), true);
     assert.equal(await stopCard.locator('[data-control-field="stop_pullup"]').evaluate(el => el.classList.contains('field-changed')), true);
     assert.equal(await stopCard.locator('[data-control-field="stop_pulldown"]').evaluate(el => el.classList.contains('field-changed')), true);
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await page.waitForSelector('#save-recap-modal', { state: 'visible' });
     assert.match(await text(page, '#save-recap-body'), /Stop switch.*Pull-up resistor.*Enabled.*Disabled/is);
     assert.match(await text(page, '#save-recap-body'), /Stop switch.*Pull-down resistor.*Disabled.*Enabled/is);
@@ -780,7 +781,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       registry: Array.from(document.querySelectorAll('.registry-status-error')).map(el => el.textContent.trim()),
       message: document.getElementById('save-msg')?.textContent?.trim()
     })));
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await page.waitForSelector('#save-recap-modal', { state: 'visible' });
     assert.match(await text(page, '#save-recap-body'), /Status LED/i);
     assert.match(await text(page, '#save-recap-body'), /Enabled/i);
@@ -877,7 +878,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       engineMode,
       trigger: cfg.ab_trigger
     })));
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await page.waitForSelector('#save-recap-modal', { state: 'visible' });
     assert.match(await text(page, '#save-recap-body'), /Afterburner trigger.*Trigger source.*Physical switch.*Analog or RC command input/is);
     assert.match(await text(page, '#save-recap-body'), /Afterburner trigger.*Trigger threshold.*V/is);
@@ -894,7 +895,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       while (parent) { if (parent.tagName === 'DETAILS') parent.open = true; parent = parent.parentElement; }
     });
     await page.locator('#cf-rpm_limit').fill('96000');
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     // The full-system fixture intentionally includes a relight threshold below
     // Minimum Running N1, so acknowledge that safety warning before the recap.
     if (await page.locator('#ot-app-dialog.show').isVisible())
@@ -1016,9 +1017,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.doesNotMatch(await text(page, '#hardware-comms-summary'), /OT Cluster serial/i,
       'disabled OT Cluster must stay out of the normal installed-device summary');
     await page.locator('#btn-edit-comms').click();
-    assert.match(await text(page, '#hardware-comms-summary'), /Cluster TX GPIO|Cluster RX GPIO|TX-only/i);
+    assert.match(await text(page, '#hardware-comms-summary'), /MAVLink TX GPIO|MAVLink RX GPIO/i);
     assert.ok(await page.locator('#hardware-comms-summary option[value="-1"]').count() >= 1);
-    results.push('cluster System enable and Hardware serial wiring remain clearly separated');
+    results.push('MAVLink System controls and Hardware serial wiring remain clearly separated');
 
     await reset(page);
     const timerOnlyHardware = (await (await page.request.get(`${base}/api/hardware`)).json());
@@ -1059,7 +1060,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await missingOilBlock.getByRole('button', { name: /Drag to reorder block/ }).press('ArrowDown');
     assert.equal(await page.locator('#save-btn').isDisabled(), false);
     assert.equal(await page.locator('#seq-discard-btn').isDisabled(), false);
-    await page.locator('#save-btn').click();
+    await clickSaveControls(page,'#save-btn');
     await page.waitForSelector('#ot-app-dialog.show');
     assert.match(await page.locator('#ot-dialog-message').textContent(), /Set Output.*missing output "oil_pump"/is);
     await page.locator('#ot-dialog-confirm').click();

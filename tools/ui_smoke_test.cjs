@@ -1,3 +1,4 @@
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -782,7 +783,7 @@ function installedBrowser() {
       assert.equal(await page.locator(id).isEnabled(), true, `${id} should be live-editable in RUNNING Developer Mode`);
     assert.equal(await page.locator('#cf-tot_limit').isDisabled(), true);
     await page.locator('#cf-th_ru').fill('1700');
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     if (await page.locator('#ot-dialog-confirm').isVisible().catch(() => false))
       await page.locator('#ot-dialog-confirm').click();
     await page.locator('#save-recap-confirm-btn').click();
@@ -809,7 +810,7 @@ function installedBrowser() {
     assert.equal(await page.locator('#cf-tot_limit').evaluate(el =>
       el.closest('.config-group').classList.contains('group-changed')), true,
       'A configuration group containing an edited field should report unsaved changes');
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await page.locator('#ot-dialog-confirm').click();
     await page.locator('#save-recap-confirm-btn').click();
     await page.waitForFunction(() => document.querySelector('#save-msg').textContent.includes('Saved'));
@@ -1332,7 +1333,7 @@ function installedBrowser() {
     assert.equal(await delayInputs.nth(2).inputValue(), '6');
     assert.equal(await page.evaluate(() => hwCfg.startup_delay_ms.filter(Boolean).at(-1)), 6000);
     assert.equal(await delayInputs.nth(2).evaluate(el => document.activeElement === el), true);
-    await page.locator('#save-btn').click();
+    await clickSaveControls(page,'#save-btn');
     await page.locator('#ot-dialog-confirm').click();
     await page.waitForFunction(() => document.querySelector('#reboot-overlay')?.classList.contains('show'));
     assert.match(await page.locator('body').textContent(), /Igniter On/);
