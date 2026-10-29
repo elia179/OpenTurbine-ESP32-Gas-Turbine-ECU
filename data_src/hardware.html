@@ -3027,15 +3027,18 @@ function registryI2cEditor(direction, c, index) {
 }
 function registryProfileInputTuningEditor(direction, c, index) {
   if (!pcbProfileActive() || direction !== 'input') return '';
+  const mode=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.modes?.find(mode=>mode.id===c.physical_mode);
+  const externalBias=mode?.external_pullup?registryInputOptionsEditor(direction,c,index):'';
   if(c.role==='temperature'&&Number(c.temp_interface)===3)return `<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the fitted probe alloy. The MAX31856 chip and SPI wiring are fixed by the PCB.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(value=>`<option value="${value}"${String(c.tc_type||'K')===value?' selected':''}>${value}</option>`).join('')}</select></div>`;
   if(c.role==='temperature'&&Number(c.temp_interface)===5)return `<div class="hw-field"><span class="hw-label">OneWire resolution</span><select onchange="updateRegistryChannel('input',${index},'temp_resolution',+this.value)">${[9,10,11,12].map(value=>`<option value="${value}"${Number(c.temp_resolution??10)===value?' selected':''}>${value} bit</option>`).join('')}</select></div>`;
 
   const purpose = registryDerivedPurpose(direction,c);
   const isSwitch = registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose);
   const isFlame=['flame','ab_flame'].includes(purpose);
-  if (!isSwitch&&!isFlame) return '';
+  if (!isSwitch&&!isFlame) return externalBias;
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
+    if(externalBias)return polarity+externalBias;
     if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
     const pullConflict = c.pullup && c.pulldown ? ' field-error' : '';
     return `${polarity}<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Choose an internal pull-up, pull-down, or leave both off when the connected signal provides its own bias.</span><div class="hw-toggle-row">
@@ -4507,6 +4510,8 @@ function updateRegistryChannel(direction, index, key, value) {
   const c = r[direction + 's'][index];
   if (!c) return;
   if(registryFixedProfileFunction(direction,c)&&key!=='name')return;
+  const profileMode=pcbProfileActive()?(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.modes?.find(mode=>mode.id===c.physical_mode):null;
+  if(direction==='input'&&profileMode?.external_pullup&&key==='pulldown')return;
   if (key === 'pin') value = Number.isFinite(value) ? value : -1;
   if(direction==='input'&&['digital_threshold_raw','digital_hysteresis_raw'].includes(key)){
     if(!Number.isFinite(Number(value)))return;

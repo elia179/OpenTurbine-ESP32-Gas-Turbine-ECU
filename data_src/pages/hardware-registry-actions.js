@@ -108,6 +108,8 @@ function updateRegistryChannel(direction, index, key, value) {
   const c = r[direction + 's'][index];
   if (!c) return;
   if(registryFixedProfileFunction(direction,c)&&key!=='name')return;
+  const profileMode=pcbProfileActive()?(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.modes?.find(mode=>mode.id===c.physical_mode):null;
+  if(direction==='input'&&profileMode?.external_pullup&&key==='pulldown')return;
   if (key === 'pin') value = Number.isFinite(value) ? value : -1;
   if(direction==='input'&&['digital_threshold_raw','digital_hysteresis_raw'].includes(key)){
     if(!Number.isFinite(Number(value)))return;

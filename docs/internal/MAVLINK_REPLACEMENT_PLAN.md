@@ -287,7 +287,7 @@ assets, protocol changes or reduced storage reserves were introduced. The web
 payload fell from 445,339 to 420,775 bytes (web revision 20261029e); the real
 Classic recovered 28,672 filesystem bytes. A fresh no-load cycle retained a CSV
 and its browser download parsed 11 rows / 7 columns. Config ownership tests pass;
-the complete cross-browser regression is being rerun for the trimmed bundles.
+the complete 52-program UI regression passed for the trimmed bundles.
 
 Start and Stop connectors no longer seed automatic engine assignments on a
 fresh latest-PCB installation. They remain selectable through Add input, like
@@ -303,3 +303,26 @@ remain unavailable with "Fitted I2C device is not responding". Profile parsing,
 32 connection labels, board-identity mismatch rejection and no automatic
 connector assignments were checked on real S3; this is not assembled-PCB
 peripheral qualification.
+
+
+Final catalogue review also traced the conditioned Input 1–6 pull-up UI. Its
+existing external-pull-up editor was hidden by PCB mode; frequency inputs had
+no control and contact mode showed irrelevant internal bias. Profile tuning now
+uses the connector's external pull-up control for every supported input mode,
+with no pull-down choice on that conditioned circuit. The simulator now exports
+the same external_pullup flag as firmware; latest-profile browser tests exercise
+the actual checkbox and retained setting.
+
+
+Final local verification (2026-10-29): both firmware and filesystem builds,
+firmware/partition/internal-memory budgets, 321 safety checks, turbine matrix,
+I2C contracts, native suite retry, MAVLink independent-decoder checks, and the
+52-program browser suite passed. Windows Application Control interrupted the
+first native gate; the subsequent full native suite passed. The final pull-up
+UI change additionally passed source and compressed-page tests in Chromium,
+Firefox and WebKit, custom-profile tests and isolated hardware-edit tests.
+Both bare chips passed no-load remote command/pulse, browser navigation, event
+and session downloads, and engine-file restore checks. Classic is restored to
+the user's original setup; S3 is restored to OTBench. No assembled-PCB electrical
+qualification, engine-load test or long-duration soak is implied. All final
+changes and packages remain local: no push, release or deployment was performed.

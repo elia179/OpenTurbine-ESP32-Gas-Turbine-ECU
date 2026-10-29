@@ -49,6 +49,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
     return p.locator('#registry-'+direction+'s .registry-card').last();
    };
    const n1=await add(/^N1 /,/Input 1/);assert.match(await n1.textContent(),/J28/);assert.equal(await n1.getByText('GPIO pin',{exact:true}).count(),0);await shot('02-n1-connection','#registry-inputs .registry-card:last-child');
+   assert.equal(await n1.getByText('PCB input pull-up',{exact:true}).count(),1);assert.equal(await n1.getByRole('checkbox',{name:'Pull-down',exact:true}).count(),0);await n1.getByRole('checkbox',{name:'Enable pull-up',exact:true}).check();assert.equal(await p.evaluate(()=>registryRoot().inputs.find(row=>row.physical_port==='pulse_in_1').pullup),true);
    await n1.getByRole('button',{name:'Done',exact:true}).click();
    const tot=await add(/TOT \/ EGT/,/Thermocouple 1/);assert.match(await tot.textContent(),/J43/);assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).temp_interface),3);assert.equal(await tot.locator('select[onchange*="tc_type"]').count(),1);
    await tot.locator('select[onchange*="tc_type"]').selectOption('J');
@@ -83,6 +84,12 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
      }finally{window.alert=originalAlert;}
    });
    await p.locator('#registry-inputs .registry-card').last().getByRole('button',{name:'Done',exact:true}).click();
+   const contact=await add(/^Digital interlock/,/Input 2/);
+   assert.equal(await contact.getByText('PCB input pull-up',{exact:true}).count(),1);
+   assert.equal(await contact.getByRole('checkbox',{name:'Pull-down',exact:true}).count(),0);
+   await contact.getByRole('checkbox',{name:'Enable pull-up',exact:true}).check();
+   await p.evaluate(()=>{const i=registryRoot().inputs.findIndex(c=>c.physical_port==='pulse_in_2');updateRegistryChannel('input',i,'pulldown',true);if(!registryRoot().inputs[i].pullup||registryRoot().inputs[i].pulldown)throw Error('conditioned input accepted internal pull-down');});
+   await contact.getByRole('button',{name:'Done',exact:true}).click();
    const starter=await add(/^Starter Electric starter/,/OUT 1.*Servo/,'output');assert.match(await starter.textContent(),/J34/);assert.match(await starter.textContent(),/5 V signal.*Not a load-power output/);assert.equal(await starter.getByText('GPIO pin',{exact:true}).count(),0);await shot('05-starter-connection','#registry-outputs .registry-card:last-child');await p.evaluate(()=>{
      const c=registryRoot().outputs.at(-1),index=registryRoot().outputs.length-1;
      updateRegistryProfilePort('output',index,'pulse_out_1|pwm');
