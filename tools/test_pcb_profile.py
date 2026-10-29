@@ -120,6 +120,9 @@ class CurrentBoardTests(unittest.TestCase):
         self.assertEqual([ports[f'pulse_out_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[18,8,9,39,40,21])
         self.assertEqual(self.profile['fixed_functions']['supply_voltage']['divider'],37)
 
+    def test_latest_board_connectors_are_assigned_explicitly(self):
+        self.assertTrue(all('default' not in mode for port in self.profile['ports'] for mode in port['modes']))
+
     def test_signal_outputs_offer_all_supported_waveforms(self):
         ports = {p["id"]: p for p in self.profile["ports"]}
         for n in range(1, 7):

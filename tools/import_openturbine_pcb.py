@@ -96,7 +96,7 @@ def make_profile(parts):
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PWM_RAW{i}')},'safe_demand':0}
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:
-        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':f'{name}_switch','name':name.title()+' Switch','role':'digital_switch','purpose':f'{name}_switch'}}]})
+        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up'}]})
     for pin in (46,47):
         ports.append({'id':f'extension_{pin}','label':f'Extension GPIO{pin}','connector':'J18','modes':[{'id':'input','adapter':'digital_input','endpoint':{'gpio':pin}}]})
     return profile
