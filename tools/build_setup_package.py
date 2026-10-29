@@ -71,6 +71,8 @@ PACKAGE_SCHEMA = 4
 SETUP_TOOL_VERSION = "0.7.8"
 MINIMUM_SETUP_TOOL_VERSION = "0.7.4"
 ESPTOOL_VERSION = "5.3.0"
+# Deliberate installer catalogue: historical profiles remain test fixtures, not choices.
+SHIPPED_OFFICIAL_PROFILES = ("openturbine-s3-20261028.otpcb.json",)
 
 
 def source_commit() -> str:
@@ -352,7 +354,8 @@ def stage_package(stage: Path, esptool: Path, esptool_license: Path | None = Non
         firmware_digest = hashlib.sha256((env_stage / "firmware.bin").read_bytes()).hexdigest()
         official_profiles = []
         expected_profile_chip = "esp32-s3" if env == "esp32s3dev" else "esp32"
-        for source in sorted((ROOT / "pcb_profiles" / "official").glob("*.otpcb.json")):
+        for profile_name in SHIPPED_OFFICIAL_PROFILES:
+            source = ROOT / "pcb_profiles" / "official" / profile_name
             profile = json.loads(source.read_text(encoding="utf-8"))
             if profile.get("target", {}).get("chip") != expected_profile_chip:
                 continue

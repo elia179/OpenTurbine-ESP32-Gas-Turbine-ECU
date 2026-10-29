@@ -12,7 +12,7 @@ Plain development boards continue to work without any PCB profile. On this PCB, 
 | --- | --- |
 | I²C J15 | SDA GPIO4, SCL GPIO5 |
 | SPI J17 | SCK GPIO12, MISO GPIO13, MOSI GPIO11 |
-| Serial J16 | TX GPIO43, RX GPIO44; Cluster/MAVLink share this UART |
+| Serial J16 | TX GPIO43, RX GPIO44; MAVLink engine connection |
 | Thermocouple 1 J43 / U20 | MAX31856, CS GPIO14 |
 | Thermocouple 2 J44 / U21 | MAX31856, CS GPIO3 |
 | Analog inputs J20–J27 | U8 TLA2528 channels 0–7, address 0x10, 5 V reference |

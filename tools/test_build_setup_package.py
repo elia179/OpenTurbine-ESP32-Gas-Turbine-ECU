@@ -49,6 +49,11 @@ class BuildSetupPackageTests(unittest.TestCase):
             self.assertEqual((stage / "tools" / "esptool-LICENSE").read_text(), "GPL test license")
             self.assertEqual(manifest["bundled_tools"]["esptool"]["version"], "5.3.0")
             self.assertTrue(any((stage / "pcb_profiles" / "targets").glob("*.json")))
+            self.assertEqual(manifest["targets"]["esp32dev"]["pcb_profile"]["official_profiles"], [])
+            shipped = manifest["targets"]["esp32s3dev"]["pcb_profile"]["official_profiles"]
+            self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261028"])
+            self.assertEqual(shipped[0]["revision"], "1.0-20261028")
+            self.assertFalse(any("openturbine-ecu-s3-v1" in str(p) for p in stage.rglob("*")))
             for target in manifest["targets"].values():
                 self.assertRegex(target["build_id"], r"^[0-9a-f]{16}$")
                 for image in target["usb_flash"]:

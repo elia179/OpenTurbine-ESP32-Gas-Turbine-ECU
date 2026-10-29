@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029b');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029c',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029c');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -4131,8 +4131,8 @@ function renderCommsIndicatorSummary() {
     </div>`;
   };
   const mavStatus = mav.enabled ? ((mav.tx_pin ?? -1) >= 0 ? 'Ready' : 'TX pin missing') : 'Disabled';
-  const ledEnabled = led.enabled !== false;
-  const ledType = Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
+  const ledEnabled = pcbProfileActive() && fixed.status_led?.available ? true : led.enabled !== false;
+  const ledType = pcbProfileActive() ? (fixed.status_led?.type === 'neopixel' ? 1 : 0) : Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
   const ledMode = Number(led.mode ?? 0);
   const ledStatus = ledEnabled ? ((pcbProfileActive() || (led.pin ?? -1) >= 0) ? 'Ready' : 'Pin missing') : 'Disabled';
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
@@ -4148,7 +4148,7 @@ function renderCommsIndicatorSummary() {
          <div class="hw-field"><a href="/system.html#system-device-setup">Set stream rate on System &rarr;</a></div>
       </div></div>`) : '',
     profileAllows('status_led') ? card('status_led', 'Status LED',
-      ledEnabled && (led.pin ?? -1) >= 0 ? `${ledType === 1 ? 'NeoPixel RGB' : 'GPIO LED'}${pcbProfileActive() ? ' / built-in PCB indicator' : ` / GPIO ${led.pin}`}` : 'Local status indicator LED',
+      pcbProfileActive() ? 'Built-in PCB indicator' : (ledEnabled && (led.pin ?? -1) >= 0 ? `${ledType === 1 ? 'NeoPixel RGB' : 'GPIO LED'} / GPIO ${led.pin}` : 'Local status indicator LED'),
       ledStatus,
       pcbProfileActive() || cfg.platform !== 'esp32s3' ? true : ledEnabled,
       `<div class="registry-card-editor" style="display:block"><div class="hw-grid">

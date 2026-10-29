@@ -1060,8 +1060,8 @@ function renderCommsIndicatorSummary() {
     </div>`;
   };
   const mavStatus = mav.enabled ? ((mav.tx_pin ?? -1) >= 0 ? 'Ready' : 'TX pin missing') : 'Disabled';
-  const ledEnabled = led.enabled !== false;
-  const ledType = Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
+  const ledEnabled = pcbProfileActive() && fixed.status_led?.available ? true : led.enabled !== false;
+  const ledType = pcbProfileActive() ? (fixed.status_led?.type === 'neopixel' ? 1 : 0) : Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
   const ledMode = Number(led.mode ?? 0);
   const ledStatus = ledEnabled ? ((pcbProfileActive() || (led.pin ?? -1) >= 0) ? 'Ready' : 'Pin missing') : 'Disabled';
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
@@ -1077,7 +1077,7 @@ function renderCommsIndicatorSummary() {
          <div class="hw-field"><a href="/system.html#system-device-setup">Set stream rate on System &rarr;</a></div>
       </div></div>`) : '',
     profileAllows('status_led') ? card('status_led', 'Status LED',
-      ledEnabled && (led.pin ?? -1) >= 0 ? `${ledType === 1 ? 'NeoPixel RGB' : 'GPIO LED'}${pcbProfileActive() ? ' / built-in PCB indicator' : ` / GPIO ${led.pin}`}` : 'Local status indicator LED',
+      pcbProfileActive() ? 'Built-in PCB indicator' : (ledEnabled && (led.pin ?? -1) >= 0 ? `${ledType === 1 ? 'NeoPixel RGB' : 'GPIO LED'} / GPIO ${led.pin}` : 'Local status indicator LED'),
       ledStatus,
       pcbProfileActive() || cfg.platform !== 'esp32s3' ? true : ledEnabled,
       `<div class="registry-card-editor" style="display:block"><div class="hw-grid">

@@ -1,4 +1,4 @@
-# OpenTurbine 2.0 PCB profile authoring
+# OpenTurbine PCB profile authoring
 
 A PCB profile is a chip-specific, immutable description of hardware soldered to
 an ECU board. It is selected by the Windows setup tool during a USB clean
@@ -7,6 +7,12 @@ interface.
 
 If no profile is flashed, OpenTurbine retains the full generic development-board
 GPIO workflow.
+
+## Profile offered by the installer
+
+The only bundled official choice is [OpenTurbine PCB revision 1.0-20261028](official/openturbine-s3-20261028.md), for the supplied ESP32-S3-WROOM-1-N8 routing. It requires OpenTurbine 2.6.1 or newer. Plain development boards still work without a profile; Custom PCB profile remains available.
+
+`tools/build_setup_package.py` lists the shipped profile explicitly. The older `openturbine-ecu-s3-v1.otpcb.json` is retained for historical compatibility tests and is not included in the installer. Do not choose a profile from a similar-looking board: connector routing, voltage conditioning and output-enable polarity can differ.
 
 ## Start a profile
 
@@ -171,3 +177,21 @@ output-buffer safety control.
 
 The complete architecture and test contract are documented in
 [`dev/PCB_PROFILE_DESIGN.md`](../dev/PCB_PROFILE_DESIGN.md).
+
+## Preview the latest PCB in the ECU interface
+
+Run `node tools/preview_latest_pcb.cjs` from the repository root and open
+`http://127.0.0.1:8792/hardware.html`. This is a local simulation using the shipped
+profile, with devices assumed fitted. It does not connect to a physical ECU or
+qualify the assembled board. Stop the process when finished.
+
+The blank preview shows the profile revision and its 32 labelled connections.
+Add an engine purpose, then choose a compatible connector under **Connected to**.
+For example, N1 can use **Pulse input 1 · J28**, temperature **Thermocouple 1 · J43**,
+and pressure **Analog input 1 · J20**. Names, sensor calibration and supported
+operating choices remain editable. GPIO routing and fitted buses are fixed.
+Start/Stop must be assigned before commissioning. Status and Fault LEDs are
+built-in indicators; the Fault LED owns fault blinking separately.
+
+`node tools/ui_latest_pcb_audit.cjs` checks source and packaged UI in Chromium,
+Firefox and WebKit. `OT_PCB_PREVIEW` optionally saves focused preview images.

@@ -192,3 +192,22 @@ monitoring/receiver screenshots. All three cumulative teaching inventories and
 both development-board pin plans were rechecked while regenerating screenshots.
 The Pages workflow permits branch previews but only main can deploy; branch
 validation cannot publish an unreleased guide.
+
+## Latest PCB installer/appearance follow-up
+
+The installer now ships only `openturbine-s3-20261028` revision 1.0-20261028.
+The old routing remains a repository compatibility fixture, not an installer
+choice. Package tests assert both the single S3 choice and absence of the old
+binary; Classic still offers development-board/custom paths.
+
+A simulator fixture is derived from the actual latest profile. Its source and
+packaged UI passed in Chromium, Firefox and WebKit: all 32 connections loaded,
+N1/TOT/oil/starter selected the expected labelled connectors, temperature chose
+MAX31856, pressure retained its 5 V ADC reference, buses stayed fixed, and both
+built-in LEDs plus MAVLink appeared correctly. This found and fixed a Status LED
+summary/type assumption for expander-driven indicators (web revision 20261029c).
+These checks simulate fitted devices and do not qualify an assembled PCB.
+
+The documentation draft on b235acd passed Jekyll, built links/anchors/images,
+browser review and guide recipes; deploy was skipped as intended:
+https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40874111220.
