@@ -12,6 +12,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 Target release: **2.6.1**.
 
+- Clarify USB setup with per-port detection activity, explicit checking/erasing/writing stages and stage-specific recovery. Avoid repeating slow failed connections solely for legacy esptool command spelling.
+
 - Add a separate optional Fault LED; it takes over fault blinking from the Status LED when fitted.
 - Add the 28 October 2026 OpenTurbine PCB profile for ESP32-S3-WROOM-1-N8, including I²C indicators, switchable pulse-input pull-ups and the shared output enable. Plain development boards retain profile-free configuration.
 - Expand the three main System sections on entry and share scroll-aware search/save controls on short viewports.

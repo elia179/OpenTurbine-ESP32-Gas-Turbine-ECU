@@ -139,7 +139,10 @@ first/final chunks and passed byte-for-byte readback. Both boards passed
 phone/tablet browser checks with no unintended writes or reboot. Classic is left
 in Standby with its original setup and 2.6.1-dev; S3 is restored to OTBench 0.14.
 
-Full release qualification is still in progress. Earlier aggregate CI attempts
+The complete required CI gate passed on 30b2209, including all 51 UI audit
+programs, both firmware/filesystem builds and budgets, native behavior, Python
+and Windows Go tests: [run 40840035723](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40840035723).
+Earlier aggregate CI attempts
 stopped on stale UI-test assumptions: direct clicks on hidden Save bars, edits
 injected before the editor's saved baseline loaded, and fabricated dirty classes
 that the no-op detector correctly cleared. Tests now wait for loaded baselines,
@@ -147,6 +150,21 @@ make/revert real edits and use the visible reveal control. Source and packaged
 scroll tests pass in Chromium, Firefox and WebKit. These corrections do not
 weaken the required release gate. Warning guidance now uses the Fault shutdown
 switch rather than zeroing a retained Dashboard limit (web token 20261029a).
+
+Setup Tool 0.7.6 passed actual Windows keep-setup updates on both Classic and
+S3. Each run needed one initial Wi-Fi confirmation and zero confirmations after
+either restart. The tool waited for the expected project, version, target and
+build with maintenance readiness, then verified all twelve dashboard files.
+This also exercised same-image updates, where matching build identity alone
+cannot prove a restart. Profile, credentials, hardware, controls, calibration,
+rules and safety settings matched the saved pre-update setup on both targets.
+The S3 raw backup was restored afterward, esptool verified the written hash,
+and the board answered `OK OTBench 0.14`. The temporary qualification Wi-Fi
+profile was removed. Classic remains in Standby with outputs inactive.
+
+The complete 0.7.6 aggregate repeat on bcda937 passed, including native and
+Windows Go jobs:
+[run 40865173277](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40865173277).
 
 The working firmware is labelled 2.6.1-dev. No release or tag has been published.
 Assembled-PCB and actual ArduPilot integration tests remain separate hardware

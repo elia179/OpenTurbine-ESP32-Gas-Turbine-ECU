@@ -11,9 +11,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -431,6 +433,63 @@ func TestDPILayoutAndHitTestingUseSameUnits(t *testing.T) {
 			if roundTrip < logical-1 || roundTrip > logical+1 {
 				t.Fatalf("DPI %d: %d logical became %d after hit-test conversion", dpi, logical, roundTrip)
 			}
+		}
+	}
+}
+
+func TestUSBRecoveryKeepsFailureStage(t *testing.T) {
+	for _, tc := range []struct{ raw, want, unwanted string }{
+		{"USB install failed: hash mismatch", "USB writing or verification did not complete", "did not enter USB boot mode"},
+		{"USB erase failed: Access is denied", "Close serial monitors", "did not enter USB boot mode"},
+		{"USB install failed: Failed to connect: Wrong boot mode", "Hold BOOT", "USB erase did not complete"},
+		{"USB erase failed: disconnected", "may already be partly erased", "did not enter USB boot mode"},
+	} {
+		got := friendlyError(tc.raw)
+		if !strings.Contains(got, tc.want) || strings.Contains(got, tc.unwanted) {
+			t.Fatalf("%q: %q", tc.raw, got)
+		}
+	}
+}
+
+func TestEsptoolCompatibilityRetryOnlyForUnknownCommand(t *testing.T) {
+	for _, output := range []string{"Error: No such command 'chip-id'.", "invalid choice: 'flash-id'", "Unknown command chip-id"} {
+		if !esptoolCommandUnsupported(output) {
+			t.Fatalf("must try old command spelling: %q", output)
+		}
+	}
+	for _, output := range []string{"Failed to connect: No serial data received", "Access is denied", "Wrong boot mode", "Chip is ESP32-S3"} {
+		if esptoolCommandUnsupported(output) {
+			t.Fatalf("must not repeat a slow/failed USB connection: %q", output)
+		}
+	}
+}
+
+func TestUSBCommandHelperProcess(t *testing.T) {
+	if os.Getenv("OT_USB_TEST_HELPER") != "1" {
+		return
+	}
+	time.Sleep(1100 * time.Millisecond)
+	_, _ = os.Stdout.WriteString("USB command output\n")
+	if os.Getenv("OT_USB_TEST_FAILURE") == "1" {
+		os.Exit(7)
+	}
+	os.Exit(0)
+}
+
+func TestUSBCommandActivityPreservesOutputAndFailure(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestUSBCommandHelperProcess$")
+		cmd.Env = append(os.Environ(), "OT_USB_TEST_HELPER=1")
+		if failure {
+			cmd.Env = append(cmd.Env, "OT_USB_TEST_FAILURE=1")
+		}
+		var elapsed []time.Duration
+		output, err := commandWithActivity(cmd, func(d time.Duration) { elapsed = append(elapsed, d) })
+		if (err != nil) != failure || !strings.Contains(string(output), "USB command output") {
+			t.Fatalf("failure=%v output=%q err=%v", failure, output, err)
+		}
+		if len(elapsed) < 2 || elapsed[0] != 0 || elapsed[1] < time.Second {
+			t.Fatalf("no ongoing activity: %v", elapsed)
 		}
 	}
 }

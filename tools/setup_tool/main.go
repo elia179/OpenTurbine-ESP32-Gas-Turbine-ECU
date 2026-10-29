@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.6"
+	appVersion                  = "0.7.7"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -1510,7 +1510,7 @@ func (ui *NativeUI) paintHome(hdc uintptr, w, h, scrollOffset int) {
 		ui.drawActionCard(hdc, r2, "Update and keep my setup", "Working OpenTurbine board. Uses Wi‑Fi, makes a complete backup, and keeps the existing engine setup.", "Update without resetting", "update")
 		y += cardH + gap
 	}
-	note := "During update the tool will show each phase and tell you when to stay on normal internet Wi‑Fi or switch to the board Wi‑Fi. If a Classic ESP32 is not detected, unplug it, hold BOOT while plugging it back in, then use Rescan."
+	note := "USB installs detect the chip and ask you to select its hardware before the final erase confirmation. Wi-Fi updates back up the setup and check each restart automatically."
 	noteRect := rect{int32(contentLeft), int32(y), int32(contentRight), int32(y + noteH)}
 	drawPanel(hdc, noteRect, colInfoBg, colInfoBorder, 18)
 	text(hdc, "Before you begin", rect{noteRect.left + 20, noteRect.top + 14, noteRect.right - 20, noteRect.top + 38}, ui.fontButton, colInfoText, dtLeft|dtSingleLine|dtNoPrefix)
@@ -1616,7 +1616,7 @@ func (ui *NativeUI) paintDriverHelp(hdc uintptr, w, h int, body, detail string, 
 func (ui *NativeUI) paintBoardChoice(hdc uintptr, w, h int, boards []detectedBoard, scrollOffset int, mode string) {
 	card := rect{34, 112, int32(w - 34), int32(h - 78)}
 	drawPanel(hdc, card, colPanel, colBorderSoft, 24)
-	text(hdc, "More than one supported board was found. Nothing will be erased until you choose. If the Classic is missing, unplug it, hold BOOT while plugging it back in, then use Rescan.", rect{card.left + 28, card.top + 24, card.right - 28, card.top + 68}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
+	text(hdc, "Choose the chip and COM port you intend to install. Nothing has been erased. If unsure, unplug the other boards and use Rescan.", rect{card.left + 28, card.top + 24, card.right - 28, card.top + 68}, ui.fontBody, colText, dtLeft|dtWordBreak|dtNoPrefix)
 	listTop, listBottom := card.top+78, card.bottom-74
 	ui.setScrollMax(maxInt(0, len(boards)*64-int(listBottom-listTop)))
 	saved, _, _ := procSaveDC.Call(hdc)
@@ -2149,7 +2149,7 @@ func (j *Job) runNewBoard() {
 		return
 	}
 
-	j.set(2, total, 20, "Plug in the board", "Plug the ESP32 or ESP32‑S3 board into this computer with USB.\n\nIf the Classic ESP32 is not found, unplug it, hold BOOT while plugging it back in, and keep BOOT held until detection starts. Then click Continue.", "Use a USB data cable, not a charge-only cable. If the board still is not found, the next screen will guide you through a BOOT-mode retry.", true)
+	j.set(2, total, 20, "Plug in the board", "Connect the board with a USB data cable, then click Continue.\n\nThe tool will identify its chip and COM port. If several boards are connected, you can choose which one to install. Nothing is erased during detection.", "Keep USB connected. Most boards reset automatically; BOOT instructions appear only if detection needs help.", true)
 	if !j.waitContinue() {
 		j.cancelToHome("Clean USB install was cancelled before board detection.")
 		return
@@ -2176,9 +2176,12 @@ func (j *Job) runNewBoard() {
 		j.set(3, total, 35, "Detecting board", "The tool is looking for an ESP32 board over USB.", "This usually takes a few seconds. If it fails, hold BOOT and try again.", false)
 		var supported []detectedBoard
 		var unsupported []string
-		for _, p := range ports {
-			board, err := detectBoardWithEsptool(esptool, p)
+		for index, p := range ports {
+			board, err := detectBoardWithEsptool(esptool, p, func(elapsed time.Duration) {
+				j.ui().update(uiUpdate{screen: screenRunning, title: "Checking USB port " + p, subtitle: subtitleForMode(j.mode), body: fmt.Sprintf("Checking port %d of %d: %s.\n\nWaiting for the board to identify itself. Nothing is being erased.", index+1, len(ports), p), detail: fmt.Sprintf("Elapsed: %ds. Keep USB connected. A port that does not respond is skipped automatically.", int(elapsed.Seconds())), step: 3, totalSteps: total, progress: 35, mode: j.mode})
+			})
 			if err != nil {
+				j.addLog("USB detection on " + p + ": " + err.Error())
 				continue
 			}
 			if board.Target == "" {
@@ -2319,15 +2322,17 @@ func (j *Job) runNewBoard() {
 	version := packageVersion(pkg)
 	j.addLog("Using package " + version + " for " + friendlyTarget(target))
 	j.set(6, total, 64, "Installing OpenTurbine "+version, "Detected "+friendlyTarget(target)+" on "+port+".\nHardware: "+pcbProfileLabel+".\n\nDo not unplug USB or power. The board will be erased and OpenTurbine "+version+" will be installed.", "Package target: "+target+". This is the clean-install path for blank boards and intentional fresh reinstalls.", false)
-	if err := flashUSB(esptool, port, target, pkg, pcbProfilePath, j.addLog, func(percent int) {
+	if err := flashUSB(esptool, port, target, pkg, pcbProfilePath, j.addLog, func(title, body string) {
+		j.ui().update(uiUpdate{screen: screenRunning, title: title, subtitle: subtitleForMode(j.mode), body: body, detail: friendlyTarget(target) + " on " + port + " · Keep USB connected.", step: 6, totalSteps: total, progress: 64, mode: j.mode})
+	}, func(percent int) {
 		progress := 64 + percent*30/100
-		j.ui().update(uiUpdate{screen: screenRunning, title: "Flashing board — " + fmt.Sprintf("%d%%", percent), subtitle: subtitleForMode(j.mode), body: "Writing OpenTurbine to " + friendlyTarget(target) + " on " + port + ".\n\nDo not unplug USB or power.", detail: "Flash write progress reported by esptool.", step: 6, totalSteps: total, progress: progress, mode: j.mode})
+		j.ui().update(uiUpdate{screen: screenRunning, title: "Writing and verifying — " + fmt.Sprintf("%d%%", percent), subtitle: subtitleForMode(j.mode), body: "Writing OpenTurbine to " + friendlyTarget(target) + " on " + port + ".\n\nDo not unplug USB or power.", detail: "Each installed image is checked before installation completes.", step: 6, totalSteps: total, progress: progress, mode: j.mode})
 	}); err != nil {
 		j.fail(err)
 		return
 	}
 
-	j.success("OpenTurbine installed", "OpenTurbine was written and esptool verified every flashed image.\n\nThe board is restarting with fresh defaults. Connect your computer or phone to the OpenTurbine Wi-Fi network; it has no password until you configure one. Windows may say 'No internet'; that is normal.\n\nOpen http://192.168.4.1 and confirm the version/build shown in About matches the package before reconnecting outputs.")
+	j.success("OpenTurbine installed", "Installed OpenTurbine "+version+" on "+friendlyTarget(target)+" ("+port+").\nHardware: "+pcbProfileLabel+".\n\nAll installed images passed checksum verification.\n\nThe board is restarting with fresh defaults. Connect your computer or phone to the OpenTurbine Wi-Fi network; it has no password until you configure one. Windows may say 'No internet'; that is normal.\n\nOpen http://192.168.4.1 and confirm the version/build shown in About matches the package before reconnecting outputs.")
 }
 
 func (j *Job) runExistingUpdate() {
@@ -2602,6 +2607,17 @@ func (j *Job) logPath() string {
 	return filepath.Join(dir, "update_log.txt")
 }
 
+func usbRecoveryAdvice(lower string) string {
+	switch {
+	case strings.Contains(lower, "access is denied"), strings.Contains(lower, "permissionerror"), strings.Contains(lower, "port is busy"):
+		return "Close serial monitors and other apps using the COM port, then reconnect USB."
+	case strings.Contains(lower, "failed to connect"), strings.Contains(lower, "wrong boot mode"), strings.Contains(lower, "no serial data received"):
+		return "Hold BOOT, tap EN/RESET if the board has it, then retry with BOOT held until writing starts. Release BOOT once writing begins."
+	default:
+		return "Check USB power and use a short data cable directly to the computer. Avoid loose cables and unpowered hubs. See Show details for the original USB error."
+	}
+}
+
 func friendlyError(s string) string {
 	lower := strings.ToLower(s)
 	switch {
@@ -2611,14 +2627,17 @@ func friendlyError(s string) string {
 		return "The board was not found.\n\nCheck that this computer is connected to the board Wi‑Fi. The Wi‑Fi name may be OpenTurbine or your own engine/project name. Windows may say 'No internet'; that is normal."
 	case strings.Contains(lower, "no usb board"):
 		return "No USB board was found.\n\nPlug the board into USB. If needed, hold BOOT on the board and try again. Use a USB data cable, not a charge-only cable."
-	case strings.Contains(lower, "usb erase failed") ||
-		strings.Contains(lower, "usb install failed") ||
+	case strings.Contains(lower, "usb erase failed"):
+		return "USB erase did not complete. The selected board may already be partly erased.\n\n" + usbRecoveryAdvice(lower) + "\n\nRetry Clean install / reinstall on the same board to finish the installation."
+	case strings.Contains(lower, "usb install failed"):
+		return "USB writing or verification did not complete. OpenTurbine is not ready to use on this board.\n\n" + usbRecoveryAdvice(lower) + "\n\nRetry Clean install / reinstall on the same board; it will erase and install again."
+	case
 		strings.Contains(lower, "failed to connect") ||
-		strings.Contains(lower, "wrong boot mode") ||
-		strings.Contains(lower, "timed out waiting") ||
-		strings.Contains(lower, "no serial data received") ||
-		strings.Contains(lower, "serial data stream stopped") ||
-		strings.Contains(lower, "bootloader did not answer"):
+			strings.Contains(lower, "wrong boot mode") ||
+			strings.Contains(lower, "timed out waiting") ||
+			strings.Contains(lower, "no serial data received") ||
+			strings.Contains(lower, "serial data stream stopped") ||
+			strings.Contains(lower, "bootloader did not answer"):
 		return "The board did not enter USB boot mode.\n\nHold BOOT on the ESP32 board, click Back to start, and try Clean install / reinstall again. Keep BOOT held until the tool starts writing, then release it.\n\nRemember: the clean-install path erases the selected board. Also check that no serial monitor or other app is using the COM port."
 	case strings.Contains(lower, "missing tools\\esptool.exe") ||
 		strings.Contains(lower, "needs esptool.exe") ||
@@ -3339,7 +3358,38 @@ func prepareHiddenCommand(cmd *exec.Cmd) {
 	}
 }
 
-func detectBoardWithEsptool(esptool, port string) (detectedBoard, error) {
+// Keep long USB operations visibly active without restarting or duplicating them.
+func commandWithActivity(cmd *exec.Cmd, report func(time.Duration)) ([]byte, error) {
+	started := time.Now()
+	if report != nil {
+		report(0)
+	}
+	type result struct {
+		output []byte
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() { output, err := cmd.CombinedOutput(); done <- result{output, err} }()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case r := <-done:
+			return r.output, r.err
+		case <-ticker.C:
+			if report != nil {
+				report(time.Since(started))
+			}
+		}
+	}
+}
+
+func esptoolCommandUnsupported(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "invalid choice") || strings.Contains(lower, "no such command") || strings.Contains(lower, "unknown command")
+}
+
+func detectBoardWithEsptool(esptool, port string, report func(time.Duration)) (detectedBoard, error) {
 	var outputs []string
 	var lastErr error
 	// esptool v5 documents hyphenated commands; older bundled versions used
@@ -3349,7 +3399,7 @@ func detectBoardWithEsptool(esptool, port string) (detectedBoard, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		cmd := exec.CommandContext(ctx, esptool, "--port", port, command)
 		prepareEsptoolCommand(cmd)
-		out, err := cmd.CombinedOutput()
+		out, err := commandWithActivity(cmd, report)
 		cancel()
 		outputs = append(outputs, string(out))
 		board, parseErr := parseDetectedBoard(port, string(out), err)
@@ -3357,6 +3407,9 @@ func detectBoardWithEsptool(esptool, port string) (detectedBoard, error) {
 			return board, parseErr
 		}
 		lastErr = parseErr
+		if !esptoolCommandUnsupported(string(out)) {
+			break
+		}
 	}
 	return parseDetectedBoard(port, strings.Join(outputs, "\n"), lastErr)
 }
@@ -3907,7 +3960,7 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 	return outPath, warnings, nil
 }
 
-func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string, logf func(string), progress func(int)) error {
+func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string, logf func(string), activity func(string, string), progress func(int)) error {
 	t, ok := pkg.Manifest.Targets[target]
 	if !ok {
 		return fmt.Errorf("setup package does not contain files for this board")
@@ -3928,6 +3981,9 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 		file       string
 	}
 	ranges := make([]flashRange, 0, len(entries)+1)
+	if activity != nil {
+		activity("Checking install files and board", "Checking image checksums, flash capacity and PCB profile placement before erasing.\n\nNothing has been erased yet.")
+	}
 	flashBytes, flashErr := detectedFlashBytes(esptool, port)
 	if flashErr != nil {
 		return fmt.Errorf("could not verify board flash size: %w; board was not erased", flashErr)
@@ -3995,12 +4051,19 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 	eraseCtx, eraseCancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	eraseCmd := exec.CommandContext(eraseCtx, esptool, "--port", port, "erase_flash")
 	prepareEsptoolCommand(eraseCmd)
-	eraseOut, eraseErr := eraseCmd.CombinedOutput()
+	eraseOut, eraseErr := commandWithActivity(eraseCmd, func(elapsed time.Duration) {
+		if activity != nil {
+			activity("Erasing selected board", fmt.Sprintf("Erasing %s on %s for a fresh installation.\n\nElapsed: %ds. Erasing can take a minute or more; keep USB and power connected.", friendlyTarget(target), port, int(elapsed.Seconds())))
+		}
+	})
 	eraseCancel()
 	if eraseErr != nil {
-		return fmt.Errorf("USB erase failed. Hold BOOT on the board and try again. Details: %s", strings.TrimSpace(string(eraseOut)))
+		return fmt.Errorf("USB erase failed: %v. Details: %s", eraseErr, strings.TrimSpace(string(eraseOut)))
 	}
 	logf("Writing board software over USB")
+	if activity != nil {
+		activity("Connecting to write software", "The erase finished. Connecting to the bootloader to write and verify OpenTurbine.\n\nKeep USB and power connected.")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, esptool, args...)
@@ -4010,7 +4073,7 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 	cmd.Stderr = w
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("USB install failed. Hold BOOT on the board and try again. Details: %s", strings.TrimSpace(w.String()))
+		return fmt.Errorf("USB install failed: %v. Details: %s", err, strings.TrimSpace(w.String()))
 	}
 	if progress != nil {
 		progress(100)
@@ -4028,7 +4091,10 @@ func detectedFlashBytes(esptool, port string) (uint64, error) {
 		cancel()
 		combined.Write(out)
 		if err != nil {
-			continue
+			if esptoolCommandUnsupported(string(out)) {
+				continue
+			}
+			break
 		}
 		match := regexp.MustCompile(`(?i)(?:detected\s+)?flash\s+size\s*:\s*([0-9]+)\s*(MB|KB)`).FindStringSubmatch(string(out))
 		if len(match) == 3 {

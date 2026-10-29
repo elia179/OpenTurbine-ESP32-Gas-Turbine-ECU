@@ -1,10 +1,10 @@
 # OpenTurbine Setup Tool
 
-The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. The assembled PCB and S3 GUI update path remain separate qualification items; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
+The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. Both Classic and S3 have also passed the one-confirmation automatic reconnect flow. The assembled PCB remains a separate qualification item; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
 
 Windows setup/update helper for OpenTurbine boards.
 
-Version 0.7.6 scales its custom layout, fonts and mouse hit testing with the
+Version 0.7.7 scales its custom layout, fonts and mouse hit testing with the
 monitor DPI and follows Windows' suggested bounds on monitor changes. The Wi-Fi update asks for the initial connection once, then automatically waits
 for the expected version, chip target, build identity and maintenance readiness
 after each restart. It asks again only if those checks fail. Verification retry
@@ -15,6 +15,12 @@ follows [Microsoft's GDI mapping guidance](https://learn.microsoft.com/en-us/win
 The home screen separates **Clean install / reinstall** (USB, erases the entire
 selected board) from **Update and keep my setup** (Wi-Fi, backs up and retains
 the existing engine setup). Do not weaken this distinction in release builds.
+
+USB detection shows the current COM port, scan position and elapsed time. Clean
+installation distinguishes file/capacity checks, erasing, and writing/verification.
+Only unsupported esptool command spelling triggers the legacy compatibility retry;
+a failed connection is not repeated unnecessarily. Errors retain the failed stage
+and distinguish a busy port, boot mode and transfer/verification problems.
 
 The tool does not redistribute or silently install serial drivers. If Windows
 cannot see a board, the GUI identifies the likely USB bridge and opens the
