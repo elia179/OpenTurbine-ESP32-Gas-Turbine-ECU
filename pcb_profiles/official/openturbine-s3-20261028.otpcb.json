@@ -106,9 +106,6 @@
       "reference_mv": 3300,
       "label": "ECU supply voltage"
     },
-    "cluster_serial": {
-      "bus": "serial_0"
-    },
     "mavlink": {
       "bus": "serial_0"
     }

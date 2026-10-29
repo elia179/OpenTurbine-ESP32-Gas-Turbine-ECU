@@ -44,7 +44,7 @@ MARKDOWN_SOURCES = [
 CURRENT_GUIDANCE_SOURCES = [
     *MARKDOWN_SOURCES,
     ROOT / "hardware_profile.h",
-    ROOT / "examples/OTCClusterClient.h",
+    ROOT / "libraries/OpenTurbineMavlink/src/OpenTurbineMavlinkClient.h",
 ]
 REQUIRED_IMAGES = [
     "hero-dashboard.png", "hardware-page.png", "controllers-page.png", "system-page.png",

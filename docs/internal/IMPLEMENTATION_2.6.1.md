@@ -171,3 +171,15 @@ The earlier two-board physical report applies to its recorded earlier build IDs;
 the new serial changes were host-tested on both targets, not electrically tested
 with a receiver or on the assembled PCB. Classic was backed up and updated for
 live UI review. No public release or tag was created.
+
+
+## MAVLink replacement qualification, 29 October 2026
+
+The latest transport implementation and evidence supersede the older serial
+follow-up above. See [MAVLink replacement](MAVLINK_REPLACEMENT_PLAN.md).
+Both bare-board ECU targets passed wired Start/Stop, throttle mapping and expiry,
+physical servo observation, controller fault and remote acknowledgement, plus
+full engine-file round trips and served web-file comparisons. The Classic GUI
+keep-setup Wi-Fi update completed with verified identity and all twelve assets;
+its configuration was preserved. No assembled-PCB or flight-controller test is
+claimed. The working version is 2.6.1-dev; no release/tag has been published.

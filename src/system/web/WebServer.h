@@ -42,6 +42,7 @@ public:
     // Core-1 command handling must reject START in this window too — the
     // physical button and cluster serial bypass the web preflight.
     static bool rebootPending();
+    static const char* startRejectReason(); // shared read-only dashboard/remote preflight
 
 private:
     static void _setupRoutes();

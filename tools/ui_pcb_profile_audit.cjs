@@ -59,7 +59,6 @@ function installedBrowser() {
       fixed_functions:{
         status_led:{available:true,type:'neopixel'},
         supply_voltage:{available:true,label:'ECU supply voltage'},
-        cluster_serial:{available:true,connection:'serial_0'},
         mavlink:{available:true,connection:'serial_0'}
       },
       ports:[
@@ -119,15 +118,9 @@ function installedBrowser() {
     await page.getByRole('button',{name:'Edit devices'}).click();
     assert.match(await page.locator('#hardware-comms-summary').textContent(), /Physical connection/);
     assert.equal(await page.locator('#hardware-comms-summary').getByText('Cluster TX GPIO',{exact:true}).count(), 0);
-    await page.evaluate(async () => {
-      await setProfileSerialEnabled('cluster_serial',true);
-      await setProfileSerialEnabled('mavlink',true);
-    });
-    const serialState = await page.evaluate(() => ({
-      cluster:cfg.cluster_serial.enabled, mavlink:cfg.mavlink.enabled
-    }));
-    assert.deepEqual(serialState,{cluster:false,mavlink:true},
-      'one physical serial connector must not enable OT Cluster and MAVLink simultaneously');
+    await page.evaluate(async () => {await setProfileSerialEnabled('mavlink',true);});
+    assert.equal(await page.evaluate(()=>cfg.mavlink.enabled),true);
+    assert.doesNotMatch(await page.locator('#hardware-comms-summary').textContent(),/OT Cluster serial/);
     await page.locator('#btn-edit-comms').click();
     assert.match(await page.locator('#builtin-inputs').textContent(), /Switch wiring comes from this PCB profile/);
     assert.equal(await page.locator('#f-stop-pin').isVisible(), false);

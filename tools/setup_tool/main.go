@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.4"
+	appVersion                  = "0.7.5"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -329,6 +329,9 @@ var (
 	procPostQuitMessage       = user32.NewProc("PostQuitMessage")
 	procPostMessageW          = user32.NewProc("PostMessageW")
 	procGetClientRect         = user32.NewProc("GetClientRect")
+	procGetDpiForWindow       = user32.NewProc("GetDpiForWindow")
+	procGetDpiForSystem       = user32.NewProc("GetDpiForSystem")
+	procSetWindowPos          = user32.NewProc("SetWindowPos")
 	procSystemParametersInfoW = user32.NewProc("SystemParametersInfoW")
 	procInvalidateRect        = user32.NewProc("InvalidateRect")
 	procLoadIconW             = user32.NewProc("LoadIconW")
@@ -366,6 +369,9 @@ var (
 	procDeleteDC               = gdi32.NewProc("DeleteDC")
 	procBitBlt                 = gdi32.NewProc("BitBlt")
 	procSaveDC                 = gdi32.NewProc("SaveDC")
+	procSetMapMode             = gdi32.NewProc("SetMapMode")
+	procSetWindowExtEx         = gdi32.NewProc("SetWindowExtEx")
+	procSetViewportExtEx       = gdi32.NewProc("SetViewportExtEx")
 	procRestoreDC              = gdi32.NewProc("RestoreDC")
 	procIntersectClipRect      = gdi32.NewProc("IntersectClipRect")
 
@@ -387,6 +393,7 @@ const (
 	wmClose         = 0x0010
 	wmKeyDown       = 0x0100
 	wmSize          = 0x0005
+	wmDpiChanged    = 0x02E0
 	wmGetMinMaxInfo = 0x0024
 	wmPaint         = 0x000F
 	wmEraseBkgnd    = 0x0014
@@ -590,7 +597,8 @@ func runGUI(app *App) {
 	workW, workH := int(work.right-work.left), int(work.bottom-work.top)
 	// The normal layout is intentionally roomy: both install paths fit beside
 	// each other and longer safety/instruction text does not start scrolled.
-	windowW, windowH := 1240, 820
+	dpi := systemDPI()
+	windowW, windowH := scaleForDPI(1240, dpi), scaleForDPI(820, dpi)
 	if windowW > workW-24 {
 		windowW = workW - 24
 	}
@@ -661,11 +669,18 @@ func wndProc(hwnd uintptr, msgID uint32, wParam, lParam uintptr) uintptr {
 	case wmSize:
 		ui.invalidate()
 		return 0
+	case wmDpiChanged:
+		// Windows supplies the new physical bounds; do not scale them again.
+		r := (*rect)(unsafe.Pointer(lParam))
+		procSetWindowPos.Call(hwnd, 0, uintptr(r.left), uintptr(r.top), uintptr(r.right-r.left), uintptr(r.bottom-r.top), 0x0014)
+		ui.invalidate()
+		return 0
 	case wmGetMinMaxInfo:
 		mmi := (*minMaxInfo)(unsafe.Pointer(lParam))
 		// Content areas scroll independently while action buttons stay visible,
 		// so the tool remains usable on low-resolution Windows service laptops.
-		mmi.minTrackSize = point{x: 600, y: 520}
+		dpi := windowDPI(hwnd)
+		mmi.minTrackSize = point{x: int32(scaleForDPI(600, dpi)), y: int32(scaleForDPI(520, dpi))}
 		return 0
 	case wmMouseWheel:
 		if ui != nil {
@@ -676,7 +691,8 @@ func wndProc(hwnd uintptr, msgID uint32, wParam, lParam uintptr) uintptr {
 	case wmLButtonDown:
 		x := int(int16(lParam & 0xffff))
 		y := int(int16((lParam >> 16) & 0xffff))
-		ui.click(x, y)
+		dpi := windowDPI(hwnd)
+		ui.click(logicalForDPI(x, dpi), logicalForDPI(y, dpi))
 		return 0
 	case wmKeyDown:
 		if ui != nil && ui.handleKey(wParam) {
@@ -686,7 +702,8 @@ func wndProc(hwnd uintptr, msgID uint32, wParam, lParam uintptr) uintptr {
 		if ui != nil {
 			x := int(int16(lParam & 0xffff))
 			y := int(int16((lParam >> 16) & 0xffff))
-			ui.updateHover(x, y)
+			dpi := windowDPI(hwnd)
+			ui.updateHover(logicalForDPI(x, dpi), logicalForDPI(y, dpi))
 		}
 		return 0
 	case wmSetCursor:
@@ -747,12 +764,33 @@ func (ui *NativeUI) createResources() {
 }
 
 func setProcessDPIAware() {
-	// Per-monitor DPI awareness prevents Windows from bitmap-scaling this custom
-	// drawn UI (which made fonts and minimum dimensions enormous at 150–200%).
+	// Draw sharp text at each monitor's DPI using a shared logical coordinate
+	// system for painting, layout and mouse hit testing.
 	if r, _, _ := procSetDPIContext.Call(^uintptr(3)); r == 0 {
 		procSetProcessDPIAware.Call()
 	}
 }
+
+func systemDPI() int {
+	if procGetDpiForSystem.Find() == nil {
+		if dpi, _, _ := procGetDpiForSystem.Call(); dpi != 0 {
+			return int(dpi)
+		}
+	}
+	return 96
+}
+
+func windowDPI(hwnd uintptr) int {
+	if hwnd != 0 && procGetDpiForWindow.Find() == nil {
+		if dpi, _, _ := procGetDpiForWindow.Call(hwnd); dpi != 0 {
+			return int(dpi)
+		}
+	}
+	return systemDPI()
+}
+
+func scaleForDPI(value, dpi int) int   { return (value*dpi + 48) / 96 }
+func logicalForDPI(value, dpi int) int { return value * 96 / dpi }
 
 func (ui *NativeUI) scroll(wheelDelta int) {
 	ui.mu.Lock()
@@ -906,11 +944,11 @@ func (ui *NativeUI) prepareThenShowHome() {
 
 func (ui *NativeUI) showSafety(mode string) {
 	subtitle := "For a blank board or a clean reinstall, connected by USB."
-	body := "This is a CLEAN INSTALL. It erases the entire selected ESP32, including any existing OpenTurbine settings, calibration, logs, and Wi-Fi password. Use the Wi-Fi Update option instead when you want to keep an existing engine setup.\n\nIf this board still runs OpenTurbine and you may need its setup, cancel now and download the complete engine file from Tools before returning here. The installer cannot recover data after erase.\n\nDisconnect relays, pumps, starters, igniters, servos, valves, and anything else that could move, heat, spark, or start fuel flow. Pins can briefly change state while the board is erased, flashed, or restarted.\n\nAfter installation, treat the ECU as unconfigured. Check Hardware, Config, Calibration, and Sequence before reconnecting engine outputs."
+	body := "This is a CLEAN INSTALL. It erases the entire selected ESP32, including any existing OpenTurbine settings, calibration, logs, and Wi-Fi password. Use the Wi-Fi Update option instead when you want to keep an existing engine setup.\n\nIf this board still runs OpenTurbine and you may need its setup, cancel now and download the complete engine file from Tools before returning here. The installer cannot recover data after erase.\n\nDisconnect relays, pumps, starters, igniters, servos, valves, and anything else that could move, heat, spark, or start fuel flow. Pins can briefly change state while the board is erased, flashed, or restarted.\n\nAfter installation, treat the ECU as unconfigured. Check Hardware, Controllers, Calibration, and Sequence before reconnecting engine outputs."
 	primary := cleanSafetyButtonLabel
 	if mode == "update" {
 		subtitle = "For a working OpenTurbine board; keeps its engine setup."
-		body = "This is an UPDATE, not a reset. It updates the firmware and dashboard over Wi-Fi. Existing hardware settings, engine settings, calibration, logs, profile name, and Wi-Fi password remain on the board. The tool also saves and validates a complete engine file before uploading anything.\n\nBefore continuing:\n\nStop the engine, make sure no actuator test is running, and physically make fuel, ignition, starter, and other dangerous outputs safe. Keep board power stable until the update finishes.\n\nAfter updating, review Hardware, Config, Calibration, and Sequence before using fuel."
+		body = "This is an UPDATE, not a reset. It updates the firmware and dashboard over Wi-Fi. Existing hardware settings, engine settings, calibration, logs, profile name, and Wi-Fi password remain on the board. The tool also saves and validates a complete engine file before uploading anything.\n\nBefore continuing:\n\nStop the engine, make sure no actuator test is running, and physically make fuel, ignition, starter, and other dangerous outputs safe. Keep board power stable until the update finishes.\n\nAfter updating, review Hardware, Controllers, Calibration, and Sequence before using fuel."
 		primary = updateSafetyButtonLabel
 	}
 	ui.update(uiUpdate{
@@ -1313,8 +1351,14 @@ func (ui *NativeUI) paint() {
 	defer procEndPaint.Call(ui.hwnd, uintptr(unsafe.Pointer(&ps)))
 	var cr rect
 	procGetClientRect.Call(ui.hwnd, uintptr(unsafe.Pointer(&cr)))
-	w := int(cr.right - cr.left)
-	h := int(cr.bottom - cr.top)
+	physicalW := int(cr.right - cr.left)
+	physicalH := int(cr.bottom - cr.top)
+	if physicalW <= 0 || physicalH <= 0 {
+		return
+	}
+	dpi := windowDPI(ui.hwnd)
+	w := logicalForDPI(physicalW, dpi)
+	h := logicalForDPI(physicalH, dpi)
 	if w < 320 {
 		w = 320
 	}
@@ -1325,10 +1369,16 @@ func (ui *NativeUI) paint() {
 	// Paint into memory and copy one finished frame to the window. Direct GDI
 	// painting visibly flashed during mouse-wheel scrolling and live resize.
 	hdc, _, _ := procCreateCompatibleDC.Call(windowDC)
-	bitmap, _, _ := procCreateCompatibleBitmap.Call(windowDC, uintptr(w), uintptr(h))
+	bitmap, _, _ := procCreateCompatibleBitmap.Call(windowDC, uintptr(physicalW), uintptr(physicalH))
 	oldBitmap, _, _ := procSelectObject.Call(hdc, bitmap)
+	// MM_ANISOTROPIC keeps every existing layout/font/clip coordinate in 96-DPI
+	// logical units, while the memory bitmap retains the full physical resolution.
+	procSetMapMode.Call(hdc, 8)
+	procSetWindowExtEx.Call(hdc, 96, 96, 0)
+	procSetViewportExtEx.Call(hdc, uintptr(dpi), uintptr(dpi), 0)
 	defer func() {
-		procBitBlt.Call(windowDC, 0, 0, uintptr(w), uintptr(h), hdc, 0, 0, srcCopy)
+		procSetMapMode.Call(hdc, 1) // BitBlt copies the finished bitmap in pixels.
+		procBitBlt.Call(windowDC, 0, 0, uintptr(physicalW), uintptr(physicalH), hdc, 0, 0, srcCopy)
 		procSelectObject.Call(hdc, oldBitmap)
 		procDeleteObject.Call(bitmap)
 		procDeleteDC.Call(hdc)
@@ -1654,7 +1704,7 @@ func (ui *NativeUI) paintCardScreen(hdc uintptr, w, h int, body, detail string, 
 	}
 	displayBody := body
 	if detail != "" && !showDetails {
-		displayBody += "\n\nHelpful note: " + detail
+		displayBody += "\n\n" + detail
 	}
 	bodyHeight := measureTextHeight(hdc, displayBody, ui.fontBody, int(textArea.right-textArea.left))
 	ui.setScrollMax(maxInt(0, bodyHeight-int(textArea.bottom-textArea.top)+10))
@@ -1971,19 +2021,30 @@ func setTitleBarColors(hwnd uintptr) {
 
 func (j *Job) ui() *NativeUI { return globalUI }
 
+func waitButtonLabel(title string) string {
+	lower := strings.ToLower(title)
+	if strings.Contains(lower, "retry final verification") {
+		return "Retry verification"
+	}
+	if strings.Contains(lower, "final verification") {
+		return "Connected, verify update"
+	}
+	if strings.Contains(lower, "plug") {
+		return "Board connected, continue"
+	}
+	if strings.Contains(lower, "wi-fi") || strings.Contains(lower, "wi‑fi") || strings.Contains(lower, "connect") {
+		return "Wi-Fi connected, continue"
+	}
+	return "Continue"
+}
+
 func (j *Job) set(step, total, progress int, title, body, detail string, wait bool) {
 	j.addLog(title + " - " + oneLine(body))
 	screen := screenRunning
 	primary := ""
 	if wait {
 		screen = screenWait
-		primary = "Continue"
-		lowerTitle := strings.ToLower(title)
-		if strings.Contains(lowerTitle, "plug") {
-			primary = "Board connected, continue"
-		} else if strings.Contains(lowerTitle, "wi") || strings.Contains(lowerTitle, "connect") {
-			primary = "Wi-Fi connected, continue"
-		}
+		primary = waitButtonLabel(title)
 		if primary != "Continue" {
 			body = strings.ReplaceAll(body, "click Continue", "click "+primary)
 			body = strings.ReplaceAll(body, "Click Continue", "Click "+primary)
@@ -2022,7 +2083,7 @@ func (j *Job) fail(err error) {
 func (j *Job) success(title, body string) {
 	j.addLog("DONE: " + title)
 	j.writeLog("done", body)
-	j.ui().update(uiUpdate{screen: screenDone, title: title, subtitle: subtitleForMode(j.mode), body: body, detail: "Keep fuel disconnected until Hardware, Config, Calibration, and Sequence have been checked.", step: 0, totalSteps: 0, progress: 100, mode: j.mode, done: true, backupPath: j.backupPath})
+	j.ui().update(uiUpdate{screen: screenDone, title: title, subtitle: subtitleForMode(j.mode), body: body, detail: "Keep fuel disconnected until Hardware, Controllers, Calibration, and Sequence have been checked.", step: 0, totalSteps: 0, progress: 100, mode: j.mode, done: true, backupPath: j.backupPath})
 }
 
 func (j *Job) waitContinue() bool {
@@ -2359,7 +2420,7 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
-	j.set(9, total, 94, "Reconnect for final verification", "The dashboard files were accepted and the board is restarting.\n\nWindows may have switched back to another network. Connect to this OpenTurbine board's Wi-Fi again, wait a few seconds, then click Continue.", "The tool will verify the firmware version and all twelve web assets; it will not report success merely because upload returned quickly.", true)
+	j.set(9, total, 94, "Reconnect for final verification", "The dashboard files were accepted and the board is restarting.\n\nWindows may have switched back to another network. Connect to this OpenTurbine board's Wi-Fi again, wait a few seconds, then click Continue.", "The tool will verify the firmware version and all dashboard files; it will not report success merely because upload returned quickly.", true)
 	if !j.waitContinue() {
 		j.cancelToHome("Wi-Fi update was cancelled before final verification.")
 		return
@@ -2386,7 +2447,7 @@ func (j *Job) runExistingUpdate() {
 			return
 		}
 	}
-	j.success("Update complete", "OpenTurbine was updated successfully.\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
+	j.success("Update complete", "Verified OpenTurbine "+version+" for "+friendlyTarget(target)+".\nFirmware identity and all "+strconv.Itoa(len(assets))+" dashboard files match the update package.\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
 }
 
 func verifyUpdatedECU(expectedVersion, expectedTarget, expectedBuildID string, assetPaths []string) error {

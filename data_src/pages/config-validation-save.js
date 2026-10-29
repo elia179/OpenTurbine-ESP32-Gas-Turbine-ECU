@@ -143,8 +143,8 @@ function runValidation() {
         msg:'⚠ Governor target plus its no-correction band reaches the hard N2 shutdown limit. Leave operating margin below the trip.'});
     }
     const n2Warn = fv('cl_n2');
-    if (hwCfg.cluster_serial?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
-      warnings.push({section:'External Instrument Cluster Display', key:'warn-n2-cluster-trip',
+    if (hwCfg.mavlink?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
+      warnings.push({section:'External display references', key:'warn-n2-cluster-trip',
         msg:'⚠ Cluster N2 warning is at/above the hard shutdown limit, so the display may not warn before the ECU trips.'});
     }
   }
@@ -406,7 +406,7 @@ async function validateBeforeSave(cfg) {
     if (hwCfg.controllers?.dynamic_idle && idleSource === 1 && Number(idleTarget) >= n2RpmLimit)
       warns.push('N2-based idle target (' + idleTarget + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM).');
     const clusterN2Warn = Number(gv(cfg, 'cluster', 'n2_warn_rpm') || 0);
-    if (hwCfg.cluster_serial?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
+    if (hwCfg.mavlink?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
       warns.push('Cluster N2 warning (' + clusterN2Warn + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM), so the display may not warn before shutdown.');
   }
   const pbN1Enabled = !!gv(cfg, 'throttle', 'pullback_n1');

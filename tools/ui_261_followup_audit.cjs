@@ -49,11 +49,21 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
     await p.locator('[data-group="safety"] > summary').click();
     await p.locator('[data-protection="egt"] > summary').click();
    }
-   await p.evaluate(()=>{document.querySelector('.save-bar,.seq-save-bar').classList.add('is-dirty');document.activeElement.blur();scrollTo(0,0);});await p.waitForTimeout(850);
+   // Make a real edit: status polling may correctly remove a fabricated dirty
+   // class when the model still equals its saved baseline.
+   await p.evaluate(route=>{
+    if(route==='hardware'){cfg.profile_desc=String(cfg.profile_desc||'')+' test';dirty();}
+    else if(route==='system')setSystemHardware('profile_desc',String(hwCfg.profile_desc||'')+' test');
+    else if(route==='controllers'){const field=document.getElementById('cf-tot_limit');field.value=Number(field.value)+1;field.dispatchEvent(new Event('input',{bubbles:true}));_markDirty();}
+    else {hwCfg.startup_delay_ms=[...(hwCfg.startup_delay_ms||[]),151];markSequenceDirty();}
+    document.activeElement.blur();scrollTo(0,0);
+   },route);await p.waitForTimeout(850);
    await p.mouse.wheel(0,350);await p.waitForTimeout(200);
    const enough=await p.evaluate(()=>scrollY>80&&scrollY+innerHeight<document.documentElement.scrollHeight-20);
    if(enough){
     assert.ok(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),route+' collapses: '+await p.locator('.save-bar,.seq-save-bar').first().innerText());
+    const diagnostic=await p.evaluate(()=>({body:document.body.className,bar:document.querySelector('.save-bar,.seq-save-bar').className,handle:[...document.querySelectorAll('.ot-save-handle')].map(el=>({text:el.textContent,display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}))}));
+    assert.ok(await p.getByRole('button',{name:/Show save controls/}).count(),route+' save handle: '+JSON.stringify(diagnostic));
     await p.getByRole('button',{name:/Show save controls/}).click();
     assert.ok(!await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),route+' restores');
    }

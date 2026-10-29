@@ -592,7 +592,7 @@
       "title": "Useful entry points",
       "context": "OpenTurbine developer documentation and source build",
       "url": "/developers/#useful-entry-points",
-      "text": "- Build and development documentation covers the firmware and web workflows. - Setup Tool packaging describes the Windows release artifact. - OTC Cluster protocol is the integration reference. Record verification results and signing status before publishing a release."
+      "text": "- Build and development documentation covers the firmware and web workflows. - Setup Tool packaging describes the Windows release artifact. - MAVLink Cluster receiver replaces the retired OTC interface. - MAVLink telemetry covers wiring, setup, message names and receiver limitations. Record verification results and signing status before publishing a release."
     },
     {
       "title": "Explore a basic single-shaft turbine system",

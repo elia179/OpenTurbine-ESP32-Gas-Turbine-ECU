@@ -1036,7 +1036,6 @@ function renderCommsIndicatorSummary() {
   const box = document.getElementById('hardware-comms-summary');
   if (!box || !cfg) return;
   const editing = _workflowEditOpen.has('comms');
-  const cluster = cfg.cluster_serial || {};
   const mav = cfg.mavlink || {};
   const led = cfg.actuators?.status_led || {};
   const fault = cfg.actuators?.fault_led || {};
@@ -1048,9 +1047,6 @@ function renderCommsIndicatorSummary() {
   const buz = cfg.buzzer || {};
   const fixed = pcbProfile?.fixed_functions || {};
   const profileAllows = key => !pcbProfileActive() || fixed[key]?.available === true;
-  const sharedProfileSerial = pcbProfileActive() &&
-    fixed.cluster_serial?.connection &&
-    fixed.cluster_serial.connection === fixed.mavlink?.connection;
   const statusClass = status => (status === 'Ready' || status === 'Disabled') ? 'registry-status-ok' : 'registry-status-error';
   const optionList = (values, selected) => values.map(v => `<option value="${v}"${Number(selected)===v?' selected':''}>${v}</option>`).join('');
   const card = (device, title, detail, status, installed, editor) => {
@@ -1063,31 +1059,21 @@ function renderCommsIndicatorSummary() {
       ${editing ? editor : ''}
     </div>`;
   };
-  const clusterStatus = cluster.enabled ? ((cluster.tx_pin ?? -1) >= 0 ? 'Ready' : 'TX pin missing') : 'Disabled';
   const mavStatus = mav.enabled ? ((mav.tx_pin ?? -1) >= 0 ? 'Ready' : 'TX pin missing') : 'Disabled';
   const ledEnabled = led.enabled !== false;
   const ledType = Number(led.type ?? (cfg.platform === 'esp32s3' ? 1 : 0));
   const ledMode = Number(led.mode ?? 0);
   const ledStatus = ledEnabled ? ((pcbProfileActive() || (led.pin ?? -1) >= 0) ? 'Ready' : 'Pin missing') : 'Disabled';
   const buzStatus = buz.enabled ? ((buz.pin ?? -1) >= 0 ? 'Ready' : 'Pin missing') : 'Disabled';
+  const migrationNote=mav.migration_review?`<div class="hw-field"><span class="hw-desc">Two legacy links were enabled. Choose which wiring to retain; remote commands stay off.</span><button type="button" onclick="chooseMavlinkRoute(false)">Use MAVLink wiring (TX ${mav.tx_pin})</button><button type="button" onclick="chooseMavlinkRoute(true)">Use old Cluster wiring (TX ${mav.legacy_cluster?.tx_pin??'?'})</button></div>`:'';
   const cards = [
-    profileAllows('cluster_serial') ? card('cluster_serial', 'OT Cluster serial',
-      cluster.enabled ? `${pcbProfileActive() ? 'Fixed PCB serial connection' : `TX GPIO ${cluster.tx_pin ?? 'not set'}${(cluster.rx_pin ?? -1) >= 0 ? ` / RX GPIO ${cluster.rx_pin}` : ' / TX only'}`} / ${cluster.baud || 115200} baud` : 'External cluster telemetry link',
-      clusterStatus,
-      !!cluster.enabled,
-      `<div class="registry-card-editor" style="display:block"><div class="hw-grid">
-         <div class="hw-field"><span class="hw-label">Cluster serial</span><label class="hw-toggle"><input class="${workflowDeviceFieldClass('cluster_serial','enabled')}" type="checkbox" ${cluster.enabled?'checked':''} onchange="setProfileSerialEnabled('cluster_serial',this.checked)"><span></span> Enable</label></div>
-         ${pcbProfileActive() ? `<div class="hw-field"><span class="hw-label">Physical connection</span><span class="hw-desc">TX/RX wiring is fixed by the flashed PCB profile.${sharedProfileSerial?' The connector is shared with MAVLink.':''}</span></div>` : `<div class="hw-field"><span class="hw-label">Cluster TX GPIO</span><select class="${workflowDeviceFieldClass('cluster_serial','tx_pin')}" onchange="setNested('cluster_serial','tx_pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(cluster.tx_pin, 'out')}</select></div>
-         <div class="hw-field"><span class="hw-label">Cluster RX GPIO</span><span class="hw-desc">Optional. Leave unassigned for TX-only streaming.</span><select class="${workflowDeviceFieldClass('cluster_serial','rx_pin')}" onchange="setNested('cluster_serial','rx_pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(cluster.rx_pin, 'in')}</select></div>`}
-         <div class="hw-field"><a href="/system.html#system-device-setup">Set stream rate on System &rarr;</a></div>
-      </div></div>`) : '',
-    profileAllows('mavlink') ? card('mavlink', 'MAVLink telemetry',
+    profileAllows('mavlink') ? card('mavlink', 'MAVLink connection',
       mav.enabled ? `${pcbProfileActive() ? 'Fixed PCB serial connection' : `TX GPIO ${mav.tx_pin ?? 'not set'}`} / ${mav.baud || 57600} baud / ${mav.interval_ms || 200} ms` : 'MAVLink telemetry output',
       mavStatus,
-      pcbProfileActive() ? true : (!!mav.enabled || (mav.tx_pin ?? -1) >= 0),
+      pcbProfileActive() ? true : (!!mav.enabled || mav.migration_review || (mav.tx_pin ?? -1) >= 0),
       `<div class="registry-card-editor" style="display:block"><div class="hw-grid">
-         <div class="hw-field"><span class="hw-label">MAVLink</span><label class="hw-toggle"><input class="${workflowDeviceFieldClass('mavlink','enabled')}" type="checkbox" ${mav.enabled?'checked':''} onchange="setProfileSerialEnabled('mavlink',this.checked)"><span></span> Enable</label></div>
-         ${pcbProfileActive() ? `<div class="hw-field"><span class="hw-label">Physical connection</span><span class="hw-desc">TX wiring is fixed by the flashed PCB profile.${sharedProfileSerial?' The connector is shared with OT Cluster.':''}</span></div>` : `<div class="hw-field"><span class="hw-label">MAVLink TX GPIO</span><select class="${workflowDeviceFieldClass('mavlink','tx_pin')}" onchange="setNested('mavlink','tx_pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(mav.tx_pin, 'out')}</select></div>`}
+         <div class="hw-field"><span class="hw-label">MAVLink</span>${migrationNote}<label class="hw-toggle"><input class="${workflowDeviceFieldClass('mavlink','enabled')}" type="checkbox" ${mav.enabled?'checked':''} onchange="setProfileSerialEnabled('mavlink',this.checked)"><span></span> Enable</label></div>
+         ${pcbProfileActive() ? `<div class="hw-field"><span class="hw-label">Physical connection</span><span class="hw-desc">TX/RX wiring is fixed by the flashed PCB profile.</span></div>` : `<div class="hw-field"><span class="hw-label">MAVLink TX GPIO</span><select class="${workflowDeviceFieldClass('mavlink','tx_pin')}" onchange="setNested('mavlink','tx_pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(mav.tx_pin, 'out')}</select></div><div class="hw-field"><span class="hw-label">MAVLink RX GPIO (optional)</span><span class="hw-desc">Connect the receiver TX here for remote commands and throttle. Leave unassigned for monitoring only.</span><select class="${workflowDeviceFieldClass('mavlink','rx_pin')}" onchange="setNested('mavlink','rx_pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(mav.rx_pin, 'in')}</select></div>`}
          <div class="hw-field"><a href="/system.html#system-device-setup">Set stream rate on System &rarr;</a></div>
       </div></div>`) : '',
     profileAllows('status_led') ? card('status_led', 'Status LED',

@@ -119,6 +119,7 @@ struct EngineData {
     volatile float    throttleDemand  = 0;      // 0.0–1.0  main fuel/throttle ESC
     volatile float    dynamicIdleFloorDemand = 0; // current built-in Automatic Idle minimum
     volatile float    sequencerIdleDemand = 0; // last Set Main Fuel for Idle result for RUNNING fallback
+    volatile float    mainFuelRequestedDemand = 0; // demand before fuel protection
     volatile float    finalCoreFuelDemand = 0; // previous tick after rules/protection; excludes AB
     volatile float    mainFuelAppliedDemand = 0; // command last written to the physical main-fuel output
     volatile float    fuelPump2Demand = 0;      // 0.0–1.0  independent variable fuel pump
@@ -317,8 +318,6 @@ struct EngineData {
 
     // ── Cluster display hint (optional plugin) ────────────────
     // Written by sequence blocks; read by ClusterSerial plugin.
-    // 0 = nothing new to send.  Values match ClCode constants in ClusterSerial.h.
-    volatile uint8_t  clusterCode        = 0;
 
     // ── RC PWM input (written by RCInput::tick(), hardware-profile opt-in) ──
     // Active only when OT_IDLE_INPUT_RC_PWM or OT_THROTTLE_INPUT_RC_PWM is defined.
@@ -326,6 +325,9 @@ struct EngineData {
     volatile float    rcThrottleNorm        = 0.0f;    // 0.0–1.0
     volatile bool     rcIdleValid           = false;
     volatile float    rcIdleNorm            = 0.0f;    // 0.0–1.0
+    volatile bool     mavlinkThrottleValid = false;
+    volatile float    mavlinkThrottleDemand = 0.0f;    // normalized virtual controller input
+    volatile uint32_t mavlinkThrottleAgeMs = UINT32_MAX;
 
     // ── Session peak values (reset at power-up, not persisted) ──
     // Thread-safety note: these are written only by Core 1 (ECU loop) and read

@@ -1,3 +1,5 @@
+#include "MavlinkConfigFields.h"
+#include "MavlinkMigration.h"
 #include "../engine/controllers/ControllerActivation.h"
 #include "HardwareConfig.h"
 #include "../hal/actuators/RelayDemand.h"
@@ -742,11 +744,13 @@ const char* sequenceSourceId(uint8_t sensor) {
         case 25: return "start_switch";
         case 26: return "stop_switch";
         case 27: return "thrust_main";
+        case 28: return "mavlink_throttle";
         default: return "";
     }
 }
 
 int8_t sequenceSourceHandle(const char* id) {
+    if(id&&!strcmp(id,"mavlink_throttle"))return 28;
     if (!id || !id[0]) return -1;
     for (uint8_t i = 0; i <= 27; ++i) {
         if (strcmp(id, sequenceSourceId(i)) == 0 || strcmp(id, customSensorKey(i)) == 0)
@@ -1912,7 +1916,13 @@ bool validatePlatformPins(const JsonDocument& doc,
          (jsonPin(cluster, "tx_pin") >= 0 && jsonPin(cluster, "tx_pin") == jsonPin(cluster, "rx_pin")))) return false;
     if (!intRange(cluster, "baud", 9600, 921600) ||
         !intRange(cluster, "interval_ms", 10, 5000)) return false;
-    if (enabled(mavlink) && !requiredPinAllowed(mavlink, "tx_pin", outputGpioAllowed)) return false;
+    if (enabled(mavlink) && (!requiredPinAllowed(mavlink, "tx_pin", outputGpioAllowed) ||
+        !optionalPinAllowed(mavlink,"rx_pin",gpioAllowed) ||
+        (jsonPin(mavlink,"tx_pin")>=0&&jsonPin(mavlink,"tx_pin")==jsonPin(mavlink,"rx_pin")))) return false;
+    if(!intRange(mavlink,"baud",9600,921600)||!intRange(mavlink,"interval_ms",20,5000))return false;
+    for(const auto& field:MavlinkConfigFields::integers)
+        if(!intRange(mavlink,field.key,field.minimum,field.maximum))return false;
+    if(enabled(mavlink)&&(mavlink["allow_commands"]|false)&&jsonPin(mavlink,"rx_pin")<0)return false;
     if (enabled(buzzer) && !requiredPinAllowed(buzzer, "pin", outputGpioAllowed)) return false;
 
     auto docHasDiRoleInMode = [&](const char* wantedRole, uint8_t modeBit) {
@@ -2102,7 +2112,7 @@ bool validatePlatformPins(const JsonDocument& doc,
     if (enabled(cluster) &&
         (!addPin(jsonPin(cluster, "tx_pin")) ||
          !addPin(jsonPin(cluster, "rx_pin")))) return false;
-    if (enabled(mavlink) && !addPin(jsonPin(mavlink, "tx_pin"))) return false;
+    if (enabled(mavlink) && (!addPin(jsonPin(mavlink, "tx_pin"))||!addPin(jsonPin(mavlink,"rx_pin")))) return false;
     if (enabled(buzzer) && !addPin(jsonPin(buzzer, "pin"))) return false;
 
     if (hasAfterburner) {
@@ -2514,8 +2524,16 @@ float HardwareConfig::oilPumpCurrentMvPerA     = 100.0f;
 float HardwareConfig::oilPumpCurrentZeroV      = 1.65f;
 float HardwareConfig::oilPumpCurrentMaxAmps    = 0.0f;    // 0 = disabled
 int   HardwareConfig::mavlinkTxPin     = -1;
+int   HardwareConfig::mavlinkRxPin     = -1;
 int   HardwareConfig::mavlinkBaud      = 57600;
 int   HardwareConfig::mavlinkIntervalMs = 100;
+int   HardwareConfig::mavlinkSystemId=1;
+int   HardwareConfig::mavlinkComponentId=200;
+bool  HardwareConfig::mavlinkAllowCommands=false;
+bool HardwareConfig::mavlinkMigrationReview=false;
+int   HardwareConfig::mavlinkControllerSystem=255;
+int   HardwareConfig::mavlinkControllerComponent=190;
+int   HardwareConfig::mavlinkInputTimeoutMs=500;
 
 // Actuator pins & params
 // throttleType / starterType: 0=servo  1=ledc_pwm  2=onoff
@@ -3106,6 +3124,8 @@ void HardwareConfig::applyDefaults() {
     glowCurrentPin = -1; glowCurrentMvPerA = 185.0f; glowCurrentZeroV = 1.65f; glowCurrentReadyAmps = 3.0f;
     oilPumpCurrentPin = -1; oilPumpCurrentMvPerA = 100.0f; oilPumpCurrentZeroV = 1.65f; oilPumpCurrentMaxAmps = 0.0f;
     mavlinkTxPin = -1; mavlinkBaud = 57600; mavlinkIntervalMs = 100;
+    mavlinkMigrationReview=false;mavlinkRxPin=-1;mavlinkSystemId=1;mavlinkComponentId=200;mavlinkAllowCommands=false;
+    mavlinkControllerSystem=255;mavlinkControllerComponent=190;mavlinkInputTimeoutMs=500;
 
     throttlePin        = OT_THROTTLE_PIN;
     throttleType       = 0; throttleInverted = false; throttleActiveH = true;
@@ -4133,6 +4153,24 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
     mavlinkTxPin    = mvl["tx_pin"]      | mavlinkTxPin;
     mavlinkBaud     = mvl["baud"]        | mavlinkBaud;
     mavlinkIntervalMs = mvl["interval_ms"] | mavlinkIntervalMs;
+    for(const auto& field:MavlinkConfigFields::integers) *field.value=mvl[field.key]|field.fallback;
+    mavlinkAllowCommands=mvl["allow_commands"]|false;
+    // Old OTC files retain their wiring, never their remote-command permission.
+    mavlinkMigrationReview=mvl["migration_review"]|false;
+    MavlinkMigration::Link currentLink{hasMAVLink,mavlinkAllowCommands,mavlinkMigrationReview,
+        mavlinkTxPin,mavlinkRxPin,mavlinkBaud,mavlinkIntervalMs};
+    const MavlinkMigration::Link legacyLink{hasClusterSerial,false,false,
+        clusterTxPin,clusterRxPin,clusterBaud,clusterIntervalMs};
+    currentLink=MavlinkMigration::resolve(currentLink,legacyLink);
+    hasMAVLink=currentLink.enabled;mavlinkAllowCommands=currentLink.commands;mavlinkMigrationReview=currentLink.review;
+    mavlinkTxPin=currentLink.tx;mavlinkRxPin=currentLink.rx;mavlinkBaud=currentLink.baud;mavlinkIntervalMs=currentLink.interval;
+    auto oldRoute=mvl["legacy_cluster"];
+    if(mavlinkMigrationReview&&!oldRoute.isNull()){
+        clusterTxPin=oldRoute["tx_pin"]|-1;clusterRxPin=oldRoute["rx_pin"]|-1;
+        clusterBaud=oldRoute["baud"]|115200;
+    }
+    hasClusterSerial=false; // legacy configuration only; no OTC transport remains
+    if(mavlinkMigrationReview){hasMAVLink=false;mavlinkAllowCommands=false;}
     PcbProfileResolver::applyFixedPeripherals();
 
     // Legacy labels are fallbacks; fitted registry display names take precedence.

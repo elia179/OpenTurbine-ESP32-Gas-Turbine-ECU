@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028e',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028e');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -299,11 +299,11 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'ECU Runtime', sectionNote:'Advanced control-loop scheduling. Logging frequency and channel selection are configured on the Log page.', fields: [
     { key:'tm_lh', path:['telemetry','control_loop_hz'], label:'ECU Loop Target Hz', desc:'Main control-loop target frequency. Default 400 Hz. Lower values reduce CPU use; higher values improve control granularity but increase load. Recommended range: 200-500 Hz. Takes effect after a reboot.', step:50, min:50, max:1000, basic:true },
   ]},
-  { title: 'External Instrument Cluster Display', sectionNote:'These are display-only warning thresholds, not a list of transmitted values. The OT Cluster link automatically streams supported fitted primary sensors and actuators; a cluster connected with RX can request a different field subset. Only thresholds relevant to currently configured hardware are shown here, and none trigger an ECU shutdown.', fields: [
+  { title: 'External display references', sectionNote:'Display-only warning references sent with MAVLink channel metadata. Every fitted named input and output is available automatically. These references do not enable protection or trigger shutdown.', fields: [
     { key:'cl_n1', path:['cluster','n1_warn_rpm'],  label:'N1 Warn RPM',   desc:'N1 warning-zone start on the external cluster. 0 selects an automatic value at 90% of configured Maximum N1 Speed, even if N1 overspeed safety is off. This changes only cluster presentation.', step:500, min:0 },
     { key:'cl_n2', path:['cluster','n2_warn_rpm'],  label:'N2 Warn RPM',   desc:'N2 warning-zone start on the external cluster. This field appears only when N2 feedback is fitted and changes only cluster presentation.', step:500, min:0 },
-    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature warning threshold for cluster status. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
-    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure warning status code threshold. 0 = auto (running minimum)', step:0.1, min:0 },
+    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature display warning threshold. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
+    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure display warning threshold. 0 = auto (running minimum)', step:0.1, min:0 },
   ]},
   { title: 'Windmilling Oil Protection', id:'windmilling-oil-section', sectionNote:'Optional bearing protection while a shaft is still turning in standby, for example from airflow, vehicle movement, or residual momentum after shutdown. Off by default. When enabled, it uses a fixed/floor pump output or the matching oil-pressure controller.', fields: [
     { key:'so_en', path:['standby_oil','enabled'], label:'Enable Windmilling Oil Protection', type:'checkbox', desc:'Allow the selected oil pump to run automatically in STANDBY or FAULT while the selected healthy shaft is above the threshold. Leave this off when the engine does not need pressure lubrication while windmilling.' },
@@ -381,7 +381,7 @@ for(const section of ALL_CONFIG_SCHEMA)section.fields=section.fields.flatMap(fie
 const CONFIG_SURFACE = window.OT_CONFIG_SURFACE || 'controllers';
 const SYSTEM_SECTIONS = new Set([
   'ECU Runtime',
-  'External Instrument Cluster Display'
+  'External display references'
 ]);
 const SCHEMA = ALL_CONFIG_SCHEMA.filter(section =>
   CONFIG_SURFACE === 'system'
@@ -1208,7 +1208,9 @@ function _mountControllerLocalSettings(outputs) {
 }
 
 function simpleControlInputs() {
-  return (hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
+  const rows=(hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
+  if(hwCfg?.mavlink?.enabled && Number(hwCfg.mavlink.rx_pin??-1)>=0) rows.push({id:'mavlink_throttle',name:'MAVLink throttle demand',purpose:'throttle',installed:true});
+  return rows;
 }
 function controllerSwitchInput(id) {
   const row=(hwCfg?.channel_registry?.inputs||[]).find(input=>String(input.id)===String(id));
@@ -1552,7 +1554,7 @@ function setSystemHardware(path, value) {
   if (!_systemHardwareOriginalValues.has(path)) {
     const defaults={'cluster_serial.enabled':false,'mavlink.enabled':false,
       'cluster_serial.baud':115200,'cluster_serial.interval_ms':50,
-      'mavlink.baud':57600,'mavlink.interval_ms':100,profile_desc:''};
+      'mavlink.baud':57600,'mavlink.interval_ms':100,'mavlink.allow_commands':false,'mavlink.controller_system':255,'mavlink.controller_component':190,'mavlink.system_id':1,'mavlink.component_id':200,'mavlink.input_timeout_ms':500,profile_desc:''};
     _systemHardwareOriginalValues.set(path, getPath(hwCfg, path.split('.')) ?? defaults[path]);
   }
   setPath(hwCfg, path.split('.'), value);
@@ -1579,7 +1581,6 @@ function renderSystemSetup() {
   const openGroups = new Set(Array.from(root.querySelectorAll('details.config-group[open] > summary .group-title'))
     .map(node => node.textContent.trim()));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const cluster = hwCfg.cluster_serial || {};
   const mav = hwCfg.mavlink || {};
   const group = (title, desc, body, open=true, id='') => `<details${id?` id="${id}"`:''} class="config-group"${open?' open':''}><summary><span class="group-heading"><span class="group-title">${title}</span><span class="group-desc">${desc}</span></span><span class="group-chevron" aria-hidden="true">›</span></summary><div class="group-content"><div class="cfg-section"><div class="cfg-grid">${body}</div></div></div></details>`;
   const category = (title, desc, body, open=false, id='') => `<details${id?` id="${id}"`:''} class="system-category"${open?' open':''}><summary><span class="group-heading"><span class="group-title">${title}</span><span class="group-desc">${desc}</span></span><span class="group-chevron" aria-hidden="true">›</span></summary><div class="system-category-body"><div class="system-subcard-grid">${body}</div></div></details>`;
@@ -1593,16 +1594,17 @@ function renderSystemSetup() {
       <div class="cfg-field" id="system-wifi-access-state"><span class="cfg-label">Wi-Fi access</span><span class="wifi-access-state${wifiIsOpen?' open':''}">${wifiIsOpen?'Open network':'Password protected'}${wifiPasswordPending?' — new password ready to save':''}</span><span class="cfg-desc">${wifiIsOpen?'Anyone nearby can join this ECU network and access its controls. Add a password if the installation requires restricted access.':'A password is required before a device can join this ECU network.'}</span><div class="wifi-access-actions"><button type="button" id="system-wifi-password-action" onclick="revealSystemWifiPassword()">${wifiIsOpen?'Add Wi-Fi password':'Change password'}</button>${wifiIsOpen?'':`<button type="button" id="system-wifi-open-action" onclick="setSystemHardware('wifi_password','')">Use open network</button>`}</div></div>
       <label class="cfg-field" id="system-wifi-password-editor" style="display:none"><span class="cfg-label">${wifiIsOpen?'Add Wi-Fi password':'New Wi-Fi password'}</span><span class="cfg-desc">Enter 8–63 characters. The network security changes after Save and reboot.</span><input id="system-wifi-password" type="password" autocomplete="new-password" minlength="8" maxlength="63" placeholder="8–63 characters" onchange="if(this.value)setSystemHardware('wifi_password',this.value)"></label>
       <label class="cfg-field"><span class="cfg-label">Wi-Fi transmit power (dBm)</span><span class="cfg-desc">Use only as much radio power as the installation needs.</span><input id="system-wifi-tx-power" type="number" min="2" max="20" step="1" value="${Number(hwCfg.wifi_tx_power_dbm ?? 8)}" onchange="setSystemHardware('wifi_tx_power_dbm',+this.value)"></label>`;
-  const clusterFields = `
-      <div class="cfg-field"><span class="cfg-label">Instrument-cluster link</span><label><input type="checkbox" ${cluster.enabled?'checked':''} onchange="setSystemHardware('cluster_serial.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(cluster.tx_pin??-1)>=0?`TX GPIO ${cluster.tx_pin}${(cluster.rx_pin??-1)>=0?` / RX GPIO ${cluster.rx_pin}`:' / one-way'}`:'Assign its serial GPIO on Hardware first.'}</span><span class="cfg-desc">OTC binary display link, 3.3 V UART / shared ground. Streams fitted primary sensors and output commands in ECU units, with schema, health and status. With RX wired, a compatible cluster can select fields or request supported commands; the ECU still enforces its safety checks. Custom input names are not transmitted as field IDs. Display warning thresholds live in Controllers → External Instrument Cluster Display.</span></div>
-      ${cluster.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('cluster_serial.baud',+this.value)">${[9600,19200,38400,57600,115200,230400,460800,921600].map(v=>`<option value="${v}"${Number(cluster.baud||115200)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="10" max="5000" value="${Number(cluster.interval_ms??50)}" onchange="setSystemHardware('cluster_serial.interval_ms',+this.value)"><span class="cfg-desc">Time between telemetry chunks. Start with 50 ms at 115200 baud; large field sets or slower links take longer to complete a cycle.</span></label>`:''}
-      <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
   const mavFields = `
-      <div class="cfg-field"><span class="cfg-label">MAVLink telemetry</span><label><input type="checkbox" ${mav.enabled?'checked':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}`:'Assign its TX GPIO on Hardware first.'}</span><span class="cfg-desc">TX-only MAVLink v1: heartbeat at 1 Hz, healthy fitted primary readings as named floats, and fault text. Includes P1/P2 pressure. This is a telemetry component (system 1 / component 200), not an autopilot: no MAVLink commands, parameter editing or automatic ground-station vehicle setup. Use a MAVLink inspector or receiver; 3.3 V UART / shared ground.</span></div>
-      ${mav.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('mavlink.baud',+this.value)">${[57600,115200,230400].map(v=>`<option value="${v}"${Number(mav.baud||57600)===v?' selected':''}>${v}</option>`).join('')}</select></label>
-      <label class="cfg-field"><span class="cfg-label">Update interval (ms)</span><input type="number" min="50" max="5000" step="50" value="${Number(mav.interval_ms??100)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"><span class="cfg-desc">Sensor send interval; heartbeat remains 1 Hz. If the UART buffer fills, remaining readings continue next interval.</span></label>`:''}
-      <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure serial GPIO on Hardware &rarr;</a><span class="cfg-desc">Hardware owns pins and electrical capabilities.</span></div>`;
+      <div class="cfg-field"><span class="cfg-label">MAVLink connection</span><label><input type="checkbox" ${mav.enabled?'checked':''} ${mav.migration_review?'disabled':''} onchange="setSystemHardware('mavlink.enabled',this.checked)"> Enabled</label><span class="cfg-desc">${(mav.tx_pin??-1)>=0?`TX GPIO ${mav.tx_pin}${(mav.rx_pin??-1)>=0?` / RX GPIO ${mav.rx_pin}`:' / monitoring only'}`:'Assign serial GPIO on Hardware first.'}</span><span class="cfg-desc">MAVLink 2 engine data for a Cluster, ArduPilot or your own receiver. Standard EFI_STATUS carries primary engine readings; the supplied OpenTurbine dialect adds named channels, health, limits and engine controls. 3.3 V UART with shared ground.</span>${mav.migration_review?'<span class="cfg-desc">Two old serial connections were enabled. Choose which wiring to retain on Hardware before enabling MAVLink.</span>':''}</div>
+      ${mav.enabled?`<label class="cfg-field"><span class="cfg-label">Baud rate</span><select onchange="setSystemHardware('mavlink.baud',+this.value)">${[9600,19200,38400,57600,115200,230400,460800,921600].map(v=>`<option value="${v}"${Number(mav.baud||57600)===v?' selected':''}>${v}</option>`).join('')}</select></label>
+      <label class="cfg-field"><span class="cfg-label">Channel packet interval (ms)</span><input type="number" min="20" max="5000" value="${Number(mav.interval_ms??100)}" onchange="setSystemHardware('mavlink.interval_ms',+this.value)"><span class="cfg-desc">Each packet contains up to eight channels. A full cycle takes longer with more channels. Engine state and heartbeat update once per second.</span></label>
+      <div class="cfg-field"><span class="cfg-label">Remote engine commands</span><label><input type="checkbox" ${mav.allow_commands?'checked':''} ${(mav.rx_pin??-1)<0?'disabled':''} onchange="setSystemHardware('mavlink.allow_commands',this.checked)"> Allow Start, Stop, fault acknowledgement and fitted afterburner controls</label><span class="cfg-desc">Requires RX. Existing engine checks still apply. Sender IDs filter the controller; they are not authentication. Use a trusted direct link.</span></div>
+      <label class="cfg-field"><span class="cfg-label">Permitted controller system ID</span><input type="number" min="1" max="255" value="${Number(mav.controller_system??255)}" onchange="setSystemHardware('mavlink.controller_system',+this.value)"><span class="cfg-desc">Supplied Cluster example: 255. Set this and the component ID to match your sender.</span></label>
+      <label class="cfg-field"><span class="cfg-label">Permitted controller component ID</span><input type="number" min="1" max="255" value="${Number(mav.controller_component??190)}" onchange="setSystemHardware('mavlink.controller_component',+this.value)"></label>
+      <label class="cfg-field"><span class="cfg-label">Remote throttle timeout (ms)</span><input type="number" min="100" max="5000" value="${Number(mav.input_timeout_ms??500)}" onchange="setSystemHardware('mavlink.input_timeout_ms',+this.value)"><span class="cfg-desc">With RX fitted, MAVLink throttle demand is available as a Controllers input. Select it explicitly there. Missing valid demand makes that input unhealthy; it never selects a fallback automatically.</span></label>
+      <label class="cfg-field"><span class="cfg-label">ECU system ID</span><input type="number" min="1" max="255" value="${Number(mav.system_id??1)}" onchange="setSystemHardware('mavlink.system_id',+this.value)"></label>
+      <label class="cfg-field"><span class="cfg-label">ECU component ID</span><input type="number" min="1" max="255" value="${Number(mav.component_id??200)}" onchange="setSystemHardware('mavlink.component_id',+this.value)"><span class="cfg-desc">Each component on the link needs a unique system/component pair. Defaults: engine 1/200, Cluster 255/190.</span></label>`:''}
+      <div class="cfg-field"><span class="cfg-label">Physical connection</span><a href="/hardware.html#hardware-comms-panel">Configure TX and optional RX on Hardware &rarr;</a></div>`;
   const appearanceFields = `
       <div class="cfg-field" style="grid-column:1/-1">
         <div id="appearance-picker"></div>
@@ -1691,8 +1693,7 @@ function renderSystemSetup() {
       group('Wi-Fi access','Password and radio settings for the local ECU network',wifi,false,'system-wifi-access') +
       group('Appearance','Interface theme and dashboard decoration',appearanceFields,false),true,'system-identity-access') +
     category('Connections & runtime','External telemetry links and ECU execution diagnostics',
-      group('Instrument cluster','Optional OpenTurbine serial display',clusterFields,false) +
-      group('MAVLink telemetry','Optional serial telemetry for external systems',mavFields,false) +
+      group('MAVLink connection','Engine data and optional remote controls',mavFields,false) +
       group('ECU runtime','Control-loop scheduling and device-wide execution',runtimeFields,false) +
       group('ECU loop timing','Main ECU loop speed and execution timing diagnostics',loopTimingFields,false,'loop-diag-card'),true,'system-connections-runtime') +
     category('Maintenance','Backups, advanced updates, and recovery actions',
@@ -1715,7 +1716,7 @@ function renderSystemSetup() {
   if (frBtn) frBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
   const cfgRestoreBtn = document.getElementById('cfg-restore-btn');
   if (cfgRestoreBtn) cfgRestoreBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
-  ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, !cluster.enabled));
+  ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, !mav.enabled));
 }
 
 // OT_SYSTEM_ONLY_END
@@ -1728,7 +1729,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
   { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
-  { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External Instrument Cluster Display'] },
+  { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];
 const WORKSPACE_GROUPS = ALL_WORKSPACE_GROUPS
   .filter(group => CONFIG_SURFACE === 'system'
@@ -2608,8 +2609,8 @@ function runValidation() {
         msg:'⚠ Governor target plus its no-correction band reaches the hard N2 shutdown limit. Leave operating margin below the trip.'});
     }
     const n2Warn = fv('cl_n2');
-    if (hwCfg.cluster_serial?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
-      warnings.push({section:'External Instrument Cluster Display', key:'warn-n2-cluster-trip',
+    if (hwCfg.mavlink?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
+      warnings.push({section:'External display references', key:'warn-n2-cluster-trip',
         msg:'⚠ Cluster N2 warning is at/above the hard shutdown limit, so the display may not warn before the ECU trips.'});
     }
   }
@@ -2871,7 +2872,7 @@ async function validateBeforeSave(cfg) {
     if (hwCfg.controllers?.dynamic_idle && idleSource === 1 && Number(idleTarget) >= n2RpmLimit)
       warns.push('N2-based idle target (' + idleTarget + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM).');
     const clusterN2Warn = Number(gv(cfg, 'cluster', 'n2_warn_rpm') || 0);
-    if (hwCfg.cluster_serial?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
+    if (hwCfg.mavlink?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
       warns.push('Cluster N2 warning (' + clusterN2Warn + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM), so the display may not warn before shutdown.');
   }
   const pbN1Enabled = !!gv(cfg, 'throttle', 'pullback_n1');
@@ -4074,7 +4075,7 @@ function applyHwConditions() {
   const hasAbSol       = !!(hasAB && hasRegistryOutput('ab_valve'));
   const hasAbPump      = !!(hasAB && hasRegistryOutput('ab_pump'));
   const hasAbFuelHardware = hasAbSol || hasAbPump;
-  const hasClusterSerial = !!hwCfg.cluster_serial?.enabled;
+  const hasClusterSerial = !!hwCfg.mavlink?.enabled;
   const mainFuelChannel = registryOutputByPurpose('main_fuel');
   const driverIsOnOff = driver => [4,11].includes(Number(driver));
   const driverIsProportional = driver => [5,6].includes(Number(driver));
@@ -4372,10 +4373,10 @@ function applyHwConditions() {
   showField('cl_n2', true);
   ghostField('cl_n2', hasN2, 'N2 RPM sensor is not configured in Hardware.');
   const clusterSec = Array.from(document.querySelectorAll('.cfg-section'))
-    .find(sec => sec.dataset.section === 'External Instrument Cluster Display');
+    .find(sec => sec.dataset.section === 'External display references');
   if (clusterSec) {
     clusterSec.dataset.forceHidden = hasClusterSerial ? '0' : '1';
-    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';
+    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'MAVLink is not configured in Hardware.';
     clusterSec.style.display = '';
   }
   ['rpm_limit','min_rpm','sf_us_en','cl_n1'].forEach(k =>

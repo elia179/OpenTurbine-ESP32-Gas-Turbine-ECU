@@ -8,15 +8,20 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
-## [2.6.1] — Unreleased
+## [Unreleased]
+
+Target release: **2.6.1**.
 
 - Add a separate optional Fault LED; it takes over fault blinking from the Status LED when fitted.
 - Add the 28 October 2026 OpenTurbine PCB profile for ESP32-S3-WROOM-1-N8, including I²C indicators, switchable pulse-input pull-ups and the shared output enable. Plain development boards retain profile-free configuration.
 - Expand the three main System sections on entry and share scroll-aware search/save controls on short viewports.
 - Show per-output commands and entry/during/exit actions inside compound sequencer blocks, using the same command model as the final-state recap.
 - Give the Wi-Fi Setup Tool visible final-verification progress, bounded read retries, identity-based readiness and verification-only retry after uploads finish.
+- Replace the legacy Cluster protocol with MAVLink 2, a named-channel catalogue, explicit remote engine-command permission, correlated results, and an expiring throttle input for Controllers. Include a matching Cluster client and an ArduPilot companion example.
+- Preserve MAVLink-input controllers when loading settings, and show mapped controllers' input-loss output behavior.
+- Improve Setup Tool display scaling, use verification-specific reconnect actions, and report the firmware and web files actually verified.
 
-Local builds and simulated checks are in progress. Assembled-PCB and dual-board update validation remain required before publication.
+No-load MAVLink command, throttle and loss tests have passed on Classic ESP32 and ESP32-S3. Full release checks, update qualification and assembled-PCB validation remain separate requirements before publication.
 
 ## [2.6.0] — 2026-10-23
 - Dashboard output details now separate configured presets from active commands, show actual throttle-feedback holds and measured oil-pressure minimum, and clear stale command owners.

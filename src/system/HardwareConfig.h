@@ -346,8 +346,16 @@ public:
 
     // ── MAVLink UART ──────────────────────────────────────────
     static int   mavlinkTxPin;         // UART TX pin for MAVLink output
+    static int   mavlinkRxPin;         // optional RX; -1 is telemetry-only
     static int   mavlinkBaud;          // baud rate (default 57600)
     static int   mavlinkIntervalMs;    // telemetry send interval (ms)
+    static int   mavlinkSystemId;
+    static int   mavlinkComponentId;
+    static bool  mavlinkAllowCommands;
+    static int   mavlinkControllerSystem;
+    static int   mavlinkControllerComponent;
+    static int   mavlinkInputTimeoutMs;
+    static bool  mavlinkMigrationReview;
 
     static int   statusLedPin;
     static bool  statusLedActiveH;

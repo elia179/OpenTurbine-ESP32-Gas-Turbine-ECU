@@ -13,8 +13,8 @@ const hwUi = read('data_src/hardware.html');
 const calibration = read('data_src/calibration.html');
 const logger = read('src/system/SessionLogger.cpp');
 const rules = read('src/system/RulesEngine.h');
-const cluster = read('src/system/ClusterSerial.cpp');
-const mavlink = read('src/system/MAVLinkOutput.h');
+const cluster = read('src/system/TelemetryCatalog.cpp');
+const mavlink = read('src/system/MavlinkService.cpp');
 const pcnt = read('src/hal/sensors/PCNTRpmSensor.h');
 const ds18 = read('src/hal/sensors/DS18B20TempSensor.h');
 
@@ -74,8 +74,8 @@ assert.doesNotMatch(calibration, /kind === 'torque' \? 'torque_main' : 'thrust_m
 for (const [name, source, pattern] of [
   ['rules', rules, /case THRUST/],
   ['session logger', logger, /thrust_n/],
-  ['cluster telemetry', cluster, /THRUST_N/],
-  ['MAVLink telemetry', mavlink, /THRUST_N/],
+  ['named telemetry', cluster, /purpose,"thrust"/],
+  ['MAVLink telemetry', mavlink, /TelemetryCatalog::sample/],
 ]) assert.match(source, pattern, `${name} is missing thrust integration`);
 
 console.log('I2C/load-cell support audit passed.');

@@ -82,7 +82,6 @@ async function hasOption(page, selector, value) {
       cfg.di_channels = [];
       cfg.actuators.status_led = { enabled: true, pin: 4 };
       cfg.mavlink = { enabled: true, tx_pin: 4, baud: 115200, interval_ms: 200 };
-      cfg.cluster_serial = { enabled: true, tx_pin: 5, rx_pin: -1, baud: 115200, interval_ms: 100 };
       const optionState = (html, value) => {
         const select = document.createElement('select');
         select.innerHTML = html;
@@ -108,7 +107,7 @@ async function hasOption(page, selector, value) {
         c.pin === 37 && c.names.includes('TOT CS') && c.names.includes('TIT CS'));
 
       cfg.channel_registry.inputs.find(c => c.purpose === 'tit').spi_cs = 16;
-      cfg.cluster_serial.tx_pin = 4;
+      cfg.mavlink = {enabled:true,tx_pin:4,rx_pin:-1};
       cfg.actuators.status_led.enabled = false;
       const released = _releaseInactivePinConflicts();
       const statusLedReleased = cfg.actuators.status_led.pin === -1 && released;
@@ -143,12 +142,12 @@ async function hasOption(page, selector, value) {
     assert.equal(conflictMatrix.spiClkAsOrdinaryOutput.disabled, true, 'SPI CLK pin must not be selectable by an unrelated output');
     results.push('hardware conflict logic covers status LED, serial pins, SPI bus sharing and hidden inactive pins');
 
-    const txOnlyCluster = await page.evaluate(() => {
-      cfg.cluster_serial = { enabled: true, tx_pin: 5, rx_pin: -1, baud: 115200, interval_ms: 100 };
-      return _checkGpioConflicts().some(c => c.names.some(n => n.startsWith('Cluster Serial')));
+    const txOnlyMavlink = await page.evaluate(() => {
+      cfg.mavlink = { enabled: true, tx_pin: 5, rx_pin: -1, baud: 115200, interval_ms: 100 };
+      return _checkGpioConflicts().some(c => c.names.some(n => n.startsWith('MAVLink RX')));
     });
-    assert.equal(txOnlyCluster, false, 'TX-only cluster mode must not create a false RX conflict');
-    results.push('TX-only cluster mode remains conflict-free with RX disabled');
+    assert.equal(txOnlyMavlink, false, 'TX-only MAVLink mode must not create a false RX conflict');
+    results.push('TX-only MAVLink mode remains conflict-free with RX disabled');
 
     console.log(`Cross-platform conflict audit passed (${results.length} groups):`);
     for (const result of results) console.log(`- ${result}`);

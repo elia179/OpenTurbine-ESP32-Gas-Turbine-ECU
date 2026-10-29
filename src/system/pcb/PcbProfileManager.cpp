@@ -902,13 +902,10 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
         item["available"] = true;
         item["label"] = _catalog->supplyVoltageLabel;
     }
-    if (_catalog->clusterSerialBusId[0]) {
-        fixed["cluster_serial"]["available"] = true;
-        fixed["cluster_serial"]["connection"] = _catalog->clusterSerialBusId;
-    }
-    if (_catalog->mavlinkBusId[0]) {
+    const char* serialBus=_catalog->mavlinkBusId[0]?_catalog->mavlinkBusId:_catalog->clusterSerialBusId;
+    if (serialBus[0]) {
         fixed["mavlink"]["available"] = true;
-        fixed["mavlink"]["connection"] = _catalog->mavlinkBusId;
+        fixed["mavlink"]["connection"] = serialBus;
     }
     if (!includePorts) return;
     JsonArray ports = out["ports"].to<JsonArray>();

@@ -376,16 +376,6 @@ function populate() {
   chk('f-start-pullup', c.start_pullup !== false);
   chk('f-start-pulldown', !!c.start_pulldown);
 
-  const cl = cfg.cluster_serial || {};
-  chk('en-cluster', cl.enabled || false);
-  updateGroupEnabled('grp-cluster', cl.enabled || false);
-  const clBaud = document.getElementById('f-cl-baud');
-  if (clBaud) {
-    const bv = (cl.baud || 115200).toString();
-    for (let o of clBaud.options) if (o.value === bv) { o.selected = true; break; }
-  }
-  v('f-cl-interval', cl.interval_ms ?? '');
-
   const mav = cfg.mavlink || {};
   chk('en-mavlink', mav.enabled || false);
   updateGroupEnabled('grp-mavlink', mav.enabled || false);
@@ -640,15 +630,14 @@ async function setNested(group, key, val) {
   if (isPinField(key)) refreshAllPins();
   dirty();
 }
+function chooseMavlinkRoute(useCluster){
+  const mav=cfg.mavlink||(cfg.mavlink={});
+  if(useCluster&&mav.legacy_cluster)Object.assign(mav,mav.legacy_cluster);
+  delete mav.legacy_cluster;mav.migration_review=false;mav.allow_commands=false;
+  delete cfg.cluster_serial;dirty();refreshAllPins();renderHardwareWorkflowSummaries();
+}
 async function setProfileSerialEnabled(group, enabled) {
   await setNested(group, 'enabled', !!enabled);
-  const fixed = pcbProfile?.fixed_functions || {};
-  const shared = pcbProfileActive() && fixed.cluster_serial?.connection &&
-    fixed.cluster_serial.connection === fixed.mavlink?.connection;
-  if (enabled && shared) {
-    const other = group === 'cluster_serial' ? 'mavlink' : 'cluster_serial';
-    await setNested(other, 'enabled', false);
-  }
   refreshAllPins();
   updateSaveButton();
   renderHardwareWorkflowSummaries();
@@ -771,8 +760,7 @@ const SPECIAL_DEPENDENCIES = {
   glow_current: { name:'Glow plug current sensor', functions:['glow current live data','glow current calibration','glow current session logging'] },
   ab_flame: { name:'Afterburner flame sensor', functions:['AB flame-confirm mode','AB flame live data','rules and diagnostics using AB flame state'] },
   buzzer: { name:'Buzzer', functions:['audible mode transitions','audible fault indication','bench-test tone output'] },
-  cluster: { name:'OT Cluster serial', functions:['external display telemetry','cluster warning thresholds','optional cluster command RX'] },
-  mavlink: { name:'MAVLink serial output', functions:['Mission Planner / QGroundControl telemetry','MAVLink HEARTBEAT','MAVLink NAMED_VALUE_FLOAT data'] }
+  mavlink: { name:'MAVLink connection', functions:['Engine telemetry and named channels','Optional remote engine controls','Optional controller throttle input'] }
 };
 
 const HW_ENABLE_DEP_KEYS = {

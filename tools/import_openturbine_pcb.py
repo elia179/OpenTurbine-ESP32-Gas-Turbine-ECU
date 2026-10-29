@@ -73,7 +73,7 @@ def make_profile(parts):
             'fault_led':{'device':'io','channel':7,'active_high':False,'safe_demand':0},
             'output_enable':{'gpio':gpio('OUTPUT_ENABLE'),'active_high':True,'safe_demand':0},
             'supply_voltage':{'gpio':gpio('BAT_ADC_MCU'),'divider':37,'reference_mv':3300,'label':'ECU supply voltage'},
-            'cluster_serial':{'bus':'serial_0'},'mavlink':{'bus':'serial_0'}}, 'ports':[]}
+            'mavlink':{'bus':'serial_0'}}, 'ports':[]}
     ports = profile['ports']
     for i in (1,2):
         ports.append({'id':f'thermocouple_{i}','label':f'Thermocouple {i}','connector':f'J{42+i}','modes':[{'id':'temperature','adapter':'spi_thermocouple','device':f'tc{i}'}]})

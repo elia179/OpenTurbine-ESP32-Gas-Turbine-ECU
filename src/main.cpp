@@ -7,13 +7,12 @@
 #include "system/DigitalInputMirror.h"
 #include "hal/GpioInputBias.h"
 #include "system/HardwareCapabilities.h"
-#include "system/ClusterSerial.h"
 #include "system/FlightRecorder.h"
 #include "system/SessionLogger.h"
 #include "system/CommandQueue.h"
 #include "system/Watchdog.h"
 #include "system/web/WebServer.h"
-#include "system/MAVLinkOutput.h"
+#include "system/MavlinkService.h"
 #include "system/RulesEngine.h"
 #include "system/ConfigApplyGate.h"
 #include "system/FeedbackRequirements.h"
@@ -25,7 +24,7 @@
 #include <new>
 
 // ── MAVLink serial output ─────────────────────────────────────
-static MAVLinkOutput g_mavlink;
+static MavlinkService g_mavlink;
 static HardwareSerial _mavSerial(2);  // UART2
 // ── Global hardware objects (always compiled in) ──────────────
 OT_DECLARE_HARDWARE;
@@ -441,7 +440,6 @@ static void applyConfigOnEcuCore() {
     // validation chatter to the shared UART from Core 1; concurrent Serial
     // writes can corrupt the Arduino TX ring and block both cores.
     validateSequences(false);
-    ClusterSerial::beginIfNeeded();
 }
 
 static void buildSequences() {
@@ -2934,14 +2932,6 @@ static void enterFaultShutdown() {
                               HardwareConfig::shutdownEnterActions,
                               HardwareConfig::shutdownExitActions);
     Serial.printf("[OT] FAULT SHUTDOWN: %s\n", fault);
-    if (HardwareConfig::hasClusterSerial) {
-        // Send fault-specific cluster status code (more descriptive than generic ShuttingDown)
-        if      (strcmp(fault, "OVERSPEED") == 0)   ClusterSerial::sendStatus(ClCode::Overspeed);
-        else if (strcmp(fault, "FLAMEOUT")  == 0)   ClusterSerial::sendStatus(ClCode::FlameOut);
-        else if (strcmp(fault, "LOW_OIL")   == 0)   ClusterSerial::sendStatus(ClCode::OilPressureLow);
-        else if (strcmp(fault, "OIL_ZERO")  == 0)   ClusterSerial::sendStatus(ClCode::OilZero);
-        else                                         ClusterSerial::sendStatus(ClCode::ShuttingDown);
-    }
     if (HardwareConfig::hasMAVLink) {
         char buf[50];
         snprintf(buf, sizeof(buf), "FAULT: %s", fault ? fault : "?");
@@ -2983,6 +2973,7 @@ static void enterStandby() {
     RulesEngine::modeEntered(ed.mode);
     ed.throttleDemand     = 0;
     ed.sequencerIdleDemand = 0;
+    ed.mainFuelRequestedDemand = 0;
     ed.finalCoreFuelDemand = 0;
     ed.propPitchDemand    = Hardware::propPitchParkDemand();
     ed.abPumpDemand       = 0;
@@ -3038,7 +3029,6 @@ static void enterStandby() {
     ed.automaticLimpLatched = false;
     ed.limpMode           = false;
     ed.limpOverrideSensor = FeedbackRequirements::NONE;
-    ed.clusterCode        = 0;
     ed.fuelAdmitted       = false;
     ed.combustionAttempted = false;
     ed.thermallyLoaded    = false;
@@ -3318,26 +3308,23 @@ static void enforceDryOilStop() {
 static void handleCommand(const OTPacket& pkt) {
     auto& ed = EngineData::instance();
     const bool startCommand = pkt.cmd == OTCommand::START || pkt.cmd == OTCommand::START_LIMITED;
-    // The web task may cancel an unclaimed timed-out START. Claim it before
-    // any state or output change so a response can never say "not started"
-    // while a still-live queue packet starts the turbine later.
-    if (startCommand && pkt.requestId && !CommandQueue::claimPendingResult(pkt.requestId)) {
-        Serial.println("[OT] Discarded stale/canceled START");
-        return;
-    }
-    if (startCommand && pkt.requestId)
-        strncpy(ed.lastEvent, "START rejected at ECU core", sizeof(ed.lastEvent) - 1);
+    if(!CommandQueue::beginExecution(pkt,millis()))return;
+    if ((startCommand||pkt.remote) && pkt.requestId)
+        strncpy(ed.lastEvent, startCommand ? "START rejected at ECU core" : "Remote operation rejected at ECU core", sizeof(ed.lastEvent) - 1);
+    bool remoteExecuted=false;
     struct StartResultReporter {
         const OTPacket& packet;
         EngineData& data;
         bool applies;
+        const bool& remoteExecuted;
         ~StartResultReporter() {
             if (!applies || !packet.requestId) return;
-            const bool accepted = data.mode == SysMode::STARTUP;
+            bool accepted = data.mode == SysMode::STARTUP;
+            if(packet.remote) accepted=remoteExecuted;
             CommandQueue::completeResult(packet.requestId, accepted,
                 accepted ? "" : (data.lastEvent[0] ? data.lastEvent : "START rejected at ECU core"));
         }
-    } startResult{pkt, ed, startCommand};
+    } startResult{pkt, ed, startCommand||pkt.remote,remoteExecuted};
     // FAULT blocks START. Diagnostic tools remain available once any protected
     // dry-oil pump window has completed.
     const bool standbyLike = (ed.mode == SysMode::STANDBY || ed.mode == SysMode::FAULT);
@@ -3694,6 +3681,7 @@ static void handleCommand(const OTPacket& pkt) {
                 g_sequencer.startSequence(_startupBlocks, _startupCount,
                                           HardwareConfig::startupEnterActions,
                                           HardwareConfig::startupExitActions);
+                remoteExecuted=ed.mode==SysMode::STARTUP;
                 if (limited) {
                     Serial.printf("[OT] REDUCED-POWER START: %s overridden, fuel cap %.0f%%\n",
                                   FeedbackRequirements::sensorName(overrideSensor),
@@ -3706,6 +3694,7 @@ static void handleCommand(const OTPacket& pkt) {
         }
 
         case OTCommand::STOP:
+            remoteExecuted=true;
             if (ed.mode == SysMode::RUNNING || ed.mode == SysMode::STARTUP) {
                 enterShutdown();
             } else if (ed.mode == SysMode::SHUTDOWN) {
@@ -3951,6 +3940,7 @@ static void handleCommand(const OTPacket& pkt) {
                 ed.faultDescription[0] = '\0';
                 strncpy(ed.lastEvent, "Fault acknowledged and cleared", sizeof(ed.lastEvent) - 1);
                 g_safety.clearFault();
+                remoteExecuted=true;
                 _buzzerPattern = 0;
                 OT_DEBUG_PRINTLN("[OT] Fault latch explicitly cleared");
             }
@@ -3968,10 +3958,12 @@ static void handleCommand(const OTPacket& pkt) {
             {
                 OT_DEBUG_PRINTLN("[AB] Manual fire command received");
                 enterABIgniting();
+                remoteExecuted=ed.abMode==ABMode::Arming||ed.abMode==ABMode::Igniting||ed.abMode==ABMode::Running;
             }
             break;
 
         case OTCommand::AB_STOP:
+            remoteExecuted=HardwareConfig::hasAfterburner&&(ed.abMode==ABMode::Off||ed.abMode==ABMode::ShuttingDown);
             // Manual AB shutdown
             if (HardwareConfig::hasAfterburner
                 && ed.abMode != ABMode::Off
@@ -3979,6 +3971,7 @@ static void handleCommand(const OTPacket& pkt) {
             {
                 OT_DEBUG_PRINTLN("[AB] Manual stop command received");
                 enterABShutdown();
+                remoteExecuted=true;
             }
             break;
 
@@ -4489,7 +4482,6 @@ void setup() {
             _relightBeginN1Seq = ed.n1SampleSeq;
             _relightBeginEgtSeq = Config::effectiveEgtSource() == 2 ? ed.titSampleSeq : ed.totSampleSeq;
             _relightBeginFlameSeq = ed.flameSampleSeq;
-            ed.clusterCode     = 2;   // ClCode::RelightActive
             FlightRecorder::logRelight(ed.relightAttempts);
             OT_DEBUG_PRINTF("[OT] Relight started - N1=%.0f RPM\n", (double)ed.n1Rpm);
         }
@@ -4506,13 +4498,10 @@ void setup() {
 
     FlightRecorder::logBoot();
 
-    if (HardwareConfig::hasClusterSerial)
-        ClusterSerial::begin();   // sends boot table + initial status; before watchdog (uses delay())
-
     if (HardwareConfig::hasMAVLink && HardwareConfig::mavlinkTxPin >= 0) {
         _mavSerial.setTxBufferSize(512);  // must precede begin(); buffers fault STATUSTEXT bursts
         _mavSerial.begin(HardwareConfig::mavlinkBaud, SERIAL_8N1,
-                         -1, HardwareConfig::mavlinkTxPin);
+                         HardwareConfig::mavlinkRxPin, HardwareConfig::mavlinkTxPin);
         g_mavlink.begin(_mavSerial);
         OT_DEBUG_PRINTF("[OT] MAVLink TX on GPIO %d @ %d baud\n",
                       HardwareConfig::mavlinkTxPin, HardwareConfig::mavlinkBaud);
@@ -4664,6 +4653,9 @@ void loop() {
     // accepted by HTTP but handleCommand still sees the stale owner and drops
     // it before checkToolTimers() clears that owner later in the same loop.
     checkToolTimers();
+    // Receive and expire remote input before commands and controller evaluation.
+    if (HardwareConfig::hasMAVLink) g_mavlink.tick();
+    else EngineData::instance().mavlinkThrottleValid=false;
     CommandQueue::drain(handleCommand);
     uint32_t afterCommandsUs = micros();
 
@@ -4748,6 +4740,7 @@ void loop() {
     }
     enforceEmergencyShutdownTerminal();
     enforceDryOilStop();
+    EngineData::instance().mainFuelRequestedDemand=constrain(EngineData::instance().throttleDemand,0.0f,1.0f);
     Hardware::applyThrottleProtection();
     EngineData::instance().finalCoreFuelDemand =
         constrain(EngineData::instance().throttleDemand, 0.0f, 1.0f);
@@ -4791,11 +4784,6 @@ void loop() {
     SessionLogger::tick();
     uint32_t afterLoggingUs = micros();
 
-    if (HardwareConfig::hasClusterSerial)
-        ClusterSerial::tick();
-
-    if (HardwareConfig::hasMAVLink)
-        g_mavlink.tick();
     uint32_t afterTelemetryUs = micros();
 
     Hardware::tickStatusLED();

@@ -35,9 +35,9 @@ configuration.
 
 - [`GUIDED_BUILDS_MAINTENANCE.md`](GUIDED_BUILDS_MAINTENANCE.md) — maintaining the three-level public learning path, wiring diagrams, screenshot fixtures and Pages browser checks.
 
-- [`OTC_CLUSTER_PROTOCOL.md`](OTC_CLUSTER_PROTOCOL.md) — complete OpenTurbine Cluster wire protocol
+- [`MAVLINK_TELEMETRY.md`](MAVLINK_TELEMETRY.md) — shared external engine protocol, setup and integration
 - [`../examples/cluster/README.md`](../examples/cluster/README.md) — practical cluster/companion-device implementation guide
-- [`../examples/OTCClusterClient.h`](../examples/OTCClusterClient.h) — reusable Arduino/ESP32 OTC client
+- [`../libraries/OpenTurbineMavlink`](../libraries/OpenTurbineMavlink) — reusable Arduino/ESP32 MAVLink receiver
 
 ## Release engineering
 

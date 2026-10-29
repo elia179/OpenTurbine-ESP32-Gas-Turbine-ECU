@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<mavlink>
+  <include>openturbine_standard.xml</include>
+  <version>3</version>
+  <dialect>0</dialect>
+  <messages>
+    <message id="520100" name="OT_LINK_INFO">
+      <description>OpenTurbine catalogue identity. Local dialect IDs, not an upstream-allocated range.</description>
+      <field type="uint32_t" name="boot_id">ECU boot identity.</field>
+      <field type="uint32_t" name="catalog_revision">Catalogue revision.</field>
+      <field type="uint32_t" name="capabilities">Supported engine operations bitmask.</field>
+      <field type="uint16_t" name="channel_count">Number of catalogue entries.</field>
+      <field type="uint16_t" name="input_timeout_ms" units="ms">Remote-input expiry interval.</field>
+      <field type="uint16_t" name="telemetry_interval_ms" units="ms">Interval between channel-value batches.</field>
+      <field type="char[32]" name="engine_name">Configured engine name.</field>
+    </message>
+    <message id="520101" name="OT_CHANNEL_INFO">
+      <description>One complete channel description. Entry index is catalogue order; ID is the stable signal identity.</description>
+      <field type="uint32_t" name="boot_id">ECU boot identity.</field>
+      <field type="uint32_t" name="catalog_revision">Catalogue revision.</field>
+      <field type="float" name="display_min">Display range minimum, NaN if unspecified.</field>
+      <field type="float" name="display_max">Display range maximum, NaN if unspecified.</field>
+      <field type="float" name="warning">Warning reference, NaN if unspecified.</field>
+      <field type="float" name="limit">Limit reference, NaN if unspecified.</field>
+      <field type="uint16_t" name="channel_id">Stable signal ID.</field>
+      <field type="uint16_t" name="index">Catalogue entry index.</field>
+      <field type="uint16_t" name="flags">Signal kind and display flags.</field>
+      <field type="char[24]" name="key">Configuration/protocol channel key.</field>
+      <field type="char[32]" name="name">User-visible channel name.</field>
+      <field type="char[8]" name="unit">Canonical unit, independent of browser preferences.</field>
+    </message>
+    <message id="520102" name="OT_CHANNEL_VALUES">
+      <description>At most eight indexed channel samples. Unhealthy values must not be displayed as current readings.</description>
+      <field type="uint32_t" name="boot_id">ECU boot identity.</field>
+      <field type="uint32_t" name="catalog_revision">Catalogue revision.</field>
+      <field type="uint32_t" name="time_boot_ms" units="ms">Sample timestamp.</field>
+      <field type="float[8]" name="values">Values in each channel's canonical units.</field>
+      <field type="uint16_t[8]" name="channel_ids">Stable signal IDs.</field>
+      <field type="uint8_t[8]" name="flags">Per-sample validity flags.</field>
+      <field type="uint8_t" name="count">Number of populated samples, 0 through 8.</field>
+    </message>
+    <message id="520103" name="OT_ENGINE_STATE">
+      <description>Operational engine status; accepting a request is distinct from reaching the requested state.</description>
+      <field type="uint32_t" name="boot_id">ECU boot identity.</field>
+      <field type="uint32_t" name="time_boot_ms" units="ms">ECU timestamp.</field>
+      <field type="uint32_t" name="allowed_commands">Currently available command bitmask.</field>
+      <field type="uint32_t" name="flags">Engine readiness/fault/input-state flags.</field>
+      <field type="float" name="requested_throttle" units="%">Requested main-fuel command before throttle protection, not a physical throttle measurement.</field>
+      <field type="float" name="fuel_demand" units="%">Actual main-fuel output demand.</field>
+      <field type="uint8_t" name="mode">OpenTurbine engine mode.</field>
+      <field type="uint8_t" name="ab_mode">Afterburner mode.</field>
+      <field type="uint8_t" name="sequence_index">Current sequence step.</field>
+      <field type="uint8_t" name="sequence_count">Sequence step count.</field>
+      <field type="char[32]" name="sequence_step">Current step name.</field>
+      <field type="char[80]" name="fault">Current fault description.</field>
+      <field type="char[80]" name="reason">Current operation/start restriction or event.</field>
+    </message>
+    <message id="520104" name="OT_REMOTE_INPUT">
+      <description>Normalized remote throttle sample. Does not select a controller source or start the engine.</description>
+      <field type="uint32_t" name="boot_id">Current ECU boot identity.</field>
+      <field type="uint32_t" name="time_boot_ms">Estimated current ECU time from fresh engine state; delayed samples expire.</field>
+      <field type="uint32_t" name="sender_session">Sender boot/session identity, nonzero.</field>
+      <field type="uint32_t" name="sequence">Monotonically increasing sample counter within the session.</field>
+      <field type="float" name="value">Normalized requested demand, 0 through 1.</field>
+      <field type="uint16_t" name="input_id">Remote input ID; 0 is throttle demand.</field>
+      <field type="uint8_t" name="target_system">Target ECU system.</field>
+      <field type="uint8_t" name="target_component">Target ECU component.</field>
+    </message>
+    <message id="520105" name="OT_CATALOG_REQUEST">
+      <description>Request channel descriptions. Index 65535 requests the whole catalogue, paced by the ECU.</description>
+      <field type="uint32_t" name="catalog_revision">Expected revision, or 0 for current.</field>
+      <field type="uint16_t" name="index">Requested entry, or 65535 for all entries.</field>
+      <field type="uint8_t" name="target_system">Target ECU system.</field>
+      <field type="uint8_t" name="target_component">Target ECU component.</field>
+    </message>
+    <message id="520106" name="OT_COMMAND_REQUEST">
+      <description>Correlated engine operation. Retries reuse the same request/session IDs. Stop supersedes older operations.</description>
+      <field type="uint32_t" name="boot_id">Expected ECU boot identity; required except for Stop.</field>
+      <field type="uint32_t" name="time_boot_ms">Estimated current ECU time; required for new non-stop operations.</field>
+      <field type="uint32_t" name="sender_session">Nonzero sender boot/session identity.</field>
+      <field type="uint32_t" name="request_id">Nonzero request identity within the sender session.</field>
+      <field type="uint8_t" name="operation">OpenTurbine engine operation enum.</field>
+      <field type="uint8_t" name="target_system">Target ECU system.</field>
+      <field type="uint8_t" name="target_component">Target ECU component.</field>
+    </message>
+    <message id="520107" name="OT_COMMAND_RESULT">
+      <description>Result from the ECU engine-command boundary, not merely acknowledgement of a queued packet.</description>
+      <field type="uint32_t" name="sender_session">Echoed sender session.</field>
+      <field type="uint32_t" name="request_id">Echoed request identity.</field>
+      <field type="uint8_t" name="operation">Echoed operation.</field>
+      <field type="uint8_t" name="result" enum="MAV_RESULT">Command result.</field>
+      <field type="uint8_t" name="target_system">Requesting system.</field>
+      <field type="uint8_t" name="target_component">Requesting component.</field>
+      <field type="char[80]" name="reason">Human-readable rejection or acceptance detail.</field>
+    </message>
+  </messages>
+</mavlink>

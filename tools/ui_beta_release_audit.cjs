@@ -178,7 +178,7 @@ function enumNames(source, marker) {
         patch: {
           has_two_shaft: false,
           has_afterburner: false,
-          cluster_serial: { enabled: true, tx_pin: 5, rx_pin: -1 },
+          mavlink: { enabled: true, tx_pin: 5, rx_pin: -1 },
           sensors: { n2_rpm: { enabled: true }, tit: { enabled: false }, fuel_press: { enabled: false } },
           actuators: { prop_pitch: { enabled: false }, ab_sol: { enabled: true }, ab_pump: { enabled: true } }
         },
@@ -219,8 +219,7 @@ function enumNames(source, marker) {
         name: 'ESP32-S3 external telemetry',
         patch: {
           platform: 'esp32s3',
-          cluster_serial: { enabled: true, tx_pin: 1, rx_pin: 46 },
-          mavlink: { enabled: true, tx_pin: 4 },
+          mavlink: { enabled: true, tx_pin: 1, rx_pin: 46 },
           buzzer: { enabled: true, pin: 6 },
           actuators: { status_led: { enabled: true, pin: 5 } }
         },
@@ -287,18 +286,11 @@ function enumNames(source, marker) {
     assert.deepEqual(sequencer, { hasAbBlock: true, abTabVisible: true, hasGovernorBlock: false, hasHiddenN2Rule: false, hasPropRule: false });
     results.push('sequencer follows fitted devices and keeps retired specialist blocks out of the simple picker');
 
-    const ecuCluster = fs.readFileSync(path.join('src', 'system', 'ClusterSerial.cpp'), 'utf8');
-    const client = fs.readFileSync(path.join('examples', 'OTCClusterClient.h'), 'utf8');
-    assert.deepEqual(enumNames(client, 'enum FieldId'), enumNames(ecuCluster, 'enum FieldId'));
-    assert.match(ecuCluster, /bool hasPrimaryEgt\(\) \{ return Config::effectiveEgtSource\(\) != 0; \}/);
-    assert.match(ecuCluster, /bool hasShaftPower\(\) \{ return HardwareConfig::hasTorque && HardwareConfig::hasN2Rpm; \}/);
-    assert.match(ecuCluster, /\{ F_TOT_RATE,[^}]*"TOT_RATE",\s*"EGT rise C\/s",\s*hasPrimaryEgt/s);
-    assert.match(ecuCluster, /\{ F_POWER_W,[^}]*"POWER_W",\s*"Power W",\s*hasShaftPower/s);
-    assert.match(ecuCluster, /\{ F_THROTTLE_PCT,[^}]*"THROTTLE_PCT",\s*"Main fuel pct",\s*hasThrottle/s);
-    assert.match(client, /OTC:SUB,ALL/);
-    assert.match(client, /OTC:CMD,STOP/);
-    assert.match(client, /signalLost\(\)/);
-    results.push('cluster example field ids and documented commands match the ECU protocol enum');
+    const ecuMavlink = fs.readFileSync(path.join('src','system','MavlinkService.h'),'utf8');
+    const client = fs.readFileSync(path.join('libraries','OpenTurbineMavlink','src','OpenTurbineMavlinkClient.h'),'utf8');
+    assert.match(ecuMavlink,/MavlinkWire.h/);assert.match(client,/MavlinkWire.h/);
+    assert.match(client,/signalLost/);assert.match(client,/ot_command_request_encode_status/);
+    results.push('ECU and receiver share generated MAVLink definitions and expose freshness/correlated commands');
 
     const throttleSlew = fs.readFileSync(path.join('src', 'engine', 'controllers', 'ThrottleSlew.h'), 'utf8');
     // Zero-disabled limits must not produce pullback: the guard now lives
@@ -340,7 +332,7 @@ function enumNames(source, marker) {
     assert.match(mainSource, /Governor target plus no-correction band reaches the hard N2 shutdown limit/);
     assert.match(mainSource, /N2-based idle target is at\/above the hard N2 shutdown limit/);
     assert.match(mainSource, /Cluster N2 warning is at\/above the hard N2 shutdown limit/);
-    assert.match(mainSource, /static void applyConfigOnEcuCore\(\)[\s\S]*Hardware::applyConfig\(\);[\s\S]*validateSequences\(false\);[\s\S]*ClusterSerial::beginIfNeeded\(\);/);
+    assert.match(mainSource, /static void applyConfigOnEcuCore\(\)[\s\S]*Hardware::applyConfig\(\);[\s\S]*validateSequences\(false\);/);
     assert.match(mainSource, /Selected EGT hard limit is 0 - overtemperature shutdown is disabled", false/);
     assert.match(mainSource, /Running oil minimum is 0 - low-oil shutdown is disabled", false/);
     assert.match(mainSource, /Both EGT flameout conditions are disabled", false/);
@@ -438,12 +430,12 @@ function enumNames(source, marker) {
     assert.doesNotMatch(indexHtml, /20260612b|20260617b|20260619a|20260625a|20260705a|Primary thermal limit/);
     assert.doesNotMatch(indexHtml, />Not saved<|No calibration saved|No successful test recorded/);
     assert.match(indexHtml, /Run a safe actuator or dry-sequence test/);
-    assert.match(indexHtml, /20261028a/);
+    assert.match(indexHtml, /20261028e/);
     for (const pageName of ['index.html', 'hardware.html', 'controllers.html', 'system.html', 'calibration.html', 'sequence.html', 'log.html', 'tools.html']) {
       const pageSource = fs.readFileSync(path.join('data_src', pageName), 'utf8');
       const sharedRefs = [...pageSource.matchAll(/\/(?:style\.css|app\.js|theme\.js|ui_dialog\.js)\?v=([^"'&]+)/g)];
       assert.ok(sharedRefs.length > 0, `${pageName} must version its shared assets`);
-      assert.ok(sharedRefs.every(match => match[1] === '20261028a'), `${pageName} has a stale shared-asset cache key`);
+      assert.ok(sharedRefs.every(match => match[1] === '20261028e'), `${pageName} has a stale shared-asset cache key`);
     }
     const themeSource = fs.readFileSync(path.join('data_src', 'theme.js'), 'utf8');
     assert.match(themeSource, /function versionLocalLinks\(root\)/,

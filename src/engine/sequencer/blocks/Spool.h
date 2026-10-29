@@ -23,7 +23,6 @@ public:
         auto& ed = EngineData::instance();
         ed.throttleDemand     = throttleIdle;
         ed.flameMonitorActive = true;
-        ed.clusterCode        = 8;  // ClCode::WaitingN1Rise (flame confirmed, spooling)
         // Raise oil minimum to running threshold now that ignition is confirmed —
         // moved here from SafetyHold so low-oil protection is active during spool-up.
         ed.oilMinBar          = runningOilMin;

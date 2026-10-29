@@ -408,3 +408,29 @@ func writeTestPackageZip(t *testing.T, path, version string) {
 		t.Fatal(err)
 	}
 }
+
+func TestWaitButtonLabels(t *testing.T) {
+	for title, want := range map[string]string{
+		"Retry final verification":         "Retry verification",
+		"Reconnect for final verification": "Connected, verify update",
+		"Check Wi‑Fi connection":           "Wi-Fi connected, continue",
+		"Plug in board":                    "Board connected, continue",
+		"Review settings":                  "Continue",
+	} {
+		if got := waitButtonLabel(title); got != want {
+			t.Errorf("%q: got %q, want %q", title, got, want)
+		}
+	}
+}
+
+func TestDPILayoutAndHitTestingUseSameUnits(t *testing.T) {
+	for _, dpi := range []int{96, 120, 144, 192} {
+		for _, logical := range []int{0, 34, 150, 286, 600, 1240} {
+			physical := scaleForDPI(logical, dpi)
+			roundTrip := logicalForDPI(physical, dpi)
+			if roundTrip < logical-1 || roundTrip > logical+1 {
+				t.Fatalf("DPI %d: %d logical became %d after hit-test conversion", dpi, logical, roundTrip)
+			}
+		}
+	}
+}

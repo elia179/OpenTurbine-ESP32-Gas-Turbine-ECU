@@ -19,7 +19,8 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
   });
   await p.goto('http://127.0.0.1:14941/system.html');
   await p.locator('#system-maintenance').waitFor();
-  for(const path of ['cluster_serial.enabled','mavlink.enabled','profile_desc','cluster_serial.baud','mavlink.interval_ms']){
+  await p.evaluate(()=>{hwCfg.mavlink.allow_commands=!!hwCfg.mavlink.allow_commands;_clearDirty();});
+  for(const path of ['mavlink.enabled','profile_desc','mavlink.allow_commands','mavlink.baud','mavlink.interval_ms']){
    const result=await p.evaluate(path=>{
     const before=getPath(hwCfg,path.split('.'));
     const value=typeof before==='boolean'?!before:typeof before==='number'?before+50:'temporary';
@@ -31,8 +32,8 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
    assert.ok(result.dirty,path);assert.ok(result.clean&&result.save&&!result.bar,path);assert.deepEqual(result.changes,[],path);
   }
   await p.evaluate(()=>{
-   delete hwCfg.cluster_serial.enabled;_clearDirty();
-   setSystemHardware('cluster_serial.enabled',true);setSystemHardware('cluster_serial.enabled',false);
+   delete hwCfg.mavlink.allow_commands;_clearDirty();
+   setSystemHardware('mavlink.allow_commands',true);setSystemHardware('mavlink.allow_commands',false);
    if(_cfgDirty||_buildChanges().length)throw Error('legacy omitted disabled default retained dirty');
   });
   await p.goto('http://127.0.0.1:14941/controllers.html');await p.locator('[data-group="safety"]').waitFor();
@@ -70,8 +71,8 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
    registry.inputs[0].name+=' test';dirty();if(!_hwDirty)throw Error('registry edit not detected');
    registry.inputs[0]=row;dirty();if(_hwDirty)throw Error('registry revert retained dirty');
    cfg._i2c_discovery={devices:[],updated:Date.now()};dirty();if(_hwDirty)throw Error('discovery is not a configuration edit');
-   delete cfg.cluster_serial.enabled;_snapshotFields();
-   cfg.cluster_serial.enabled=true;dirty();cfg.cluster_serial.enabled=false;dirty();
+   delete cfg.mavlink.enabled;_snapshotFields();
+   cfg.mavlink.enabled=true;dirty();cfg.mavlink.enabled=false;dirty();
    if(_hwDirty)throw Error('legacy hardware enable default retained dirty');
   });
   await p.goto('http://127.0.0.1:14941/sequence.html');await p.locator('#list-startup .block-card').first().waitFor();

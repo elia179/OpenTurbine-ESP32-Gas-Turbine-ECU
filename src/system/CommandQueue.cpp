@@ -97,3 +97,29 @@ bool CommandQueue::waitResult(uint32_t id, uint32_t timeoutMs, bool& accepted,
     }
     return false;
 }
+
+bool CommandQueue::pollResult(uint32_t id,bool& accepted,char* reason,size_t reasonLen) {
+    if(!id)return false;
+    bool finished=false;
+    portENTER_CRITICAL(&s_resultMux);
+    const auto& slot=s_results[id%8];
+    if(slot.id==id&&(slot.state==2||slot.state==3)){
+        accepted=slot.state==2;finished=true;
+        if(reason&&reasonLen){strncpy(reason,slot.reason,reasonLen-1);reason[reasonLen-1]=0;}
+    }
+    portEXIT_CRITICAL(&s_resultMux);
+    return finished;
+}
+
+bool CommandQueue::beginExecution(const OTPacket& packet,uint32_t now) {
+    const bool stop=packet.cmd==OTCommand::STOP||packet.cmd==OTCommand::AB_STOP;
+    if(packet.remote&&!stop&&packet.expiresAtMs&&int32_t(now-packet.expiresAtMs)>=0){
+        if(claimPendingResult(packet.requestId))
+            completeResult(packet.requestId,false,"Remote operation expired before execution");
+        return false;
+    }
+    if(!packet.requestId||(!packet.remote&&packet.cmd!=OTCommand::START&&packet.cmd!=OTCommand::START_LIMITED))return true;
+    const bool claimed=claimPendingResult(packet.requestId);
+    // A result-slot collision may lose an acknowledgement, never a Stop.
+    return claimed||(packet.remote&&stop);
+}

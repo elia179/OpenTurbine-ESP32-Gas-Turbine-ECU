@@ -987,7 +987,6 @@ function installedBrowser() {
     const sharedSpi = await page.evaluate(() => {
       Object.values(cfg.sensors || {}).forEach(sensor => { sensor.enabled = false; });
       Object.values(cfg.actuators || {}).forEach(actuator => { actuator.enabled = false; });
-      cfg.cluster_serial.enabled = false;
       cfg.mavlink.enabled = false;
       cfg.di_channels = [];
       cfg.channel_registry.inputs.forEach(channel => { channel.installed = false; });

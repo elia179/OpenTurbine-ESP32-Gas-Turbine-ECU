@@ -2162,6 +2162,9 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     if (HardwareConfig::throttleInputRcPwm) doc["throttle_input_us"] = ed.throttleInputRaw;
     if (HardwareConfig::idleInputRcPwm)     doc["idle_input_us"]     = ed.idleInputRaw;
     doc["rc_throttle_norm"]      = (float)(int)(ed.rcThrottleNorm * 1000) / 1000.0f;
+    doc["mavlink_throttle"]=(float)ed.mavlinkThrottleDemand;
+    doc["mavlink_throttle_valid"]=(bool)ed.mavlinkThrottleValid;
+    doc["mavlink_throttle_age_ms"]=(uint32_t)ed.mavlinkThrottleAgeMs;
     // ── Health, actuators, switches ───────────────────────────────────────
     doc["oil_pct"]               = (int)ed.oilPumpPct;
     doc["n1_healthy"]            = ed.n1Healthy;
@@ -4439,13 +4442,16 @@ void WebServer::_setupRoutes() {
                 } else if (strcmp(topKey, "wifi_tx_power_dbm") == 0) {
                     patchAllowed = top.value().is<int>() || top.value().is<float>();
                     systemPatch = patchAllowed;
-                } else if ((strcmp(topKey, "cluster_serial") == 0 || strcmp(topKey, "mavlink") == 0) &&
+                } else if (strcmp(topKey, "mavlink") == 0 &&
                            top.value().is<JsonObject>()) {
                     systemPatch = true;
                     for (JsonPair field : top.value().as<JsonObject>()) {
                         const char* key = field.key().c_str();
                         if (strcmp(key, "enabled") != 0 && strcmp(key, "baud") != 0 &&
-                            strcmp(key, "interval_ms") != 0) {
+                            strcmp(key, "interval_ms") != 0 && strcmp(key,"system_id") != 0 &&
+                            strcmp(key,"component_id") != 0 && strcmp(key,"allow_commands") != 0 &&
+                            strcmp(key,"controller_system") != 0 && strcmp(key,"controller_component") != 0 &&
+                            strcmp(key,"input_timeout_ms") != 0) {
                             patchAllowed = false;
                             break;
                         }
@@ -5307,4 +5313,14 @@ bool WebServer::otaInProgress() {
 
 bool WebServer::rebootPending() {
     return _hwRebootPending;
+}
+
+const char* WebServer::startRejectReason() {
+    if(otaInProgress())return "Maintenance upload is in progress";
+    if(const char* reason=_startPreflightRejectReason())return reason;
+    const auto& ed=EngineData::instance();
+    if(!ed.skipSafetyChecks&&!ed.benchMode&&HardwareConfig::safetyHotStart&&
+       Config::preStartEgtLimitC>0&&Config::primaryEgtHealthy(ed)&&
+       Config::primaryEgtC(ed)>Config::preStartEgtLimitC)return "Engine temperature is above the pre-start limit";
+    return nullptr;
 }

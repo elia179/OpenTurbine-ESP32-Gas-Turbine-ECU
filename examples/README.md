@@ -1,7 +1,8 @@
-# OpenTurbine 2.0 examples
+# OpenTurbine companion examples
 
-## Cluster and companion devices
+The [MAVLink Cluster example](cluster/README.md) provides a reusable receiver for
+named engine channels and optional engine operation. The [MAVLink interface
+reference](../docs/MAVLINK_TELEMETRY.md) covers the ECU connection and ArduPilot.
 
-Start with [`cluster/README.md`](cluster/README.md). It explains wiring, ECU configuration, the reusable `OTCClusterClient.h`, telemetry/schema handling, and optional command support.
-
-The examples are intentionally separate from the normal ECU installation path. You do not need them unless you are building an external display, bridge, logger, or controller.
+The old OTC receiver is replaced by `OpenTurbineMavlink`. Existing OTC displays
+need the new receiver firmware; changing the ECU alone cannot upgrade a display.

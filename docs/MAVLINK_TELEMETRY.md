@@ -1,76 +1,130 @@
-# MAVLink telemetry in OpenTurbine 2.6.1
+# MAVLink engine connection
 
-This is a TX-only MAVLink v1 telemetry component, not a flight controller.
-It sends HEARTBEAT (0), NAMED_VALUE_FLOAT (251) and fault STATUSTEXT (253).
-There is no RX, parameter service, mission service or MAVLink engine control.
-An inspector/logger can read it even when a ground station does not list it
-as a vehicle. System ID is 1, component ID is 200, autopilot is INVALID.
+Development replacement for the former OTC Cluster and TX-only telemetry links.
+It uses generated MAVLink 2 definitions shared by ECU and receiver. Physical
+UART command, throttle, timeout and fault-acknowledgement tests have passed on
+bare Classic ESP32 and ESP32-S3 boards. Assembled-PCB and ArduPilot integration
+qualification remain pending.
 
-## Connect and configure
+## Wiring and setup
 
-1. Use compatible 3.3 V UART logic. Wire ECU MAVLink TX to receiver RX and
-   connect grounds. Do not connect TX to TX, RS-232 voltage levels, or a 5 V
-   adapter output to an ESP32 GPIO. A PCB's interface circuitry can change the
-   connector requirements; follow its profile and electrical documentation.
-2. Assign TX in **Hardware → Communications → MAVLink telemetry**, save and
-   allow the reboot. A PCB profile may fix the pin and share the connector with
-   OTC; use only one protocol on a shared connection.
-3. In **System → Connections & runtime → MAVLink telemetry**, enable the same
-   link, choose baud and sensor interval, save and allow the reboot. Start with
-   57600 baud / 100 ms, matching the receiver. Hardware and System edit the same
-   enable, not two independent switches.
-4. Check the receiver's MAVLink inspector or decode messages using pymavlink.
-   Healthy fitted primary values appear automatically. User-defined registry
-   channel names do not rename these wire identifiers.
+1. Connect ECU TX → receiver RX and shared GND. For commands or remote throttle,
+   connect receiver TX → ECU RX. Use compatible 3.3 V UART logic on bare ESP32
+   boards; PCB interface circuitry may change the connector's requirements.
+2. Assign TX and optional RX under **Hardware → Communications → MAVLink
+   connection**. A PCB profile can fix the routing. Save and allow the reboot.
+3. Enable **System → MAVLink connection**. Match both ends' baud rate; start
+   with 115200 baud and a 100 ms channel packet interval. Each packet carries
+   up to eight channels, so a complete cycle takes longer with more channels.
+4. For monitoring only, leave **Remote engine commands** off. For remote
+   operation, fit RX, enable that permission and enter the controller's system
+   and component IDs. Default ECU: 1/200; supplied Cluster: 255/190. Each pair
+   on a network must be unique.
+5. Optional throttle appears as **MAVLink throttle demand** in Controllers when
+   RX is fitted. Receiving demand does not select it or start an engine. Choose
+   it explicitly and review **Input loss** in that controller. Event-activated
+   controllers use the output's safe demand from Hardware; older operating-state
+   controllers expose their input-loss output directly. Valid samples must arrive
+   before the configured timeout; heartbeat alone does not keep throttle alive.
 
-## Named values and units
+The supplied [Cluster library/example](../examples/cluster/README.md) handles
+metadata, stale readings, command results and reconnects. Telemetry and input
+validity are independent of permission to issue engine commands.
 
-| Name | Value |
+## Messages and units
+
+Standard messages retain upstream wire layouts and CRCs:
+
+| Message | Use |
 | --- | --- |
-| N1_RPM, N2_RPM | shaft speed, RPM |
-| TOT_C, TIT_C, OIL_T_C | temperatures, Celsius |
-| OIL_BAR, FUEL_BAR, P1_BAR, P2_BAR | calibrated pressures, bar |
-| BATT_V | battery voltage, V |
-| TORQ_NM, THRUST_N | shaft torque, Nm; thrust, N |
-| FUEL_FLOW | configured/calibrated fuel-flow units, as on the ECU |
-| THR_PCT | commanded main fuel output, percent |
+| HEARTBEAT (0) | ECU presence, engine mode, 1 Hz |
+| EFI_STATUS (225) | Healthy N1 RPM, selected exhaust temperature °C, measured fuel flow cm³/min; unavailable fields NaN |
+| COMMAND_LONG / COMMAND_ACK | Supported standard engine operations and their ECU result |
+| STATUSTEXT | Best-effort fault text; durable fault state is also sent separately |
 
-Existing names retain their meanings. P1/P2 are additions in 2.6.1.
-Values are canonical ECU units regardless of browser unit
-preferences. Unfitted, unhealthy and non-finite sensor values are omitted.
-Omission does not erase a receiver's cached value: mark each field stale when
-its timestamp stops advancing. A live heartbeat alone does not prove a sensor
-is healthy.
+EFI intake manifold pressure is unavailable: a configurable gauge pressure
+channel must not be relabelled as absolute manifold pressure. All named pressure
+channels remain available in their native bar units in the catalogue. Output
+values are **commands**, not proof that an actuator physically moved.
 
-Heartbeat is sent at 1 Hz, independently of the sensor interval. Its custom mode
-contains the ECU SysMode number; status reports standby, active during Startup/
-Running, and emergency during Fault. Sensor frames share the UART capacity;
-when the transmit buffer fills, the next interval resumes at the first unsent
-field. The configured interval is not a guarantee that every field arrives in
-one cycle. Fault text is best-effort when UART capacity is available.
+`protocol/openturbine.xml` defines the OpenTurbine MAVLink dialect:
 
-## Minimal receiver
+| ID | Message | Purpose |
+| --- | --- | --- |
+| 520100 | OT_LINK_INFO | Boot identity, catalogue revision, channel count, capabilities and rates |
+| 520101 | OT_CHANNEL_INFO | Key, user name, unit and display limit references |
+| 520102 | OT_CHANNEL_VALUES | Eight readings with independent health flags and sample time |
+| 520103 | OT_ENGINE_STATE | Engine/AB/sequence/fault state, operation availability and reason |
+| 520104 | OT_REMOTE_INPUT | Normalized throttle demand 0..1, sender session and sequence |
+| 520105 | OT_CATALOG_REQUEST | Recover missing metadata |
+| 520106 | OT_COMMAND_REQUEST | Boot/session/request-correlated engine operation |
+| 520107 | OT_COMMAND_RESULT | Matching result and concise rejection reason |
 
-Install pymavlink on the receiving computer, set its serial port and matching
-baud, then run:
+These are project-local IDs, checked against the pinned upstream definitions;
+they are not an upstream allocation. Custom channels require this dialect.
+Every installed input/output and controller has its own entry, including two
+user-named oil-pressure circuits. Channel numeric IDs are scoped to the current
+catalogue revision; registry keys identify channels across display-name edits.
+NaN or an unhealthy flag must never be displayed as a healthy zero.
 
-```python
-from pymavlink import mavutil
+## Engine operation
 
-link = mavutil.mavlink_connection("COM7", baud=57600)
-while True:
-    message = link.recv_match(
-        type=["HEARTBEAT", "NAMED_VALUE_FLOAT", "STATUSTEXT"], blocking=True
-    )
-    if message.get_srcSystem() == 1 and message.get_srcComponent() == 200:
-        print(message.to_dict())
-```
+Preferred operations use correlated request/results: 1 Start, 2 normal Stop,
+3 acknowledge/clear fault, 4 afterburner start, 5 afterburner stop. Stop may
+supersede a pending operation. Acknowledgement does not bypass readiness or an
+active fault cause. There are no configuration, logging, test-output or bypass
+commands. The core engine command handler remains authoritative.
 
-Use the actual receiver port (`/dev/ttyUSB0`, for example, on Linux). This
-example only receives data and sends no engine commands.
+Standard `MAV_CMD_DO_ENGINE_CONTROL` (223) supports param1=1 for Start or 0 for
+Stop, param2=0 and all remaining parameters=0. Delayed-start, choke and other
+options are rejected. `MAV_CMD_USER_1` (31010) param1=1 acknowledges a fault,
+2 starts AB, 3 stops AB; remaining parameters must be zero. Target the exact ECU
+system/component. Standard ACKs do not carry a request ID: send one standard
+operation at a time. The supplied client uses correlated messages to prevent
+late Start results being mistaken for a Stop result.
 
-Protocol references: [heartbeat](https://mavlink.io/en/services/heartbeat.html)
-and [common message definitions](https://mavlink.io/en/messages/common.html).
-The no-load host tests validate frame CRC, field/health behavior, heartbeat
-cadence and buffer pressure on both targets. Actual UART wiring, a physical
-cluster and ground-station compatibility still need receiver hardware testing.
+New non-stop operations require a fresh sender heartbeat. Remote demand has its
+own freshness timer and rejects duplicate, old, non-finite or out-of-range
+samples. Boot identity and ECU time references also reject buffered samples from
+a previous boot or outside their age window. The supplied client never starts
+the engine or replays a previous Start after reconnect. Standard COMMAND_LONG
+has no request timestamp or boot identity; integrations using it must discard
+buffered commands across reconnects.
+
+## ArduPilot and RC links
+
+ArduPilot's [MAVLink EFI backend](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_EFI/AP_EFI_MAV.cpp)
+consumes EFI_STATUS. Its [EFI_TYPE definition](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_EFI/AP_EFI.cpp)
+assigns MAVLink backend **9**, where that backend is included in the installed
+ArduPilot build. Configure a MAVLink 2 serial port at matching baud and EFI_TYPE=9,
+then reboot. Verify the installed flight-controller version's parameters before
+changing them. Standard EFI telemetry does not automatically provide custom
+Cluster channels, remote engine controls or a throttle mapping.
+
+The [Python companion example](../examples/mavlink/README.md) forwards standard EFI
+telemetry and can explicitly bridge a selected ArduPilot servo demand to the
+virtual throttle input. It is a development example, not flight-qualified.
+
+For richer integration, use the supplied dialect on a companion/controller or
+add explicit ArduPilot scripting/firmware support. Do not assume stock ArduPilot
+routes unknown project-local message IDs. A transparent UART radio can carry
+these frames if its available bandwidth and MAVLink 2 support are adequate.
+CRSF, Smart Port and other RC sensor formats need a translation bridge; this
+change does not make every RC receiver a MAVLink receiver.
+
+## Migration and generation
+
+An enabled old Cluster-only connection retains its wiring and becomes MAVLink;
+remote engine commands default off. Two enabled old connections on different
+wiring produce a visible Hardware choice; both routes are retained for review
+until one is chosen. Existing OTC displays need new receiver firmware.
+
+Bindings are generated with pymavlink 2.4.50 by `tools/generate_mavlink.py` and
+checked in, so ECU and Arduino builds need no generator. The input hashes and
+license are included. The development interface is unsigned; IDs are not
+cryptographic authentication and signed frames are rejected.
+
+For independent protocol checks, install the development dependency
+`python -m pip install pymavlink==2.4.50`, then run
+`python tools/run_mavlink_checks.py`. The generated library remains buildable
+without that Python dependency.

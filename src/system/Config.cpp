@@ -432,6 +432,7 @@ bool ruleSensorAvailable(uint8_t s) {
         case 25: return HardwareConfig::startPin >= 0 || registryInputPurposeAvailable("start_switch");
         case 26: return HardwareConfig::stopPin >= 0 || registryInputPurposeAvailable("stop_switch");
         case 27: return HardwareConfig::hasThrust;
+        case 28: return HardwareConfig::hasMAVLink && HardwareConfig::mavlinkRxPin>=0;
         default: return false;
     }
 }

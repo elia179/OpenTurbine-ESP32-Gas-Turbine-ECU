@@ -1,3 +1,4 @@
+#include "MavlinkConfigFields.h"
 #include "HardwareConfig.h"
 #include "Config.h"
 #include "HardwareConfigInternal.h"
@@ -253,17 +254,19 @@ void HardwareConfig::_toDoc(JsonObject doc) {
     auto faultLed=acts["fault_led"].to<JsonObject>();
     faultLed["enabled"]=hasFaultLed; faultLed["pin"]=faultLedPin; faultLed["active_h"]=faultLedActiveH;
 
-    auto clus = doc["cluster_serial"].to<JsonObject>();
-    clus["enabled"] = hasClusterSerial; clus["tx_pin"] = clusterTxPin;
-    clus["rx_pin"] = clusterRxPin;
-    clus["baud"] = clusterBaud; clus["interval_ms"] = clusterIntervalMs;
-
     auto buz = doc["buzzer"].to<JsonObject>();
     buz["enabled"] = hasBuzzer; buz["pin"] = buzzerPin;
 
     auto mvl = doc["mavlink"].to<JsonObject>();
     mvl["enabled"] = hasMAVLink; mvl["tx_pin"] = mavlinkTxPin;
     mvl["baud"] = mavlinkBaud; mvl["interval_ms"] = mavlinkIntervalMs;
+    for(const auto& field:MavlinkConfigFields::integers)mvl[field.key]=*field.value;
+    mvl["allow_commands"]=mavlinkAllowCommands;
+    mvl["migration_review"]=mavlinkMigrationReview;
+    if(mavlinkMigrationReview){
+        auto oldRoute=mvl["legacy_cluster"].to<JsonObject>();
+        oldRoute["tx_pin"]=clusterTxPin;oldRoute["rx_pin"]=clusterRxPin;oldRoute["baud"]=clusterBaud;
+    }
 
     auto contrl = doc["controllers"].to<JsonObject>();
     contrl["oil_loop"]      = hasOilLoop;

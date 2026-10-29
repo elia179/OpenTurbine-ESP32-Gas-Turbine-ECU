@@ -1,9 +1,10 @@
+#include <freertos/FreeRTOS.h>
 #include <cassert>
 #include <iostream>
 #include <algorithm>
 using std::max;
 class Print;
-#include "src/system/ClusterSerial.cpp"
+#include "src/system/TelemetryCatalog.cpp"
 bool HardwareConfig::hasN1Rpm=false, HardwareConfig::hasN2Rpm=false;
 bool HardwareConfig::hasTot=false, HardwareConfig::hasTit=false;
 bool HardwareConfig::hasOilPress=false, HardwareConfig::hasOilTemp=false;
@@ -40,38 +41,31 @@ int Config::effectiveEgtSource(){return HardwareConfig::hasTot?1:0;}
 float Config::primaryEgtLimitC(){return 750;}
 float Config::primaryEgtC(const EngineData& ed){return ed.tot;}
 bool Config::primaryEgtHealthy(const EngineData& ed){return ed.totHealthy;}
-QueueHandle_t CommandQueue::_queue=nullptr;
+
+float Config::n2RpmLimit=60000,Config::totLimit=750,Config::titLimit=950;
+float Config::p1TripLimit=4,Config::p2TripLimit=2,Config::torqueTripLimit=20;
+int Config::ruleCount=0;
+bool HardwareConfig::hasMAVLink=false;
+int HardwareConfig::mavlinkRxPin=-1;
+char HardwareConfig::labelN1[32]="Core speed",HardwareConfig::labelN2[32]="Output speed";
+char HardwareConfig::labelTot[32]="Exhaust",HardwareConfig::labelTit[32]="Inlet";
+char HardwareConfig::labelOilPress[32]="Oil pressure",HardwareConfig::labelOilTemp[32]="Oil temperature";
+char HardwareConfig::labelP1[32]="Boost",HardwareConfig::labelP2[32]="Jetpipe";
+char HardwareConfig::labelFuelPress[32]="Fuel pressure",HardwareConfig::labelFuelFlow[32]="Fuel flow";
+bool HardwareConfig::idleInputRcPwm=false,HardwareConfig::throttleInputRcPwm=false;
+int Config::idleMinRaw=0,Config::idleMaxRaw=3300,Config::throttleMinRaw=0,Config::throttleMaxRaw=3300;
+Config::Rule Config::rules[Config::MAX_RULES]={};
 int main(){
- auto& ed=EngineData::instance();assert(!hasN1());
- HardwareConfig::hasN1Rpm=true;assert(hasN1());
- ed.n1Healthy=true;assert(healthFlags(ed)&1);
- HardwareConfig::hasP1=HardwareConfig::hasP2=true;
- HardwareConfig::hasFuelFlow=HardwareConfig::hasThrust=true;
- ed.p1Healthy=ed.p2Healthy=ed.fuelFlowHealthy=ed.thrustHealthy=true;
- assert((healthFlags(ed)&0xf0000)==0xf0000);
- ed.p1Healthy=false;assert(!(healthFlags(ed)&(1UL<<16)));
- HardwareConfig::hasP2=false;assert(!(healthFlags(ed)&(1UL<<17)));
- // Actual production frame encoder: no partial packet if FIFO is full.
- uint8_t data[]={1,2,3};_port.capacity=8;assert(!sendFrame(FT_TELEMETRY,7,data,3));assert(_port.bytes.empty());
- _port.capacity=4096;assert(sendFrame(FT_TELEMETRY,7,data,3));
- const auto& b=_port.bytes;assert(b.size()==12&&b[0]=='O'&&b[1]=='T'&&b[2]==1&&b[3]==4&&b[4]==7&&b[5]==3);
- // Independent CRC16-CCITT-FALSE verification.
- uint16_t crc=0xffff;for(size_t i=2;i<10;i++){crc^=uint16_t(b[i])<<8;for(int j=0;j<8;j++)crc=crc&0x8000?(crc<<1)^0x1021:crc<<1;}
- assert(b[10]==(crc&255)&&b[11]==(crc>>8));
- // Full production schema must omit unfitted N1 and advertise compatible minor 1.
- auto schema=[&](bool n1){
-  HardwareConfig::hasClusterSerial=true;HardwareConfig::hasN1Rpm=n1;
-  _port.bytes.clear();ClusterSerial::begin();bool found=false,hello=false,end=false;
-  for(size_t i=0;i<_port.bytes.size();){
-   const auto& p=_port.bytes;assert(i+9<=p.size()&&p[i]=='O'&&p[i+1]=='T');
-   const size_t length=p[i+5]+(size_t(p[i+6])<<8);assert(i+9+length<=p.size());
-   if(p[i+3]==FT_HELLO){hello=true;assert(p[i+7]==1&&p[i+8]==1);}
-   if(p[i+3]==FT_FIELD_DEF&&p[i+8]==F_N1_RPM)found=true;
-   if(p[i+3]==FT_SCHEMA_END)end=true;
-   i+=length+9;
-  }
-  assert(hello&&end&&found==n1);
- };
- schema(false);schema(true);
- std::cout<<"Cluster fitment/health and production frame CRC/FIFO checks passed\n";
+ auto& reg=HardwareConfig::channelRegistry;
+ assert(TelemetryCatalog::count()==0);reg.inputCount=1;
+ auto& input=reg.inputs[0];input.installed=true;strlcpy(input.id,"core",sizeof(input.id));strlcpy(input.name,"Core speed",sizeof(input.name));strlcpy(input.purpose,"n1_speed",sizeof(input.purpose));
+ assert(TelemetryCatalog::count()==1);
+ mavlink_ot_channel_info_t info{};assert(TelemetryCatalog::describe(0,info));
+ assert(info.channel_id==256);assert(!strcmp(info.name,"Core speed"));assert(info.limit==60000);
+ auto& ed=EngineData::instance();ed.registryInputValue[0]=60000;ed.registryInputHealthy[0]=false;
+ uint16_t id;float value;bool healthy;assert(TelemetryCatalog::sample(0,id,value,healthy));assert(!healthy&&isnan(value));
+ ed.registryInputHealthy[0]=true;assert(TelemetryCatalog::sample(0,id,value,healthy));assert(healthy&&value==60000);
+ const auto revision=TelemetryCatalog::revision();Config::rpmLimit=65000;assert(revision!=TelemetryCatalog::revision());
+ input.installed=false;assert(TelemetryCatalog::count()==0);assert(!TelemetryCatalog::describe(0,info));
+ std::cout<<"Fitted catalogue, labels, limits, revision and health checks passed\n";
 }

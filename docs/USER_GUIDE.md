@@ -617,13 +617,17 @@ exhaust the ESP32 network service and require an ECU reset.
 
 ## External display or custom controller
 
-OpenTurbine provides the **OpenTurbine Cluster (OTC)** serial protocol for embedded displays and companion devices.
+OpenTurbine uses **MAVLink 2** for external displays, companion devices and
+optional remote engine operation. TX-only monitoring is supported; commands and
+remote throttle need RX and explicit configuration.
 
-- [Start building a cluster or companion device](../examples/cluster/README.md)
-- [Single-file Arduino/ESP32 client](../examples/OTCClusterClient.h)
-- [Complete OTC wire protocol](OTC_CLUSTER_PROTOCOL.md)
+- [Build a Cluster receiver](../examples/cluster/README.md)
+- [Reusable Arduino/ESP32 receiver library](../libraries/OpenTurbineMavlink)
+- [MAVLink setup, messages, controls and ArduPilot integration](MAVLINK_TELEMETRY.md)
 
-OTC supports TX-only telemetry or optional two-way commands/subscriptions. Normal ECU safety and mode gates still apply to commands received over OTC.
+The ECU retains its normal safety and mode checks. MAVLink throttle is another
+controller input and must be selected explicitly. The old OTC wire protocol is
+retired; an existing display needs matching new receiver firmware.
 
 ## Support and reporting problems
 

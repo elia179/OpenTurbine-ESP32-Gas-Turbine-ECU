@@ -24,6 +24,12 @@
 class RulesEngine {
 public:
     static bool lifecycleActive(uint8_t index) { return _activation.active(index); }
+    static bool controllerActive(uint8_t index) {
+        if(index>=Config::ruleCount)return false;
+        const auto& rule=Config::rules[index];const auto& ed=EngineData::instance();
+        return rule.enabled&&ed.mode!=SysMode::FAULT&&!ed.faultLatched&&!ed.faultShutdownActive&&!_activation.inhibited(index)&&
+            (rule.activateEvents?_activation.active(index):(rule.modeMask&(1u<<uint8_t(ed.mode))));
+    }
     static ControllerActivation::Target controllerTarget(uint8_t index) {
         const auto act=Config::rules[index].actuator;
         // Independent shutdown requests do not own a shared physical output.
@@ -139,7 +145,10 @@ public:
                               THROTTLE_INPUT=17, IDLE_INPUT=18, AB_FLAME=19,
                               GLOW_CURRENT=20, IGNITER_CURRENT=21, IGNITER2_CURRENT=22,
                               OIL_PUMP_CURRENT=23, AB_INPUT=24, START_SWITCH=25, STOP_SWITCH=26,
-                              THRUST=27 };
+                              THRUST=27, MAVLINK_THROTTLE=28 };
+    static bool supportedSensor(uint8_t sensor) {
+        return sensor <= MAVLINK_THROTTLE || ChannelRegistry::isInputSensor(sensor);
+    }
     // Comparison operators
     enum Op       : uint8_t { GT=0, LT=1, GTE=2, LTE=3, EQ=4 };
     // Controllable actuators
@@ -445,6 +454,7 @@ private:
             case START_SWITCH:    return ed.startSwitchConfigured && ed.startSwitchHealthy;
             case STOP_SWITCH:     return ed.stopSwitchConfigured && ed.stopSwitchHealthy;
             case THRUST:          return HardwareConfig::hasThrust && ed.thrustHealthy;
+            case MAVLINK_THROTTLE:return HardwareConfig::hasMAVLink&&HardwareConfig::mavlinkRxPin>=0&&ed.mavlinkThrottleValid;
             default:              return false;
         }
     }
@@ -495,6 +505,7 @@ private:
             case START_SWITCH:return ed.startSwitchActive ? 1.0f : 0.0f;
             case STOP_SWITCH: return ed.stopSwitchActive ? 1.0f : 0.0f;
             case THRUST:      return ed.thrust;
+            case MAVLINK_THROTTLE:return ed.mavlinkThrottleDemand;
             default:        return 0.0f;
         }
     }
@@ -550,6 +561,7 @@ private:
                     case THROTTLE_INPUT:
                     case IDLE_INPUT:
                     case AB_INPUT: tolerance = 0.005f; break;
+                    case MAVLINK_THROTTLE: tolerance = 0.005f; break;
                     case DI_CH0:
                     case DI_CH1:
                     case DI_CH2:

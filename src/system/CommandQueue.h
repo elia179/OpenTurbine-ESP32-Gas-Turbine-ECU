@@ -57,6 +57,8 @@ struct OTPacket {
     float     fParam = 0.0f;
     int       iParam = 0;
     uint32_t  requestId = 0;
+    bool remote = false; // request requires a core result for the MAVLink operation
+    uint32_t expiresAtMs = 0; // remote queued operations cannot survive a long loop stall
 };
 
 using CommandHandler = void(*)(const OTPacket&);
@@ -77,6 +79,8 @@ public:
     static void completeResult(uint32_t requestId, bool accepted, const char* reason);
     static bool waitResult(uint32_t requestId, uint32_t timeoutMs, bool& accepted,
                            char* reason, size_t reasonLen);
+    static bool pollResult(uint32_t requestId,bool& accepted,char* reason,size_t reasonLen);
+    static bool beginExecution(const OTPacket& packet,uint32_t now);
 
     // Called from Core 0 (web handler) — non-blocking
     static bool push(const OTPacket& pkt) {

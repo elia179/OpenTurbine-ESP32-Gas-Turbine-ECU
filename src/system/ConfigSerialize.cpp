@@ -1064,8 +1064,7 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     standbyOilSource = constrain(standbyOilSource, 0, 2);
     manualRelightIgnitionTarget = constrain(manualRelightIgnitionTarget, 0, 2);
     for (int i = 0; i < ruleCount; i++) {
-        if (rules[i].kind != 3 && rules[i].sensor > RulesEngine::THRUST &&
-            !ChannelRegistry::isInputSensor(rules[i].sensor))
+        if (rules[i].kind != 3 && !RulesEngine::supportedSensor(rules[i].sensor))
             rules[i].enabled = false;
         rules[i].kind = constrain(rules[i].kind, 0, 3);
         rules[i].op = constrain(rules[i].op, 0, 1);

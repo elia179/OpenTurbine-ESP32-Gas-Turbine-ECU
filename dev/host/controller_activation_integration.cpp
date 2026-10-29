@@ -18,6 +18,8 @@ Config::Rule Config::rules[Config::MAX_RULES] = {};
 int Config::ruleCount = 0;
 namespace ConfigInternal { int8_t ruleSourceHandle(const char*) { return -1; } }
 int HardwareConfig::abInputPin = {};
+bool HardwareConfig::hasMAVLink=true;
+int HardwareConfig::mavlinkRxPin=16;
 bool HardwareConfig::hasAbFlame = {};
 bool HardwareConfig::hasAbPump = {};
 bool HardwareConfig::hasAbSol = {};
@@ -108,6 +110,9 @@ static Config::Rule& rule(int index,uint16_t id,uint8_t actuator,uint8_t event,u
     return r;
 }
 int main() {
+    assert(RulesEngine::supportedSensor(RulesEngine::MAVLINK_THROTTLE));
+    assert(RulesEngine::supportedSensor(ChannelRegistry::INPUT_SENSOR_BASE));
+    assert(!RulesEngine::supportedSensor(29));
     auto& ed=EngineData::instance();
     HardwareConfig::hasThrottle=true;HardwareConfig::hasIdleInput=true;
     HardwareConfig::hasPropPitch=true;HardwareConfig::hasIgniter=true;
@@ -249,6 +254,15 @@ int main() {
     fakeMillisClock()=400;RulesEngine::evaluate();assert(faultRequests==5);
     fakeMillisClock()=499;RulesEngine::evaluate();assert(faultRequests==5);
     fakeMillisClock()=500;RulesEngine::evaluate();assert(faultRequests==6);
+    RulesEngine::releaseForConfiguration();
+    // A selected virtual throttle uses exactly the same mapping and loss output.
+    Config::ruleCount=1;auto& remote=Config::rules[0];remote={};remote.enabled=true;
+    remote.kind=1;remote.sensor=RulesEngine::MAVLINK_THROTTLE;remote.actuator=RulesEngine::THROTTLE;
+    remote.modeMask=4;remote.inputMin=0;remote.inputMax=1;remote.outputMin=.1f;remote.outputMax=.8f;remote.offValue=.05f;
+    ed.mode=SysMode::RUNNING;ed.faultLatched=false;ed.faultShutdownActive=false;
+    ed.mavlinkThrottleValid=true;ed.mavlinkThrottleDemand=.5f;
+    RulesEngine::begin(nullptr,requestFault);RulesEngine::evaluate();near(ed.throttleDemand,.45f);
+    ed.mavlinkThrottleValid=false;RulesEngine::releaseOwnedTargets();RulesEngine::evaluate();near(ed.throttleDemand,.05f);
     RulesEngine::releaseForConfiguration();
     std::cout<<"Production RulesEngine: continuous pot tracking, ownership, event handover, safe shutdown, inactive no-op, disable/re-enable, fault, servo park and protective ignition passed.\n";
 }

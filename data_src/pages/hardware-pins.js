@@ -158,13 +158,9 @@ function collectPinUsage() {
     add(statusLed?.pin, 'Status LED');
   if (cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
     add(cfg.actuators.fault_led.pin,'Fault LED','fault-led');
-  const cl = cfg.cluster_serial || {};
-  if (cl.enabled && !(profileActive && pcbProfile?.fixed_functions?.cluster_serial?.available)) {
-    add(cl.tx_pin, 'Cluster Serial TX'); add(cl.rx_pin, 'Cluster Serial RX');
-  }
   const mv = cfg.mavlink || {};
   if (mv.enabled && !(profileActive && pcbProfile?.fixed_functions?.mavlink?.available))
-    add(mv.tx_pin, 'MAVLink TX');
+    { add(mv.tx_pin, 'MAVLink TX'); add(mv.rx_pin, 'MAVLink RX'); }
   if (cfg.buzzer?.enabled &&
       !(profileActive && pcbProfile?.fixed_functions?.buzzer?.available))
     add(cfg.buzzer.pin, 'Buzzer');
@@ -298,7 +294,6 @@ function refreshAllPins() {
   const s = cfg.sensors || {};
   const a = cfg.actuators || {};
   const c = cfg.controls  || {};
-  const cl = cfg.cluster_serial || {};
   const abt = cfg.ab_trigger || {};
 
   refreshPinSel('f-stop-pin',       'in',  c.stop_pin);
@@ -344,8 +339,6 @@ function refreshAllPins() {
   refreshPinSel('f-fan-pin',        'out', (a.cool_fan||{}).pin);
   refreshPinSel('f-led-pin',        'status-led', (a.status_led||{}).pin);
   refreshPinSel('f-buzzer-pin',     'out', (cfg.buzzer||{}).pin);
-  refreshPinSel('f-cl-tx',          'out', cl.tx_pin);
-  refreshPinSel('f-cl-rx',          'in',  cl.rx_pin);
   refreshPinSel('f-ab-sw-pin',      'in',  abt.switch_pin);
   refreshPinSel('f-ab-inp-pin',     abt.input_rc_pwm ? 'in' : 'adc', abt.input_pin);
   refreshPinSel('f-ab-arm-pin',     'in',  abt.arm_pin);

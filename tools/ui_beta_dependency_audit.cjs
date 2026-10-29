@@ -289,7 +289,7 @@ async function optionDisabled(page, selector, value) {
     assert.ok(Math.abs(sensorInterfaceUx.mv.scale - 3300/4095) < 0.000001);
     results.push('temperature and torque cards expose native, SPI, and shared-I2C interfaces with their wiring and ranges');
 
-    await patchHardware(page, { platform: 'esp32s3', cluster_serial: { enabled: true, tx_pin: 1, rx_pin: -1 } });
+    await patchHardware(page, { platform: 'esp32s3', mavlink: { enabled: true, tx_pin: 1, rx_pin: -1 } });
     await goto(page, 'hardware.html', '#hardware-profile-section');
     const s3Pins = await page.evaluate(() => ({
       output22: buildPinOptions(22, 'out').includes('value="22"'),
@@ -300,14 +300,14 @@ async function optionDisabled(page, selector, value) {
 
     const dependencyTips = await page.evaluate(() => ({
       n1: unlockTooltip('sensor', 'n1_rpm', false),
-      cluster: unlockTooltip('feature', 'cluster', false),
+      mavlink: unlockTooltip('feature', 'mavlink', false),
       glowCurrent: unlockTooltip('feature', 'glow_current', false)
     }));
     const n1UnlockTip = dependencyTips.n1;
     assert.match(n1UnlockTip || '', /automatic idle/i);
     assert.match(n1UnlockTip || '', /windmilling oil/i);
     assert.match(n1UnlockTip || '', /overspeed/i);
-    assert.match(dependencyTips.cluster, /external display/i);
+    assert.match(dependencyTips.mavlink, /engine telemetry and named channels/i);
     assert.match(dependencyTips.glowCurrent, /glow current live data/i);
     assert.doesNotMatch(dependencyTips.glowCurrent, /wait-until-hot|preheat/i);
     results.push('hardware enable checkboxes explain what currently disabled hardware unlocks');
@@ -320,7 +320,7 @@ async function optionDisabled(page, selector, value) {
       controllers: { governor: false },
       has_afterburner: true,
       has_two_shaft: false,
-      cluster_serial: { enabled: false },
+      mavlink: { enabled: false },
       ab_flame: { enabled: false },
       ab_trigger: { input_pin: -1 }
     });
@@ -378,7 +378,7 @@ async function optionDisabled(page, selector, value) {
     await patchHardware(page, {
       channel_registry: {version:1, inputs:[{id:'n1_main',name:'N1 Speed',purpose:'n1_speed',role:'speed',driver:2,pin:34,min:0,max:100000,pulses_per_unit:1}], outputs:[], bindings:[{key:'primary_n1',channel:'n1_main'}]},
       sensors: { oil_press: { enabled: false }, tot: { enabled: false }, tit: { enabled: false }, n1_rpm: { enabled: true } },
-      cluster_serial: { enabled: true }
+      mavlink: { enabled: true }
     });
     await patchData(page, { mode:'STANDBY', config_locked:false });
     await goto(page, 'system.html', '#cf-cl_n1');
@@ -428,7 +428,7 @@ async function optionDisabled(page, selector, value) {
         ab_pump: { enabled: true },
         throttle: { enabled: true }
       },
-      cluster_serial: { enabled: true },
+      mavlink: { enabled: true },
       ab_flame: { enabled: false }
     });
     await patchData(page, { mode:'STANDBY', config_locked:false });

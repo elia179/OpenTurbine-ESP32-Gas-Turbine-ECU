@@ -53,5 +53,17 @@ int main() {
     accepted = true;
     assert(!CommandQueue::waitResult(canceledId, 2, accepted, reason, sizeof(reason)));
 
+    OTPacket remote{OTCommand::START};remote.remote=true;
+    remote.requestId=CommandQueue::nextRequestId();remote.expiresAtMs=200;
+    CommandQueue::beginResult(remote.requestId);
+    assert(!CommandQueue::beginExecution(remote,200));
+    assert(CommandQueue::pollResult(remote.requestId,accepted,reason,sizeof(reason))&&!accepted);
+    remote.requestId=CommandQueue::nextRequestId();remote.expiresAtMs=0;
+    CommandQueue::beginResult(remote.requestId);
+    CommandQueue::beginResult(remote.requestId+8); // overwrite the bounded slot
+    assert(!CommandQueue::beginExecution(remote,100));
+    remote.cmd=OTCommand::STOP;assert(CommandQueue::beginExecution(remote,100));
+    remote.cmd=OTCommand::AB_STOP;assert(CommandQueue::beginExecution(remote,100));
+
     std::cout << "real CommandQueue behavior passed\n";
 }

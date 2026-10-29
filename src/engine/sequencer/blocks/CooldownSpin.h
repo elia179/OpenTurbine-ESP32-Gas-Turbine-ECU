@@ -56,7 +56,6 @@ public:
                                           : constrain(oilCoolPct, oilMinPct, oilMaxPct);
         }
         if (HardwareConfig::hasOilScavengePump && useScavengePump) ed.oilScavengeDemand = 1.0f;
-        ed.clusterCode = 11;    // ClCode::CooldownRunning
     }
 
     BlockResult tick() override {

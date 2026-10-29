@@ -107,12 +107,16 @@ def main() -> int:
     # before execution, so no stale result can pass the gate.
     tmp_context = (nullcontext(str(host_tmp)) if host_tmp is not None else
                    tempfile.TemporaryDirectory(prefix="ot-native-"))
+    # Wire golden frames are local build artifacts, never source files.
+    (ROOT / "artifacts").mkdir(exist_ok=True)
     with tmp_context as tmp:
         tests = [
-            ("mavlink_behavior", [str(ROOT / "dev/host/mavlink_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
-            ("cluster_behavior", [str(ROOT / "dev/host/cluster_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
-            ("mavlink_behavior_s3", [str(ROOT / "dev/host/mavlink_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
-            ("cluster_behavior_s3", [str(ROOT / "dev/host/cluster_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
+            ("mavlink_migration_behavior", [str(ROOT / "dev/host/mavlink_migration_behavior.cpp")], []),
+            ("mavlink_client_behavior", [str(ROOT / "dev/host/mavlink_client_behavior.cpp")], []),
+            ("telemetry_catalog_behavior", [str(ROOT / "dev/host/telemetry_catalog_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("telemetry_catalog_behavior_s3", [str(ROOT / "dev/host/telemetry_catalog_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
+            ("mavlink_service_behavior", [str(ROOT / "dev/host/mavlink_service_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp"),str(ROOT / "src/system/CommandQueue.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("mavlink_service_behavior_s3", [str(ROOT / "dev/host/mavlink_service_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp"),str(ROOT / "src/system/CommandQueue.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("rule_fields_behavior", [str(ROOT / "dev" / "host" / "rule_fields_behavior.cpp")], []),
             ("switch_timing_behavior", [str(ROOT / "dev" / "host" / "switch_timing_behavior.cpp")], []),
             ("startup_temperature_integration", [str(ROOT / "dev" / "host" / "startup_temperature_integration.cpp")], []),

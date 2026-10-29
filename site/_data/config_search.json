@@ -751,27 +751,27 @@
   },
   {
     "title": "N1 Warn RPM",
-    "context": "Setting · External Instrument Cluster Display",
+    "context": "Setting · External display references",
     "url": "/user-guide/#field-cl_n1",
     "text": "N1 warning-zone start on the external cluster. 0 selects an automatic value at 90% of configured Maximum N1 Speed, even if N1 overspeed safety is off. This changes only cluster presentation."
   },
   {
     "title": "N2 Warn RPM",
-    "context": "Setting · External Instrument Cluster Display",
+    "context": "Setting · External display references",
     "url": "/user-guide/#field-cl_n2",
     "text": "N2 warning-zone start on the external cluster. This field appears only when N2 feedback is fitted and changes only cluster presentation."
   },
   {
     "title": "EGT Warn",
-    "context": "Setting · External Instrument Cluster Display",
+    "context": "Setting · External display references",
     "url": "/user-guide/#field-cl_tw",
-    "text": "Selected engine-temperature warning threshold for cluster status. 0 = auto (selected EGT limit minus safety margin)."
+    "text": "Selected engine-temperature display warning threshold. 0 = auto (selected EGT limit minus safety margin)."
   },
   {
     "title": "Oil Warn",
-    "context": "Setting · External Instrument Cluster Display",
+    "context": "Setting · External display references",
     "url": "/user-guide/#field-cl_ow",
-    "text": "Oil pressure warning status code threshold. 0 = auto (running minimum)"
+    "text": "Oil pressure display warning threshold. 0 = auto (running minimum)"
   },
   {
     "title": "Enable Windmilling Oil Protection",

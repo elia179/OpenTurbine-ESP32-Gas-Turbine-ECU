@@ -131,7 +131,7 @@ async function sectionVisible(page, title) {
     await patchHardware(page, {
       has_afterburner: false,
       has_two_shaft: false,
-      cluster_serial: { enabled: false },
+      mavlink: { enabled: false },
       sensors: {
         n1_rpm: { enabled: false },
         n2_rpm: { enabled: false },
@@ -291,7 +291,7 @@ async function sectionVisible(page, title) {
     await reset(page);
     console.log('super-audit: cluster toggle');
     await patchHardware(page, {
-      cluster_serial: { enabled: true },
+      mavlink: { enabled: true },
       has_two_shaft: false,
       sensors: {
         n1_rpm: { enabled: true },

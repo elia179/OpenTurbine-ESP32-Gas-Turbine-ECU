@@ -307,8 +307,6 @@ void PcbProfileResolver::applyFixedPeripherals() {
         tx = bus->tx;
         if (rx) *rx = bus->rx;
     };
-    applySerial(catalog->clusterSerialBusId, HardwareConfig::hasClusterSerial,
-                HardwareConfig::clusterTxPin, &HardwareConfig::clusterRxPin);
-    applySerial(catalog->mavlinkBusId, HardwareConfig::hasMAVLink,
-                HardwareConfig::mavlinkTxPin, nullptr);
+    applySerial(catalog->mavlinkBusId[0]?catalog->mavlinkBusId:catalog->clusterSerialBusId, HardwareConfig::hasMAVLink,
+                HardwareConfig::mavlinkTxPin, &HardwareConfig::mavlinkRxPin);
 }

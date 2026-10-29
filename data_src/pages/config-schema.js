@@ -145,11 +145,11 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'ECU Runtime', sectionNote:'Advanced control-loop scheduling. Logging frequency and channel selection are configured on the Log page.', fields: [
     { key:'tm_lh', path:['telemetry','control_loop_hz'], label:'ECU Loop Target Hz', desc:'Main control-loop target frequency. Default 400 Hz. Lower values reduce CPU use; higher values improve control granularity but increase load. Recommended range: 200-500 Hz. Takes effect after a reboot.', step:50, min:50, max:1000, basic:true },
   ]},
-  { title: 'External Instrument Cluster Display', sectionNote:'These are display-only warning thresholds, not a list of transmitted values. The OT Cluster link automatically streams supported fitted primary sensors and actuators; a cluster connected with RX can request a different field subset. Only thresholds relevant to currently configured hardware are shown here, and none trigger an ECU shutdown.', fields: [
+  { title: 'External display references', sectionNote:'Display-only warning references sent with MAVLink channel metadata. Every fitted named input and output is available automatically. These references do not enable protection or trigger shutdown.', fields: [
     { key:'cl_n1', path:['cluster','n1_warn_rpm'],  label:'N1 Warn RPM',   desc:'N1 warning-zone start on the external cluster. 0 selects an automatic value at 90% of configured Maximum N1 Speed, even if N1 overspeed safety is off. This changes only cluster presentation.', step:500, min:0 },
     { key:'cl_n2', path:['cluster','n2_warn_rpm'],  label:'N2 Warn RPM',   desc:'N2 warning-zone start on the external cluster. This field appears only when N2 feedback is fitted and changes only cluster presentation.', step:500, min:0 },
-    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature warning threshold for cluster status. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
-    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure warning status code threshold. 0 = auto (running minimum)', step:0.1, min:0 },
+    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature display warning threshold. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
+    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure display warning threshold. 0 = auto (running minimum)', step:0.1, min:0 },
   ]},
   { title: 'Windmilling Oil Protection', id:'windmilling-oil-section', sectionNote:'Optional bearing protection while a shaft is still turning in standby, for example from airflow, vehicle movement, or residual momentum after shutdown. Off by default. When enabled, it uses a fixed/floor pump output or the matching oil-pressure controller.', fields: [
     { key:'so_en', path:['standby_oil','enabled'], label:'Enable Windmilling Oil Protection', type:'checkbox', desc:'Allow the selected oil pump to run automatically in STANDBY or FAULT while the selected healthy shaft is above the threshold. Leave this off when the engine does not need pressure lubrication while windmilling.' },
@@ -227,7 +227,7 @@ for(const section of ALL_CONFIG_SCHEMA)section.fields=section.fields.flatMap(fie
 const CONFIG_SURFACE = window.OT_CONFIG_SURFACE || 'controllers';
 const SYSTEM_SECTIONS = new Set([
   'ECU Runtime',
-  'External Instrument Cluster Display'
+  'External display references'
 ]);
 const SCHEMA = ALL_CONFIG_SCHEMA.filter(section =>
   CONFIG_SURFACE === 'system'

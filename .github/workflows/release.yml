@@ -45,7 +45,7 @@ jobs:
       - name: Install canonical gate dependencies
         shell: pwsh
         run: |
-          python -m pip install platformio==6.1.19
+          python -m pip install platformio==6.1.19 pymavlink==2.4.50
           npm.cmd ci
           npx.cmd playwright install chromium firefox webkit
 

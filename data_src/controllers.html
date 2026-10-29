@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261028e',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261028e');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -428,11 +428,11 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'ECU Runtime', sectionNote:'Advanced control-loop scheduling. Logging frequency and channel selection are configured on the Log page.', fields: [
     { key:'tm_lh', path:['telemetry','control_loop_hz'], label:'ECU Loop Target Hz', desc:'Main control-loop target frequency. Default 400 Hz. Lower values reduce CPU use; higher values improve control granularity but increase load. Recommended range: 200-500 Hz. Takes effect after a reboot.', step:50, min:50, max:1000, basic:true },
   ]},
-  { title: 'External Instrument Cluster Display', sectionNote:'These are display-only warning thresholds, not a list of transmitted values. The OT Cluster link automatically streams supported fitted primary sensors and actuators; a cluster connected with RX can request a different field subset. Only thresholds relevant to currently configured hardware are shown here, and none trigger an ECU shutdown.', fields: [
+  { title: 'External display references', sectionNote:'Display-only warning references sent with MAVLink channel metadata. Every fitted named input and output is available automatically. These references do not enable protection or trigger shutdown.', fields: [
     { key:'cl_n1', path:['cluster','n1_warn_rpm'],  label:'N1 Warn RPM',   desc:'N1 warning-zone start on the external cluster. 0 selects an automatic value at 90% of configured Maximum N1 Speed, even if N1 overspeed safety is off. This changes only cluster presentation.', step:500, min:0 },
     { key:'cl_n2', path:['cluster','n2_warn_rpm'],  label:'N2 Warn RPM',   desc:'N2 warning-zone start on the external cluster. This field appears only when N2 feedback is fitted and changes only cluster presentation.', step:500, min:0 },
-    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature warning threshold for cluster status. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
-    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure warning status code threshold. 0 = auto (running minimum)', step:0.1, min:0 },
+    { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature display warning threshold. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
+    { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure display warning threshold. 0 = auto (running minimum)', step:0.1, min:0 },
   ]},
   { title: 'Windmilling Oil Protection', id:'windmilling-oil-section', sectionNote:'Optional bearing protection while a shaft is still turning in standby, for example from airflow, vehicle movement, or residual momentum after shutdown. Off by default. When enabled, it uses a fixed/floor pump output or the matching oil-pressure controller.', fields: [
     { key:'so_en', path:['standby_oil','enabled'], label:'Enable Windmilling Oil Protection', type:'checkbox', desc:'Allow the selected oil pump to run automatically in STANDBY or FAULT while the selected healthy shaft is above the threshold. Leave this off when the engine does not need pressure lubrication while windmilling.' },
@@ -510,7 +510,7 @@ for(const section of ALL_CONFIG_SCHEMA)section.fields=section.fields.flatMap(fie
 const CONFIG_SURFACE = window.OT_CONFIG_SURFACE || 'controllers';
 const SYSTEM_SECTIONS = new Set([
   'ECU Runtime',
-  'External Instrument Cluster Display'
+  'External display references'
 ]);
 const SCHEMA = ALL_CONFIG_SCHEMA.filter(section =>
   CONFIG_SURFACE === 'system'
@@ -1337,7 +1337,9 @@ function _mountControllerLocalSettings(outputs) {
 }
 
 function simpleControlInputs() {
-  return (hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
+  const rows=(hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
+  if(hwCfg?.mavlink?.enabled && Number(hwCfg.mavlink.rx_pin??-1)>=0) rows.push({id:'mavlink_throttle',name:'MAVLink throttle demand',purpose:'throttle',installed:true});
+  return rows;
 }
 function controllerSwitchInput(id) {
   const row=(hwCfg?.channel_registry?.inputs||[]).find(input=>String(input.id)===String(id));
@@ -1737,6 +1739,9 @@ function renderSimpleControls() {
       topology = flowBlock('02',switchInput?'Switch condition':'Control input',switchInput?(actionTarget?'Choose the switch and the ON/OFF state that requests the action.':'Choose the switch and the ON/OFF state that commands the output.'):'The measured value that decides when the output changes.',`${inputChoice}<label class="cfg-field"><span class="cfg-label">${actionTarget?(rule.target==='request_fault'?'Request fault shutdown when':'Request normal shutdown when'):switchInput?'Command output when':'Direction'}</span><select onchange="${switchInput?'setControllerSwitchState':'updateSimpleControl'}(${index},${switchInput?'':"'op',"}+this.value)"><option value="0"${Number(rule.op||0)===0?' selected':''}>${switchInput?'Switch is ON':actionTarget?'Input is above threshold':'Turn on above'}</option><option value="1"${Number(rule.op||0)===1?' selected':''}>${switchInput?'Switch is OFF':actionTarget?'Input is below threshold':'Turn on below'}</option></select>${switchInput?'<span class="cfg-desc">ON/OFF is the logical state after Hardware polarity and the built-in 20 ms debounce.</span>':''}</label>${switchInput?(!controllerSwitchSettingsReady(rule)?`<div class="cfg-field"><span class="cfg-desc">This older controller has numeric switch settings. Apply the ON/OFF condition before saving.</span><button type="button" onclick="setControllerSwitchState(${index},${Number(rule.op||0)})">Use switch state</button></div>`:''):numberField(index,'threshold','Switch point',rule.threshold??0)+numberField(index,'hysteresis','Hysteresis',rule.hysteresis??0,'min="0" step="any"')}${numberField(index,'confirm_ms','Condition confirmation time (ms)',rule.confirm_ms??0,'min="0" max="60000" step="1"').replace('</label>','<span class="cfg-desc">The condition must stay true continuously. Returning to normal, losing the input or stopping monitoring resets this timer. 0 adds no delay. Switch contacts also have built-in 20 ms debounce.</span></label>')}`) + (actionTarget?'':relay?flowBlock('03','Output state','States used when the condition matches and when it does not.',['on_value','off_value'].map((key,i)=>`<label class="cfg-field"><span class="cfg-label">${i?'Otherwise':'When condition matches'}</span><select onchange="updateSimpleControl(${index},'${key}',+this.value)"><option value="1"${Number(rule[key]||0)>=.5?' selected':''}>ON</option><option value="0"${Number(rule[key]||0)<.5?' selected':''}>OFF</option></select></label>`).join('')):flowBlock('03','Output command','Output levels used on each side of the switch point.',`${numberField(index,'on_value','On output (%)',Number(rule.on_value??1)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'off_value','Off output (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}`));
     } else if (kind === 1) {
       topology = flowBlock('02','Control input','Choose the input and the range that will be mapped.',`${inputChoice}${numberField(index,'input_min','Input low',rule.input_min??0)}${numberField(index,'input_max','Input high',rule.input_max??1)}`) + flowBlock('03','Output range','Output command at the low and high ends of the input range.',`${numberField(index,'output_min','Output low (%)',Number(rule.output_min??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'output_max','Output high (%)',Number(rule.output_max??1)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}`);
+      topology += flowBlock('04','Input loss','If this input becomes unhealthy or stale, command this output. No fallback input is selected.',window.OTControllerTiming?.scheduled(rule)
+        ? `<div class="cfg-field"><span class="cfg-label">Output if input is unavailable</span><b>${Math.round(Number(target?.safe_demand ?? (rule.target==='prop_pitch_main'?1:0))*100)}%</b><span class="cfg-desc">Uses the output's safe demand. Set it on Hardware in this output's settings.</span></div>`
+        : numberField(index,'off_value','Output if input is unavailable (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)"));
     } else if (kind === 2) {
       const targetSource = targetSourceType === 0 ? '' : `<label class="cfg-field"><span class="cfg-label">${targetSourceType===1?'Selector input':'Target input'}</span><select onchange="updateSimpleControl(${index},'target_source',this.value)">${optionRows(inputs,rule.target_source)}</select></label>`;
       const targetValues = targetSourceType === 0
@@ -1778,7 +1783,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
   { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
-  { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External Instrument Cluster Display'] },
+  { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];
 const WORKSPACE_GROUPS = ALL_WORKSPACE_GROUPS
   .filter(group => CONFIG_SURFACE === 'system'
@@ -2658,8 +2663,8 @@ function runValidation() {
         msg:'⚠ Governor target plus its no-correction band reaches the hard N2 shutdown limit. Leave operating margin below the trip.'});
     }
     const n2Warn = fv('cl_n2');
-    if (hwCfg.cluster_serial?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
-      warnings.push({section:'External Instrument Cluster Display', key:'warn-n2-cluster-trip',
+    if (hwCfg.mavlink?.enabled && hasRegistryInput('n2_speed') && n2Warn > 0 && n2Warn >= n2RpmLimit) {
+      warnings.push({section:'External display references', key:'warn-n2-cluster-trip',
         msg:'⚠ Cluster N2 warning is at/above the hard shutdown limit, so the display may not warn before the ECU trips.'});
     }
   }
@@ -2921,7 +2926,7 @@ async function validateBeforeSave(cfg) {
     if (hwCfg.controllers?.dynamic_idle && idleSource === 1 && Number(idleTarget) >= n2RpmLimit)
       warns.push('N2-based idle target (' + idleTarget + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM).');
     const clusterN2Warn = Number(gv(cfg, 'cluster', 'n2_warn_rpm') || 0);
-    if (hwCfg.cluster_serial?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
+    if (hwCfg.mavlink?.enabled && hasN2 && clusterN2Warn > 0 && clusterN2Warn >= n2RpmLimit)
       warns.push('Cluster N2 warning (' + clusterN2Warn + ' RPM) is at or above Maximum N2 Speed (' + n2RpmLimit + ' RPM), so the display may not warn before shutdown.');
   }
   const pbN1Enabled = !!gv(cfg, 'throttle', 'pullback_n1');
@@ -4124,7 +4129,7 @@ function applyHwConditions() {
   const hasAbSol       = !!(hasAB && hasRegistryOutput('ab_valve'));
   const hasAbPump      = !!(hasAB && hasRegistryOutput('ab_pump'));
   const hasAbFuelHardware = hasAbSol || hasAbPump;
-  const hasClusterSerial = !!hwCfg.cluster_serial?.enabled;
+  const hasClusterSerial = !!hwCfg.mavlink?.enabled;
   const mainFuelChannel = registryOutputByPurpose('main_fuel');
   const driverIsOnOff = driver => [4,11].includes(Number(driver));
   const driverIsProportional = driver => [5,6].includes(Number(driver));
@@ -4422,10 +4427,10 @@ function applyHwConditions() {
   showField('cl_n2', true);
   ghostField('cl_n2', hasN2, 'N2 RPM sensor is not configured in Hardware.');
   const clusterSec = Array.from(document.querySelectorAll('.cfg-section'))
-    .find(sec => sec.dataset.section === 'External Instrument Cluster Display');
+    .find(sec => sec.dataset.section === 'External display references');
   if (clusterSec) {
     clusterSec.dataset.forceHidden = hasClusterSerial ? '0' : '1';
-    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';
+    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'MAVLink is not configured in Hardware.';
     clusterSec.style.display = '';
   }
   ['rpm_limit','min_rpm','sf_us_en','cl_n1'].forEach(k =>

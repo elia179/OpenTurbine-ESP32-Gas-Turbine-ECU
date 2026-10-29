@@ -32,13 +32,13 @@ async function text(page, selector) {
   try {
     await page.request.post(`${base}/__sim/reset`);
     await page.request.post(`${base}/__sim/scenario/minimal`);
-    await page.request.patch(`${base}/api/hardware`, {data:{cluster_serial:{enabled:false,tx_pin:-1,rx_pin:-1}}});
+    await page.request.patch(`${base}/api/hardware`, {data:{mavlink:{enabled:false,tx_pin:-1,rx_pin:-1}}});
     await page.goto(`${base}/hardware.html`);
     await page.waitForSelector('#hardware-comms-summary');
     await page.waitForFunction(() => typeof window.OTShowRebootOverlay === 'function');
     assert.doesNotMatch(await text(page, '#hardware-comms-summary'), /OT Cluster serial/i);
     await page.locator('#btn-edit-comms').click();
-    assert.match(await text(page, '#hardware-comms-summary'), /OT Cluster serial.*Cluster TX GPIO/is);
+    assert.match(await text(page, '#hardware-comms-summary'), /MAVLink connection.*MAVLink TX GPIO/is);
     await page.evaluate(() => showRebootOverlay());
     assert.match(await text(page, '#reboot-overlay'), /Device rebooting.*reconnecting/is);
     assert.match(await page.locator('#reboot-overlay').getAttribute('class'), /rebooting-overlay.*show/);

@@ -1,0 +1,17 @@
+{
+  "generator": "pymavlink 2.4.50",
+  "input_sha256": {
+    "minimal.xml": "5b450b2eef9e93db9c0a35ea56141bd05c197f41a9f4a7990a99b91c16814fa9",
+    "standard.xml": "d41d5a29619345fcaa110891682e6df83eca081168f76ecfd17d59d0ea721c47",
+    "common.xml": "ec9a32b00ed801ed6231edd0da943b782b7e5070b1134e8738a8ada0949ee2cb",
+    "openturbine.xml": "b2b4f8c015d24d6749162ed8aa0589dd4fc67a232445043f5984a0903924496e"
+  },
+  "standard_messages": [
+    "COMMAND_ACK",
+    "COMMAND_LONG",
+    "EFI_STATUS",
+    "HEARTBEAT",
+    "NAMED_VALUE_FLOAT",
+    "STATUSTEXT"
+  ]
+}

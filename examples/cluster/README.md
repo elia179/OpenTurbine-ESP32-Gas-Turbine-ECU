@@ -1,154 +1,39 @@
-# Building an OpenTurbine cluster or companion device
+# Build a MAVLink Cluster receiver
 
-OpenTurbine Cluster Protocol (OTC) is a small UART protocol for external displays, loggers, bridges, and custom control panels. It advertises which signals are actually fitted, streams live values and status, and can optionally accept a limited command set.
+This development example replaces the OTC Cluster client. Hardware qualification
+of the replacement is still pending; do not treat host tests as a live-engine test.
 
-This folder is the practical starting point. The reusable implementation currently lives one level up as [`OTCClusterClient.h`](../OTCClusterClient.h) so existing projects and links remain compatible.
+1. Copy `libraries/OpenTurbineMavlink` into your Arduino sketchbook's `libraries`
+   directory, or add that directory as a local PlatformIO library dependency.
+2. Open `MavlinkClusterExample/MavlinkClusterExample.ino`. Select your receiver
+   ESP32 board and change its example RX/TX pins to free pins on that board.
+3. Connect ECU TX to receiver RX, optional ECU RX to receiver TX, and GND to GND.
+   Use compatible 3.3 V logic. Board interface circuitry may change connector
+   voltage levels; follow its electrical documentation.
+4. On the ECU, assign TX and optional RX in Hardware → Communications → MAVLink.
+   In System → MAVLink connection, enable it and set 115200 baud / 100 ms to
+   match this sketch. Save and allow the ECU reboot.
+5. Open the receiver's USB console at 115200 baud. It displays named channels,
+   values and units. Unhealthy, missing or expired data displays as unavailable.
+6. For commands, enable Remote engine commands on the ECU. Match the permitted
+   sender to the sketch: system 255 / component 190. The ECU defaults to 1/200.
+   Type `start`, `stop`, `ack`, `ab on` or `ab off` explicitly. Check the returned
+   result **and** achieved engine state. No operation is sent at boot.
+7. Optional: type `throttle 25` for a repeating 25% demand, or `throttle off` to
+   stop it. The ECU only uses it after you explicitly select **MAVLink throttle
+   demand** as a controller input. Configure the controller's input-loss output.
+   The example stops transmitting demand when engine state becomes stale.
 
-A compilable minimal sketch is provided as [`OTCClusterExample.ino`](OTCClusterExample.ino).
+The library exposes `Client<Serial>` with `update(millis())`, `catalogueReady()`,
+`channelCount()`, `channel(index)`, `valid(channel, millis())`, `signalLost()`,
+`start()`, `stop()`, `acknowledgeFault()`, `afterburner()` and `throttle(0..1)`.
+Call `update` continuously without blocking delays. The default channel capacity
+is 160; it is intended for an ESP32-class receiver, not a small AVR.
 
-## What the client does
+A receiver must display stale state visibly, use the provided validity checks,
+and never replay Start or a throttle setting automatically after reconnecting.
+Do not identify signals by their display name: use metadata keys and the current
+catalogue revision. Numeric IDs may change after a configuration edit.
 
-`OTCClusterClient.h` is a single-file Arduino-style client that:
-
-- Finds and validates binary `OT` frames
-- Checks CRC16-CCITT-FALSE
-- Learns the ECU’s fitted-field schema
-- Reassembles chunked telemetry
-- Exposes values such as N1, N2, TOT, TIT, oil pressure, temperature, fuel pressure, battery voltage, actuator demand, mode, and status
-- Ignores unknown future fields safely
-- Detects signal loss
-- Supports schema requests, subscriptions, and allowed commands when the return UART is wired
-
-## Hardware connection
-
-Both devices must use compatible 3.3 V UART logic and share ground.
-
-### Telemetry-only
-
-```text
-OpenTurbine ECU cluster TX  -> companion RX
-OpenTurbine ECU GND         -> companion GND
-```
-
-Leave ECU cluster RX disabled (`-1`). The ECU periodically repeats its schema, so a display can reconnect without transmitting.
-
-### Two-way
-
-```text
-OpenTurbine ECU cluster TX  -> companion RX
-Companion TX                -> OpenTurbine ECU cluster RX
-OpenTurbine ECU GND         -> companion GND
-```
-
-Never connect two push-pull TX pins together. Confirm voltage levels before wiring a non-ESP32 device.
-
-## Configure the ECU
-
-1. Open **Hardware**.
-2. Under **Communications**, choose the cluster ECU TX and optional ECU RX pins.
-3. Save Hardware and allow the reboot.
-4. Open **System → Connections & runtime → Instrument cluster**. Enable the link, set matching
-   baud and start with a 50 ms interval. Save and allow the reboot. Hardware and
-   System edit the same enable; there is no second independent transmission switch.
-5. Open **Controllers → External Instrument Cluster Display** to review display
-   warning thresholds. They do not cause shutdown. Field selection is automatic;
-   a two-way receiver may request a subset using subscriptions.
-
-OTC 1.1 retains existing frame/field IDs and adds P1/P2, fuel-flow and thrust
-health flags. N1 appears only when fitted. Check `signalLost()` and the relevant
-health bit before displaying a sensor as valid; last numeric values can remain
-after a sensor fails. Custom registry names do not rename protocol field keys.
-
-The default link is UART 8N1 at 115200 baud with a nominal 50 ms telemetry interval.
-
-## Minimal Arduino/ESP32 program
-
-Copy [`OTCClusterClient.h`](../OTCClusterClient.h) into your project:
-
-```cpp
-#include "OTCClusterClient.h"
-
-HardwareSerial EcuSerial(2);
-OTCClusterClient otc;
-
-void setup() {
-  Serial.begin(115200);
-
-  // Companion-side pins: RX=16 receives ECU TX; TX=17 is optional.
-  EcuSerial.begin(115200, SERIAL_8N1, 16, 17);
-  otc.begin(EcuSerial);
-
-  // Useful in two-way mode. Harmless if the companion TX is not connected.
-  otc.requestSchema();
-}
-
-void loop() {
-  otc.update();
-
-  if (otc.dataReceived) {
-    Serial.printf("mode=%s N1=%.0f EGT=%.1f oil=%.2f status=%s\n",
-                  otc.modeText(), otc.n1Rpm, otc.totC,
-                  otc.oilBar, otc.statusText);
-  }
-
-  if (otc.signalLost()) {
-    // Show NO DATA and do not keep displaying stale values as live.
-  }
-}
-```
-
-Check the header for the exact public variables and helpers available in the current client version.
-
-## Build the display from the learned schema
-
-Do not assume every ECU has N1, N2, TOT, oil pressure, afterburner, or a power turbine. Wait for `schemaReceived`, then use the client’s `has...` flags to decide which gauges and warnings to display.
-
-Values arrive in canonical ECU units:
-
-- Temperature: °C
-- Pressure: bar
-- Speed: RPM
-- Voltage: V
-- Current: A
-- Torque: Nm
-- Power: W
-- Actuator commands: percent
-
-Convert units on the display side. Keep raw values internally so warning comparisons remain consistent.
-
-## Status and safety behavior
-
-A cluster should always make these states obvious:
-
-- No telemetry / stale telemetry
-- STANDBY, STARTUP, RUNNING, SHUTDOWN, and FAULT
-- Current sequence progress during startup/shutdown
-- Active warning/fault status
-- Sensor health for every displayed safety-critical value
-
-Do not display a stale last value without a visible NO DATA indication.
-
-## Optional commands
-
-Two-way wiring can request schema/subscriptions and send supported commands such as STOP, START, reset peaks, limp toggle, or dynamic-idle toggle. Check `commandsAvailable()` before showing command controls.
-
-Commands still pass through the ECU’s normal mode, hardware, and safety gates. A cluster command is not a way around ECU protections. STOP uses the emergency command path, but a custom cluster must not replace the installation’s independent physical fuel/power stop.
-
-## Extending or porting the client
-
-For a non-Arduino platform, implement these layers:
-
-1. UART byte transport
-2. `OT` frame synchronizer
-3. Length-bounded payload buffer
-4. CRC16-CCITT-FALSE validation
-5. HELLO capability parser
-6. FIELD_DEF/schema table
-7. TELEMETRY chunk application by start index
-8. STATUS/EVENT handling
-9. Signal timeout
-10. Optional newline ASCII command transmitter
-
-Receivers must ignore unknown field and frame types so newer ECU firmware can remain compatible.
-
-The exact frame layout, field ids, health bits, capabilities, commands, CRC, and limits payload are documented in [`../../docs/OTC_CLUSTER_PROTOCOL.md`](../../docs/OTC_CLUSTER_PROTOCOL.md).
+The example uses an unsigned trusted UART link. Sender IDs are a filter, not a
+password. Signed MAVLink packets are rejected; signing is not implemented.

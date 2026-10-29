@@ -722,7 +722,7 @@ function applyHwConditions() {
   const hasAbSol       = !!(hasAB && hasRegistryOutput('ab_valve'));
   const hasAbPump      = !!(hasAB && hasRegistryOutput('ab_pump'));
   const hasAbFuelHardware = hasAbSol || hasAbPump;
-  const hasClusterSerial = !!hwCfg.cluster_serial?.enabled;
+  const hasClusterSerial = !!hwCfg.mavlink?.enabled;
   const mainFuelChannel = registryOutputByPurpose('main_fuel');
   const driverIsOnOff = driver => [4,11].includes(Number(driver));
   const driverIsProportional = driver => [5,6].includes(Number(driver));
@@ -1020,10 +1020,10 @@ function applyHwConditions() {
   showField('cl_n2', true);
   ghostField('cl_n2', hasN2, 'N2 RPM sensor is not configured in Hardware.');
   const clusterSec = Array.from(document.querySelectorAll('.cfg-section'))
-    .find(sec => sec.dataset.section === 'External Instrument Cluster Display');
+    .find(sec => sec.dataset.section === 'External display references');
   if (clusterSec) {
     clusterSec.dataset.forceHidden = hasClusterSerial ? '0' : '1';
-    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'External cluster serial is not configured in Hardware.';
+    clusterSec.dataset.inactiveReason = hasClusterSerial ? '' : 'MAVLink is not configured in Hardware.';
     clusterSec.style.display = '';
   }
   ['rpm_limit','min_rpm','sf_us_en','cl_n1'].forEach(k =>

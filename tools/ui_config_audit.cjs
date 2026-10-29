@@ -148,6 +148,12 @@ async function goto(page, route, waitSelector) {
   await page.waitForSelector(waitSelector, { state: 'attached' });
 }
 
+async function clickSave(page) {
+  const handle = page.getByRole('button', {name:/Show save controls/});
+  if (await handle.isVisible()) await handle.click();
+  await page.locator('#btn-save').click();
+}
+
 (async () => {
   globalThis.OT_UI_SIM_PORT = port;
   await import('./ui_mock_server.mjs');
@@ -460,7 +466,7 @@ async function goto(page, route, waitSelector) {
     assert.doesNotMatch(n1PullbackWithoutTrip, /hard N1 shutdown/);
     results.push('config warns about unsafe shaft, hot-start and windmilling-oil relationships');
     await goto(page, 'controllers.html', '#cf-tot_limit');
-    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20261028a#card-dev-mode');
+    assert.equal(await page.locator('#dev-mode-tools-link').getAttribute('href'), '/tools.html?v=20261028e#card-dev-mode');
     assert.equal(await page.locator('#btn-dev-mode').count(), 0,
       'Config must not bypass the guarded Developer Mode control on Tools');
     assert.equal(await shown(page, '[data-built-in="afterburner"]'), true,
@@ -726,7 +732,7 @@ async function goto(page, route, waitSelector) {
     if (!(await liveThrottleCard.evaluate(el => el.open)))
       await liveThrottleCard.locator(':scope > summary').click();
     await page.locator('#cf-th_ru').fill('1700');
-    await page.locator('#btn-save').click();
+    await clickSave(page);
     if (await page.locator('#ot-app-dialog.show').isVisible()) await page.locator('#ot-dialog-confirm').click();
     await page.waitForSelector('#save-recap-modal', {state:'visible'});
     await page.locator('#save-recap-confirm-btn').click();
@@ -734,7 +740,7 @@ async function goto(page, route, waitSelector) {
     let simState = await (await page.request.get(`${base}/__sim/state`)).json();
     assert.deepEqual(simState.last_config_patch, { throttle:{ ramp_up_ms:1700 } });
     await stalePage.locator('#cf-th_rd').fill('1800');
-    await stalePage.locator('#btn-save').click();
+    await clickSave(stalePage);
     if (await stalePage.locator('#ot-app-dialog.show').isVisible()) await stalePage.locator('#ot-dialog-confirm').click();
     await stalePage.waitForSelector('#save-recap-modal', {state:'visible'});
     await stalePage.locator('#save-recap-confirm-btn').click();

@@ -4,6 +4,12 @@ The 2.6.1 implementation shows final reconnect/identity/file-verification progre
 
 Windows setup/update helper for OpenTurbine boards.
 
+Version 0.7.5 scales its custom layout, fonts and mouse hit testing with the
+monitor DPI and follows Windows' suggested bounds on monitor changes. Final
+reconnect and verification retry have distinct action labels; completion lists
+the version, board target and number of verified web files. The drawing model
+follows [Microsoft's GDI mapping guidance](https://learn.microsoft.com/en-us/windows/win32/gdi/application-defined-mapping-modes).
+
 The home screen separates **Clean install / reinstall** (USB, erases the entire
 selected board) from **Update and keep my setup** (Wi-Fi, backs up and retains
 the existing engine setup). Do not weaken this distinction in release builds.

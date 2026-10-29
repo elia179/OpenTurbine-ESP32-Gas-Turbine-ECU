@@ -257,7 +257,7 @@ function _deviceDiffRows() {
   };
   const deviceLabels = {
     i2c:'Shared I2C bus', spi:'Shared SPI bus',
-    cluster_serial:'OT Cluster serial', mavlink:'MAVLink telemetry',
+    mavlink:'MAVLink connection',
     status_led:'Status LED', fault_led:'Fault LED', buzzer:'Buzzer'
   };
   const fieldLabels = {
@@ -428,7 +428,7 @@ function _releaseInactivePinConflicts() {
     release(cfg.actuators?.glow_plug, ['fuel_pin']);
   }
   if (!cfg.cluster_serial?.enabled) release(cfg.cluster_serial, ['tx_pin', 'rx_pin']);
-  if (!cfg.mavlink?.enabled) release(cfg.mavlink, ['tx_pin']);
+  if (!cfg.mavlink?.enabled) release(cfg.mavlink, ['tx_pin','rx_pin']);
   if (!cfg.buzzer?.enabled) release(cfg.buzzer, ['pin']);
   const abt = cfg.ab_trigger || {};
   if (abt.source !== 2) release(abt, ['switch_pin']);
@@ -968,9 +968,6 @@ function applyContextTooltips(root) {
     'CLK pin': 'SPI clock pin shared by thermocouple amplifier chips on the same bus.',
     'CS pin': 'SPI chip-select pin. Each SPI thermocouple amplifier needs its own CS pin.',
     'MISO pin': 'SPI data pin from the thermocouple amplifier to the ESP32.',
-    'Cluster serial': 'Enables OpenTurbine cluster-display telemetry over a UART.',
-    'Cluster TX GPIO': 'UART transmit pin from ECU to the cluster display.',
-    'Cluster RX GPIO': 'Optional UART receive pin. Leave unassigned for one-way telemetry.',
     'Baud rate': 'Must match the receiving device, or the serial link will not decode correctly.',
     'Interval (ms)': 'Telemetry send interval. Lower values update faster but use more serial bandwidth.',
     'MAVLink': 'Enables MAVLink telemetry output for a ground station or companion device.',

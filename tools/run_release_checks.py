@@ -77,6 +77,7 @@ def main() -> int:
     run("turbine setup matrix", [node, "tools/turbine_setup_matrix_test.cjs"])
     run("I2C and load-cell audit", [node, "tools/i2c_support_audit.cjs"])
     run("real native command/state behavior", [python, "tools/run_native_behavior_tests.py"])
+    run("independent MAVLink decoder", [python,"tools/test_mavlink_interop.py"])
     host_tmp = ROOT / "artifacts" if os.name == "nt" else None
     if host_tmp is not None:
         host_tmp.mkdir(exist_ok=True)
@@ -97,6 +98,7 @@ def main() -> int:
             "tools/test_build_setup_package.py",
             "tools/test_pcb_profile.py",
             "tools/test_run_native_behavior_tests.py",
+            "tools/test_mavlink_console.py",
         ],
     )
     run(

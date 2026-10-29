@@ -56,7 +56,7 @@ const rulesEngine = read('src/system/RulesEngine.h');
 const engineData = read('src/engine/EngineData.h');
 const engineDataCpp = read('src/engine/EngineData.cpp');
 const sessionLogger = read('src/system/SessionLogger.cpp');
-const clusterSerial = read('src/system/ClusterSerial.cpp');
+const clusterSerial = read('src/system/TelemetryCatalog.cpp');
 const flightRecorder = read('src/system/FlightRecorder.cpp');
 const governor = read('src/engine/controllers/PowerTurbineGovernor.h');
 const feedback = read('src/system/FeedbackRequirements.h');
@@ -590,7 +590,7 @@ expect('all AB rule, condition, settings, and telemetry paths recognize the regi
   hwConfig.includes('registryHasAddressablePurpose(registry, ChannelRegistry::Input, "start_switch")') &&
   hwConfig.includes('registryHasAddressablePurpose(registry, ChannelRegistry::Input, "stop_switch")') &&
   sequenceRules.includes("registryInputPurpose('ab_command')") &&
-  clusterSerial.includes('HardwareConfig::abInputPin >= 0 || hasRegistryAbCommand()'));
+  clusterSerial.includes('reg.inputs[i].installed') && clusterSerial.includes('ed.registryInputHealthy[i]'));
 expect('shared RC signal-loss telemetry includes registry RC and PWM-duty inputs',
   web.includes('HardwareConfig::hasThrottleInput && HardwareConfig::throttleInputRcPwm') &&
   web.includes('HardwareConfig::hasAfterburner && HardwareConfig::abInputRcPwm') &&
@@ -1078,7 +1078,8 @@ expect('hardware persistence rejects valid-looking ArduinoJson overflow prefixes
 expect('rules and custom conditions accept thrust plus addressable generic I2C channels',
   configCpp.includes('return HardwareConfig::inputSensorForId(id)') && hwConfig.includes('return 27;') &&
   configCpp.includes('case 27: return HardwareConfig::hasThrust') &&
-  configCpp.includes('rules[i].sensor > RulesEngine::THRUST') &&
+  configCpp.includes('!RulesEngine::supportedSensor(rules[i].sensor)') &&
+  rulesEngine.includes('sensor <= MAVLINK_THROTTLE || ChannelRegistry::isInputSensor(sensor)') &&
   configCpp.includes('ChannelRegistry::channelAddressable(HardwareConfig::channelRegistry.inputs[idx])') &&
   configCpp.includes('return ChannelRegistry::channelAddressable(out) &&') &&
   hwConfig.includes('case 27: return "thrust_main"') &&
@@ -1414,7 +1415,8 @@ expect('glow PWM has one canonical timing authority while wet-glow fuel keeps it
 expect('web START timeout cancels unclaimed work and the ECU discards every canceled request',
   commandQueue.includes('claimPendingResult(uint32_t requestId)') &&
   commandQueue.includes('cancelPendingResult(uint32_t requestId)') &&
-  main.includes('!CommandQueue::claimPendingResult(pkt.requestId)') &&
+  main.includes('!CommandQueue::beginExecution(pkt,millis())') &&
+  read('src/system/CommandQueue.cpp').includes('const bool claimed=claimPendingResult(packet.requestId)') &&
   (web.match(/CommandQueue::cancelPendingResult\(requestId\)/g) || []).length === 1 &&
   web.includes('_handleStartRequest(req, false)') &&
   web.includes('_handleStartRequest(req, true)') &&
