@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('playwright');
 const {guidedFixture}=require('./guided_build_fixture.cjs');
+const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
 (async()=>{
  globalThis.OT_UI_SIM_PORT=14820;await import('./ui_mock_server.mjs');
  const base='http://127.0.0.1:14820',browser=await chromium.launch();
@@ -44,7 +45,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
   assert.ok(JSON.stringify(ledState.rows).includes('Fault LED'),'Fault LED edits appear in save recap');
   await p.evaluate(()=>{_hwDirty=false;});
   for(const route of ['hardware','controllers','system','sequence']){
-   await p.goto(base+'/'+route+'.html');await p.waitForFunction(()=>!!window.OTScrollControls);
+   await p.goto(base+'/'+route+'.html');await waitForEditorBaseline(p,route);
    if(route==='controllers'){
     await p.locator('[data-group="safety"] > summary').click();
     await p.locator('[data-protection="egt"] > summary').click();

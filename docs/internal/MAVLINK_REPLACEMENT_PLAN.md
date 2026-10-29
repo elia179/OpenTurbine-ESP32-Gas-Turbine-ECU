@@ -123,11 +123,30 @@ packaged MAVLink setup/input-loss UI checks passed in Chromium, Firefox and
 WebKit; the 318-check safety audit passed. Both ECU images, receiver examples
 and constrained-memory budgets passed without reducing the Classic reserves.
 
-Full native qualification remains pending: Windows Application Control blocked
-an unchanged native log probe from launching. An intermediate Go unit run was also
-blocked, but the latest complete Go test run passed after rebuilding; the full
-native gate must still not be reported as passed. CI now runs native behavior and Windows Go tests separately
-from the complete release gate. The Classic keep-setup update completed through the actual Windows GUI: firmware identity and all twelve web files verified, and the original profile, Wi-Fi credentials, Hardware inventory, controls, calibration, rules and safety settings matched afterward. Classic also passed tablet/phone touch browser checks. The full UI suite is still being checked; stale transport fixtures and hard-coded cache versions are being updated.
+Windows Application Control blocked an unchanged native log probe locally.
+Independent CI subsequently passed the full native behavior suite and Windows
+Go tests; [run 40833524099](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40833524099)
+records those passes. Later branch runs repeat both independently. The companion
+console also has deterministic tests for explicit ArduPilot throttle selection,
+wrong-source rejection, disarming, invalid PWM, stale output and ECU reboot;
+resumption requires another explicit selection.
+
+The Classic keep-setup update completed through the actual Windows GUI:
+firmware identity and all twelve web files verified, and the original profile,
+Wi-Fi credentials, Hardware inventory, controls, calibration, rules and safety
+settings matched afterward. The final web update also acknowledged replayed
+first/final chunks and passed byte-for-byte readback. Both boards passed
+phone/tablet browser checks with no unintended writes or reboot. Classic is left
+in Standby with its original setup and 2.6.1-dev; S3 is restored to OTBench 0.14.
+
+Full release qualification is still in progress. Earlier aggregate CI attempts
+stopped on stale UI-test assumptions: direct clicks on hidden Save bars, edits
+injected before the editor's saved baseline loaded, and fabricated dirty classes
+that the no-op detector correctly cleared. Tests now wait for loaded baselines,
+make/revert real edits and use the visible reveal control. Source and packaged
+scroll tests pass in Chromium, Firefox and WebKit. These corrections do not
+weaken the required release gate. Warning guidance now uses the Fault shutdown
+switch rather than zeroing a retained Dashboard limit (web token 20261029a).
 
 The working firmware is labelled 2.6.1-dev. No release or tag has been published.
 Assembled-PCB and actual ArduPilot integration tests remain separate hardware

@@ -3,6 +3,7 @@ const {chromium,firefox,webkit}=require('playwright');
 const {gunzipSync}=require('node:zlib');
 const packed=process.env.OT_UI_PACKAGED==='1';
 const {guidedFixture}=require('./guided_build_fixture.cjs');
+const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
 (async()=>{
  globalThis.OT_UI_SIM_PORT=Number(process.env.OT_SCROLL_PORT||14822);await import('./ui_mock_server.mjs');
  const base='http://127.0.0.1:'+globalThis.OT_UI_SIM_PORT;
@@ -26,7 +27,7 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
      await p.goto(base+'/'+route+'.html');
      const ready={hardware:'#hardware-comms-summary .hw-item-card',controllers:'[data-group="safety"]',system:'#system-maintenance',sequence:'#list-startup .block-card'}[route];
      await p.locator(ready).first().waitFor();
-     await p.waitForFunction(()=>!!window.OTScrollControls);
+     await waitForEditorBaseline(p,route);
      await p.mouse.move(150,200);
      await p.evaluate(route=>{
       document.querySelectorAll('details').forEach(d=>d.open=true);

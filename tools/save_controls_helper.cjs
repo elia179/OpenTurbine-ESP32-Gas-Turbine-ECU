@@ -8,4 +8,13 @@ async function clickSaveControls(page, selector = '#btn-save') {
   await save.click();
 }
 
-module.exports = {clickSaveControls};
+async function waitForEditorBaseline(page, route) {
+  await page.waitForFunction(route => {
+    if (!window.OTScrollControls) return false;
+    if (route === 'hardware') return typeof _hardwareModelSnap !== 'undefined' && _hardwareModelSnap !== null;
+    if (route === 'sequence') return typeof _sequenceEditSnap !== 'undefined' && _sequenceEditSnap !== null;
+    return typeof _fieldSnap !== 'undefined' && Object.keys(_fieldSnap).length > 0;
+  }, route);
+}
+
+module.exports = {clickSaveControls, waitForEditorBaseline};

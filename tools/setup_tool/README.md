@@ -1,6 +1,6 @@
 # OpenTurbine Setup Tool
 
-The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. Hardware update qualification is still pending; see the [iteration record](../../docs/internal/NEXT_ITERATION_BACKLOG.md).
+The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. The assembled PCB and S3 GUI update path remain separate qualification items; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
 
 Windows setup/update helper for OpenTurbine boards.
 
