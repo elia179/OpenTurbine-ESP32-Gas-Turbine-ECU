@@ -488,6 +488,8 @@ expect('event log routes preserve specific downloads and reject malformed displa
   (web.match(/RecentEventLog::seekTail\(f\)/g) || []).length === 2 &&
   (web.match(/if \(!_gateLogRead\(req\)\) return;/g) || []).length === 3 &&
   web.includes('Another log view or download is in progress; retry shortly'));
+expect('updater readiness excludes pending restart and configuration application',
+  web.includes('!_hwRebootPending && !ConfigApplyGate::busy()'));
 expect('empty raw event logs use an opened file without compressed fallback',
   web.includes('File log = LittleFS.open(FlightRecorder::PATH, "r")') &&
   web.includes('log, String(FlightRecorder::PATH), "application/x-ndjson"') &&

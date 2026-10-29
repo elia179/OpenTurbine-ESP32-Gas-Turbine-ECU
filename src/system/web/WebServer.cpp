@@ -2988,7 +2988,8 @@ void WebServer::_setupRoutes() {
 #endif
         const bool standbyLike = _isStandbyLike(ed.mode);
         const bool outputsActive = _outputsActiveForOta();
-        const bool otaAllowed = standbyLike && !outputsActive && !_maintenanceUploadInProgress();
+        const bool otaAllowed = standbyLike && !outputsActive && !_maintenanceUploadInProgress() &&
+                                !_hwRebootPending && !ConfigApplyGate::busy();
 
         JsonDocument doc;
         char buildId[17] = {};

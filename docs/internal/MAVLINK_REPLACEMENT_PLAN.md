@@ -263,3 +263,16 @@ rechecks safe state and restarts the dashboard batch once, without resending
 firmware. The real Classic recovered and verified all twelve exact assets.
 Six unit cases cover bounded retries, a newly unsafe engine, unrelated 400,
 423 and 500 failures. No additional remote pushes were made.
+
+
+A configuration-save hardware probe also caught readiness being advertised during
+a scheduled restart. `/api/device_info.ota_allowed` now excludes pending restart
+and configuration-apply ownership, so update/reconnect clients cannot mistake
+the pre-restart instance for a settled ECU. The HIL probe independently requires
+a changed boot counter after configuration writes.
+
+A final canonical local run passed all 52 browser programs, the safety/setup and
+I2C audits, then was stopped by Windows Application Control error 4551 while
+launching `mavlink_service_behavior`, including all bounded same-binary retries.
+This run remains incomplete. The earlier full native suite passed with the same
+MAVLink/control sources; no Windows security policy was changed or bypassed.
