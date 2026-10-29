@@ -45,11 +45,33 @@ static uint32_t      _lastStateColor  = 0;
 static constexpr int AUTO_S3_RGB_STATUS_LED_PIN = -2;
 static constexpr uint8_t S3_RGB_LEVEL = 64;
 
+// Registry indicators own the same configurable on/off connections as other outputs.
+static const ChannelRegistry::Channel* _registryIndicator(bool fault) {
+    const auto& reg=HardwareConfig::channelRegistry;
+    for(uint8_t i=0;i<reg.outputCount;i++) {
+        const auto& c=reg.outputs[i];
+        if(c.installed && !strcmp(c.purpose,fault?"fault_led":"status_led"))return &c;
+    }
+    return nullptr;
+}
+static bool _writeRegistryIndicator(bool fault,bool on) {
+    const auto* c=_registryIndicator(fault);
+    if(!c)return false;
+    const auto index=c-HardwareConfig::channelRegistry.outputs;
+    EngineData::instance().registryOutputDemand[index]=on?1.0f:0.0f;
+    if(c->driver==ChannelRegistry::I2cRelay)I2CDeviceManager::writeOutput(*c,on?1.0f:0.0f);
+    else if(c->driver==ChannelRegistry::Relay && c->pin>=0) {
+        digitalWrite(c->pin,(on!=c->inverted)?HIGH:LOW);
+        pinMode(c->pin,OUTPUT);
+    }
+    return true;
+}
 static bool _isRgbStatusLed(int pin) {
-    return HardwareConfig::statusLedType == 1 && pin >= 0;
+    return !_registryIndicator(false) && HardwareConfig::statusLedType == 1 && pin >= 0;
 }
 
 static int _statusPin() {
+    if(const auto* c=_registryIndicator(false))return c->pin;
     int pin = HardwareConfig::statusLedPin;
 #if defined(OT_PLATFORM_ESP32S3)
     if (pin == AUTO_S3_RGB_STATUS_LED_PIN || pin == 38) return 48;
@@ -58,6 +80,7 @@ static int _statusPin() {
 }
 
 static void _writeLed(int pin, bool on) {
+    if(_writeRegistryIndicator(false,on))return;
 #if !defined(OT_PLATFORM_ESP32)
     const auto* pcb=PcbProfileManager::catalog();
     if(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0){
@@ -130,9 +153,9 @@ static void _writeStatusLed(bool on) {
     int pin = _statusPin();
 #if !defined(OT_PLATFORM_ESP32)
     const auto* pcb=PcbProfileManager::catalog();
-    if (pin >= 0 || (PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) _writeLed(pin, on);
+    if (pin >= 0 || _registryIndicator(false) || (PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) _writeLed(pin, on);
 #else
-    if(pin>=0)_writeLed(pin,on);
+    if(pin>=0 || _registryIndicator(false))_writeLed(pin,on);
 #endif
 }
 
@@ -151,9 +174,9 @@ inline void begin() {
     int pin = _statusPin();
 #if !defined(OT_PLATFORM_ESP32)
     const auto* pcb=PcbProfileManager::catalog();
-    if (pin < 0 && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
+    if (pin < 0 && !_registryIndicator(false) && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
 #else
-    if(pin<0)return;
+    if(pin<0 && !_registryIndicator(false))return;
 #endif
     if (pin>=0 && !_isRgbStatusLed(pin))
         pinMode(pin, OUTPUT);
@@ -179,12 +202,13 @@ inline void begin() {
 }
 
 __attribute__((noinline)) inline void tickFault() {
-    if(!HardwareConfig::hasFaultLed)return;
+    if(!HardwareConfig::hasFaultLed && !_registryIndicator(true))return;
     static unsigned long lastMs=0;
     static bool on=false;
     const unsigned long now=millis();
     if(EngineData::instance().mode!=SysMode::FAULT){on=false;lastMs=now;}
     else if(now-lastMs>=FAULT_PERIOD_MS){on=!on;lastMs=now;}
+    if(_writeRegistryIndicator(true,on))return;
 #if !defined(OT_PLATFORM_ESP32)
     const auto* pcb=PcbProfileManager::catalog();
     if(PcbProfileManager::active() && pcb && pcb->faultLedDeviceIndex>=0) {
@@ -202,15 +226,15 @@ inline void tick() {
     int pin = _statusPin();
 #if !defined(OT_PLATFORM_ESP32)
     const auto* pcb=PcbProfileManager::catalog();
-    if (pin < 0 && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
+    if (pin < 0 && !_registryIndicator(false) && !(PcbProfileManager::active() && pcb && pcb->statusLedDeviceIndex>=0)) return;
 #else
-    if(pin<0)return;
+    if(pin<0 && !_registryIndicator(false))return;
 #endif
     unsigned long now = millis();
     if ((int32_t)(now - _nextMs) < 0) return;
 
     SysMode mode = EngineData::instance().mode;
-    if(mode==SysMode::FAULT && HardwareConfig::hasFaultLed)mode=SysMode::STANDBY;
+    if(mode==SysMode::FAULT && (HardwareConfig::hasFaultLed || _registryIndicator(true)))mode=SysMode::STANDBY;
 
     if (_isRgbStatusLed(pin) && HardwareConfig::statusLedMode == 1) {
         _tickColorMode(pin, now, mode);
@@ -255,6 +279,9 @@ inline void tick() {
 // onboard LED latches its last colour across a soft reboot, so it must be
 // explicitly cleared or it stays lit.
 inline void off() {
+    if(_writeRegistryIndicator(false,false)) {
+        _ledOn=false;_blinksRemaining=0;_inPause=true;return;
+    }
     int pin = _statusPin();
     if (pin >= 0) {
         if (_isRgbStatusLed(pin)) rgbLedWrite((uint8_t)pin, 0, 0, 0);

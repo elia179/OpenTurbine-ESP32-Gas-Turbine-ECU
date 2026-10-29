@@ -48,14 +48,27 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
     await p.getByRole('button',{name:connection}).click();
     return p.locator('#registry-'+direction+'s .registry-card').last();
    };
-   const n1=await add(/^N1 /,/Input 1/);assert.match(await n1.textContent(),/J28/);assert.equal(await n1.getByText('GPIO pin',{exact:true}).count(),0);await shot('02-n1-connection','#registry-inputs .registry-card:last-child');
+   // Default indicators are ordinary editable outputs, not reserved fixed functions.
+   const statusCard=p.locator('[data-registry-id="status_led"]');
+   await statusCard.getByRole('button',{name:'Edit',exact:true}).click();
+   await statusCard.locator('select[onchange*="purpose"]').selectOption('warning_indicator');
+   assert.equal(await p.evaluate(()=>registryRoot().outputs.find(c=>c.id==='status_led').purpose),'warning_indicator');
+   await statusCard.locator('select[onchange*="purpose"]').selectOption('status_led');
+   await statusCard.getByRole('button',{name:'Done',exact:true}).click();
+   await p.getByRole('button',{name:'+ Add output',exact:true}).click();
+   await p.getByRole('button',{name:/^Oil pump /}).click();
+   const connectorLabels=await p.locator('#registry-add-catalog .registry-add-option').allTextContents();
+   assert.equal(connectorLabels.filter(t=>/^OUT 1(?:5 V|\s)/.test(t)).length,1,'one choice per connector');
+   assert.doesNotMatch(connectorLabels.join(' '),/J34|J35|— Servo|— PWM output/);
+   await p.locator('#registry-add-modal').getByRole('button',{name:'Close',exact:true}).click();
+   const n1=await add(/^N1 /,/Input 1/);assert.doesNotMatch(await n1.textContent(),/J28/);assert.equal(await n1.getByText('GPIO pin',{exact:true}).count(),0);await shot('02-n1-connection','#registry-inputs .registry-card:last-child');
    assert.equal(await n1.getByText('PCB input pull-up',{exact:true}).count(),1);assert.equal(await n1.getByRole('checkbox',{name:'Pull-down',exact:true}).count(),0);await n1.getByRole('checkbox',{name:'Enable pull-up',exact:true}).check();assert.equal(await p.evaluate(()=>registryRoot().inputs.find(row=>row.physical_port==='pulse_in_1').pullup),true);
    await n1.getByRole('button',{name:'Done',exact:true}).click();
-   const tot=await add(/TOT \/ EGT/,/Thermocouple 1/);assert.match(await tot.textContent(),/J43/);assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).temp_interface),3);assert.equal(await tot.locator('select[onchange*="tc_type"]').count(),1);
+   const tot=await add(/TOT \/ EGT/,/Thermocouple 1/);assert.doesNotMatch(await tot.textContent(),/J43/);assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).temp_interface),3);assert.equal(await tot.locator('select[onchange*="tc_type"]').count(),1);
    await tot.locator('select[onchange*="tc_type"]').selectOption('J');
    assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).tc_type),'J');
    await shot('03-temperature-connection','#registry-inputs .registry-card:last-child');await tot.getByRole('button',{name:'Done',exact:true}).click();
-   const oil=await add(/^Oil pressure /,/ADC 1/);assert.match(await oil.textContent(),/J20/);assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).i2c_reference_mv),5000);await shot('04-pressure-connection','#registry-inputs .registry-card:last-child');await oil.getByRole('button',{name:'Done',exact:true}).click();
+   const oil=await add(/^Oil pressure /,/ADC 1/);assert.doesNotMatch(await oil.textContent(),/J20/);assert.equal(await p.evaluate(()=>cfg.channel_registry.inputs.at(-1).i2c_reference_mv),5000);await shot('04-pressure-connection','#registry-inputs .registry-card:last-child');await oil.getByRole('button',{name:'Done',exact:true}).click();
    const adcSwitch=await add(/^Digital interlock/,/ADC 2/);
    assert.match(await adcSwitch.textContent(),/Switch threshold \(V\)/);
    assert(await adcSwitch.locator('select[onchange*="purpose"] option[value="general_pressure"]').count(),'same ADC connector exposes both switch and analogue purposes');
@@ -90,7 +103,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    await contact.getByRole('checkbox',{name:'Enable pull-up',exact:true}).check();
    await p.evaluate(()=>{const i=registryRoot().inputs.findIndex(c=>c.physical_port==='pulse_in_2');updateRegistryChannel('input',i,'pulldown',true);if(!registryRoot().inputs[i].pullup||registryRoot().inputs[i].pulldown)throw Error('conditioned input accepted internal pull-down');});
    await contact.getByRole('button',{name:'Done',exact:true}).click();
-   const starter=await add(/^Starter Electric starter/,/OUT 1.*Servo/,'output');assert.match(await starter.textContent(),/J34/);assert.match(await starter.textContent(),/5 V signal.*Not a load-power output/);assert.equal(await starter.getByText('GPIO pin',{exact:true}).count(),0);await shot('05-starter-connection','#registry-outputs .registry-card:last-child');await p.evaluate(()=>{
+   const starter=await add(/^Starter Electric starter/,'OUT 1','output');assert.doesNotMatch(await starter.textContent(),/J34/);assert.match(await starter.textContent(),/5 V signal.*Not a load-power output/);assert.equal(await starter.getByText('GPIO pin',{exact:true}).count(),0);await shot('05-starter-connection','#registry-outputs .registry-card:last-child');await starter.locator('.hw-field').filter({has:p.getByText('Signal type',{exact:true})}).locator('select').selectOption('pulse_out_1|pwm');assert.equal(await p.evaluate(()=>registryRoot().outputs.at(-1).driver),5);await p.evaluate(()=>{
      const c=registryRoot().outputs.at(-1),index=registryRoot().outputs.length-1;
      updateRegistryProfilePort('output',index,'pulse_out_1|pwm');
      if(c.driver!==5||c.min!==0||c.max!==1||!c.pwm_freq_hz)throw Error('servo pulse endpoints leaked into PWM duty mode');
@@ -101,7 +114,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    });
    await p.locator('#registry-outputs .registry-card').last().getByRole('button',{name:'Done',exact:true}).click();
    await p.locator('#btn-edit-buses').click();assert.equal(await p.locator('#en-i2c').isDisabled(),true);assert.equal(await p.locator('#en-spi').isDisabled(),true);await shot('06-fixed-buses','#hardware-buses-panel');
-   await p.locator('#btn-edit-comms').click();assert.match(await p.locator('#hardware-comms-summary').textContent(),/built-in PCB indicator/i);assert.equal(await p.getByText('Fault LED',{exact:true}).count(),1);assert.equal(await p.getByText('NeoPixel mode',{exact:true}).count(),0);await shot('07-indicators-and-serial','#hardware-comms-panel');
+   await p.locator('#btn-edit-comms').click();assert.equal(await p.locator('#hardware-comms-panel').getByText('Status LED',{exact:true}).count(),0);assert.equal(await p.getByText('NeoPixel mode',{exact:true}).count(),0);await shot('07-indicators-and-serial','#hardware-comms-panel');
    assert.deepEqual(errors,[]);console.log(engine.name(),packed?'packaged':'source','latest PCB catalogue, labelled inputs/outputs, fixed buses, indicators and serial passed');
   }finally{await browser.close();}
  }

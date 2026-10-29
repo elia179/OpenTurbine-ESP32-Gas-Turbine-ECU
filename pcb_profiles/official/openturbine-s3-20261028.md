@@ -6,7 +6,7 @@ Source: `ProPrj_OpenTurbine PCB v1.0_2026-10-28 (1).epro2`, SHA256 `29f260f731b2
 
 User confirmed **all parts will be fitted**, including the hand-fit module/connectors marked DNP for assembly. Module: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. **N8R8 is incompatible with this routing:** GPIO35–37 are used by the PCB and are occupied internally by octal PSRAM on that variant. See [Espressif's module pin definitions](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf).
 
-Plain development boards continue to work without any PCB profile. On this PCB, select its matching profile at installation; engine input/output purposes remain user-configurable. The profile fixes the physical routing, not the engine tune. On a fresh installation, choose connector functions through Add input/output, including the dedicated Start and Stop connectors; the profile does not assign engine controls automatically. The built-in supply monitor and indicators remain fixed.
+Plain development boards continue to work without any PCB profile. On this PCB, select its matching profile at installation; engine input/output purposes remain user-configurable. On a fresh installation, choose connector functions through Add input/output, including the dedicated Start and Stop connectors. The built-in supply monitor remains fixed. Status LED and Fault LED start as ordinary output assignments: rename, repurpose, move or remove them as needed. Choose a connector once (for example OUT 1 or PWM 3), then select its supported signal type inside the card. J-numbers are routing references below, not names used by the connector picker.
 
 | Physical connection | Firmware endpoint |
 | --- | --- |
@@ -45,6 +45,9 @@ Connector capabilities follow the physical board labels:
 | Input 1–6 | Frequency, RC pulse, PWM duty or contact switch |
 | ADC 1–8 | Analogue measurements or voltage-threshold switches |
 | Thermocouple 1–2 | Temperature measurement; choose the fitted probe alloy |
+| Status LED / Fault LED | Low-current on/off indicator outputs; default automatic status/fault blinking; user-reassignable |
+
+The LED connections use latched outputs on the TCA9534, with no hardware PWM or servo timing; see [TI's device documentation](https://www.ti.com/product/TCA9534).
 
 OUT signal capabilities follow the routed SN74LVC4245A buffer; see [TI's device documentation](https://www.ti.com/product/SN74LVC4245A). The labels do not change current limits or routing. Confirm operating limits on the assembled board before connecting loads.
 

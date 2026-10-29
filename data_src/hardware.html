@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029e',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029e');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261029f',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261029f');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1288,10 +1288,18 @@ function pcbModeLabel(mode) {
   };
   return labels[String(mode?.adapter || '')] || String(mode?.id || '').replaceAll('_',' ');
 }
-function pcbChoiceLabel(choice) {
-  const suffix = choice.port.connector ? ` · ${choice.port.connector}` : '';
-  const mode = choice.mode ? ` — ${pcbModeLabel(choice.mode)}` : '';
-  return `${choice.port.label}${suffix}${mode}`;
+function pcbChoiceLabel(choice) { return choice.port.label; }
+// Keep electrical modes inside the card, rather than repeating each connector.
+function pcbConnectorChoices(choices, current = null, preferredDriver = null) {
+  const groups = new Map();
+  for (const choice of choices) {
+    if (!groups.has(choice.port.id)) groups.set(choice.port.id, []);
+    groups.get(choice.port.id).push(choice);
+  }
+  return [...groups.values()].map(group =>
+    group.find(c => c.port.id===current?.physical_port && c.mode.id===current?.physical_mode) ||
+    group.find(c => c.mode.available!==false && PCB_ADAPTER_DRIVER[c.mode.adapter]===preferredDriver) ||
+    group.find(c => c.mode.available!==false) || group[0]);
 }
 function renderI2cDiscovery() {
   const box = document.getElementById('i2c-discovery');
@@ -1914,6 +1922,8 @@ const REGISTRY_OUTPUT_PURPOSES=[
   {value:'nozzle_actuator',label:'Variable nozzle actuator',role:'prop_pitch',drivers:[5,6],group:'Valves and auxiliaries'},
   {value:'ab_pump',label:'Afterburner fuel pump',role:'ab_pump',drivers:[4,5,6,11],group:'Valves and auxiliaries'},
   {value:'prop_pitch',label:'Propeller pitch',role:'prop_pitch',drivers:[4,5,6,11],group:'Valves and auxiliaries'},
+  {value:'status_led',label:'Status LED',role:'indicator',drivers:[4,11],group:'Warnings and indicators'},
+  {value:'fault_led',label:'Fault LED',role:'indicator',drivers:[4,11],group:'Warnings and indicators'},
   {value:'warning_indicator',label:'Warning / indicator light',role:'indicator',drivers:[4,5,11],group:'Warnings and indicators'},
   {value:'generic',label:'Generic automation output',role:'generic',drivers:[4,5,6,11],group:'Generic automation I/O'}
 ];
@@ -2046,6 +2056,8 @@ const REGISTRY_OUTPUT_PRESETS=[
   {group:'Engine actuators',role:'prop_pitch',label:'Prop pitch',id:'prop_pitch',name:'Prop Pitch',driver:6},
   {group:'Engine actuators',purpose:'ab_valve',role:'valve',label:'Afterburner fuel shutoff valve',id:'ab_solenoid',name:'AB Fuel Valve',driver:4},
   {group:'Engine actuators',role:'ab_pump',label:'Afterburner fuel pump',id:'ab_pump',name:'AB Fuel Pump',driver:5},
+  {group:'Warnings and indicators',purpose:'status_led',role:'indicator',label:'Status LED',id:'status_led',name:'Status LED',driver:4},
+  {group:'Warnings and indicators',purpose:'fault_led',role:'indicator',label:'Fault LED',id:'fault_led',name:'Fault LED',driver:4},
   {group:'Warnings and indicators',purpose:'warning_indicator',role:'indicator',label:'Warning / indicator light',id:'warning_indicator',name:'Warning Light',driver:4},
   {group:'Generic outputs',role:'generic',label:'Relay output',id:'generic_relay_output',name:'Relay Output',driver:4},
   {group:'Generic outputs',role:'generic',label:'PWM output',id:'generic_pwm_output',name:'PWM Output',driver:5},
@@ -3119,7 +3131,7 @@ const REGISTRY_SINGLETON_PURPOSES = {
   output: new Set()
 };
 function registryPurposeIsSingleton(direction, purpose) {
-  return REGISTRY_SINGLETON_PURPOSES[direction]?.has(String(purpose || '')) || false;
+  return (direction==='output'&&['status_led','fault_led'].includes(purpose)) || REGISTRY_SINGLETON_PURPOSES[direction]?.has(String(purpose || '')) || false;
 }
 function registryFixedProfileFunction(direction, c) {
   if (!pcbProfileActive() || direction !== 'input') return '';
@@ -3335,14 +3347,16 @@ function registryProfilePortEditor(direction, c, index) {
   const purpose = registryDerivedPurpose(direction,c);
   const choices = pcbCompatibleChoices(direction,purpose,c.role,String(c.physical_port||''));
   const currentKey = `${c.physical_port||''}|${c.physical_mode||''}`;
-  const options = choices.map(choice => {
+  const options = pcbConnectorChoices(choices,c,Number(c.driver)).map(choice => {
     const key = `${choice.port.id}|${choice.mode.id}`;
     const unavailable = choice.mode.available === false;
     const suffix = unavailable ? ` — ${choice.mode.status || 'not responding'}` : '';
     return `<option value="${key}"${key===currentKey?' selected':''}${unavailable && key!==currentKey?' disabled':''}>${escapeHtmlText(pcbChoiceLabel(choice)+suffix)}</option>`;
   }).join('');
   const connectionDescription=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.description;
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>`;
+  const modes = choices.filter(choice=>choice.port.id===c.physical_port);
+  const modeEditor = modes.length>1 ? `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Choose how this connector reads or drives the connected device.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${modes.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.mode.id===c.physical_mode?' selected':''}${choice.mode.available===false&&choice.mode.id!==c.physical_mode?' disabled':''}>${escapeHtmlText(pcbModeLabel(choice.mode))}</option>`).join('')}</select></div>` : '';
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>${modeEditor}`;
 }
 function updateRegistryProfilePort(direction,index,value) {
   if (!pcbProfileActive()) return;
@@ -5115,7 +5129,7 @@ function selectRegistryAddPreset(index) {
       Number(preset.temp_interface) <= 3 && !cfg.spi?.enabled)
     return registryAddBusPrerequisite('spi', preset.label);
   if (pcbProfileActive()) {
-    const choices = pcbCompatibleChoices(_registryAddDirection, purpose, preset.role);
+    const choices = pcbConnectorChoices(pcbCompatibleChoices(_registryAddDirection, purpose, preset.role), null, preset.driver);
     const box = document.getElementById('registry-add-catalog');
     document.getElementById('registry-add-title').textContent = `Connect ${preset.label}`;
     const search = document.getElementById('registry-add-search');

@@ -713,7 +713,7 @@ function selectRegistryAddPreset(index) {
       Number(preset.temp_interface) <= 3 && !cfg.spi?.enabled)
     return registryAddBusPrerequisite('spi', preset.label);
   if (pcbProfileActive()) {
-    const choices = pcbCompatibleChoices(_registryAddDirection, purpose, preset.role);
+    const choices = pcbConnectorChoices(pcbCompatibleChoices(_registryAddDirection, purpose, preset.role), null, preset.driver);
     const box = document.getElementById('registry-add-catalog');
     document.getElementById('registry-add-title').textContent = `Connect ${preset.label}`;
     const search = document.getElementById('registry-add-search');

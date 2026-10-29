@@ -672,6 +672,7 @@ public:
         // binding (or a sole/canonical migration card) owns each built-in
         // controller adapter; all other cards remain independent rule/sequence
         // targets. Registry order never assigns physical authority.
+        if (d == Output && (!strcmp(purpose,"status_led") || !strcmp(purpose,"fault_led"))) return true;
         if (d == Output) return false;
         // Discrete switches may be repeated. Their consumers combine them as
         // any-active while retaining per-channel health and disconnect checks.
@@ -729,7 +730,7 @@ public:
                !strcmp(purpose, "air_starter") || !strcmp(purpose, "pilot_fuel") ||
                !strcmp(purpose, "purge_valve") || !strcmp(purpose, "drain_valve") ||
                !strcmp(purpose, "nozzle_actuator") ||
-                !strcmp(purpose, "warning_indicator");
+                !strcmp(purpose, "warning_indicator") || !strcmp(purpose,"status_led") || !strcmp(purpose,"fault_led");
     }
     // Authoritative semantic capability contract. A persisted/imported card
     // must describe the same signal that the runtime adapter will consume.
@@ -873,6 +874,7 @@ public:
         if (!strcmp(purpose, "ab_pump")) return output("ab_pump", true, true, true, true);
         if (!strcmp(purpose, "prop_pitch")) return output("prop_pitch", true, true, true, true);
         if (!strcmp(purpose, "nozzle_actuator")) return output("prop_pitch", false, true, true, false);
+        if (!strcmp(purpose,"status_led") || !strcmp(purpose,"fault_led")) return output("indicator", true, false, false, true);
         if (!strcmp(purpose, "warning_indicator")) return output("indicator", true, true, false, true);
         return false;
     }

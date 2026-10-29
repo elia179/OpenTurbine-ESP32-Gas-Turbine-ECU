@@ -523,10 +523,18 @@ function pcbModeLabel(mode) {
   };
   return labels[String(mode?.adapter || '')] || String(mode?.id || '').replaceAll('_',' ');
 }
-function pcbChoiceLabel(choice) {
-  const suffix = choice.port.connector ? ` · ${choice.port.connector}` : '';
-  const mode = choice.mode ? ` — ${pcbModeLabel(choice.mode)}` : '';
-  return `${choice.port.label}${suffix}${mode}`;
+function pcbChoiceLabel(choice) { return choice.port.label; }
+// Keep electrical modes inside the card, rather than repeating each connector.
+function pcbConnectorChoices(choices, current = null, preferredDriver = null) {
+  const groups = new Map();
+  for (const choice of choices) {
+    if (!groups.has(choice.port.id)) groups.set(choice.port.id, []);
+    groups.get(choice.port.id).push(choice);
+  }
+  return [...groups.values()].map(group =>
+    group.find(c => c.port.id===current?.physical_port && c.mode.id===current?.physical_mode) ||
+    group.find(c => c.mode.available!==false && PCB_ADAPTER_DRIVER[c.mode.adapter]===preferredDriver) ||
+    group.find(c => c.mode.available!==false) || group[0]);
 }
 function renderI2cDiscovery() {
   const box = document.getElementById('i2c-discovery');

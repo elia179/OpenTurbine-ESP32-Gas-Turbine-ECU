@@ -122,6 +122,8 @@ def _default_compatible(adapter: str, purpose: str, role: str) -> bool:
         "purge_valve": ("valve", GENERAL_OUTPUTS), "drain_valve": ("valve", GENERAL_OUTPUTS),
         "nozzle_actuator": ("prop_pitch", {"pwm_output", "servo_output"}),
         "ab_pump": ("ab_pump", GENERAL_OUTPUTS), "prop_pitch": ("prop_pitch", GENERAL_OUTPUTS),
+        "status_led": ("indicator", {"digital_output", "relay_output", "i2c_digital_output"}),
+        "fault_led": ("indicator", {"digital_output", "relay_output", "i2c_digital_output"}),
         "warning_indicator": ("indicator", {"digital_output", "relay_output", "pwm_output", "i2c_digital_output"}),
     }
     expected = output_roles.get(purpose)

@@ -121,7 +121,9 @@ class CurrentBoardTests(unittest.TestCase):
         self.assertEqual(self.profile['fixed_functions']['supply_voltage']['divider'],37)
 
     def test_latest_board_connectors_are_assigned_explicitly(self):
-        self.assertTrue(all('default' not in mode for port in self.profile['ports'] for mode in port['modes']))
+        self.assertTrue(all('default' not in mode for port in self.profile['ports'] if port['id'] not in ('status_led','fault_led') for mode in port['modes']))
+        for port in self.profile['ports']:
+            if port['id'] in ('status_led','fault_led'): self.assertEqual(port['modes'][0]['default']['purpose'],port['id'])
 
     def test_signal_outputs_offer_all_supported_waveforms(self):
         ports = {p["id"]: p for p in self.profile["ports"]}
@@ -133,7 +135,7 @@ class CurrentBoardTests(unittest.TestCase):
             self.assertEqual({m["adapter"] for m in ports[f"analog_{n}"]["modes"]}, {"i2c_adc_input", "i2c_adc_digital_input"})
 
     def test_shared_indicator_rejected(self):
-        self.profile['fixed_functions']['fault_led']['channel']=6
+        next(p for p in self.profile['ports'] if p['id']=='fault_led')['modes'][0]['channel']=6
         with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
 
     def test_pull_control_cannot_steal_indicator(self):
@@ -141,7 +143,7 @@ class CurrentBoardTests(unittest.TestCase):
         with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
 
     def test_missing_control_device_rejected(self):
-        self.profile['fixed_functions']['fault_led']['device']='not_fitted'
+        next(p for p in self.profile['ports'] if p['id']=='fault_led')['modes'][0]['device']='not_fitted'
         with self.assertRaises(pcb_profile.ProfileError): pcb_profile.validate_profile(self.profile)
 
 

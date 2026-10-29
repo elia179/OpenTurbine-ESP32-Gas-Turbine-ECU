@@ -145,9 +145,9 @@ function installedBrowser() {
     await page.getByRole('button',{name:/Idle input/}).click();
     assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 1/}).count(), 0,
       'an assigned multipurpose port must be reserved as a whole');
-    assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 2/}).count(), 3,
-      'idle accepts RC pulses, frequency or a contact switch on this connector');
-    await page.getByRole('button',{name:/Servo \/ pulse input 2.*RC servo pulse/}).click();
+    assert.equal(await page.getByRole('button',{name:/Servo \/ pulse input 2/}).count(), 1,
+      'one connector choice covers its compatible input signal types');
+    await page.getByRole('button',{name:/Servo \/ pulse input 2/}).click();
 
     await page.getByRole('button',{name:'+ Add output'}).click();
     await page.getByRole('button',{name:/^Starter Electric starter/}).click();
@@ -174,8 +174,8 @@ function installedBrowser() {
 
     await page.getByRole('button',{name:'+ Add output'}).click();
     await page.getByRole('button',{name:/Warning \/ indicator light/}).click();
-    assert.equal(await page.getByRole('button',{name:/High-current output 4/}).count(), 2,
-      'a PCB profile must offer every compatible mode on an unassigned output connector');
+    assert.equal(await page.getByRole('button',{name:/High-current output 4/}).count(), 1,
+      'a PCB connector appears once with signal types selected inside its card');
 
     const saved = await (await page.request.get(`${base}/api/hardware`)).json();
     const assigned = [...saved.channel_registry.inputs,...saved.channel_registry.outputs];

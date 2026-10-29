@@ -60,7 +60,7 @@ A development-board install leaves the dedicated PCB-profile partition erased. H
 
 A PCB-profile install stores an immutable, chip-specific description of the soldered hardware during the USB clean install. In Hardware, you still add engine purposes such as N1, TOT, throttle input, starter, or oil pump, but **Connected to** offers only compatible labelled connections from that PCB. GPIOs, chip addresses, bus wiring, and fixed polarity are not editable. Calibration and operating ranges remain user settings.
 
-A fresh or factory-reset PCB-profile installation starts with its labelled connections unassigned. The web interface remains available for commissioning, while START stays locked until a required Stop input has been assigned and the resulting engine setup passes validation.
+A fresh or factory-reset OpenTurbine PCB installation starts with its engine connections unassigned. Status and Fault LED connections default to their matching indicator functions and remain ordinary editable output cards. Choose each connector once, then select a supported signal type inside its card. The web interface remains available for commissioning, while START stays locked until a required Stop input has been assigned and the resulting engine setup passes validation.
 
 The profile describes what the PCB was designed to contain; live device discovery reports whether supported I²C chips are actually responding. A missing fixed device cannot be selected for a new assignment. Existing dependent assignments remain visible as unhealthy and can be removed to free the rest of the setup. A damaged, wrong-chip, or unrecognized profile locks START instead of falling back to unrelated development-board pins.
 

@@ -185,16 +185,19 @@ Run `node tools/preview_latest_pcb.cjs` from the repository root and open
 profile, with devices assumed fitted. It does not connect to a physical ECU or
 qualify the assembled board. Stop the process when finished.
 
-The blank preview shows the profile revision and its 32 labelled connections.
+The blank preview shows the profile revision and its 34 labelled connections.
 Use the usual Add input/output list, then choose the compatible PCB connection.
 The main labels match the PCB: Thermocouple 1–2, Input 1–6, OUT 1–6,
 PWM 1–6, Start, Stop and ADC 1–8; J18 extensions remain available too.
 Add an engine purpose, then choose a compatible connector under **Connected to**.
-For example, N1 can use **Input 1 · J28**, temperature **Thermocouple 1 · J43**,
-and pressure **ADC 1 · J20**. Names, sensor calibration and supported
+For example, N1 can use **Input 1**, temperature **Thermocouple 1**,
+and pressure **ADC 1**. Each connector appears once; choose its supported signal
+type inside the card. Names, sensor calibration and supported
 operating choices remain editable. GPIO routing and fitted buses are fixed.
 Start/Stop must be assigned before commissioning. Status and Fault LEDs are
-built-in indicators; the Fault LED owns fault blinking separately.
+ordinary output cards with default automatic indicator purposes. They can be
+renamed, repurposed, moved or removed. These expander-backed connections offer
+on/off signals; they have no hardware PWM or servo timing.
 
 `node tools/ui_latest_pcb_audit.cjs` checks source and packaged UI in Chromium,
 Firefox and WebKit. `OT_PCB_PREVIEW` optionally saves focused preview images.

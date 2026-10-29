@@ -326,3 +326,20 @@ and session downloads, and engine-file restore checks. Classic is restored to
 the user's original setup; S3 is restored to OTBench. No assembled-PCB electrical
 qualification, engine-load test or long-duration soak is implied. All final
 changes and packages remain local: no push, release or deployment was performed.
+
+
+User PCB review correction (2026-10-29): connector picking now lists each
+connector once by its board label, without J references or waveform duplicates.
+Supported signal type is selected within the channel card. Onboard Status and
+Fault LED connections are regular I2C on/off output ports, seeded as editable
+indicator assignments. Blink dispatch owns only their selected indicator
+purposes; repurposing releases that ownership. Automatic blinking is excluded
+from engine-actuator activity gates, while repurposed outputs remain gated.
+The official profile now has 34 ports. The battery monitor and output-enable
+wiring remain fixed. Browser checks passed source/compressed in all three
+engines, custom profile and isolated edits; 15 profile tests, 321 safety checks,
+both focused native indicator tests, and both firmware builds/budgets passed.
+A full native retry was blocked by Windows Application Control at telemetry
+catalogue; this revision does not yet have a completed full release gate.
+The previous final review package is superseded and must be rebuilt before
+publication. No push or public deployment is authorized/performed.

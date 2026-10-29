@@ -3496,6 +3496,7 @@ void HardwareConfig::applyDefaults() {
                 fixedProfileReason[0] ? fixedProfileReason :
                 "Cannot install fixed PCB channels.");
         }
+        PcbProfileResolver::applyFixedPeripherals();
     }
 
     // Present fresh/factory sequences in the same unified form created by the

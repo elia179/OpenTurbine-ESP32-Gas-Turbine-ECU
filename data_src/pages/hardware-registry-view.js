@@ -35,7 +35,7 @@ const REGISTRY_SINGLETON_PURPOSES = {
   output: new Set()
 };
 function registryPurposeIsSingleton(direction, purpose) {
-  return REGISTRY_SINGLETON_PURPOSES[direction]?.has(String(purpose || '')) || false;
+  return (direction==='output'&&['status_led','fault_led'].includes(purpose)) || REGISTRY_SINGLETON_PURPOSES[direction]?.has(String(purpose || '')) || false;
 }
 function registryFixedProfileFunction(direction, c) {
   if (!pcbProfileActive() || direction !== 'input') return '';
@@ -251,14 +251,16 @@ function registryProfilePortEditor(direction, c, index) {
   const purpose = registryDerivedPurpose(direction,c);
   const choices = pcbCompatibleChoices(direction,purpose,c.role,String(c.physical_port||''));
   const currentKey = `${c.physical_port||''}|${c.physical_mode||''}`;
-  const options = choices.map(choice => {
+  const options = pcbConnectorChoices(choices,c,Number(c.driver)).map(choice => {
     const key = `${choice.port.id}|${choice.mode.id}`;
     const unavailable = choice.mode.available === false;
     const suffix = unavailable ? ` — ${choice.mode.status || 'not responding'}` : '';
     return `<option value="${key}"${key===currentKey?' selected':''}${unavailable && key!==currentKey?' disabled':''}>${escapeHtmlText(pcbChoiceLabel(choice)+suffix)}</option>`;
   }).join('');
   const connectionDescription=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.description;
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>`;
+  const modes = choices.filter(choice=>choice.port.id===c.physical_port);
+  const modeEditor = modes.length>1 ? `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Choose how this connector reads or drives the connected device.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${modes.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.mode.id===c.physical_mode?' selected':''}${choice.mode.available===false&&choice.mode.id!==c.physical_mode?' disabled':''}>${escapeHtmlText(pcbModeLabel(choice.mode))}</option>`).join('')}</select></div>` : '';
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Connected to</span><span class="hw-desc">Physical connection defined by ${escapeHtmlText(pcbProfile.name||'the flashed PCB profile')}. GPIO, chip and bus wiring cannot be changed here.</span><select onchange="updateRegistryProfilePort('${direction}',${index},this.value)">${options || '<option value="">No compatible unassigned PCB connection</option>'}</select>${connectionDescription?`<span class="hw-desc">${escapeHtmlText(connectionDescription)}</span>`:''}</div>${modeEditor}`;
 }
 function updateRegistryProfilePort(direction,index,value) {
   if (!pcbProfileActive()) return;

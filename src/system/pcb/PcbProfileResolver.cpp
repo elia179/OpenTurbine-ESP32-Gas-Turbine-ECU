@@ -291,6 +291,17 @@ void PcbProfileResolver::applyFixedPeripherals() {
 #else
     HardwareConfig::hasFaultLed=false;HardwareConfig::faultLedPin=-1;
 #endif
+    for(uint8_t i=0;i<HardwareConfig::channelRegistry.outputCount;i++) {
+        const auto& c=HardwareConfig::channelRegistry.outputs[i];
+        if(!c.installed)continue;
+        if(!strcmp(c.purpose,"status_led")) {
+            HardwareConfig::hasStatusLed=true;HardwareConfig::statusLedPin=c.pin;
+            HardwareConfig::statusLedType=0;HardwareConfig::statusLedMode=0;
+        }
+        if(!strcmp(c.purpose,"fault_led")) {
+            HardwareConfig::hasFaultLed=true;HardwareConfig::faultLedPin=c.pin;
+        }
+    }
     HardwareConfig::hasBuzzer = catalog->hasBuzzer;
     HardwareConfig::buzzerPin = catalog->hasBuzzer ? catalog->buzzerGpio : -1;
 

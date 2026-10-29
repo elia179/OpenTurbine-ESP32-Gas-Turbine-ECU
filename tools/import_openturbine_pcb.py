@@ -70,8 +70,6 @@ def make_profile(parts):
             {'id':'adc','driver':'tla2528','bus':'sensor_i2c','address':16,'expected':True},
             {'id':'io','driver':'tca9534','bus':'sensor_i2c','address':32,'expected':True}],
         'fixed_functions':{
-            'status_led':{'device':'io','channel':6,'active_high':False,'safe_demand':0},
-            'fault_led':{'device':'io','channel':7,'active_high':False,'safe_demand':0},
             'output_enable':{'gpio':gpio('OUTPUT_ENABLE'),'active_high':True,'safe_demand':0},
             'supply_voltage':{'gpio':gpio('BAT_ADC_MCU'),'divider':37,'reference_mv':3300,'label':'ECU supply voltage'},
             'mavlink':{'bus':'serial_0'}}, 'ports':[]}
@@ -97,6 +95,10 @@ def make_profile(parts):
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:
         ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up'}]})
+    for channel,purpose,label in [(6,'status_led','Status LED'),(7,'fault_led','Fault LED')]:
+        ports.append({'id':purpose,'label':label,'description':'Onboard low-current LED; on/off control only','modes':[
+            {'id':'on_off','adapter':'i2c_digital_output','device':'io','channel':channel,'active_high':False,'safe_demand':0,
+             'default':{'id':purpose,'name':label,'role':'indicator','purpose':purpose}}]})
     for pin in (46,47):
         ports.append({'id':f'extension_{pin}','label':f'Extension GPIO{pin}','connector':'J18','modes':[{'id':'input','adapter':'digital_input','endpoint':{'gpio':pin}}]})
     return profile

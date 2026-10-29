@@ -1221,6 +1221,7 @@ namespace Hardware {
     }
 
     inline bool registryOutputManaged(const ChannelRegistry::Channel& c) {
+        if (!strcmp(c.purpose,"status_led") || !strcmp(c.purpose,"fault_led")) return false;
         if (c.installed && c.driver == ChannelRegistry::I2cRelay) return true;
         // Native relay channels are safe to own through the canonical registry,
         // including built-in turbine functions. This keeps a Hardware-page
@@ -3341,11 +3342,11 @@ namespace Hardware {
         // unconditionally, so disabling the status LED in the hardware config had
         // no effect and the onboard NeoPixel stayed lit. When disabled, actively
         // clear the LED (it latches its last colour otherwise).
-        if (hw.hasStatusLed) StatusLED::begin();
+        if (hw.hasStatusLed || StatusLED::_registryIndicator(false)) StatusLED::begin();
         else                 StatusLED::off();
     }
     inline void tickStatusLED() {
-        if (HardwareConfig::instance().hasStatusLed) StatusLED::tick();
+        if (HardwareConfig::instance().hasStatusLed || StatusLED::_registryIndicator(false)) StatusLED::tick();
         else StatusLED::tickFault();
     }
 

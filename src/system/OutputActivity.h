@@ -21,6 +21,9 @@ namespace OutputActivity {
         for (uint8_t i = 0; i < reg.outputCount; ++i) {
             const auto& c = reg.outputs[i];
             if (!hasPhysicalEndpoint(c)) continue;
+            // Automatic status/fault blinking is not an engine actuator demand.
+            // Repurposing the connection restores the normal activity gate.
+            if (!strcmp(c.purpose,"status_led") || !strcmp(c.purpose,"fault_led")) continue;
             const float demand = logicalDemand(c, i, ed);
             if (!RelayDemand::requested(demand)) continue;
             // A propeller actuator may intentionally park at a non-zero
