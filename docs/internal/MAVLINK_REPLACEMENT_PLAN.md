@@ -292,3 +292,14 @@ the complete cross-browser regression is being rerun for the trimmed bundles.
 Start and Stop connectors no longer seed automatic engine assignments on a
 fresh latest-PCB installation. They remain selectable through Add input, like
 other compatible connectors; existing saved assignments are unaffected.
+
+
+Real S3 profile parsing found a capability-publication gap hidden by the
+simulator: ADC switch modes were understood by the resolver but the live
+availability endpoint omitted their I2cAnalog mapping and incorrectly said
+"Requires newer firmware support". Both ADC measurement and threshold modes now
+use the same responding-device availability. On a bare board they correctly
+remain unavailable with "Fitted I2C device is not responding". Profile parsing,
+32 connection labels, board-identity mismatch rejection and no automatic
+connector assignments were checked on real S3; this is not assembled-PCB
+peripheral qualification.

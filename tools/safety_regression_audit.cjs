@@ -488,6 +488,8 @@ expect('event log routes preserve specific downloads and reject malformed displa
   (web.match(/RecentEventLog::seekTail\(f\)/g) || []).length === 2 &&
   (web.match(/if \(!_gateLogRead\(req\)\) return;/g) || []).length === 3 &&
   web.includes('Another log view or download is in progress; retry shortly'));
+expect('PCB ADC switch availability uses the supported analogue device driver',
+  web.includes('!strcmp(adapter, "i2c_adc_input") || !strcmp(adapter, "i2c_adc_digital_input")) driver = ChannelRegistry::I2cAnalog'));
 expect('updater readiness excludes pending restart and configuration application',
   web.includes('!_hwRebootPending && !ConfigApplyGate::busy()'));
 expect('empty raw event logs use an opened file without compressed fallback',

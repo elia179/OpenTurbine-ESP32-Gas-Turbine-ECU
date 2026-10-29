@@ -4130,7 +4130,7 @@ void WebServer::_setupRoutes() {
                 const char* adapter = PcbProfileManager::adapterName(mode->adapter);
                 uint8_t driver = 255;
                 if (!strcmp(adapter, "i2c_digital_input")) driver = ChannelRegistry::I2cDigital;
-                else if (!strcmp(adapter, "i2c_adc_input")) driver = ChannelRegistry::I2cAnalog;
+                else if (!strcmp(adapter, "i2c_adc_input") || !strcmp(adapter, "i2c_adc_digital_input")) driver = ChannelRegistry::I2cAnalog;
                 else if (!strcmp(adapter, "i2c_load_cell")) driver = ChannelRegistry::I2cLoadCell;
                 else if (!strcmp(adapter, "i2c_digital_output")) driver = ChannelRegistry::I2cRelay;
                 if (device && driver != 255) {
@@ -4251,7 +4251,7 @@ void WebServer::_setupRoutes() {
                                 if (!mode || !device) continue;
                                 const char* adapter = PcbProfileManager::adapterName(mode->adapter);
                                 if (!strcmp(adapter, "i2c_digital_input")) driver = ChannelRegistry::I2cDigital;
-                                else if (!strcmp(adapter, "i2c_adc_input")) driver = ChannelRegistry::I2cAnalog;
+                                else if (!strcmp(adapter, "i2c_adc_input") || !strcmp(adapter, "i2c_adc_digital_input")) driver = ChannelRegistry::I2cAnalog;
                                 else if (!strcmp(adapter, "i2c_load_cell")) driver = ChannelRegistry::I2cLoadCell;
                                 else if (!strcmp(adapter, "i2c_digital_output")) driver = ChannelRegistry::I2cRelay;
                                 else continue;
