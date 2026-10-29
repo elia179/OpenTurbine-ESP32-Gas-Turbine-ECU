@@ -74,6 +74,20 @@ const viewports = [
             `${name}/${viewport.name} horizontal overflow ${metrics.overflow}px on ${route}; ` +
             `scroll=${metrics.scrollWidth} client=${metrics.clientWidth} inner=${metrics.innerWidth}; ${metrics.offenders.join(', ')}`);
         }
+        if(viewport.name==='tablet'){
+          const fallback=await browser.newPage({viewport}),fallbackErrors=[];
+          fallback.on('pageerror',error=>fallbackErrors.push(error.message));
+          await fallback.route('**/theme.js*',route=>route.fulfill({status:503,body:''}));
+          for(const route of ['/controllers.html','/system.html']){
+            await fallback.goto(base+route,{waitUntil:'domcontentloaded'});
+            assert.ok(await fallback.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth<=2),
+              `${name}/tablet fallback navigation widens ${route} when theme assets are unavailable`);
+            assert.ok(await fallback.evaluate(()=>{const nav=document.querySelector('nav');nav.scrollLeft=nav.scrollWidth;const link=nav.querySelector('.ot-nav-system');return !link||link.getBoundingClientRect().right<=window.innerWidth+2;}),
+              `${name}/tablet fallback navigation cannot reach System on ${route}`);
+          }
+          assert.deepEqual(fallbackErrors,[],`${name}/tablet fallback JavaScript errors`);
+          await fallback.close();
+        }
         await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
         await page.locator('#dashboard-card-edit-btn').click();
         await page.locator('#dashboard-arrange-btn').click();

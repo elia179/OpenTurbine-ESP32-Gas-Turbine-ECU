@@ -235,3 +235,10 @@ Development boards remain profile-free; no connector cards are pre-created.
 Both firmware targets and filesystem budget checks passed locally. Hardware
 single-edit, legacy custom PCB, channel-name and 24-profile configuration-fuzz
 audits passed. These are software checks; an assembled PCB remains unqualified.
+
+
+The follow-up CI exposed a WebKit tablet overflow during fallback asset loading.
+Controllers/System now constrain their inline navigation to a scrolling container
+before shared CSS arrives. The viewport matrix includes a separate theme-503
+case and confirms System remains reachable without document overflow. The local
+three-engine/five-viewport matrix passed, including these asset-failure cases.
