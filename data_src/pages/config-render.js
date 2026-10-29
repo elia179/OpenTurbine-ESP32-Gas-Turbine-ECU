@@ -208,6 +208,7 @@ function _resolveControllerChannelId(value, rows, kind, numericValue) {
   return raw;
 }
 
+// OT_CONTROLLERS_ONLY_BEGIN
 function _defaultRuleForOutput(channel) {
   const inputs = simpleControlInputs();
   const relay = [4,11].includes(Number(channel.driver));
@@ -462,6 +463,7 @@ function _mountControllerLocalSettings(outputs) {
   });
 }
 
+// OT_CONTROLLERS_ONLY_END
 function simpleControlInputs() {
   const rows=(hwCfg?.channel_registry?.inputs || []).filter(row => row && row.installed !== false);
   if(hwCfg?.mavlink?.enabled && Number(hwCfg.mavlink.rx_pin??-1)>=0) rows.push({id:'mavlink_throttle',name:'MAVLink throttle demand',purpose:'throttle',installed:true});
@@ -619,6 +621,7 @@ function feedbackDefaultsForInput(id) {
     return {response_gain:0.005,integral_gain:0.001,deadband:1};
   return {response_gain:0.02,integral_gain:0.005,deadband:0.01};
 }
+// OT_CONTROLLERS_ONLY_BEGIN
 function updateSimpleControl(index, key, value) {
   collectConfigFields();
   const rule = cfg.rules?.[index];
@@ -735,6 +738,7 @@ function removeSimpleControl(index) {
   runValidation();
 }
 
+// OT_CONTROLLERS_ONLY_END
 function controllerInputs(purpose) {
   return (hwCfg?.channel_registry?.inputs || []).filter(row => registryChannelInstalled(row) && String(row.purpose || '') === purpose);
 }
@@ -1736,7 +1740,7 @@ function renderForm(preserveControllerOpenState = true) {
   // Controller cards are the workspace itself. Build them only after the
   // generated field sections and editable definitions exist so their local
   // settings can be mounted inside the correct output card.
-  renderControllerOverview();
+  if (typeof renderControllerOverview === 'function') renderControllerOverview();
   initWorkspaceControls();
   _restoreControllerOpenState(controllerOpenState);
 

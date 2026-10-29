@@ -202,6 +202,7 @@ function updateLoopDiagnostics(d) {
 }
 window.updateLoopDiagnostics = updateLoopDiagnostics;
 
+// OT_SYSTEM_ONLY_BEGIN
 async function factoryReset() {
   if (typeof runtimeMode !== 'undefined' && runtimeMode !== 'STANDBY' && runtimeMode !== 'FAULT') {
     alert('Factory reset is only permitted in STANDBY or FAULT.');
@@ -475,6 +476,7 @@ async function pollSystemTelemetry() {
   }
 }
 
+// OT_SYSTEM_ONLY_END
 function applyDeveloperLiveFields() {
   const liveRun = runtimeMode === 'RUNNING' && runtimeDevMode;
   const activeMode = ['STARTUP','RUNNING','SHUTDOWN'].includes(runtimeMode);

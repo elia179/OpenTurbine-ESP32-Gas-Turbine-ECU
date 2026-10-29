@@ -1,5 +1,6 @@
 // ── Config schema — maps UI field key → JSON path + metadata ──
 const ALL_CONFIG_SCHEMA = [
+// OT_CONTROLLERS_ONLY_BEGIN
   { title: 'Engine Protection Limits', id: 'engine-limits', sectionNote:'N1 is core-shaft speed; N2 is output-shaft speed. TOT is turbine-outlet temperature; TIT is turbine-inlet temperature. Configured speed, temperature, P1, P2 and torque limits also set their Dashboard bar references. They remain visual advisories when automatic shutdown is off. Pressure and torque bars use automatic range when no positive limit is set.', fields: [
     { key:'rpm_limit',          path:['engine','rpm_limit'],          label:'Maximum N1 Speed', unit:'RPM', desc:'Configured N1 reference for the Dashboard bar and visual advisory. It becomes an automatic hard overspeed shutdown only when N1 overspeed safety is enabled above.', step:1000, min:1000, basic:true },
     { key:'n2_rpm_limit',       path:['engine','n2_rpm_limit'],       label:'Maximum N2 Speed', unit:'RPM', zeroOff:true, desc:'Configured N2 reference for the Dashboard bar and visual advisory, separate from gradual N2 pullback. It becomes an automatic hard shutdown only when N2 overspeed safety is enabled above.', step:1000, min:0, basic:true },
@@ -142,6 +143,7 @@ const ALL_CONFIG_SCHEMA = [
     { key:'rl_tr', path:['relight','tot_rise_c'],          label:'EGT Recovery Rise', unitType:'temp_delta', desc:'For EGT relight confirmation: igniter stays on until selected EGT rises this much above the temperature at relight start. 0 prevents EGT-rise confirmation. Set too low and EGT noise/throttle changes can false-confirm; too high can reject a real relight. Verify on a real start.', step:5, min:0, basic:true },
     { key:'rl_to', path:['relight','relight_timeout_ms'], label:'Relight Timeout (ms)',      desc:'Maximum relight time after a flameout. If combustion is not restored, ignition is cut and the engine shuts down. 0 uses the hard 30-second maximum; shorter configured values win.', step:100, min:0, max:30000 },
   ]},
+// OT_CONTROLLERS_ONLY_END
   { title: 'ECU Runtime', sectionNote:'Advanced control-loop scheduling. Logging frequency and channel selection are configured on the Log page.', fields: [
     { key:'tm_lh', path:['telemetry','control_loop_hz'], label:'ECU Loop Target Hz', desc:'Main control-loop target frequency. Default 400 Hz. Lower values reduce CPU use; higher values improve control granularity but increase load. Recommended range: 200-500 Hz. Takes effect after a reboot.', step:50, min:50, max:1000, basic:true },
   ]},
@@ -151,6 +153,7 @@ const ALL_CONFIG_SCHEMA = [
     { key:'cl_tw', path:['cluster','tot_warn_c'],   label:'EGT Warn',   unitType:'temp',  zeroOff:true, desc:'Selected engine-temperature display warning threshold. 0 = auto (selected EGT limit minus safety margin).', step:10, min:0 },
     { key:'cl_ow', path:['cluster','oil_warn_bar'], label:'Oil Warn',   unitType:'press', desc:'Oil pressure display warning threshold. 0 = auto (running minimum)', step:0.1, min:0 },
   ]},
+// OT_CONTROLLERS_ONLY_BEGIN
   { title: 'Windmilling Oil Protection', id:'windmilling-oil-section', sectionNote:'Optional bearing protection while a shaft is still turning in standby, for example from airflow, vehicle movement, or residual momentum after shutdown. Off by default. When enabled, it uses a fixed/floor pump output or the matching oil-pressure controller.', fields: [
     { key:'so_en', path:['standby_oil','enabled'], label:'Enable Windmilling Oil Protection', type:'checkbox', desc:'Allow the selected oil pump to run automatically in STANDBY or FAULT while the selected healthy shaft is above the threshold. Leave this off when the engine does not need pressure lubrication while windmilling.' },
     { key:'so_oid', path:['standby_oil','output_id'], label:'Oil Pump to Protect', type:'select', string:true, options:()=>outputOptionsForPurpose(['standby_oil','output_id'],'oil_pump','Choose oil pump'), desc:'Exact fitted oil-pump device commanded by windmilling protection. With one pump it is selected automatically; with several, choose the pump feeding the windmilling shaft.' },
@@ -212,6 +215,7 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'RC / Servo Signal Loss Detection', id: 'rc-pwm-section', sectionNote:'Receiver-pulse endpoints are calibrated independently on the Calibration page; this timeout also protects registry PWM-duty inputs.', fields: [
     { key:'rc_fs', path:['rc_input','failsafe_ms'], label:'Signal-Loss Timeout (ms)', desc:'Marks a receiver input invalid when no valid pulse arrives in time. A lost operator-throttle signal returns main fuel toward the calibrated minimum output; STOP still performs the immediate fuel cut.', step:50, min:100 },
   ]},
+// OT_CONTROLLERS_ONLY_END
 ];
 
 // Enable and method are separate fields so each edit is reviewable and retained.

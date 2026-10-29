@@ -234,6 +234,7 @@ function hookValidation() {
 }
 
 // ── Save validation ───────────────────────────────────────────
+// OT_CONTROLLERS_ONLY_BEGIN
 async function validateBeforeSave(cfg) {
   const errors = [];
   const startup=cfg.sequence?.startup||{};
@@ -535,6 +536,7 @@ async function validateBeforeSave(cfg) {
 }
 
 // ── Save ──────────────────────────────────────────────────────
+// OT_CONTROLLERS_ONLY_END
 function collectConfigFields() {
   SCHEMA.forEach(sec => {
     sec.fields.forEach(f => {
@@ -662,6 +664,7 @@ async function _saveConfigHardwarePatch(source, patch) {
   } finally { clearTimeout(timeout); }
 }
 
+// OT_CONTROLLERS_ONLY_BEGIN
 async function _saveControllerChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
   await new Promise(resolve => setTimeout(resolve, 150));
@@ -697,6 +700,8 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
   window.OTShowRebootOverlay?.({returnPath:CONFIG_SURFACE === 'system' ? '/system.html' : '/controllers.html'});
 }
 
+// OT_CONTROLLERS_ONLY_END
+// OT_SYSTEM_ONLY_BEGIN
 async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
   await new Promise(resolve => setTimeout(resolve, 150));
@@ -734,6 +739,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
 
 // A durable save owns both editing surfaces until its acknowledgement arrives.
 // Inert also protects controls recreated by telemetry/dependency rerenders.
+// OT_SYSTEM_ONLY_END
 function _setConfigSavePending(pending) {
   _cfgSavePending = pending;
   for (const id of ['cfg-form', 'controller-overview']) {

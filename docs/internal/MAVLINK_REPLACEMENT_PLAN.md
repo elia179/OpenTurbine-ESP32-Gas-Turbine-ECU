@@ -276,3 +276,19 @@ I2C audits, then was stopped by Windows Application Control error 4551 while
 launching `mavlink_service_behavior`, including all bounded same-binary retries.
 This run remains incomplete. The earlier full native suite passed with the same
 MAVLink/control sources; no Windows security policy was changed or bypassed.
+
+
+The final Classic log check exposed a storage regression: with both full-page
+settings bundles installed, only 73,728 usable bytes remained, exactly the
+protected configuration reserve. Completed session CSVs were evicted. Existing
+page-ownership build markers now omit controller-only schemas/editor/validation
+from System, and backup/restore code from Controllers. No extra asset requests,
+assets, protocol changes or reduced storage reserves were introduced. The web
+payload fell from 445,339 to 420,775 bytes (web revision 20261029e); the real
+Classic recovered 28,672 filesystem bytes. A fresh no-load cycle retained a CSV
+and its browser download parsed 11 rows / 7 columns. Config ownership tests pass;
+the complete cross-browser regression is being rerun for the trimmed bundles.
+
+Start and Stop connectors no longer seed automatic engine assignments on a
+fresh latest-PCB installation. They remain selectable through Add input, like
+other compatible connectors; existing saved assignments are unaffected.
