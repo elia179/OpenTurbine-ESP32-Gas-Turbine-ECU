@@ -24,6 +24,7 @@ function merge(target, patch) {
 }
 
 function mockI2cDiscovery() {
+  if(globalThis.OT_UI_SIM_I2C_DISCOVERY)return clone(globalThis.OT_UI_SIM_I2C_DISCOVERY);
   return {
     bus_active:true,
     devices:[

@@ -1,7 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium,firefox,webkit}=require('playwright');
 const {gunzipSync}=require('node:zlib');
-const {latestPcbFixture,source}=require('./latest_pcb_fixture.cjs');
+const {latestPcbFixture,source,discovery}=require('./latest_pcb_fixture.cjs');
+globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
 (async()=>{
  globalThis.OT_UI_SIM_PORT=15123;await import('./ui_mock_server.mjs');const base='http://127.0.0.1:15123';
  for(const engine of [chromium,firefox,webkit])for(const packed of [false,true]){

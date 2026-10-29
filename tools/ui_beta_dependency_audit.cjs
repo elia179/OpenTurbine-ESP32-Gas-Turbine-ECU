@@ -267,7 +267,8 @@ async function optionDisabled(page, selector, value) {
     assert.equal(sensorInterfaceUx.intakeSummary, 'DS18B20 OneWire');
     assert.match(sensorInterfaceUx.intakeEditor, /NTC thermistor/);
     assert.match(sensorInterfaceUx.intakeEditor, /DS18B20/);
-    assert.doesNotMatch(sensorInterfaceUx.intakeEditor, /MAX31855/);
+    assert.match(sensorInterfaceUx.intakeEditor, /MAX31855/);
+    assert.match(sensorInterfaceUx.intakeEditor, /MAX31856/);
     assert.equal(sensorInterfaceUx.intakeRange, '');
     assert.equal(sensorInterfaceUx.oilNtcRange, '');
     assert.equal(sensorInterfaceUx.totSummary, 'MAX31855 thermocouple');

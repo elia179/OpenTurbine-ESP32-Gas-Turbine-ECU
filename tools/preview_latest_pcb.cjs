@@ -1,5 +1,6 @@
 // Local-only interactive simulation. Never point this tool at an ECU.
-const {latestPcbFixture}=require('./latest_pcb_fixture.cjs');
+const {latestPcbFixture,discovery}=require('./latest_pcb_fixture.cjs');
+globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
 (async()=>{
  globalThis.OT_UI_SIM_PORT=Number(process.argv[2]||8792);
  await import('./ui_mock_server.mjs');

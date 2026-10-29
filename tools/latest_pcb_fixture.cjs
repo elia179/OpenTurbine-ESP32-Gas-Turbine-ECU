@@ -15,4 +15,5 @@ function latestPcbFixture(original){
  for(const key of Object.keys(h))if(Array.isArray(h[key])&&/_(seq|enter_actions|exit_actions|delay_ms)$/.test(key))h[key]=[];
  state.settings.rules=[];return state;
 }
-module.exports={latestPcbFixture,source};
+const discovery={bus_active:true,devices:source.devices.filter(d=>['tla2528','tca9534','tca9554','nau7802'].includes(d.driver)).map(d=>({address:d.address,type:({tla2528:'TLA2528',tca9534:'TCA9554',tca9554:'TCA9554',nau7802:'NAU7802'})[d.driver],present:true,last_seen_ms:1000,errors:0}))};
+module.exports={latestPcbFixture,source,discovery};
