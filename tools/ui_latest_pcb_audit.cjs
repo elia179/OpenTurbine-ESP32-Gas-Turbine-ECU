@@ -11,7 +11,7 @@ const {latestPcbFixture,source}=require('./latest_pcb_fixture.cjs');
    const initial=await(await p.request.get(base+'/__sim/state')).json();const fixture=latestPcbFixture(initial);
    const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await p.goto(base+'/hardware.html');
    await p.waitForFunction(()=>document.querySelector('#hardware-board-summary')?.textContent.includes('1.0-20261028'));
-   assert.equal(await p.evaluate(()=>pcbProfile.ports.length),source.ports.length);
+   assert.equal(await p.evaluate(()=>pcbProfile.ports.length),source.ports.length);assert.doesNotMatch(await p.locator('body').innerText(),/Pin conflict:/,'clean PCB preview has no unrelated development-board assignments');
    const output=process.env.OT_PCB_PREVIEW;const shot=async(name,selector)=>{if(!output||engine!==chromium||packed)return;fs.mkdirSync(output,{recursive:true});const style=await p.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}'});await p.locator(selector).screenshot({path:path.join(output,name+'.png'),animations:'disabled'});await style.evaluate(el=>el.remove());};
    await shot('01-board-profile','#hardware-board-summary');
    const add=async(purpose,connection,direction='input')=>{
