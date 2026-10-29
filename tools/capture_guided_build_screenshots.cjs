@@ -96,6 +96,13 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
     await load(3,'controllers',{workshops:true,edit:state=>{state.settings.rules=state.settings.rules.filter(rule=>rule.target!=='bench_light');}});
     await open('.controller-create-card');await page.locator('#new-controller-output').selectOption('bench_light');await shot('controller-create','.controller-create-card');await page.getByRole('button',{name:'Create controller',exact:true}).click();await open('[data-controller-output="bench_light"]');await shot('controller-new','[data-controller-output="bench_light"]');
     await load(3,'calibration',{workshops:true});await shot('phase-torque-calibration','#torque-phase-wizard');await shot('thrust-calibration','#thrust-cal-row');
+    // Remote display setup uses spare S3 UART pins in this teaching inventory.
+    const remoteEdit=rx=>state=>{state.hardware.mavlink={enabled:true,tx_pin:43,rx_pin:rx,baud:115200,interval_ms:100,allow_commands:false,system_id:1,component_id:200,controller_system:255,controller_component:190,input_timeout_ms:500};};
+    for(const [rx,name] of [[-1,'mavlink-monitoring'],[44,'mavlink-receiver']]){
+      await load(1,'system',{edit:remoteEdit(rx)});
+      const selector='details.config-group:has(.group-title:text-is("MAVLink connection"))';
+      await open(selector);await shot(name,selector);
+    }
     // Verify both cumulative development-board plans in the actual Hardware UI.
     for(const board of ['esp32','esp32s3'])for(const level of [1,2,3]){
       const state=guidedFixture(initial,level,{board});await page.request.post(`${base}/api/ecu_config`,{data:state});await page.goto(`${base}/hardware.html`);await page.locator('#hardware-inputs-panel').waitFor();

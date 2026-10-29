@@ -3,9 +3,11 @@
 Release packages must contain firmware and web assets built from the same commit
 and must report the packaged version/target/build during post-install verification.
 
-The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.4. Final Wi-Fi
-verification reports reconnect, identity and per-file progress, retries transient
-reads and offers verification-only retry after uploads have finished. The tool
+The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.8. Wi-Fi updates ask for the initial connection once, then check both restarts automatically.
+Verification reports identity and per-file progress, retries transient reads and
+offers verification-only retry after uploads have finished. USB setup reports the
+current port and elapsed activity, rechecks the chip before erase, and distinguishes
+checking, erasing, writing and verification. The tool
 must never claim success on an identity or asset-content mismatch.
 
 The Windows setup tool provides
@@ -91,7 +93,7 @@ dist/setup_tool/OpenTurbine_Recommended.zip.sha256
 
 ## Release Checklist
 
-Before packaging 2.4.3, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
+Before packaging a release, also follow [`V2_MIGRATION.md`](V2_MIGRATION.md) and
 verify a clean Development-board install, bundled official PCB profile install,
 custom chip-matched profile install, and Wi-Fi update of an existing v2 ECU.
 

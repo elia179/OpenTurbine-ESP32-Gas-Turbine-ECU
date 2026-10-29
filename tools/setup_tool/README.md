@@ -4,7 +4,7 @@ The 2.6.1 implementation shows final reconnect/identity/file-verification progre
 
 Windows setup/update helper for OpenTurbine boards.
 
-Version 0.7.7 scales its custom layout, fonts and mouse hit testing with the
+Version 0.7.8 scales its custom layout, fonts and mouse hit testing with the
 monitor DPI and follows Windows' suggested bounds on monitor changes. The Wi-Fi update asks for the initial connection once, then automatically waits
 for the expected version, chip target, build identity and maintenance readiness
 after each restart. It asks again only if those checks fail. Verification retry
@@ -15,6 +15,10 @@ follows [Microsoft's GDI mapping guidance](https://learn.microsoft.com/en-us/win
 The home screen separates **Clean install / reinstall** (USB, erases the entire
 selected board) from **Update and keep my setup** (Wi-Fi, backs up and retains
 the existing engine setup). Do not weaken this distinction in release builds.
+
+The final erase button names the action explicitly. The flash-capacity response
+must confirm the selected chip before erase, and erase/write commands are bound
+to that chip family. A missing or changed chip stops the install before erase.
 
 USB detection shows the current COM port, scan position and elapsed time. Clean
 installation distinguishes file/capacity checks, erasing, and writing/verification.

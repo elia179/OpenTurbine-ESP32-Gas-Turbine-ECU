@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.7"
+	appVersion                  = "0.7.8"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -944,7 +944,7 @@ func (ui *NativeUI) prepareThenShowHome() {
 
 func (ui *NativeUI) showSafety(mode string) {
 	subtitle := "For a blank board or a clean reinstall, connected by USB."
-	body := "This is a CLEAN INSTALL. It erases the entire selected ESP32, including any existing OpenTurbine settings, calibration, logs, and Wi-Fi password. Use the Wi-Fi Update option instead when you want to keep an existing engine setup.\n\nIf this board still runs OpenTurbine and you may need its setup, cancel now and download the complete engine file from Tools before returning here. The installer cannot recover data after erase.\n\nDisconnect relays, pumps, starters, igniters, servos, valves, and anything else that could move, heat, spark, or start fuel flow. Pins can briefly change state while the board is erased, flashed, or restarted.\n\nAfter installation, treat the ECU as unconfigured. Check Hardware, Controllers, Calibration, and Sequence before reconnecting engine outputs."
+	body := "This is a CLEAN INSTALL. It erases the entire selected ESP32, including any existing OpenTurbine settings, calibration, logs, and Wi-Fi password. Use the Wi-Fi Update option instead when you want to keep an existing engine setup.\n\nIf this board still runs OpenTurbine and you may need its setup, cancel now and download the complete engine file from System → Maintenance → Backup & restore before returning here. The installer cannot recover data after erase.\n\nDisconnect relays, pumps, starters, igniters, servos, valves, and anything else that could move, heat, spark, or start fuel flow. Pins can briefly change state while the board is erased, flashed, or restarted.\n\nAfter installation, treat the ECU as unconfigured. Check Hardware, Controllers, Calibration, and Sequence before reconnecting engine outputs."
 	primary := cleanSafetyButtonLabel
 	if mode == "update" {
 		subtitle = "For a working OpenTurbine board; keeps its engine setup."
@@ -2023,6 +2023,9 @@ func (j *Job) ui() *NativeUI { return globalUI }
 
 func waitButtonLabel(title string) string {
 	lower := strings.ToLower(title)
+	if lower == "confirm complete erase" {
+		return "Erase board and install"
+	}
 	if strings.Contains(lower, "retry final verification") {
 		return "Retry verification"
 	}
@@ -2228,7 +2231,7 @@ func (j *Job) runNewBoard() {
 	targetPackage := pkg.Manifest.Targets[target]
 	choices := []pcbProfileChoice{{
 		Label:  "1. ESP32 development board",
-		Detail: "No PCB profile. Hardware is configured manually with GPIO, bus, chip, and signal fields as before.",
+		Detail: "For a plain ESP32/ESP32-S3 development board. Choose pins and connected devices in Hardware after installation.",
 		Action: "pcbProfile:dev", Enabled: true,
 	}}
 	if len(targetPackage.PCBProfile.OfficialProfiles) == 0 {
@@ -2241,7 +2244,7 @@ func (j *Job) runNewBoard() {
 		for i, profile := range targetPackage.PCBProfile.OfficialProfiles {
 			choices = append(choices, pcbProfileChoice{
 				Label:  fmt.Sprintf("%d. %s — revision %s", i+2, profile.Name, profile.Revision),
-				Detail: "Official immutable pinout supplied with the OpenTurbine PCB design.",
+				Detail: "Use only with this PCB revision. Its profile supplies the board connections and electrical settings.",
 				Action: fmt.Sprintf("pcbProfile:official:%d", i), Enabled: true,
 			})
 		}
@@ -3969,7 +3972,11 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 		return fmt.Errorf("setup package does not contain USB install instructions")
 	}
 
-	args := []string{"--port", port, "--baud", "921600", "write-flash", "-z"}
+	chip := map[string]string{"esp32dev": "esp32", "esp32s3dev": "esp32s3"}[target]
+	if chip == "" {
+		return fmt.Errorf("unsupported USB target %s; board was not erased", target)
+	}
+	args := []string{"--chip", chip, "--port", port, "--baud", "921600", "write-flash", "-z"}
 	entries := append([]FlashEntry(nil), t.USBFlash...)
 	if pcbProfilePath != "" {
 		entries = append(entries, FlashEntry{Address: t.PCBProfile.Address, File: pcbProfilePath})
@@ -3984,7 +3991,7 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 	if activity != nil {
 		activity("Checking install files and board", "Checking image checksums, flash capacity and PCB profile placement before erasing.\n\nNothing has been erased yet.")
 	}
-	flashBytes, flashErr := detectedFlashBytes(esptool, port)
+	flashBytes, flashErr := detectedFlashBytes(esptool, port, target)
 	if flashErr != nil {
 		return fmt.Errorf("could not verify board flash size: %w; board was not erased", flashErr)
 	}
@@ -4049,7 +4056,7 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 
 	logf("Erasing board for clean USB install / reinstall")
 	eraseCtx, eraseCancel := context.WithTimeout(context.Background(), 4*time.Minute)
-	eraseCmd := exec.CommandContext(eraseCtx, esptool, "--port", port, "erase_flash")
+	eraseCmd := exec.CommandContext(eraseCtx, esptool, "--chip", chip, "--port", port, "erase_flash")
 	prepareEsptoolCommand(eraseCmd)
 	eraseOut, eraseErr := commandWithActivity(eraseCmd, func(elapsed time.Duration) {
 		if activity != nil {
@@ -4081,7 +4088,20 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 	return nil
 }
 
-func detectedFlashBytes(esptool, port string) (uint64, error) {
+// This check runs on the flash-capacity response immediately before erase.
+// A prior selection is not evidence that the same chip is still on that port.
+func validateUSBTarget(port, expected, output string) error {
+	board, err := parseDetectedBoard(port, output, nil)
+	if err != nil || board.Target == "" {
+		return fmt.Errorf("could not confirm the selected chip on %s; reconnect the intended board and select it again", port)
+	}
+	if board.Target != expected {
+		return fmt.Errorf("board on %s changed: selected %s, connected %s; select the intended board again", port, friendlyTarget(expected), board.Chip)
+	}
+	return nil
+}
+
+func detectedFlashBytes(esptool, port, target string) (uint64, error) {
 	var combined strings.Builder
 	for _, command := range []string{"flash-id", "flash_id"} {
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
@@ -4095,6 +4115,9 @@ func detectedFlashBytes(esptool, port string) (uint64, error) {
 				continue
 			}
 			break
+		}
+		if err := validateUSBTarget(port, target, string(out)); err != nil {
+			return 0, err
 		}
 		match := regexp.MustCompile(`(?i)(?:detected\s+)?flash\s+size\s*:\s*([0-9]+)\s*(MB|KB)`).FindStringSubmatch(string(out))
 		if len(match) == 3 {

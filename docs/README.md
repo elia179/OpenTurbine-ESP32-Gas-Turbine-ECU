@@ -1,4 +1,4 @@
-# OpenTurbine 2.4.3 developer and validation documentation
+# OpenTurbine developer and validation documentation
 
 The repository root [`README.md`](../README.md) is a concise user gateway. The detailed current user procedure is [`USER_GUIDE.md`](USER_GUIDE.md); public summaries live in the Pages site under `site/`.
 
@@ -75,12 +75,16 @@ Before publishing a release:
 3. After a visible UI change, run `node tools/capture_public_screenshots.cjs` and visually inspect every updated image in `site/assets/images/`. The fixture is simulated and must remain free of user data.
 4. Build firmware and LittleFS for `esp32dev` and `esp32s3dev`.
 5. Run `go test ./...` and rebuild the setup tool from `tools/setup_tool/`.
-6. Build the recommended ZIP with complete CP210x and CH340 driver packages.
+6. Build the recommended ZIP with the standalone esptool executable and its license. USB-driver downloads use official vendor pages; do not bundle or silently install drivers.
 7. Test USB installation on a blank board and Wi-Fi update on an installed ECU.
 8. Perform the physical ECU bench campaign required by the changed control paths.
-9. Confirm the firmware, package manifest, changelog, release title, and website all identify `2.4.3`.
+9. Confirm the firmware, package manifest, changelog, release title, and website all identify the intended release version.
 10. Publish `OpenTurbineSetupTool.exe`, `OpenTurbine_Recommended.zip`, and their SHA-256 files under the exact stable asset names required by the release workflow and Setup Tool.
 
 ## Website documentation maintenance
 
 See [GUIDED_BUILDS_MAINTENANCE.md](GUIDED_BUILDS_MAINTENANCE.md) for regeneration, screenshots, shared navigation, and Pages checks; [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md) records the latest review.
+
+For a documentation review on a work branch, dispatch the Pages workflow on that
+branch. It builds and audits the site and uploads a preview artifact; deployment
+is restricted to `main`. A successful branch preview does not publish the guide.

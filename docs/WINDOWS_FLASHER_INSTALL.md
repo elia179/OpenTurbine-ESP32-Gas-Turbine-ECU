@@ -56,6 +56,6 @@ The hexadecimal hashes must match.
 - Use the official CP210x or WCH driver page opened by the setup tool when it matches the USB serial chip on the board.
 - Disconnect and reconnect the board after driver installation.
 - Close serial monitors and other applications using the COM port.
-- For boards requiring bootloader mode, hold **BOOT**, tap **EN/RESET**, begin installation, and release BOOT when connection starts.
+- For boards requiring bootloader mode, hold **BOOT**, tap **EN/RESET**, begin installation, and release BOOT when writing starts.
 
 Return to the detailed [`USER_GUIDE.md`](USER_GUIDE.md) after the installer detects the board.

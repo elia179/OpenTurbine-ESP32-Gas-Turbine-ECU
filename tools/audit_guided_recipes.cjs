@@ -1,6 +1,7 @@
 // Reproduce documented controller/sequence recipes with ordinary UI controls.
 // Hardware fixtures stand in for the wired, calibrated parts; no physical ECU.
 const assert=require('node:assert/strict');
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const {chromium}=require('playwright');
 const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
 (async()=>{
@@ -22,7 +23,7 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     const labelControl=label=>page.locator('label.cfg-field').filter({has:page.locator('.cfg-label').filter({hasText:new RegExp('^'+label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$')})}).locator('input,select').first();
     const fill=async(locator,value)=>{await locator.fill(String(value));await locator.press('Tab');};
     const saveControllers=async()=>{
-      await page.locator('#btn-save').click();
+      await clickSaveControls(page);
       const warning=page.getByRole('button',{name:'Save anyway',exact:true});
       if(await warning.isVisible())throw Error('Recipe has unresolved save warnings: '+await page.locator('.ot-dialog-overlay.show').innerText());
       const written=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/config'&&['POST','PATCH'].includes(response.request().method()),{timeout:30000});
@@ -76,7 +77,7 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await page.getByRole('button',{name:'Shutdown',exact:true}).click();
     for(const title of ['Immediate Fuel and Ignition Cut','Wait for Rotor to Slow','Cooldown','Wait for Complete Stop'])await add('shutdown',title);
     assert.equal(await page.locator('#list-shutdown > .block-card').count(),4);
-    await page.locator('#save-btn').click();
+    await clickSaveControls(page,'#save-btn');
     const notice=page.locator('.ot-dialog-overlay.show');await notice.waitFor();
     assert.match(await notice.innerText(),/SafetyHold present but no Spool/,'known 2.6.0 advisory is documented, not silently ignored');
     const sequenceWritten=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/config'&&response.request().method()==='PATCH',{timeout:30000});sequenceWritten.catch(()=>{});

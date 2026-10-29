@@ -104,12 +104,12 @@
           "id": "2-download-the-setup-tool"
         },
         {
-          "title": "3. Connect and identify the board",
-          "id": "3-connect-and-identify-the-board"
+          "title": "3. Choose install or update",
+          "id": "3-choose-install-or-update"
         },
         {
-          "title": "4. Choose install or update",
-          "id": "4-choose-install-or-update"
+          "title": "4. Follow the selected path",
+          "id": "4-follow-the-selected-path"
         },
         {
           "title": "5. Open the dashboard",
@@ -450,6 +450,10 @@
           "id": "flashing-fails"
         },
         {
+          "title": "Wi-Fi update pauses after restart",
+          "id": "wi-fi-update-pauses-after-restart"
+        },
+        {
           "title": "OpenTurbine Wi-Fi is missing",
           "id": "openturbine-wi-fi-is-missing"
         },
@@ -757,16 +761,16 @@
       "text": "Download OpenTurbineSetupTool.exe for Windows. Use the executable above, not GitHub's Download ZIP source-code button. If Windows displays a warning, confirm that the file came from the official OpenTurbine Releases page before using More info → Run anyway. Do not disable Windows protection globally. Expected: Windows opens the OpenTurbine Setup Tool."
     },
     {
-      "title": "3. Connect and identify the board",
+      "title": "3. Choose install or update",
       "context": "Install OpenTurbine from Windows",
-      "url": "/get-started/#3-connect-and-identify-the-board",
-      "text": "Connect the ESP32 directly to the computer and open the Setup Tool. It will show a detected board or identify a missing CP210x/WCH USB driver. If a driver is required, use the matching option offered by the Setup Tool. If Windows already shows a COM port but the board does not answer, close other serial programs, hold BOOT, tap EN/RESET, and try again. Expected: the Setup Tool shows the connected board and a usable COM port. No board or COM port? Use the board-detection troubleshooting steps."
+      "url": "/get-started/#3-choose-install-or-update",
+      "text": "Open the Setup Tool while connected to your normal internet Wi-Fi so it can prepare the package. It shows the package version before you proceed. - New board or intentional fresh start: choose Clean install / reinstall. This USB path erases the selected board. - Working OpenTurbine ECU: choose Update and keep my setup. The tool saves a complete engine-file backup before uploading and preserves the existing setup."
     },
     {
-      "title": "4. Choose install or update",
+      "title": "4. Follow the selected path",
       "context": "Install OpenTurbine from Windows",
-      "url": "/get-started/#4-choose-install-or-update",
-      "text": "- For a new board, select Clean install / reinstall. This erases the selected board. - For a working OpenTurbine ECU, select Update and keep my setup. Back up the engine file first; this path is designed to preserve the setup. Check the selected board and operation before starting. Do not disconnect USB power while the Setup Tool is writing firmware. Expected: installation completes without an error and the board restarts. Installation stopped or failed? Go directly to flashing help."
+      "url": "/get-started/#4-follow-the-selected-path",
+      "text": "For USB installation, connect the board with a data cable and continue. The tool checks the available COM ports. If several boards are found, select the intended chip and port. Choose the matching development-board or PCB profile, review the final erase confirmation, then select Erase board and install. Progress separates checking, erasing and writing/verification. Keep USB power connected until it finishes. If a USB driver is missing, the tool opens the matching official CP210x/WCH vendor download page. Install the driver, reconnect the board and choose Try Again. If a COM port is busy, close serial monitors. Follow the BOOT/RESET instructions only when normal detection needs help. For a Wi-Fi update, switch to the existing ECU network when prompted and confirm that connection once. The tool handles both restarts and final verification automatically. If Windows leaves that network, reconnect when prompted. A final verification retry checks the installed files without uploading them again. Keep ECU power connected throughout. Expected: the tool reports completion and the installed version. Wi-Fi updates also confirm that all dashboard files match the package. No board or COM port? Use board-detection help. Installation failed? Open flashing help."
     },
     {
       "title": "5. Open the dashboard",
@@ -1252,13 +1256,19 @@
       "title": "COM port exists but the ESP32 does not answer",
       "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
       "url": "/troubleshooting/#com-port-exists-but-the-esp32-does-not-answer",
-      "text": "Close PlatformIO, terminal programs, and any serial monitor using that port. Use the board's BOOT/RESET sequence: commonly hold BOOT, tap EN/RESET, start the connection, and release BOOT when the uploader begins. Follow the Setup Tool's device-specific boot-mode guidance instead of reinstalling a driver that is already working."
+      "text": "Close PlatformIO, terminal programs, and any serial monitor using that port. Use the board's BOOT/RESET sequence: commonly hold BOOT, tap EN/RESET, start the connection, and release BOOT when writing begins. Follow the Setup Tool's device-specific boot-mode guidance instead of reinstalling a driver that is already working."
     },
     {
       "title": "Flashing fails",
       "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
       "url": "/troubleshooting/#flashing-fails",
       "text": "Keep the cable short and directly connected. Confirm the selected board is a supported Classic ESP32 or supported ESP32-S3 target. Retry with the BOOT/RESET procedure, no other application holding the COM port, and stable board power. A Clean install/reinstall erases the selected board; use it only when that is intended."
+    },
+    {
+      "title": "Wi-Fi update pauses after restart",
+      "context": "OpenTurbine troubleshooting: USB, flashing and Wi-Fi",
+      "url": "/troubleshooting/#wi-fi-update-pauses-after-restart",
+      "text": "The Setup Tool normally reconnects and checks the installed firmware and dashboard files automatically. Keep the computer on the ECU network, even if Windows reports no internet. If Windows switched networks, reconnect to the same ECU and use the offered retry. Retry verification only reads the installed files; it does not repeat the upload. Keep ECU power connected until the tool reports completion. If the tool reports a different chip, version, build or mismatched file, retain its log and the engine-file backup. A mismatch is not a successful update. See the installation path before starting another operation."
     },
     {
       "title": "OpenTurbine Wi-Fi is missing",
@@ -1432,7 +1442,7 @@
       "title": "Part 7: Install OpenTurbine and connect",
       "context": "OpenTurbine user guide and reference",
       "url": "/user-guide/#part-7-install-openturbine-and-connect",
-      "text": "If this ECU previously ran a pre-2.0 build, keep its engine file only as a reference and follow the v2 migration guide. Version 2.0 intentionally changed the hardware model and several startup/safety settings; recommission it instead of assuming an old file is safe. 1. Download the guided Windows Setup Tool. 2. Disconnect all load power. Connect exactly one intended ESP32 by USB. 3. For a blank board choose Clean install / reinstall. It erases that board. For an existing working ECU, make a backup and choose Update and keep my setup. 4. If the tool identifies a CP210x or WCH USB bridge without a COM port, accept only the matching driver it offers. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions. 5. After installation, join the Wi-Fi network created by the ECU and browse to http://192.168.4.1. 6. Complete the safety acknowledgement and first-run prompts. Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer. If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See Troubleshooting if needed."
+      "text": "If this ECU previously ran a pre-2.0 build, keep its engine file only as a reference and follow the v2 migration guide. Version 2.0 intentionally changed the hardware model and several startup/safety settings; recommission it instead of assuming an old file is safe. 1. Download the guided Windows Setup Tool. 2. Disconnect all load power. Connect exactly one intended ESP32 by USB. 3. For a blank board choose Clean install / reinstall. It erases that board. For an existing working ECU, make a backup and choose Update and keep my setup. 4. If the tool identifies a CP210x or WCH USB bridge without a COM port, open its matching official vendor download page, install the driver yourself, reconnect and choose Try Again. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions. 5. For a clean USB install, choose the matching hardware profile and review Erase board and install. For a Wi-Fi update, confirm the initial ECU network connection once; restart and file checks then run automatically. 6. After installation, join the Wi-Fi network created by the ECU and browse to http://192.168.4.1. 7. Complete the safety acknowledgement and first-run prompts. Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer. If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See Troubleshooting if needed."
     },
     {
       "title": "Part 8: Describe the hardware in the dashboard",
@@ -1505,6 +1515,12 @@
       "context": "OpenTurbine user guide and reference",
       "url": "/user-guide/#102-complete-source-matched-field-reference",
       "text": "For an illustrated example, follow creating a controller. The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite. Find a Controllers or System field"
+    },
+    {
+      "title": "10.3 Connect a remote display or controller",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#103-connect-a-remote-display-or-controller",
+      "text": "Use Hardware → Communications → MAVLink connection to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile may supply fixed connector routing; bare development boards use 3.3 V UART signals and shared ground. Then open System → Connections & runtime → MAVLink connection. Match the receiver's baud rate. TX alone supports monitoring. Add RX to reveal sender IDs and throttle timeout; enable Remote engine commands only when Start, Stop, fault acknowledgement or fitted afterburner controls are required. IDs filter a trusted sender; they are not authentication. Remote throttle is separate from that command permission. Select MAVLink throttle demand explicitly as a controller input and review its input-loss behavior. Receiving packets does not select the input or start the engine. A heartbeat alone does not keep throttle demand valid. The MAVLink setup and protocol guide links the matching Cluster receiver and ArduPilot companion example. Stock ArduPilot EFI telemetry does not automatically provide the OpenTurbine custom channels or remote controls; those require the supplied dialect or a bridge."
     },
     {
       "title": "Part 11: Calibrate inputs and outputs",
@@ -1606,13 +1622,13 @@
       "title": "Updates",
       "context": "OpenTurbine user guide and reference",
       "url": "/user-guide/#updates",
-      "text": "Use Update and keep my setup for a working controller. Use clean install only for a blank board, deliberate erasure or recovery. Do not interrupt power while firmware or web assets are being installed. Read the release notes first."
+      "text": "Use Update and keep my setup for a working controller. Use clean install only for a blank board, deliberate erasure or recovery. Do not interrupt power while firmware or web assets are being installed. Read the release notes first. The current tool checks both restarts automatically after one initial Wi-Fi confirmation. If a final check is interrupted, reconnect and retry verification; that action does not upload the files again."
     },
     {
       "title": "Useful fault report",
       "context": "OpenTurbine user guide and reference",
       "url": "/user-guide/#useful-fault-report",
-      "text": "Record the board target, OpenTurbine version, fitted channel list, engine state, active sequence block, exact expected behavior and exact observed behavior. Include sanitized engine backup and logs where appropriate. Setup Tool diagnostics are under %LOCALAPPDATA%\\OpenTurbine\\SetupTool\\logs. Use symptom-based troubleshooting or open Setup Help. Do not share Wi-Fi credentials or sensitive installation details publicly. Back to contents Get Started Hardware quick reference Troubleshooting"
+      "text": "Record the board target, OpenTurbine version, fitted channel list, engine state, active sequence block, exact expected behavior and exact observed behavior. Include sanitized engine backup and logs where appropriate. In the Setup Tool, use Show details, Copy log or Open folder to find the support log. Completed Wi-Fi updates save update_log.txt beside the engine-file backup under Documents → OpenTurbine → Backups. Operations without a backup save it under %LOCALAPPDATA%\\OpenTurbine\\SetupTool. The complete engine file includes Wi-Fi credentials; keep it private. Use symptom-based troubleshooting or open Setup Help. Do not share Wi-Fi credentials or sensitive installation details publicly. Back to contents Get Started Hardware quick reference Troubleshooting"
     }
   ]
 }

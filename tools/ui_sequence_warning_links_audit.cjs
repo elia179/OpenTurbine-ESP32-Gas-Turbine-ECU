@@ -27,7 +27,7 @@ const { chromium } = require('playwright');
       await page.request.post(base + '/__sim/scenario/full');
       await page.request.post(base + '/__sim/data', {data:{mode:'STANDBY',config_locked:false,dev_mode:false}});
     }
-    await page.goto(base + '/sequence.html?v=20261029a');
+    await page.goto(base + '/sequence.html?v=20261029b');
     await page.waitForFunction(() => typeof loadedCfg !== 'undefined' && Object.keys(loadedCfg).length > 0 && document.body.textContent.includes('No unsaved changes'));
     const firmware = fs.readFileSync(path.join(__dirname, '../src/main.cpp'), 'utf8');
     const blocks = [...new Set([...firmware.matchAll(/addIssue\("([^"]+)"/g)].map(match => match[1]))];
@@ -77,7 +77,7 @@ const { chromium } = require('playwright');
     }
     const destinations = [...sequenceRoutes, ...inlineRoutes];
     for (const pathname of [...new Set(destinations.map(route => route.page))]) {
-      await page.goto(base + pathname + '?v=20261029a');
+      await page.goto(base + pathname + '?v=20261029b');
       const targets = destinations.filter(route => route.page === pathname && route.id);
       for (const target of targets) {
         if (liveBase && target.id === 'cf-ab_mo' &&
@@ -94,9 +94,9 @@ const { chromium } = require('playwright');
           .catch(() => { throw new Error(`Missing destination ${target.page}#${target.id} for ${target.block}`); });
       }
     }
-    await page.goto(base + '/system.html?v=20261029a#system-backup-restore');
+    await page.goto(base + '/system.html?v=20261029b#system-backup-restore');
     await page.locator('#cfg-backup-btn').waitFor({state:'visible'});
-    await page.goto(base + '/controllers.html?v=20261029a');
+    await page.goto(base + '/controllers.html?v=20261029b');
     // Controls can exist before the asynchronous config/hardware load finishes.
     // Wait for its completion event so loading cannot overwrite this fixture.
     await page.waitForFunction(() => window.__warningAuditConfigReady === true);
@@ -125,7 +125,7 @@ const { chromium } = require('playwright');
     await inline.click();
     await page.locator('#cf-pb_n1e').waitFor({state:'visible'});
     assert.equal(await page.locator('[data-protection="n1"]').getAttribute('open'), '');
-    await page.goto(base + '/hardware.html?v=20261029a');
+    await page.goto(base + '/hardware.html?v=20261029b');
     await page.waitForFunction(() => typeof cfg !== 'undefined' && !!cfg.controls &&
       /Loaded.*no unsaved changes/.test(document.querySelector('#save-msg')?.textContent || ''));
     for (const [purpose,field,label] of [['p1_pressure','p1_trip_bar','P1 pressure'],['p2_pressure','p2_trip_bar','P2 pressure'],['torque','torque_trip_nm','Torque']]) {
@@ -146,7 +146,7 @@ const { chromium } = require('playwright');
     const conflict = page.locator('#pin-conflict-banner a[data-ot-warning-link]').first();
     await conflict.click();
     await page.waitForFunction(() => location.hash === '#hardware-inputs-panel');
-    await page.goto(base + '/index.html?v=20261029a');
+    await page.goto(base + '/index.html?v=20261029b');
     for (const id of ['config-storage-banner','limited-run-banner','surge-warn-banner']) {
       await page.waitForFunction(id => !!document.querySelector(`#${id} a[data-ot-warning-link]`), id);
     }

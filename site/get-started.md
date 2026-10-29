@@ -27,26 +27,24 @@ Use the executable above, not GitHub's **Download ZIP** source-code button. If W
 
 <p class="expected"><strong>Expected:</strong> Windows opens the OpenTurbine Setup Tool.</p>
 
-## 3. Connect and identify the board
+## 3. Choose install or update
 
-Connect the ESP32 directly to the computer and open the Setup Tool. It will show a detected board or identify a missing CP210x/WCH USB driver.
+Open the Setup Tool while connected to your normal internet Wi-Fi so it can prepare the package. It shows the package version before you proceed.
 
-If a driver is required, use the matching option offered by the Setup Tool. If Windows already shows a COM port but the board does not answer, close other serial programs, hold **BOOT**, tap **EN/RESET**, and try again.
+- **New board or intentional fresh start:** choose **Clean install / reinstall**. This USB path erases the selected board.
+- **Working OpenTurbine ECU:** choose **Update and keep my setup**. The tool saves a complete engine-file backup before uploading and preserves the existing setup.
 
-<p class="expected"><strong>Expected:</strong> the Setup Tool shows the connected board and a usable COM port.</p>
+## 4. Follow the selected path
 
-<p class="inline-help">No board or COM port? <a href="{{ '/troubleshooting/#board-does-not-appear-as-a-com-port' | relative_url }}">Use the board-detection troubleshooting steps.</a></p>
+For **USB installation**, connect the board with a data cable and continue. The tool checks the available COM ports. If several boards are found, select the intended chip and port. Choose the matching development-board or PCB profile, review the final erase confirmation, then select **Erase board and install**. Progress separates checking, erasing and writing/verification. Keep USB power connected until it finishes.
 
-## 4. Choose install or update
+If a USB driver is missing, the tool opens the matching official CP210x/WCH vendor download page. Install the driver, reconnect the board and choose **Try Again**. If a COM port is busy, close serial monitors. Follow the BOOT/RESET instructions only when normal detection needs help.
 
-- For a new board, select **Clean install / reinstall**. This erases the selected board.
-- For a working OpenTurbine ECU, select **Update and keep my setup**. Back up the engine file first; this path is designed to preserve the setup.
+For a **Wi-Fi update**, switch to the existing ECU network when prompted and confirm that connection once. The tool handles both restarts and final verification automatically. If Windows leaves that network, reconnect when prompted. A final verification retry checks the installed files without uploading them again. Keep ECU power connected throughout.
 
-Check the selected board and operation before starting. Do not disconnect USB power while the Setup Tool is writing firmware.
+<p class="expected"><strong>Expected:</strong> the tool reports completion and the installed version. Wi-Fi updates also confirm that all dashboard files match the package.</p>
 
-<p class="expected"><strong>Expected:</strong> installation completes without an error and the board restarts.</p>
-
-<p class="inline-help">Installation stopped or failed? <a href="{{ '/troubleshooting/#flashing-fails' | relative_url }}">Go directly to flashing help.</a></p>
+<p class="inline-help">No board or COM port? <a href="{{ '/troubleshooting/#board-does-not-appear-as-a-com-port' | relative_url }}">Use board-detection help.</a> Installation failed? <a href="{{ '/troubleshooting/#flashing-fails' | relative_url }}">Open flashing help.</a></p>
 
 ## 5. Open the dashboard
 

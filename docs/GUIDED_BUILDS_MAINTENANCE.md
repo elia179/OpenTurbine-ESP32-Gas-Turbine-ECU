@@ -6,7 +6,7 @@ The public learning path lives in `site/guided-builds/`. It has three cumulative
 
 - `site/guided-builds/index.md`: level chooser and learning intent.
 - `basic.md`, `control.md`, `extend.md`: complete electrical/software/test walkthroughs.
-- `parts.md`: selection examples and the cumulative S3 pin plan.
+- `parts.md`: selection examples and the Classic/S3 development-board pin columns.
 - `site/_data/build_wiring.yml`: wire-by-wire connection tables.
 - `site/_includes/build-figure.html`, `guided-nav.html`, `build-flow.html`: shared visual/learning elements.
 - `tools/generate_guided_build_diagrams.py`: source for the SVG drawings.
@@ -14,7 +14,7 @@ The public learning path lives in `site/guided-builds/`. It has three cumulative
 - `tools/capture_guided_build_screenshots.cjs`: isolated simulated inventories and software workflows captured from the actual ECU UI.
 - `tools/audit_guided_builds.cjs`: built-site browser audit; deliberately outside the `ui_*.cjs` firmware audit discovery because it requires a built Jekyll site.
 
-The drawings use terminal names, not physical connector pin order. The example pin plan is for the specified ESP32-S3 development-board arrangement. Required Start/Stop inputs are included at Level 1; they remain distinct from the independent energy-removing physical stop. Match the documented board, complete inventory, screenshots and UI pin validation when changing it.
+The drawings use terminal names, not physical connector pin order. The example pin reference has separate Classic and S3 development-board columns. Choose one target consistently; PCB profiles use their own connector routing. Required Start/Stop inputs are included at Level 1; they remain distinct from the independent energy-removing physical stop. Match the documented board, complete inventory, screenshots and UI pin validation when changing it.
 
 ## Regenerate and check
 

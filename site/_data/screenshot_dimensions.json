@@ -5,7 +5,7 @@
   },
   "automatic-idle-off": {
     "width": 1257,
-    "height": 518
+    "height": 519
   },
   "battery-configured": {
     "width": 1248,
@@ -33,7 +33,7 @@
   },
   "controller-mapping": {
     "width": 1308,
-    "height": 1607
+    "height": 1845
   },
   "controller-new": {
     "width": 1308,
@@ -45,7 +45,7 @@
   },
   "controller-states": {
     "width": 1257,
-    "height": 360
+    "height": 362
   },
   "controller-warnings": {
     "width": 1440,
@@ -137,11 +137,19 @@
   },
   "main-fuel-controller": {
     "width": 1308,
-    "height": 1673
+    "height": 1911
   },
   "manual-tests": {
     "width": 1698,
     "height": 1284
+  },
+  "mavlink-monitoring": {
+    "width": 1197,
+    "height": 1068
+  },
+  "mavlink-receiver": {
+    "width": 1197,
+    "height": 1395
   },
   "n1-configured": {
     "width": 1248,

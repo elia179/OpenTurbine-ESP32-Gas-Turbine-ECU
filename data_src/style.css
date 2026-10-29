@@ -42,6 +42,7 @@ html[data-theme="daylight"]{--bg:#f4f2ee;--surface:#ffffff;--surface-2:#faf8f4;-
 
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+a { color: var(--accent); text-underline-offset: .18em; }
 
 body {
   font-family: var(--font-ui);
@@ -829,7 +830,7 @@ input[type=range] { accent-color: var(--accent); cursor: pointer; }
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 .save-msg { font-size: 0.78rem; color: var(--dim); flex: 1; min-width: 120px; }
-.cfg-desc a { color: var(--accent); text-underline-offset: .18em; }
+.cfg-desc a, .cfg-field > a { color: var(--accent); text-underline-offset: .18em; }
 .sequence-actions { margin:1rem 0; padding:.85rem; border:1px solid var(--border-light); border-top:3px solid var(--accent); border-radius:8px; }
 .sequence-action-phase { color:var(--dim); font-size:.75rem; margin:.65rem 0 .35rem; }
 .sequence-action-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.5rem; }

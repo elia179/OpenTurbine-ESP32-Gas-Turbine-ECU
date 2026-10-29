@@ -169,3 +169,26 @@ Windows Go jobs:
 The working firmware is labelled 2.6.1-dev. No release or tag has been published.
 Assembled-PCB and actual ArduPilot integration tests remain separate hardware
 requirements. This bare-board UART test does not qualify those integrations.
+
+## Final usability/documentation pass, 29 October 2026
+
+Setup Tool 0.7.7 passed the physical S3 USB erase/write/checksum path; both chip
+families were detected and selected through the Windows UI. S3 was restored to
+its verified raw backup and answered OTBench 0.14. The complete required gate on
+3346858 passed: https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/40869092789.
+
+The next tool revision 0.7.8 names the final erase action, simplifies profile
+wording and confirms chip identity from the pre-erase capacity response. Erase
+and write commands also specify the selected family. Wrong/unknown chips are
+rejected before erase. The ECU web revision 20261029b hides receive-only tuning
+in TX-only MAVLink setups without changing retained settings and gives setup
+links the active theme colour. Cross-browser source/packaged MAVLink tests and
+the configuration audit passed. Guide recipes now reveal compact save controls
+through the normal visible user action.
+
+Installation docs, backup/log locations, driver behavior and troubleshooting
+were checked against current code. The public guide has focused MAVLink
+monitoring/receiver screenshots. All three cumulative teaching inventories and
+both development-board pin plans were rechecked while regenerating screenshots.
+The Pages workflow permits branch previews but only main can deploy; branch
+validation cannot publish an unreleased guide.

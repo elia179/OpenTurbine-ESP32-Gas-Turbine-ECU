@@ -245,9 +245,10 @@ settings; recommission it instead of assuming an old file is safe.
 1. Download the [guided Windows Setup Tool]({{ '/get-started/' | relative_url }}).
 2. Disconnect all load power. Connect exactly one intended ESP32 by USB.
 3. For a blank board choose **Clean install / reinstall**. It erases that board. For an existing working ECU, make a backup and choose **Update and keep my setup**.
-4. If the tool identifies a CP210x or WCH USB bridge without a COM port, accept only the matching driver it offers. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions.
-5. After installation, join the Wi-Fi network created by the ECU and browse to `http://192.168.4.1`.
-6. Complete the safety acknowledgement and first-run prompts.
+4. If the tool identifies a CP210x or WCH USB bridge without a COM port, open its matching official vendor download page, install the driver yourself, reconnect and choose **Try Again**. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions.
+5. For a clean USB install, choose the matching hardware profile and review **Erase board and install**. For a Wi-Fi update, confirm the initial ECU network connection once; restart and file checks then run automatically.
+6. After installation, join the Wi-Fi network created by the ECU and browse to `http://192.168.4.1`.
+7. Complete the safety acknowledgement and first-run prompts.
 
 Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer.
 
@@ -374,6 +375,20 @@ For an illustrated example, follow [creating a controller]({{ '/guided-builds/co
 
 <div class="field-filter" data-field-filter hidden><label for="field-query">Find a Controllers or System field</label><input id="field-query" type="search" placeholder="Type the field name or a keyword"><p class="quiet" data-field-status role="status" aria-live="polite"></p></div>
 {% include generated-config-fields.html %}
+
+### 10.3 Connect a remote display or controller
+
+Use **Hardware → Communications → MAVLink connection** to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile may supply fixed connector routing; bare development boards use 3.3 V UART signals and shared ground.
+
+Then open **System → Connections & runtime → MAVLink connection**. Match the receiver's baud rate. TX alone supports monitoring. Add RX to reveal sender IDs and throttle timeout; enable **Remote engine commands** only when Start, Stop, fault acknowledgement or fitted afterburner controls are required. IDs filter a trusted sender; they are not authentication.
+
+{% include build-screen.html file="mavlink-monitoring" step="Monitoring with TX only" alt="MAVLink monitoring setup with receiver-only fields hidden and engine commands unavailable without RX." caption="Match baud rate at both ends. TX alone sends data; it cannot receive engine commands or throttle demand." %}
+
+Remote throttle is separate from that command permission. Select **MAVLink throttle demand** explicitly as a controller input and review its input-loss behavior. Receiving packets does not select the input or start the engine. A heartbeat alone does not keep throttle demand valid.
+
+{% include build-screen.html file="mavlink-receiver" step="Add a receiver deliberately" alt="MAVLink setup with RX assigned, sender IDs and timeout visible, and remote engine commands still disabled." caption="Adding RX reveals the receiver settings. Engine-command permission remains a separate choice, and throttle must be selected explicitly in its controller." %}
+
+The [MAVLink setup and protocol guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/MAVLINK_TELEMETRY.md) links the matching Cluster receiver and ArduPilot companion example. Stock ArduPilot EFI telemetry does not automatically provide the OpenTurbine custom channels or remote controls; those require the supplied dialect or a bridge.
 
 ## Part 11: Calibrate inputs and outputs
 
@@ -558,11 +573,11 @@ Download a complete engine file before major changes and every update. It contai
 
 ### Updates
 
-Use **Update and keep my setup** for a working controller. Use clean install only for a blank board, deliberate erasure or recovery. Do not interrupt power while firmware or web assets are being installed. Read the [release notes](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases) first.
+Use **Update and keep my setup** for a working controller. Use clean install only for a blank board, deliberate erasure or recovery. Do not interrupt power while firmware or web assets are being installed. Read the [release notes](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases) first. The current tool checks both restarts automatically after one initial Wi-Fi confirmation. If a final check is interrupted, reconnect and retry verification; that action does not upload the files again.
 
 ### Useful fault report
 
-Record the board target, OpenTurbine version, fitted channel list, engine state, active sequence block, exact expected behavior and exact observed behavior. Include sanitized engine backup and logs where appropriate. Setup Tool diagnostics are under `%LOCALAPPDATA%\OpenTurbine\SetupTool\logs`.
+Record the board target, OpenTurbine version, fitted channel list, engine state, active sequence block, exact expected behavior and exact observed behavior. Include sanitized engine backup and logs where appropriate. In the Setup Tool, use **Show details**, **Copy log** or **Open folder** to find the support log. Completed Wi-Fi updates save `update_log.txt` beside the engine-file backup under Documents → OpenTurbine → Backups. Operations without a backup save it under `%LOCALAPPDATA%\OpenTurbine\SetupTool`. The complete engine file includes Wi-Fi credentials; keep it private.
 
 Use [symptom-based troubleshooting]({{ '/troubleshooting/' | relative_url }}) or open [Setup Help](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/issues/new?template=setup_help.yml). Do not share Wi-Fi credentials or sensitive installation details publicly.
 

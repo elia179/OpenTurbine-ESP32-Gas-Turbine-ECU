@@ -12,6 +12,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 Target release: **2.6.1**.
 
+- Make the final USB erase action explicit, simplify PCB selection wording and recheck the connected chip before erase. Hide receive-only MAVLink tuning in TX-only setups while retaining its saved values. Refresh installation and packaging guidance to match the current tool.
+
 - Clarify USB setup with per-port detection activity, explicit checking/erasing/writing stages and stage-specific recovery. Avoid repeating slow failed connections solely for legacy esptool command spelling.
 
 - Add a separate optional Fault LED; it takes over fault blinking from the Status LED when fitted.

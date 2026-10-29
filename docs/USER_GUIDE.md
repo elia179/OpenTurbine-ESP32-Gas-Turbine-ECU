@@ -1,4 +1,4 @@
-# OpenTurbine 2.4.3 development user guide
+# OpenTurbine user guide
 
 OpenTurbine is an open-source ESP32 turbine engine controller with a built-in web interface. It is intended for experimental turbojets, APUs, generators, turboshafts, turboprops, and other small turbine installations.
 
@@ -14,11 +14,12 @@ Configure only fitted hardware, then its controllers, calibration and sequences.
 
 1. Connect an ESP32 or supported ESP32-S3 board by USB.
 2. Open `OpenTurbineSetupTool.exe`.
-3. Choose **Clean install / reinstall**. This USB path erases the selected board and is correct for a blank board or an intentional fresh installation on an older board. If the older board still works, first download its complete engine file from System; the clean-install path cannot recover erased settings.
+3. Choose **Clean install / reinstall**. This USB path erases the selected board and is correct for a blank board or an intentional fresh installation on an older board. If the older board still works, first download its complete engine file from **System → Maintenance → Backup & restore**; the clean-install path cannot recover erased settings.
 4. Select the detected board. For a clean install, choose **Development board** for the normal GPIO workflow, a compatible bundled **Official OpenTurbine PCB**, or **Custom PCB profile** for a chip-specific profile supplied with a PCB design.
-5. After installation, join the Wi-Fi network shown by the tool and open `http://192.168.4.1`.
+5. Review the selected chip, COM port and hardware profile, then choose **Erase board and install** at the final confirmation. The tool checks the board again before erasing and reports checking, erasing and writing/verification separately.
+6. After installation, join the board's **OpenTurbine** Wi-Fi network and open `http://192.168.4.1`. Fresh defaults have no Wi-Fi password until you set one.
 
-For normal upgrades, choose **Update and keep my setup**. That Wi-Fi path backs up the engine settings and updates firmware and web pages without resetting the existing setup.
+For normal upgrades, choose **Update and keep my setup**. That Wi-Fi path saves a complete engine-file backup and updates firmware and web pages without resetting the existing setup. Confirm the initial board Wi-Fi connection once. The tool checks both restarts, the installed firmware identity and every dashboard file automatically. If Windows leaves the board network, reconnect when prompted; a final verification retry only checks the uploaded files.
 
 If a requested download says **Not Found**, that release asset is not published. Do not download an installer offered by an unrelated third party. Official releases belong at [github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases).
 
@@ -30,7 +31,7 @@ Only continue when you used the official OpenTurbine download link above. In Sma
 
 Normal installation does not require understanding checksums or file hashes. The Setup Tool automatically verifies the firmware package it downloads. Releases also include `.sha256` files for developers and users who deliberately want optional advanced verification.
 
-The setup tool can install the USB serial driver needed by common CP210x and WCH CH340/CH341/CH343 boards. It detects the connected USB bridge hardware ID and offers only the matching driver. After driver installation it rescans Windows and continues automatically when the matching COM port appears; reconnect or restart only if the tool explicitly asks.
+If a USB driver is missing, the tool identifies the connected CP210x or WCH bridge and opens the matching official vendor download page. Install that vendor driver yourself, reconnect the board, then choose **Try Again**. The tool does not install drivers silently. A busy COM port may instead mean a serial monitor or another program is using it.
 
 ### Linux, macOS, or manual PlatformIO installation
 
@@ -38,7 +39,7 @@ The graphical setup tool is currently Windows-only. Developers and users comfort
 
 ```bash
 git clone https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU.git
-cd OpenTurbine
+cd OpenTurbine-ESP32-Gas-Turbine-ECU
 python tools/build_web_sources.py
 python tools/gzip_data.py
 

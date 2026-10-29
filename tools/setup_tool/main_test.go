@@ -418,6 +418,7 @@ func TestWaitButtonLabels(t *testing.T) {
 		"Check Wi‑Fi connection":           "Wi-Fi connected, continue",
 		"Plug in board":                    "Board connected, continue",
 		"Review settings":                  "Continue",
+		"Confirm complete erase":           "Erase board and install",
 	} {
 		if got := waitButtonLabel(title); got != want {
 			t.Errorf("%q: got %q, want %q", title, got, want)
@@ -491,5 +492,26 @@ func TestUSBCommandActivityPreservesOutputAndFailure(t *testing.T) {
 		if len(elapsed) < 2 || elapsed[0] != 0 || elapsed[1] < time.Second {
 			t.Fatalf("no ongoing activity: %v", elapsed)
 		}
+	}
+}
+
+func TestUSBTargetMustMatchBeforeErase(t *testing.T) {
+	for _, tc := range []struct {
+		target, output string
+		accepted       bool
+	}{
+		{"esp32dev", "Chip is ESP32-D0WDQ6\nDetected flash size: 4MB", true},
+		{"esp32s3dev", "Chip type: ESP32-S3\nDetected flash size: 8MB", true},
+		{"esp32dev", "Chip is ESP32-S3\nDetected flash size: 8MB", false},
+		{"esp32s3dev", "Chip is ESP32-D0WDQ6\nDetected flash size: 4MB", false},
+		{"esp32dev", "Chip is ESP32-C3\nDetected flash size: 4MB", false},
+		{"esp32s3dev", "Detected flash size: 8MB", false},
+	} {
+		if err := validateUSBTarget("COM4", tc.target, tc.output); (err == nil) != tc.accepted {
+			t.Fatalf("%+v: %v", tc, err)
+		}
+	}
+	if got := primaryButtonAction(waitButtonLabel("Confirm complete erase")); got != "continue" {
+		t.Fatalf("erase confirmation must still use the waiting job, got %q", got)
 	}
 }

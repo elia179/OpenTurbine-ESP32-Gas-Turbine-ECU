@@ -25,11 +25,17 @@ Try a known data cable, another direct USB port, and no USB hub. Check whether t
 
 ## COM port exists but the ESP32 does not answer
 
-Close PlatformIO, terminal programs, and any serial monitor using that port. Use the board's BOOT/RESET sequence: commonly hold BOOT, tap EN/RESET, start the connection, and release BOOT when the uploader begins. Follow the Setup Tool's device-specific boot-mode guidance instead of reinstalling a driver that is already working.
+Close PlatformIO, terminal programs, and any serial monitor using that port. Use the board's BOOT/RESET sequence: commonly hold BOOT, tap EN/RESET, start the connection, and release BOOT when writing begins. Follow the Setup Tool's device-specific boot-mode guidance instead of reinstalling a driver that is already working.
 
 ## Flashing fails
 
 Keep the cable short and directly connected. Confirm the selected board is a supported Classic ESP32 or supported ESP32-S3 target. Retry with the BOOT/RESET procedure, no other application holding the COM port, and stable board power. A Clean install/reinstall erases the selected board; use it only when that is intended.
+
+## Wi-Fi update pauses after restart
+
+The Setup Tool normally reconnects and checks the installed firmware and dashboard files automatically. Keep the computer on the ECU network, even if Windows reports no internet. If Windows switched networks, reconnect to the same ECU and use the offered retry. **Retry verification** only reads the installed files; it does not repeat the upload. Keep ECU power connected until the tool reports completion.
+
+If the tool reports a different chip, version, build or mismatched file, retain its log and the engine-file backup. A mismatch is not a successful update. See the [installation path]({{ '/get-started/#4-follow-the-selected-path' | relative_url }}) before starting another operation.
 
 ## OpenTurbine Wi-Fi is missing
 
