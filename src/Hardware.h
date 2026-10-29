@@ -740,6 +740,13 @@ namespace Hardware {
     }
 
     inline uint8_t pulseInputMode(const ChannelRegistry::Channel& channel, int pin) {
+#if !defined(OT_PLATFORM_ESP32)
+        if(PcbProfileManager::active() && channel.physicalPortId[0]) {
+            const auto* port=PcbProfileManager::findPort(channel.physicalPortId);
+            const auto* mode=port?PcbProfileManager::findMode(*port,channel.physicalModeId):nullptr;
+            if(mode && mode->pullDeviceIndex>=0)return INPUT;
+        }
+#endif
         return GpioInputBias::safeMode(pin, channel.pullup ? INPUT_PULLUP :
             (channel.pulldown ? INPUT_PULLDOWN : INPUT), INPUT);
     }

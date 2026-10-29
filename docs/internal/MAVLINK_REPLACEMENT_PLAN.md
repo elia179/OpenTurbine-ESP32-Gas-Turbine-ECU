@@ -357,3 +357,22 @@ Source/compressed tests pass in Chromium, Firefox and WebKit; custom PCB and
 both-target isolated hardware-edit tests pass. Filesystem builds pass on both.
 These interface changes do not complete the outstanding full native/release
 rerun noted above. No push or deployment was performed.
+
+
+Offline indicator restoration / pull-up review: optional PCB Status/Fault LED
+assignments may be selected and saved while the I2C expander is offline; the
+health warning stays visible. Other new unavailable engine output assignments
+remain rejected. This fixes off/on recovery on a bare S3 review board. The
+frequency/PCNT path now suppresses internal MCU bias on externally conditioned
+PCB inputs, matching digital and RC input initialization. The real I2C driver
+host test passed all 64 combinations of the six active-low external pull-up
+gates, including LED-write isolation. This is register-level verification,
+not measurement of connector voltages on an assembled PCB.
+
+Real bare-S3 follow-up passed: Fault LED disabled/saved, its unavailable I2C
+connection selected/saved again, then original indicator assignments restored.
+Settings, engine sequences, enable settings and assigned connector purposes
+were preserved. Saving normalized the previously hand-prepared hardware file
+(default fields, profile-owned wiring, canonical arrays/metadata), so this was
+not a byte-identical engine-file round trip. Firmware build ce5016298b3bd273 is
+installed on S3; Classic was built and budget checked but not reflashed here.

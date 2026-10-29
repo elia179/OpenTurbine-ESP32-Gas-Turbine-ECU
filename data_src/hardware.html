@@ -3363,7 +3363,7 @@ function updateRegistryProfilePort(direction,index,value) {
   const mode = port?.modes?.find(row=>row.id===modeId);
   const c = registryRoot()[direction+'s']?.[index];
   if (!c || !port || !mode) return;
-  if (!pcbModeCompatible(direction,registryDerivedPurpose(direction,c),c.role,mode) || mode.available===false) {
+  if (!pcbModeCompatible(direction,registryDerivedPurpose(direction,c),c.role,mode) || (mode.available===false && !['status_led','fault_led'].includes(c.purpose))) {
     alert(mode.status || 'That connection cannot provide this function. Choose a compatible responding connection.'); return;
   }
   if ([...registryRoot().inputs,...registryRoot().outputs].some(other=>other!==c&&String(other.physical_port||'')===portId)) {
@@ -4156,7 +4156,7 @@ function pcbIndicatorCard(purpose,editing) {
   const connected=c?(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.label:'';
   const status=c?registryStatus(c):{kind:'ok',text:'Disabled'};
   const connectionChange=c?`updateRegistryProfilePort('output',${index},this.value)`:`if(this.value)setPcbIndicator('${purpose}',true,this.value)`;
-  const options=(!c?'<option value="">Choose connection</option>':'')+choices.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.port.id===c?.physical_port?' selected':''}${choice.mode.available===false&&choice.port.id!==c?.physical_port?' disabled':''}>${escapeHtmlText(choice.port.label)}</option>`).join('');
+  const options=(!c?'<option value="">Choose connection</option>':'')+choices.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.port.id===c?.physical_port?' selected':''}>${escapeHtmlText(choice.port.label+(choice.mode.available===false?' — device not responding':''))}</option>`).join('');
   return `<div class="hw-item-card" data-pcb-indicator="${purpose}">
     <div class="registry-card-summary"><div><strong>${title}</strong><div class="hw-desc">${c?escapeHtmlText(connected||'Connection missing'):'Disabled'} · ${purpose==='status_led'?'Engine status blink pattern':'Dedicated fault blinking'}</div></div><span class="registry-status registry-status-${status.kind}">${escapeHtmlText(c?status.text:'Disabled')}</span></div>
     ${editing?`<div class="registry-card-editor" style="display:block"><div class="hw-grid">
@@ -4170,8 +4170,8 @@ function setPcbIndicator(purpose,enabled,connection = '') {
   if(enabled&&index<0){
     const choices=pcbConnectorChoices(pcbCompatibleChoices('output',purpose,'indicator'),null,4);
     const removed=_pcbIndicatorRemoved.get(purpose),previous=removed?.channel;
-    const choice=choices.find(c=>(connection?c.port.id+'|'+c.mode.id===connection:c.port.id===(previous?.physical_port||purpose))&&c.mode.available!==false);
-    if(!choice){alert('The default indicator connection is unavailable or assigned elsewhere. Free that connection in Outputs, or choose another connection below.');renderHardwareWorkflowSummaries();return;}
+    const choice=choices.find(c=>(connection?c.port.id+'|'+c.mode.id===connection:c.port.id===(previous?.physical_port||purpose)));
+    if(!choice){alert('The default indicator connection is assigned elsewhere. Free that connection in Outputs, or choose another connection below.');renderHardwareWorkflowSummaries();return;}
     if(rows.length>=registryCapacity('output')){alert('Output capacity is full. Remove an unused output first.');return;}
     const c=previous&&!rows.some(row=>row.id===previous.id)?structuredClone(previous):{id:registryUniqueId(purpose),name:purpose==='status_led'?'Status LED':'Fault LED',purpose,role:'indicator',installed:true,driver:4,pin:-1,min:0,max:1,safe_demand:0,boot_safe_demand:0};
     rows.splice(previous?Math.min(removed.index,rows.length):rows.length,0,c);if(!previous||connection)updateRegistryProfilePort('output',rows.indexOf(c),choice.port.id+'|'+choice.mode.id);

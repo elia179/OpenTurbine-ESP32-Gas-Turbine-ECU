@@ -13,7 +13,7 @@ inline int digitalRead(int) { return 1; }
 void PcbProfileManager::begin() {
     static Catalog board;
     board.devices=new Device[1];board.deviceCount=1;board.devices[0].address=0x20;
-    board.ports=new Port[1];board.portCount=1;board.ports[0].modeCount=1;
+    board.ports=new Port[6];board.portCount=1;board.ports[0].modeCount=1;
     auto& mode=board.ports[0].modes[0];mode.gpio=35;mode.pullDeviceIndex=0;mode.pullChannel=0;mode.pullActiveHigh=false;
     board.hasStatusLed=board.hasFaultLed=true;
     board.statusLedDeviceIndex=board.faultLedDeviceIndex=0;
@@ -152,5 +152,22 @@ int main() {
     r.inputs[0].pullup=false;
     I2CDeviceManager::begin(true,4,5,-1,400000,r);
     assert(Wire.tca[1]==0xC1);
-    std::cout << "PCB expander: safe LED states, active-low fault/status independence and external pull-up isolation passed.\n";
+    auto* board=const_cast<PcbProfileManager::Catalog*>(PcbProfileManager::catalog());
+    board->portCount=6;const int pins[]={35,36,6,7,15,16};
+    r.inputCount=6;
+    for(int i=0;i<6;i++) {
+        board->ports[i].modeCount=1;auto& mode=board->ports[i].modes[0];
+        mode.gpio=pins[i];mode.pullDeviceIndex=0;mode.pullChannel=i;mode.pullActiveHigh=false;
+        r.inputs[i]=ChannelRegistry::Channel{};r.inputs[i].installed=true;
+        r.inputs[i].driver=i%2?ChannelRegistry::Digital:ChannelRegistry::Pulse;
+        r.inputs[i].pin=pins[i];
+    }
+    for(unsigned mask=0;mask<64;mask++) {
+        for(int i=0;i<6;i++)r.inputs[i].pullup=mask&(1U<<i);
+        I2CDeviceManager::begin(true,4,5,-1,400000,r);
+        assert(Wire.tca[3]==0 && Wire.tca[1]==(uint8_t)(0xC0|((~mask)&0x3F)));
+        assert(I2CDeviceManager::writeIndicator(true,true));
+        assert((Wire.tca[1]&0x3F)==((~mask)&0x3F));
+    }
+    std::cout << "PCB expander: all 64 combinations of six external pull-ups, active-low gates and LED isolation passed.\n";
 }

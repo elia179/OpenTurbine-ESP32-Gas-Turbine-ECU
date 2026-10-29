@@ -4277,7 +4277,14 @@ void WebServer::_setupRoutes() {
                                     break;
                                 }
                             }
-                            if (!unchanged &&
+                            // Optional PCB indicators may be configured while their
+                            // expander is offline; availability remains visible. This
+                            // exception never permits an unavailable engine actuator.
+                            const char* purpose=row["purpose"] | "";
+                            const bool optionalIndicator=PcbProfileManager::active() &&
+                                !strcmp(listName,"outputs") && driver==ChannelRegistry::I2cRelay &&
+                                (!strcmp(purpose,"status_led") || !strcmp(purpose,"fault_led"));
+                            if (!unchanged && !optionalIndicator &&
                                 !I2CDeviceManager::assignmentAvailable(driver, address)) {
                                 unavailableAssignment = true;
                                 unavailableId = id;

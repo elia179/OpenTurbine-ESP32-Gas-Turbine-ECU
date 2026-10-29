@@ -59,8 +59,17 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    await statusCard.getByRole('checkbox').check();
    assert.equal(await p.evaluate(()=>JSON.stringify(registryRoot().outputs)),indicatorsBefore,'off/on preserves the original indicator configuration and order');
    assert.equal(await p.evaluate(()=>pcbCompatibleChoices('output','warning_indicator','indicator').some(c=>c.port.id==='status_led')),false);
+   // An offline optional LED can be disabled and selected again without
+   // loosening availability checks for engine outputs.
+   await p.evaluate(()=>{const m=pcbProfile.ports.find(p=>p.id==='fault_led').modes[0];m.available=false;m.status='Fitted I2C device is not responding';renderRegistryInventory();});
+   const faultCard=p.locator('[data-pcb-indicator="fault_led"]');
+   await faultCard.getByRole('checkbox').uncheck();
+   assert.equal(await faultCard.locator('option[value="fault_led|on_off"]').isDisabled(),false);
+   await faultCard.locator('select').selectOption('fault_led|on_off');
+   assert.equal(await faultCard.getByRole('checkbox').isChecked(),true);
+   await p.evaluate(()=>{pcbProfile.ports.find(p=>p.id==='fault_led').modes[0].available=true;renderRegistryInventory();});
    await p.locator('#btn-edit-comms').click();
-   await p.getByRole('button',{name:'+ Add output',exact:true}).click();
+   await p.getByRole('button',{name:'+ Add output' ,exact:true}).click();
    await p.getByRole('button',{name:/^Oil pump /}).click();
    const connectorLabels=await p.locator('#registry-add-catalog .registry-add-option').allTextContents();
    assert.equal(connectorLabels.filter(t=>/^OUT 1(?:5 V|\s)/.test(t)).length,1,'one choice per connector');
