@@ -203,6 +203,9 @@ const ConfigField<uint32_t> TOOL_U32_FIELDS[] = {
     CONFIG_FIELD(toolAbSolTestMs, "ab_sol_test_ms"), CONFIG_FIELD(toolAbPumpTestMs, "ab_pump_test_ms"),
     CONFIG_FIELD(toolStarterEnTestMs, "starter_en_test_ms"),
     CONFIG_FIELD(toolPropPitchTestMs, "prop_pitch_test_ms"),
+    CONFIG_FIELD(toolRegistryOutputTestMs,"registry_output_test_ms"),
+    CONFIG_FIELD(toolStatusLedTestMs,"status_led_test_ms"),
+    CONFIG_FIELD(toolFaultLedTestMs,"fault_led_test_ms"),
 };
 const ConfigField<float> TOOL_FLOAT_FIELDS[] = {
     CONFIG_FIELD(toolStartTestPct, "start_test_pct"),
@@ -609,6 +612,7 @@ void Config::_applyDefaults() {
     toolAirstarterTestMs = 1000; toolBleedValveTestMs = 1000;
     toolFuelPump2TestMs = 3000; toolFuelPump2TestPct = 30.0f;
     toolAbSolTestMs = 1000; toolAbPumpTestMs = 2000; toolAbPumpTestPct = 30.0f;
+    toolRegistryOutputTestMs=toolStatusLedTestMs=toolFaultLedTestMs=3000;
     toolStarterEnTestMs = 1000; toolPropPitchTestMs = 3000; toolPropPitchTestPct = 50.0f;
     wsIntervalMs = 333; snapshotIntervalMs = 10000; controlLoopHz = 400; logStandby = false;
     strcpy(uiTheme, "carbon");
@@ -1114,6 +1118,9 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     toolAbPumpTestPct = constrain(toolAbPumpTestPct, 0.0f, 100.0f);
     clampToolMs(toolStarterEnTestMs, 1000u, 50u);
     clampToolMs(toolPropPitchTestMs, 3000u, 100u);
+    clampToolMs(toolRegistryOutputTestMs,3000u,100u);
+    clampToolMs(toolStatusLedTestMs,3000u,100u);
+    clampToolMs(toolFaultLedTestMs,3000u,100u);
     toolPropPitchTestPct = constrain(toolPropPitchTestPct, 0.0f, 100.0f);
     // These bounds mirror the PATCH validator in validateJson (telemetry group)
     // so an accepted value survives a reboot unchanged — keep the two in sync.

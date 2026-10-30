@@ -195,6 +195,7 @@ uint32_t Config::toolAbPumpTestMs   = 2000;
 float    Config::toolAbPumpTestPct  = 30.0f;
 uint32_t Config::toolStarterEnTestMs = 1000;
 uint32_t Config::toolPropPitchTestMs = 3000;
+uint32_t Config::toolRegistryOutputTestMs=3000, Config::toolStatusLedTestMs=3000, Config::toolFaultLedTestMs=3000;
 float    Config::toolPropPitchTestPct = 50.0f;
 
 uint32_t Config::wsIntervalMs       = 333;
@@ -768,6 +769,9 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(tools["ab_pump_test_pct"], 0.0f, 100.0f) ||
         !validInt(tools["starter_en_test_ms"], 50, 60000) ||
         !validInt(tools["prop_pitch_test_ms"], 100, 60000) ||
+        !validInt(tools["registry_output_test_ms"], 100, 60000) ||
+        !validInt(tools["status_led_test_ms"], 100, 60000) ||
+        !validInt(tools["fault_led_test_ms"], 100, 60000) ||
         !validNumber(tools["prop_pitch_test_pct"], 0.0f, 100.0f))) return false;
 
     JsonVariantConst so = doc["standby_oil"];

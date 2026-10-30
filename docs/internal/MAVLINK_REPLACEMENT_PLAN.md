@@ -398,3 +398,39 @@ singular dirty messages, pointer/keyboard focus, errors, modal recaps, reading
 position and bottom-of-page behavior are covered. Animation/reduced-motion,
 321 safety checks, public-content validation and both filesystem builds/budgets
 passed. Full firmware/native release rerun remains separate and outstanding.
+
+
+Voltage/indicator/PCB follow-up (2026-10-30, web 20261030b):
+Configured-system protection visibility now follows fitted registry inputs,
+not partial telemetry capability flags. Low supply voltage shutdown has a
+normal safety card and a shortcut at the top of Shutdown & Protection, even
+when no RPM or temperature inputs are fitted. Existing Startup/Running
+shutdown semantics and confirmation delay are preserved.
+
+Status LED, Fault LED and additional registry-output tests now have persisted
+cutoff durations (100-60000 ms, default 3000 ms). Temporary indicator test
+ownership prevents automatic blinking from overwriting the test. The floating
+page-controls button is removed; upward scrolling restores the controls.
+PCB auxiliary dashboard outputs share the normal Actuator Outputs card.
+Start/Stop are default configurable inputs on their named connectors, with
+pull-ups enabled. Disabled communications/indicators are grey, ready is green,
+and unavailable enabled devices are red. PCB mode no longer assigns the
+devboard NeoPixel GPIO or reserves legacy LED fields over registry routing.
+
+Focused source/compressed UI checks passed in Chromium, Firefox and WebKit
+for the voltage card, independent LED durations, connector defaults, indicator
+states and grouped output display. Existing protection navigation, Tools
+consistency/request checks and scroll/animation checks passed. Profile tests
+(15), safety checks (321), public-content validation, both firmware builds,
+both filesystem builds and both memory budgets passed. The focused native
+S3 indicator ownership test passed; the Classic native executable launch was
+blocked by Windows Application Control (4551). This is not a full release gate.
+
+The bare S3 review board received the updated firmware, official PCB profile
+and all web assets. Existing settings were backed up and preserved; Start
+and Stop were added only when the purpose and connector were free. Live
+S3 browser checks confirmed the default-visible voltage card, LED duration
+settings, one grouped output card, Start/Stop pull-ups and no floating
+page-controls button. Classic was built but not flashed for this follow-up.
+No assembled-PCB electrical/LED qualification or engine-load testing is
+claimed. No push, publication or public deployment was performed.

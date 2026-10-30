@@ -69,7 +69,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      assert.ok(rect.y>=48&&rect.y+rect.height<=viewport.height+1,route+' restores Save inside viewport');
      if(engine===chromium&&viewport.width===390&&route==='controllers'){await fs.promises.mkdir('artifacts/261-ui',{recursive:true});await p.screenshot({path:'artifacts/261-ui/scroll-controls-mobile-save.png'});}
      assert.ok(await p.evaluate(()=>parseFloat(getComputedStyle(document.body).paddingBottom)>=document.querySelector('.ot-managed-save').offsetHeight),'floating bar has content clearance');
-     if(viewport.width===390&&(route==='controllers'||route==='system'))assert.ok(await p.locator('.ot-search-handle').isVisible(),'off-screen page controls keep their shortcut after Save is restored');
+     assert.equal(await p.locator('.ot-search-handle').count(),0,'no redundant floating page-controls button');
      const y=await p.evaluate(()=>scrollY);assert.ok(y>100,'Save restoration preserves reading position');
      await p.evaluate(()=>{
       const probe=document.createElement('button');probe.type='button';probe.id='scroll-focus-probe';probe.textContent='Focus probe';
@@ -87,12 +87,14 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      await p.mouse.wheel(0,100);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      if(route==='controllers'||route==='system'){
-      await p.getByRole('button',{name:route==='controllers'?'Search & page controls':'Page controls',exact:true}).click();
+      await p.mouse.wheel(0,-120);
+      await p.waitForFunction(()=>!document.body.classList.contains('ot-controls-collapsed'));
+      if(viewport.width===390)await p.evaluate(()=>scrollTo(0,0));
       await p.waitForTimeout(280);
       const search=route==='controllers'?p.locator('.cfg-workspace input[type="search"]').first():p.locator('.cfg-workspace button').first();
       const r=await search.boundingBox();
       assert.ok(r.y>=48&&r.y+r.height<=viewport.height,'Search is visible after restoration');
-      assert.equal(await search.evaluate(el=>el===document.activeElement),true);
+      await search.click();assert.equal(await search.evaluate(el=>el===document.activeElement),true);
       await p.mouse.wheel(0,150);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'typing keeps search visible');
      }
      await p.evaluate(route=>{

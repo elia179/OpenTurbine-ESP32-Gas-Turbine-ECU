@@ -210,7 +210,7 @@ const dashboardCardCanHide = id => !['dashboard-controls-card','dashboard-warnin
 const dashboardCardIdAllowed = id => DASHBOARD_CUSTOM_CARD_IDS.includes(id) ||
   /^registry-(?:output-)?card-[a-zA-Z0-9_-]{1,64}$/.test(id);
 function dashboardCardIds() {
-  return [...DASHBOARD_CUSTOM_CARD_IDS, ...Array.from(document.querySelectorAll('.registry-input-card[id], .registry-output-card[id]'), card => card.id)];
+  return [...DASHBOARD_CUSTOM_CARD_IDS, ...Array.from(document.querySelectorAll('.registry-input-card[id], .registry-output-card[id]:not(.registry-output-row)'), card => card.id)];
 }
 let _dashboardCardViews = (() => {
   try {
@@ -1588,7 +1588,7 @@ function applyData(d) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
       if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261030a';
+        link.href = '/sequence.html?v=20261030b';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -2097,7 +2097,8 @@ function applyData(d) {
   if (advActSection) {
     const anyAdv = d.has_starter   || d.has_starter_en || d.has_fuel_sol  || d.has_igniter
                 || d.has_igniter2  || d.has_glow_plug  || d.has_bleed_valve || d.has_prop_pitch || d.has_fuel_pump2
-                || d.has_cool_fan  || d.has_airstarter  || d.has_oil_scavenge;
+                || d.has_cool_fan  || d.has_airstarter  || d.has_oil_scavenge
+                || (d.pcb_profile_active&&(d.registry_outputs||[]).some(ch=>ch&&ch.id&&!registryOutputAlreadyHasCoreCard(ch)));
     advActSection.style.display = anyAdv ? '' : 'none';
     // Personal ordering can move the card outside its original section.
     const capabilityCard = document.getElementById('actuator-outputs-card');
@@ -3161,13 +3162,18 @@ function registryOutputRangeText(ch) {
 function renderRegistryOutputCards(d) {
   const outputCards = document.getElementById('actuator-output-cards');
   if (!outputCards) return;
+  const grouped=!!d.pcb_profile_active;
   let host = document.getElementById('registry-output-cards');
   if (!host) {
     host = document.createElement('div');
     host.id = 'registry-output-cards';
-    host.style.display = 'contents';
-    outputCards.appendChild(host);
+    host.style.display = grouped?'grid':'contents';
+    if(grouped){host.style.gap='.5rem';document.getElementById('actuator-outputs-card').appendChild(host);}
+    else outputCards.appendChild(host);
   }
+  const outputHost=grouped?document.getElementById('actuator-outputs-card'):outputCards;
+  if(host.parentElement!==outputHost)outputHost.appendChild(host);
+  host.style.display=grouped?'grid':'contents';host.style.gap=grouped?'.5rem':'';
   const rows = (Array.isArray(d.registry_outputs) ? d.registry_outputs : [])
     .filter(ch => ch && ch.id && !registryOutputAlreadyHasCoreCard(ch));
   const wanted = new Set(rows.map(ch => 'registry-output-card-' + ch.id));
@@ -3190,7 +3196,7 @@ function renderRegistryOutputCards(d) {
     if (!card) {
       card = document.createElement('div');
       card.id = 'registry-output-card-' + id;
-      card.className = 'card small registry-output-card';
+      card.className = grouped?'registry-output-card registry-output-row':'card small registry-output-card';
       card.dataset.registryOutputId = id;
       card.innerHTML = `
       <div class="label">${escapeHtmlText(name)}</div>
@@ -3200,6 +3206,7 @@ function renderRegistryOutputCards(d) {
       <div class="oil-sub output-current"></div>`;
       host.appendChild(card); added = true;
     }
+    if(grouped){card.classList.add('registry-output-row');card.classList.remove('card','small','dashboard-customizable-card');card._dashboardHome?.remove();card.querySelectorAll('.dashboard-hide-card,.dashboard-drag-handle,.dashboard-card-settings').forEach(el=>el.remove());if(card.parentElement!==host)host.appendChild(card);}
     card.title = `${name} current command. ${range}.`;
     card.querySelector('.label').textContent = name;
     const number = card.querySelector('.value');

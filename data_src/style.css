@@ -838,7 +838,7 @@ input[type=range] { accent-color: var(--accent); cursor: pointer; }
 .sequence-action-card strong { flex:1; min-width:0; overflow-wrap:anywhere; }
 .sequence-action-value { color:var(--accent); font-family:var(--font-mono); }
 .sequence-action-card small { flex-basis:100%; color:var(--dim); }
-.ot-save-handle,.ot-search-handle { display:none; }
+.ot-save-handle { display:none; }
 .ot-short-controls .ot-managed-save,
 .ot-short-controls .cfg-workspace {
   opacity:1; visibility:visible;
@@ -864,8 +864,6 @@ body.ot-short-controls.ot-save-attention .ot-managed-save .save-msg {
 .ot-short-controls.ot-controls-collapsed .seq-save-bar { transform:translateY(calc(100% + 8px)); opacity:0; visibility:hidden; pointer-events:none; transition-delay:0s,0s,.24s; }
 .ot-short-controls.ot-controls-collapsed .cfg-workspace { transform:translateY(calc(-100% - 64px)); opacity:0; visibility:hidden; pointer-events:none; transition-delay:0s,0s,.24s; }
 .ot-short-controls.ot-controls-collapsed.ot-has-unsaved .ot-save-handle { display:block; position:fixed; bottom:env(safe-area-inset-bottom,0px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:95; min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text); }
-.ot-short-controls.ot-controls-collapsed .ot-search-handle,
-.ot-short-controls.ot-search-offscreen .ot-search-handle { display:block; position:fixed; top:48px; right:8px; z-index:105; min-height:44px; max-width:calc(100vw - 16px); background:var(--surface); }
 @media(prefers-reduced-motion:reduce) {
   .ot-short-controls .ot-managed-save,
   .ot-short-controls .cfg-workspace { transition:none!important; }
@@ -2406,3 +2404,10 @@ body.dashboard-awaiting-snapshot #adv-act-section {
 .fault-actions [hidden] { display:none; }
 
 #fault-card.reduced-start-available .fault-desc { color:var(--text); }
+
+.registry-status-disabled { color:var(--dim);border-color:var(--border); }
+.registry-output-row { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.25rem .7rem; }
+.registry-output-row .label { margin:0;font-size:.82rem;letter-spacing:normal;text-transform:none; }
+.registry-output-row .value { margin:0;font-size:.95rem; }
+.registry-output-row .output-range { display:none; }
+.registry-output-row .gauge-bar-wrap,.registry-output-row .output-current { grid-column:1/-1; }

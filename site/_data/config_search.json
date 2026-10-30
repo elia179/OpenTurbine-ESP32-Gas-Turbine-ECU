@@ -978,7 +978,7 @@
     "text": "Low fuel pressure must persist for this time during the selected monitoring phases before fault shutdown."
   },
   {
-    "title": "Battery Min (V)",
+    "title": "Minimum Supply Voltage (V)",
     "context": "Setting · Auxiliary Protection",
     "url": "/user-guide/#field-sf_bv",
     "text": "Visual low-voltage advisory on the Dashboard. It becomes an undervoltage shutdown only when battery safety is enabled. 0 removes the advisory."

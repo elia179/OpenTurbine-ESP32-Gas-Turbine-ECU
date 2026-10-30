@@ -58,7 +58,9 @@ static bool _writeRegistryIndicator(bool fault,bool on) {
     const auto* c=_registryIndicator(fault);
     if(!c)return false;
     const auto index=c-HardwareConfig::channelRegistry.outputs;
-    EngineData::instance().registryOutputDemand[index]=on?1.0f:0.0f;
+    auto& ed=EngineData::instance();
+    if(ed.registryOutputTestIndex==index)on=ed.registryOutputDemand[index]>0.5f;
+    else ed.registryOutputDemand[index]=on?1.0f:0.0f;
     if(c->driver==ChannelRegistry::I2cRelay)I2CDeviceManager::writeOutput(*c,on?1.0f:0.0f);
     else if(c->driver==ChannelRegistry::Relay && c->pin>=0) {
         digitalWrite(c->pin,(on!=c->inverted)?HIGH:LOW);

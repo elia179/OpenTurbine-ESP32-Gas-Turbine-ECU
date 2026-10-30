@@ -121,7 +121,7 @@ class CurrentBoardTests(unittest.TestCase):
         self.assertEqual(self.profile['fixed_functions']['supply_voltage']['divider'],37)
 
     def test_latest_board_connectors_are_assigned_explicitly(self):
-        self.assertTrue(all('default' not in mode for port in self.profile['ports'] if port['id'] not in ('status_led','fault_led') for mode in port['modes']))
+        self.assertTrue(all('default' not in mode for port in self.profile['ports'] if port['id'] not in ('status_led','fault_led','start_switch','stop_switch') for mode in port['modes']))
         for port in self.profile['ports']:
             if port['id'] in ('status_led','fault_led'): self.assertEqual(port['modes'][0]['default']['purpose'],port['id'])
 

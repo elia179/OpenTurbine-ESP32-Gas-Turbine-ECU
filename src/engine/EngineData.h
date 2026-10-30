@@ -134,6 +134,7 @@ struct EngineData {
     volatile float    oilScavengeDemand = 0;   // 0.0–1.0
     volatile float    bleedValveDemand = 0;    // 0.0–1.0
     volatile float    registryOutputDemand[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
+    volatile uint8_t registryOutputTestIndex=255; // temporary Tools ownership, including indicators
     // Exact ignition devices energized by dedicated sequencer ignition blocks.
     // Normal sequence completion clears only this set; STOP/FAULT still cuts
     // the complete ignition category independently.

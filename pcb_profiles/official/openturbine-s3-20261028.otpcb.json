@@ -1039,7 +1039,13 @@
             "gpio": 17
           },
           "active_high": false,
-          "pull": "up"
+          "pull": "up",
+          "default": {
+            "id": "start_switch",
+            "name": "Start switch",
+            "role": "digital_switch",
+            "purpose": "start_switch"
+          }
         }
       ]
     },
@@ -1055,7 +1061,13 @@
             "gpio": 48
           },
           "active_high": false,
-          "pull": "up"
+          "pull": "up",
+          "default": {
+            "id": "stop_switch",
+            "name": "Stop switch",
+            "role": "digital_switch",
+            "purpose": "stop_switch"
+          }
         }
       ]
     },

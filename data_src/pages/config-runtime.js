@@ -105,14 +105,14 @@ window.applyData = function(d) {
   if (d.has_pulsed_starter_assist !== undefined && !!d.has_pulsed_starter_assist !== _hasStarterSupportCfg) {
     _hasStarterSupportCfg = !!d.has_pulsed_starter_assist; extChanged = true;
   }
-  const hasSafetyExt = !!(d.has_oil_temp || d.has_batt_voltage || d.has_fuel_press || d.has_tit || d.has_governor || d.has_n1);
+  const hasSafetyExt = !!(hasRegistryInput('oil_temperature','battery_voltage','fuel_pressure','tit','n1_speed'));
   if (hasSafetyExt !== _hasSafetyExtCfg) {
     _hasSafetyExtCfg = hasSafetyExt; extChanged = true;
   }
   // Show/hide TIT limit field based on whether TIT sensor is fitted
   if (d.has_tit !== undefined) {
     const titField = document.getElementById('field-sf-tit');
-    if (titField) setCfgFieldVisibleByElement(titField, !!d.has_tit);
+    if (titField) setCfgFieldVisibleByElement(titField, hasRegistryInput('tit'));
   }
   if (extChanged) { applyExtSectionVisibility(); applyHwConditions(); }
   applyDeveloperLiveFields();

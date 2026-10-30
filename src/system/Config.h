@@ -210,6 +210,7 @@ public:
     static float    toolAbPumpTestPct;
     static uint32_t toolStarterEnTestMs;
     static uint32_t toolPropPitchTestMs;
+    static uint32_t toolRegistryOutputTestMs, toolStatusLedTestMs, toolFaultLedTestMs;
     static float    toolPropPitchTestPct;
 
     // ── Telemetry intervals ───────────────────────────────────

@@ -2561,6 +2561,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["has_p2"]                = HardwareConfig::hasP2;
         doc["has_oil_temp"]          = HardwareConfig::hasOilTemp;
         doc["has_batt_voltage"]      = HardwareConfig::hasBattVoltage;
+        doc["pcb_profile_active"] = PcbProfileManager::active();
         doc["has_torque"]            = HardwareConfig::hasTorque;
         doc["has_thrust"]            = HardwareConfig::hasThrust;
         doc["has_fuel_press"]        = HardwareConfig::hasFuelPress;

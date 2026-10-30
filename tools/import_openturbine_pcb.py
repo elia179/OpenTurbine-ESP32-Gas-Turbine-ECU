@@ -94,7 +94,7 @@ def make_profile(parts):
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PWM_RAW{i}')},'safe_demand':0}
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:
-        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up'}]})
+        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':name+'_switch','name':name.title()+' switch','role':'digital_switch','purpose':name+'_switch'}}]})
     for channel,purpose,label in [(6,'status_led','Status LED'),(7,'fault_led','Fault LED')]:
         ports.append({'id':purpose,'label':label,'description':'Onboard low-current LED; on/off control only','modes':[
             {'id':'on_off','adapter':'i2c_digital_output','device':'io','channel':channel,'active_high':False,'safe_demand':0,

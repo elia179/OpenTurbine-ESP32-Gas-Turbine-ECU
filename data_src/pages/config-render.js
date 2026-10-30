@@ -1625,7 +1625,7 @@ function renderForm(preserveControllerOpenState = true) {
       'Auxiliary Protection': [
         {key:'oil_temp_high',label:'High oil temperature',available:controllerInputs('oil_temperature').length,requirement:'Fit an oil-temperature input',keys:['sf_ot','sf_ot_d'],desc:'Temperature shutdown threshold and confirmation'},
         {key:'fuel_press_low',label:'Low fuel pressure',available:controllerInputs('fuel_pressure').length,requirement:'Fit a fuel-pressure input',keys:['sf_fp_modes','sf_fp','sf_fp_d'],desc:'Low-pressure threshold, confirmation time and selectable monitoring phases'},
-        {key:'batt_low',label:'Low supply voltage',available:controllerInputs('battery_voltage').length,requirement:'Fit a voltage input',keys:['sf_bv','sf_bv_d'],desc:'Bus-voltage threshold and confirmation'},
+        {key:'batt_low',label:'Low supply voltage shutdown',available:controllerInputs('battery_voltage').length,requirement:'Fit a voltage input',keys:['sf_bv','sf_bv_d'],desc:'Undervoltage fault shutdown during Startup and Running, with a confirmation delay'},
         {key:'surge',label:'Surge detection',available:controllerInputs('n1_speed').length,requirement:'Fit an N1 speed input',keys:['sf_sg'],desc:'Experimental N1 instability threshold'}
       ],
       'RPM Sensor Fault Detection': [
@@ -1654,7 +1654,7 @@ function renderForm(preserveControllerOpenState = true) {
       </details>`;
     }).join('')}</div>` : '';
     let fieldHtml = isProtection
-      ? `<div class="protection-nav" role="navigation" aria-label="Protection shortcuts">${protectionGroups.map(card=>`<button type="button" data-protection-target="${card.id}" onclick="openProtection('${card.id}')">${_escHtml(card.title.split(' · ')[0].replace(/ protection$/,''))}</button>`).join('')}</div><div class="protection-stack">${protectionGroups.map((card, index) => {
+      ? `<div class="protection-stack">${protectionGroups.map((card, index) => {
           const fields = card.keys.map(key => allProtectionFields.find(field => field.key === key)).filter(Boolean);
           const advancedFields = (card.advanced || []).map(key => allProtectionFields.find(field => field.key === key)).filter(Boolean);
           const safety = card.id === 'n1' ? controllerSafetyToggle('overspeed','N1 overspeed',controllerInputs('n1_speed').length,'Fit an N1 speed input',isLocked)
@@ -1724,7 +1724,7 @@ function renderForm(preserveControllerOpenState = true) {
         <span class="group-heading"><span class="group-title">${group.title}</span><span class="group-desc">${group.desc}</span></span>
         ${group.id==='safety'?'<span class="protection-active-count" data-protection-active-count></span>':''}<span class="group-meta"></span><span class="group-chevron" aria-hidden="true">›</span>
       </summary>
-      <div class="group-content">${sections.map(section => renderSection(section, group)).join('')}</div>
+      <div class="group-content">${group.id==='safety'?`<div class="protection-nav" role="navigation" aria-label="Protection shortcuts">${protectionGroups.map(card=>`<button type="button" data-protection-target="${card.id}" onclick="openProtection('${card.id}')">${_escHtml(card.title.split(' · ')[0].replace(/ protection$/,''))}</button>`).join('')}<button type="button" data-protection-target="batt_low" onclick="openProtection('batt_low')">Low supply voltage</button></div>`:''}${sections.map(section => renderSection(section, group)).join('')}</div>
     </details>`;
   }).join('');
   const normalGroupsHtml = renderGroups(WORKSPACE_GROUPS.filter(group => group.id !== 'safety'));

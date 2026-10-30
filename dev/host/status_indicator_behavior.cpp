@@ -58,6 +58,16 @@ int main(){
  assert(transitions[10]>=20);assert(transitions[9]<=4);
  StatusLED::_writeRegistryIndicator(false,true);StatusLED::off();assert(levels[9]==HIGH);
  ed.mode=SysMode::STANDBY;run(20);assert(levels[10]==LOW);
+ // Temporary Tools ownership holds the selected LED on instead of letting
+ // the automatic blink writer overwrite its demand. Releasing it resumes
+ // ordinary indication and permits STOP/timeout cancellation.
+ ed.registryOutputTestIndex=1;ed.registryOutputDemand[1]=1.0f;
+ run(2400);assert(levels[10]==HIGH);
+ ed.registryOutputTestIndex=255;StatusLED::tickFault();assert(levels[10]==LOW);
+ ed.registryOutputTestIndex=0;ed.registryOutputDemand[0]=1.0f;
+ run(2400);assert(levels[9]==LOW);
+ ed.registryOutputDemand[0]=0.0f;StatusLED::_writeRegistryIndicator(false,false);assert(levels[9]==HIGH);
+ ed.registryOutputTestIndex=255;
  ed.registryOutputDemand[0]=1.0f;assert(!OutputActivity::anyPhysicalDemand());
  // Repurposing the LED releases it from the automatic blink writer.
  strlcpy(reg.outputs[0].purpose,"warning_indicator",sizeof(reg.outputs[0].purpose));

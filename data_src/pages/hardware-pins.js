@@ -153,10 +153,10 @@ function collectPinUsage() {
     add(spi.mosi_pin, 'Shared SPI MOSI', 'spi-mosi');
   }
   const statusLed = cfg.actuators?.status_led;
-  if (statusLed?.enabled !== false &&
+  if (!profileActive && statusLed?.enabled !== false &&
       !(profileActive && pcbProfile?.fixed_functions?.status_led?.available))
     add(statusLed?.pin, 'Status LED');
-  if (cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
+  if (!profileActive && cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
     add(cfg.actuators.fault_led.pin,'Fault LED','fault-led');
   const mv = cfg.mavlink || {};
   if (mv.enabled && !(profileActive && pcbProfile?.fixed_functions?.mavlink?.available))
@@ -276,7 +276,7 @@ function buildPinOptions(currentVal, mode) {
 function refreshPinSel(id, mode, currentVal) {
   const el = document.getElementById(id);
   if (!el) return;
-  if (id === 'f-led-pin' && cfg.platform === 'esp32s3' &&
+  if (!pcbProfileActive() && id === 'f-led-pin' && cfg.platform === 'esp32s3' &&
       cfg.actuators?.status_led?.enabled !== false &&
       (currentVal === undefined || currentVal === null || currentVal < 0 || currentVal === 38)) {
     currentVal = 48;
@@ -387,7 +387,7 @@ function updateStatusLedTypeUI() {
   if (cfg.actuators.status_led.running_color === undefined) cfg.actuators.status_led.running_color = 0x00FF00;
   if (cfg.actuators.status_led.shutdown_color === undefined) cfg.actuators.status_led.shutdown_color = 0xFF8000;
   if (cfg.actuators.status_led.blink_color === undefined) cfg.actuators.status_led.blink_color = 0x0000FF;
-  if (cfg.platform === 'esp32s3' && cfg.actuators.status_led.type === 1 &&
+  if (!pcbProfileActive() && cfg.platform === 'esp32s3' && cfg.actuators.status_led.type === 1 &&
       (cfg.actuators.status_led.pin === undefined || cfg.actuators.status_led.pin === null ||
        cfg.actuators.status_led.pin < 0 || cfg.actuators.status_led.pin === 38)) {
     cfg.actuators.status_led.pin = 48;

@@ -504,7 +504,7 @@ async function saveHardware() {
       (ch?.pin ?? -1) >= 0 &&
       ch.role === role &&
       (((ch.active_modes ?? 0xFF) & modeBit) !== 0));
-  if (cfg.platform === 'esp32s3') {
+  if (!pcbProfileActive() && cfg.platform === 'esp32s3') {
     if (!cfg.actuators) cfg.actuators = {};
     if (!cfg.actuators.status_led) cfg.actuators.status_led = {};
     if (cfg.actuators.status_led.mode === 1) {

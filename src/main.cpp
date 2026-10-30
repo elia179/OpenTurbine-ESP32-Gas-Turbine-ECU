@@ -1852,6 +1852,7 @@ static void cancelTemporaryOutputOwners() {
     _abSolTestUntilMs = _abPumpTestUntilMs = _starterEnTestUntilMs = 0;
     _propPitchTestUntilMs = _registryOutputTestUntilMs = 0;
     _registryOutputTestIndex = 255;
+    ed.registryOutputTestIndex=255;
     for (uint8_t i = 0; i < ChannelRegistry::MAX_OUTPUT_CHANNELS; ++i)
         ed.registryOutputDemand[i] = 0.0f;
     Hardware::allOff();
@@ -1892,7 +1893,12 @@ static void checkToolTimers() {
         if (_registryOutputTestIndex < HardwareConfig::channelRegistry.outputCount)
             ed.registryOutputDemand[_registryOutputTestIndex] =
                 constrain(HardwareConfig::channelRegistry.outputs[_registryOutputTestIndex].safeDemand, 0.0f, 1.0f);
+        if(_registryOutputTestIndex<HardwareConfig::channelRegistry.outputCount) {
+            const auto& c=HardwareConfig::channelRegistry.outputs[_registryOutputTestIndex];
+            if(!strcmp(c.purpose,"status_led")||!strcmp(c.purpose,"fault_led"))StatusLED::_writeRegistryIndicator(!strcmp(c.purpose,"fault_led"),false);
+        }
         _registryOutputTestIndex = 255;
+        ed.registryOutputTestIndex=255;
         _registryOutputTestUntilMs = 0;
     }
 }
@@ -3021,6 +3027,7 @@ static void enterStandby() {
     _propPitchTestUntilMs  = 0;
     _registryOutputTestUntilMs = 0;
     _registryOutputTestIndex = 255;
+    ed.registryOutputTestIndex=255;
     _relightActive         = false;
     _relightBeginMs        = 0;
     _relightBeginEgt       = 0.0f;
@@ -4063,8 +4070,12 @@ static void handleCommand(const OTPacket& pkt) {
                     !HardwareConfig::channelRegistry.ownsCoreOutput(HardwareConfig::channelRegistry.outputs[idx]) &&
                     !HardwareConfig::channelRegistry.boundToCoreOutput(HardwareConfig::channelRegistry.outputs[idx])) {
                     ed.registryOutputDemand[idx] = constrain(pkt.fParam, 0.0f, 1.0f);
-                    _registryOutputTestIndex = idx;
-                    _registryOutputTestUntilMs = deadlineAfter(millis(), 3000UL);
+                    _registryOutputTestIndex = idx;ed.registryOutputTestIndex=idx;
+                    const auto& output=HardwareConfig::channelRegistry.outputs[idx];
+                    const bool status=!strcmp(output.purpose,"status_led"),fault=!strcmp(output.purpose,"fault_led");
+                    const uint32_t duration=status?Config::toolStatusLedTestMs:fault?Config::toolFaultLedTestMs:Config::toolRegistryOutputTestMs;
+                    _registryOutputTestUntilMs = deadlineAfter(millis(),duration);
+                    if(status||fault)StatusLED::_writeRegistryIndicator(fault,pkt.fParam>0.5f);
                 }
             }
             break;

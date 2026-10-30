@@ -415,13 +415,8 @@
     var saveHandle = document.createElement('button');
     saveHandle.type = 'button'; saveHandle.className = 'ot-save-handle';
     bar.classList.add('ot-managed-save');
-    var searchHandle = document.createElement('button');
-    searchHandle.type = 'button'; searchHandle.className = 'ot-search-handle';
-    searchHandle.textContent = 'Search & page controls';
     document.body.appendChild(saveHandle);
-    if (workspace) document.body.appendChild(searchHandle);
     var modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
-    function searchField(){var field=workspace&&workspace.querySelector('input[type="search"]');return field&&field.getClientRects().length?field:null;}
     var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
     function dirty() { return bar.classList.contains('is-dirty') || (!/\bno unsaved\b/i.test(bar.textContent) && /\bunsaved\b|save to apply/i.test(bar.textContent)); }
     function reveal() {
@@ -447,10 +442,6 @@
     }
     function update() {
       var short = window.innerHeight <= 1000;
-      searchHandle.textContent=searchField()?'Search & page controls':'Page controls';
-      var nav=document.querySelector('nav'),edge=nav?Math.max(0,nav.getBoundingClientRect().bottom):0;
-      var control=workspace&&(searchField()||workspace.querySelector('button')||workspace);
-      document.body.classList.toggle('ot-search-offscreen',!!control && getComputedStyle(workspace).position!=='sticky' && control.getBoundingClientRect().bottom<=edge);
       saveHandle.textContent = dirty() ? 'Unsaved changes · Show save controls' : 'Show save controls';
       document.body.classList.toggle('ot-short-controls',short);
       document.body.classList.toggle('ot-has-unsaved',dirty());
@@ -471,18 +462,6 @@
       }
     }
     saveHandle.onclick=function(){reveal();bar.setAttribute('tabindex','-1');bar.focus({preventScroll:true});};
-    searchHandle.onclick=function(){
-      reveal();
-      var focus=searchField()||workspace.querySelector('button');
-      var bounds=workspace.getBoundingClientRect(),nav=document.querySelector('nav');
-      var top=nav?Math.max(0,nav.getBoundingClientRect().bottom):0;
-      // Narrow layouts keep this workspace in normal document flow.
-      if(bounds.bottom<=top || bounds.top>=innerHeight || bounds.top<top-1){
-        workspace.scrollIntoView({block:'start',behavior:'instant'});
-        window.scrollBy(0,-top);
-      }
-      if(focus)focus.focus({preventScroll:true});
-    };
     document.addEventListener('focusin',function(e){if(bar.contains(e.target)||workspace&&workspace.contains(e.target))reveal();else if(e.target.closest(modalSelector))update();});
     window.addEventListener('scroll',scroll,{passive:true});
     window.addEventListener('resize',function(){reveal();last=window.scrollY;update();},{passive:true});

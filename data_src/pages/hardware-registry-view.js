@@ -1060,7 +1060,7 @@ function pcbIndicatorCard(purpose,editing) {
   const title=purpose==='status_led'?'Status LED':'Fault LED';
   const choices=pcbConnectorChoices(pcbCompatibleChoices('output',purpose,'indicator',c?.physical_port||''),c,4);
   const connected=c?(pcbProfile.ports||[]).find(p=>p.id===c.physical_port)?.label:'';
-  const status=c?registryStatus(c):{kind:'ok',text:'Disabled'};
+  const status=c?registryStatus(c):{kind:'disabled',text:'Disabled'};
   const connectionChange=c?`updateRegistryProfilePort('output',${index},this.value)`:`if(this.value)setPcbIndicator('${purpose}',true,this.value)`;
   const options=(!c?'<option value="">Choose connection</option>':'')+choices.map(choice=>`<option value="${choice.port.id}|${choice.mode.id}"${choice.port.id===c?.physical_port?' selected':''}>${escapeHtmlText(choice.port.label+(choice.mode.available===false?' — device not responding':''))}</option>`).join('');
   return `<div class="hw-item-card" data-pcb-indicator="${purpose}">
@@ -1099,7 +1099,7 @@ function renderCommsIndicatorSummary() {
   const buz = cfg.buzzer || {};
   const fixed = pcbProfile?.fixed_functions || {};
   const profileAllows = key => !pcbProfileActive() || fixed[key]?.available === true;
-  const statusClass = status => (status === 'Ready' || status === 'Disabled') ? 'registry-status-ok' : 'registry-status-error';
+  const statusClass = status => status==='Disabled'?'registry-status-disabled':status==='Ready'?'registry-status-ok':'registry-status-error';
   const optionList = (values, selected) => values.map(v => `<option value="${v}"${Number(selected)===v?' selected':''}>${v}</option>`).join('');
   const card = (device, title, detail, status, installed, editor) => {
     if (!installed && !editing) return '';
