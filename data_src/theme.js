@@ -423,19 +423,25 @@
     var modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
     function searchField(){var field=workspace&&workspace.querySelector('input[type="search"]');return field&&field.getClientRects().length?field:null;}
     var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
-    function dirty() { return bar.classList.contains('is-dirty') || (!/no unsaved changes/i.test(bar.textContent) && /unsaved changes|save to apply/i.test(bar.textContent)); }
+    function dirty() { return bar.classList.contains('is-dirty') || (!/\bno unsaved\b/i.test(bar.textContent) && /\bunsaved\b|save to apply/i.test(bar.textContent)); }
     function reveal() {
       document.body.classList.remove('ot-controls-collapsed');
       revealedUntil = Date.now()+800; distance=0;
     }
     function needsAttention() {
-      return !!(bar.querySelector('button[disabled].primary') && /saving|uploading|rebooting|restarting/i.test(bar.textContent)) || /failed|error|could not|cannot save|warning:/i.test(bar.textContent);
+      // A disabled Save button may mean validation failed, not that a save is
+      // running. In particular, "review before saving" must still compact.
+      var progress = Array.from(bar.querySelectorAll('.save-msg,.save-status,#save-status')).some(function(el){
+        return /^\s*(?:saving|uploading|rebooting|restarting)(?:\s*(?:…|\.{3}|$)|\s+\d)/i.test(el.textContent);
+      });
+      return progress || /failed|error|could not|cannot save|warning:/i.test(bar.textContent);
     }
     function pinned() {
       var active=document.activeElement;
-      // Filter/page buttons retain focus after a mouse or touch click. Only an
-      // editable workspace control needs to stay visible while scrolling.
-      if (active && ((active!==bar && bar.contains(active)) || workspace && workspace.contains(active) && active.matches('input,select,textarea,[contenteditable="true"]'))) return true;
+      // Mouse/touch buttons retain focus after a click; that must not pin the
+      // bars indefinitely. Preserve keyboard focus and active text editing.
+      var editing=active && active.matches('input,select,textarea,[contenteditable="true"]');
+      if (active && ((active!==bar && bar.contains(active) && (editing || active.matches(':focus-visible'))) || workspace && workspace.contains(active) && editing)) return true;
       if (needsAttention()) return true;
       return Array.from(document.querySelectorAll(modalSelector)).some(function(el){return el.getClientRects().length && getComputedStyle(el).visibility!=='hidden';});
     }
@@ -450,7 +456,7 @@
       document.body.classList.toggle('ot-has-unsaved',dirty());
       document.body.classList.toggle('ot-save-attention',needsAttention());
       document.documentElement.style.setProperty('--ot-save-space',(bar.offsetHeight+16)+'px');
-      if (!short || pinned() || window.scrollY<32 || window.scrollY+innerHeight>=document.documentElement.scrollHeight-12) {
+      if (!short || pinned() || window.scrollY<32) {
         document.body.classList.remove('ot-controls-collapsed');distance=0;
       }
     }
@@ -460,7 +466,7 @@
       if (next!==direction) {distance=0;direction=next;}
       distance+=Math.abs(delta);
       update();
-      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=1000 && y>80 && y+innerHeight<document.documentElement.scrollHeight-20) {
+      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=1000 && y>80) {
         document.body.classList.toggle('ot-controls-collapsed',direction>0); distance=0;
       }
     }

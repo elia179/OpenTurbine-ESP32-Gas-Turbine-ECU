@@ -376,3 +376,25 @@ were preserved. Saving normalized the previously hand-prepared hardware file
 (default fields, profile-owned wiring, canonical arrays/metadata), so this was
 not a byte-identical engine-file round trip. Firmware build ce5016298b3bd273 is
 installed on S3; Classic was built and budget checked but not reflashed here.
+
+
+Shared scroll controls follow-up (2026-10-30): the phrase "review before
+saving" with a validation-disabled Save button was mistaken for active save
+progress and pinned the bar. Progress detection now uses the start of status
+messages and does not depend on one button CSS class (Sequence differs).
+Pointer-retained button focus no longer pins the bars; keyboard focus and
+editing still do. Singular unsaved-field text keeps the compact save shortcut
+and restores a visible bar even without the page's dirty CSS class. Reaching
+the final cards no longer forces a full save bar over the content. Save errors,
+real saves and visible modal recaps remain visible; transitions and reduced
+motion behavior are retained. Web token is now 20261030a to avoid stale cached
+page bodies. No further push or publication was performed.
+
+Final shared-controls verification passed: Hardware/Controllers/System/Sequence
+at 1024x600 and 390x600 in Chromium, Firefox and WebKit, source and compressed
+pages (48 page/viewport/engine/asset cases), plus 1000px compact and 1100px tall
+viewport checks. Actual save progress, disabled review-before-saving controls,
+singular dirty messages, pointer/keyboard focus, errors, modal recaps, reading
+position and bottom-of-page behavior are covered. Animation/reduced-motion,
+321 safety checks, public-content validation and both filesystem builds/budgets
+passed. Full firmware/native release rerun remains separate and outstanding.

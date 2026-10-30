@@ -855,6 +855,7 @@ body.ot-short-controls.ot-save-attention .ot-managed-save {
   transform:none;
 }
 body.ot-short-controls.ot-save-attention .ot-managed-save { display:flex; flex-wrap:wrap; }
+body.ot-short-controls.ot-has-unsaved .ot-managed-save:not(.is-dirty) { display:flex; flex-wrap:wrap; }
 body.ot-short-controls.ot-save-attention .ot-managed-save .save-msg {
   display:block; flex-basis:100%; grid-column:1/-1; overflow-wrap:anywhere;
 }

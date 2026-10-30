@@ -39,8 +39,27 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      },route);
      // A normal filter click leaves the button focused. It must not pin both bars.
      if(route==='controllers')await p.getByRole('button',{name:'Explore all features',exact:true}).click();
+     // A validation-disabled Save button is not an in-progress save. Match
+     // the Hardware message reported on the real PCB review board.
+     await p.evaluate(()=>{
+      const bar=document.querySelector('.ot-managed-save');
+      const button=bar.querySelector('button.primary,button.save-btn');if(button)button.disabled=true;
+      const status=bar.querySelector('.save-msg,.save-status,#save-status');
+      if(status)status.textContent='1 unsaved field change — review before saving';
+      bar.classList.remove('is-dirty'); // Singular messages still need the save handle.
+     });
      await p.waitForTimeout(850);await p.mouse.wheel(0,250);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'),null,{timeout:5000});
+     assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-save-attention')),false,'review before saving is not busy');
+     await p.evaluate(()=>{
+      document.querySelector('.ot-managed-save .save-msg,.ot-managed-save .save-status,.ot-managed-save #save-status').textContent='Saving…';
+     });
+     await p.waitForFunction(()=>document.body.classList.contains('ot-save-attention')&&!document.body.classList.contains('ot-controls-collapsed'));
+     await p.evaluate(()=>{
+      document.querySelector('.ot-managed-save .save-msg,.ot-managed-save .save-status,.ot-managed-save #save-status').textContent='1 unsaved field change — review before saving';
+     });
+     await p.mouse.wheel(0,80);
+     await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      const handle=p.getByRole('button',{name:/Unsaved changes.*Show save controls/});
      await handle.waitFor({state:'visible'});
      assert.ok((await handle.boundingBox()).height>=44);
@@ -52,8 +71,20 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      assert.ok(await p.evaluate(()=>parseFloat(getComputedStyle(document.body).paddingBottom)>=document.querySelector('.ot-managed-save').offsetHeight),'floating bar has content clearance');
      if(viewport.width===390&&(route==='controllers'||route==='system'))assert.ok(await p.locator('.ot-search-handle').isVisible(),'off-screen page controls keep their shortcut after Save is restored');
      const y=await p.evaluate(()=>scrollY);assert.ok(y>100,'Save restoration preserves reading position');
+     await p.evaluate(()=>{
+      const probe=document.createElement('button');probe.type='button';probe.id='scroll-focus-probe';probe.textContent='Focus probe';
+      document.querySelector('.ot-managed-save').appendChild(probe);
+     });
+     await p.locator('#scroll-focus-probe').click();
      // Once focus leaves the controls, downward scrolling can compact them again.
      await p.waitForTimeout(850);await p.mouse.wheel(0,100);
+     await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
+     await handle.click();
+     await p.keyboard.press('Tab');
+     await p.waitForTimeout(850);await p.mouse.wheel(0,80);
+     assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'keyboard focus keeps save controls visible');
+     await p.evaluate(()=>{document.activeElement.blur();document.getElementById('scroll-focus-probe').remove();});
+     await p.mouse.wheel(0,100);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      if(route==='controllers'||route==='system'){
       await p.getByRole('button',{name:route==='controllers'?'Search & page controls':'Page controls',exact:true}).click();
@@ -116,6 +147,9 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
    await p.mouse.move(150,200);await p.waitForTimeout(850);await p.mouse.wheel(0,250);
    await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
    assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-short-controls')),true,'1000px viewport compacts controls');
+   await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+   await p.waitForTimeout(280);
+   assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),true,'reaching the final cards does not force the full bar open');
    await p.setViewportSize({width:1024,height:1100});
    await p.goto(base+'/system.html');await p.locator('#system-maintenance').waitFor();
    await p.mouse.wheel(0,250);
