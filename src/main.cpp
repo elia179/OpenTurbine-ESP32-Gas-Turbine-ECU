@@ -3939,6 +3939,8 @@ static void handleCommand(const OTPacket& pkt) {
                 strncpy(ed.lastEvent, "Fault clear blocked: ECU readiness fault remains", sizeof(ed.lastEvent) - 1);
             } else if (OutputActivity::anyPhysicalDemand(false)) {
                 strncpy(ed.lastEvent, "Fault clear blocked: an output is still active", sizeof(ed.lastEvent) - 1);
+            } else if (!PcbPowerStage::acknowledgeFault()) {
+                strncpy(ed.lastEvent,"Fault clear blocked: PCB driver fault remains; inspect Hardware details",sizeof(ed.lastEvent)-1);
             } else {
                 ed.faultLatched = false;
                 ed.faultShutdownActive = false;
@@ -4660,6 +4662,7 @@ void loop() {
     PcbPowerStage::checkDeadline();
     if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
         g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
+        snprintf(EngineData::instance().faultDescription,sizeof(EngineData::instance().faultDescription),"PCB output stage: %s",PcbPowerStage::faultReason());
     }
     checkStopSwitch();
     checkStartSwitch();
@@ -4773,6 +4776,7 @@ void loop() {
     PcbPowerStage::service(EngineData::instance().watchdogReady);
     if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
         g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
+        snprintf(EngineData::instance().faultDescription,sizeof(EngineData::instance().faultDescription),"PCB output stage: %s",PcbPowerStage::faultReason());
     }
     uint32_t afterActuatorsUs = micros();
 

@@ -4,7 +4,7 @@
 #include <iostream>
 using namespace PcbPowerStage;
 static void reset(){
- state=State::Off;latch=3;heartbeat=false;Mock::i2cFail=Mock::lockFail=Mock::readCorrupt=false;
+ state=State::Off;recoverableFault=false;latch=3;heartbeat=false;Mock::i2cFail=Mock::lockFail=Mock::readCorrupt=Mock::persistentFault=false;
  Mock::regs[0]=255;Mock::regs[1]=255;Mock::regs[2]=0;Mock::regs[3]=255;
  Mock::selected=-1;Mock::bit=0;Mock::spiWrites=Mock::unsafeConfig=0;Mock::writes.clear();
  memset(Mock::driver,0,sizeof(Mock::driver));memset(Mock::gpio,0,sizeof(Mock::gpio));
@@ -25,9 +25,12 @@ int main(){
  for(int i=0;i<6;i++){write(profile()->powerInh[i],0);assert(!(Mock::regs[1]&(1<<(i+2))));}
  assert(Mock::regs[1]==3);write(37,NAN);assert(Mock::regs[1]==3);
  // Fault-status and configuration corruption latch off, never auto-retry.
- write(37,1);Mock::driver[0][0]=1;run(1000);assert(state==State::Fault&&!EngineData::instance().hardwareReady);
- assert(Mock::gpio[45]==LOW&&Mock::regs[1]==3&&waves[0].gen->force==0);
- Mock::driver[0][0]=0;run(500);write(37,1);assert(state==State::Fault&&Mock::regs[1]==3);
+ write(37,1);Mock::driver[0][0]=1;run(1000);assert(state==State::Fault&&EngineData::instance().hardwareReady&&recoverableFault);
+ assert(Mock::regs[1]==3&&waves[0].gen->force==0);
+ run(500);write(37,1);assert(state==State::Fault&&Mock::regs[1]==3);
+ Mock::persistentFault=true;assert(!acknowledgeFault()&&faulted()&&Mock::regs[1]==3);Mock::persistentFault=false;
+ assert(acknowledgeFault()&&ready()&&Mock::regs[1]==3);
+ reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);Mock::i2cFail=true;assert(!acknowledgeFault());
  reset();begin(true);run(300);assert(ready());clockMs+=76;checkDeadline();assert(state==State::Fault);run(100);assert(state==State::Fault);
  reset();Mock::i2cFail=true;begin(true);assert(state==State::Fault&&Mock::gpio[45]==LOW);
  reset();begin(false);assert(state==State::Fault&&Mock::spiWrites==0);

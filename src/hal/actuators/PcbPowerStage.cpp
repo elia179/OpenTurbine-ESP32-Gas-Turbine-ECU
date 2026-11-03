@@ -20,7 +20,8 @@ using namespace Drv8350Protocol;
 enum class State:uint8_t {Off,Wake,Configure,Ready,Fault};
 State state=State::Off;
 uint8_t latch=safeLatch;
-bool heartbeat=false;
+bool heartbeat=false,recoverableFault=false,driverStatusFault=false;
+char driverDiagnostic[96]={};
 uint32_t lastEdge=0,lastProgress=0,wakeAt=0,lastPoll=0;
 uint8_t setupChip=0,pollChip=0;
 char reason[96]={};
@@ -35,22 +36,25 @@ bool regWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(0x21);Wire.write
 bool regRead(uint8_t reg,uint8_t& value){Wire.beginTransmission(0x21);Wire.write(reg);if(Wire.endTransmission(false)!=0||Wire.requestFrom(uint8_t(0x21),uint8_t(1))!=1)return false;value=Wire.read();return true;}
 bool setLatch(uint8_t value){if(value==latch)return true;if(!regWrite(1,value))return false;latch=value;return true;}
 void forceLow(int i){if(waves[i].gen)mcpwm_generator_set_force_level(waves[i].gen,0,true);else digitalWrite(profile()->powerInh[i],LOW);waves[i].demand=0;waves[i].pending=false;}
-void fail(const char* why){
-    if(state==State::Fault)return;
+bool verifyExpander();
+void fail(const char* why,bool recoverable=false){
+    if(state==State::Fault && (recoverable || !recoverableFault))return;
     state=State::Fault;strlcpy(reason,why,sizeof(reason));
     for(int i=0;i<6;i++)forceLow(i);
     // INH is already low; clear INL, then stop the health heartbeat. Failure
     // to write the expander cannot keep the pulse buffer/driver gate enabled.
-    {SharedPeripheralBus::Guard guard;if(guard)regWrite(1,safeLatch);}
+    {SharedPeripheralBus::Guard guard;recoverable=guard && regWrite(1,safeLatch) && recoverable;
+     latch=safeLatch;recoverable=recoverable && verifyExpander();}
     for(uint8_t i=0;i<HardwareConfig::channelRegistry.outputCount;i++){
         const auto& c=HardwareConfig::channelRegistry.outputs[i];
         if(!c.installed || c.pin<0 || indexOf(c.pin)>=0)continue;
         if(c.driver==ChannelRegistry::Pwm || c.driver==ChannelRegistry::Servo)ledcWrite(c.pin,0);
         else if(c.driver==ChannelRegistry::Relay)digitalWrite(c.pin,c.inverted?HIGH:LOW);
     }
-    latch=safeLatch;heartbeat=false;digitalWrite(profile()->outputEnableGpio,LOW);
-    auto& ed=EngineData::instance();ed.hardwareReady=false;
-    snprintf(ed.hardwareFault,sizeof(ed.hardwareFault),"PCB: %s; inspect, then RESET (EN)/power-cycle",why);
+    latch=safeLatch;recoverableFault=recoverable;
+    if(!recoverable){heartbeat=false;digitalWrite(profile()->outputEnableGpio,LOW);}
+    auto& ed=EngineData::instance();ed.hardwareReady=recoverable;
+    snprintf(ed.hardwareFault,sizeof(ed.hardwareFault),recoverable?"PCB: %s; inspect, then acknowledge fault":"PCB: %s; inspect, then RESET (EN)/power-cycle",why);
 }
 bool frame(uint8_t chip,uint16_t tx,uint16_t& rx){
     SharedPeripheralBus::Guard guard;if(!guard)return false;
@@ -71,9 +75,13 @@ bool read(uint8_t chip,uint8_t address,uint16_t& value){return frame(chip,Drv835
 bool program(uint8_t chip,uint8_t address,uint16_t value){uint16_t ignored,actual;return frame(chip,Drv8350Protocol::frame(false,address,value),ignored)&&read(chip,address,actual)&&actual==value;}
 bool verifyExpander(){uint8_t dir,pol,out;return regRead(3,dir)&&regRead(2,pol)&&regRead(1,out)&&dir==0&&pol==0&&out==latch;}
 bool verifyDriver(uint8_t chip){
-    uint16_t value;
-    if(!read(chip,0,value)||value)return false;
-    if(!read(chip,1,value)||value)return false;
+    driverStatusFault=false;uint16_t value,status;
+    if(!read(chip,0,status)||!read(chip,1,value))return false;
+    if(status||value){
+        driverStatusFault=true;
+        const char* kind=(status&0x23f)?"overcurrent":(status&0x40)?"overtemperature":(status&0x80)||(value&0x40)?"undervoltage":(value&0x80)?"temperature warning":"gate-drive fault";
+        snprintf(driverDiagnostic,sizeof(driverDiagnostic),"Driver %u %s (status %03X/%03X)",unsigned(chip+1),kind,unsigned(status),unsigned(value));return false;
+    }
     for(uint8_t addr=2;addr<=5;addr++){
         const uint16_t expected=addr==2?control:addr==3?gateHSLocked:addr==4?gateLS:ocp;
         if(!read(chip,addr,value)||value!=expected)return false;
@@ -87,6 +95,19 @@ bool ready(){return !active()||state==State::Ready;}
 bool faulted(){return active()&&state==State::Fault;}
 const char* stateName(){return !active()?"not fitted":state==State::Ready?"ready":state==State::Fault?"fault":state==State::Off?"off":"initializing";}
 const char* faultReason(){return reason;}
+bool acknowledgeFault(){
+    if(!active() || state!=State::Fault)return true;
+    if(!recoverableFault)return false;
+    SharedPeripheralBus::Guard guard;if(!guard || !verifyExpander())return false;
+    for(int i=0;i<6;i++)forceLow(i);
+    if(latch!=safeLatch)return false;
+    for(uint8_t chip=0;chip<2;chip++){
+        uint16_t ignored;
+        if(!frame(chip,Drv8350Protocol::frame(false,2,control|1),ignored) || !verifyDriver(chip))return false;
+    }
+    recoverableFault=false;state=State::Ready;reason[0]=0;
+    auto& ed=EngineData::instance();ed.hardwareReady=true;ed.hardwareFault[0]=0;lastPoll=millis();return true;
+}
 bool attach(int pin,uint32_t frequency){
     const int i=indexOf(pin);if(i<0)return false;
     if(frequency && (frequency<100 || frequency>20000))return false;
@@ -158,7 +179,7 @@ bool parkControlExpander(){
 }
 void begin(bool prerequisitesReady){
     if(!active())return;
-    state=State::Off;reason[0]=0;
+    state=State::Off;recoverableFault=false;reason[0]=0;
     for(int i=0;i<6;i++){digitalWrite(profile()->powerInh[i],LOW);pinMode(profile()->powerInh[i],OUTPUT);forceLow(i);}
     digitalWrite(profile()->outputEnableGpio,LOW);pinMode(profile()->outputEnableGpio,OUTPUT);
     if(!prerequisitesReady){fail("peripheral/watchdog initialization failed");return;}
@@ -174,10 +195,16 @@ void begin(bool prerequisitesReady){
     auto& ed=EngineData::instance();ed.hardwareReady=false;strlcpy(ed.hardwareFault,"PCB drivers initializing",sizeof(ed.hardwareFault));
     state=State::Wake;lastProgress=lastEdge=wakeAt=millis();heartbeat=false;
 }
-void checkDeadline(){if(active() && state!=State::Off && state!=State::Fault && deadlineMissed(millis(),lastProgress))fail("control heartbeat deadline missed");}
+void checkDeadline(){if(active() && state!=State::Off && (state!=State::Fault || recoverableFault) && deadlineMissed(millis(),lastProgress))fail("control heartbeat deadline missed");}
 void service(bool controlHealthy){
-    if(!active()||state==State::Off||state==State::Fault)return;
-    checkDeadline();if(state==State::Fault)return;
+    if(!active()||state==State::Off||(state==State::Fault&&!recoverableFault))return;
+    checkDeadline();if(state==State::Fault&&!recoverableFault)return;
+    if(state==State::Fault){
+        if(!controlHealthy){fail("control prerequisites failed");return;}
+        lastProgress=millis();
+        if(lastProgress-lastEdge>=5){heartbeat=!heartbeat;digitalWrite(profile()->outputEnableGpio,heartbeat?HIGH:LOW);lastEdge=lastProgress;}
+        return;
+    }
     auto& ed=EngineData::instance();
     const bool initializing=state!=State::Ready && !strcmp(ed.hardwareFault,"PCB drivers initializing");
     if(Config::controlLoopHz<100){fail("set System loop target to at least 100 Hz");return;}
@@ -193,7 +220,8 @@ void service(bool controlHealthy){
         if(++setupChip==2){state=State::Ready;ed.hardwareReady=true;ed.hardwareFault[0]=0;lastPoll=millis();}
     }else if(lastProgress-lastPoll>=500){
         SharedPeripheralBus::Guard guard;
-        if(!guard||!verifyExpander()||!verifyDriver(pollChip)){fail("DRV8350 fault or communication/readback failure");return;}
+        if(!guard||!verifyExpander()){fail("power expander communication/readback failure");return;}
+        if(!verifyDriver(pollChip)){fail(driverStatusFault?driverDiagnostic:"DRV8350 communication/configuration failure",driverStatusFault);return;}
         // Alternate at 500 ms: each driver is checked once per second.
         pollChip^=1;lastPoll=millis();
     }

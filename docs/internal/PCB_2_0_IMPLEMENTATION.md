@@ -89,3 +89,16 @@ resolved on the bounded retry of the same binary; no policy bypass was used.
 Chromium/Firefox/WebKit each passed source and compressed PCB UI cases.
 These focused results do not constitute the full release gate or any physical
 qualification. Firmware and profile were not installed onto attached boards.
+
+## Dashboard driver-fault acknowledgement correction
+
+Reported DRV8350 faults now park outputs while retaining a health-controlled
+heartbeat. Dashboard CLEAR_FAULT sends CLR_FLT only after normal fault-clear
+guards pass, then verifies both driver statuses/configuration. A failed clear
+keeps the ECU faulted and outputs disabled. Fault text includes driver number,
+fault category and status registers. The native test covers successful explicit
+clear, inhibited output commands while faulted and failed communication during
+clear. Only unsafe communication/configuration, watchdog/progress failures or
+a real physical hardware latch trip retain the physical-reset requirement.
+Earlier statements above treating every driver fault as requiring reset are
+superseded by this correction. No automatic retry/restart is introduced.

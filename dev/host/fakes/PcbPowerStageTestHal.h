@@ -18,7 +18,7 @@ inline size_t strlcpy(char* dst,const char* src,size_t n){auto l=strlen(src);if(
 template<typename T,typename U,typename V>T constrain(T a,U b,V c){return a<T(b)?T(b):a>T(c)?T(c):a;}
 using std::isfinite;
 namespace Mock {
-inline int gpio[49]={};inline bool i2cFail=false,lockFail=false,readCorrupt=false;
+inline int gpio[49]={};inline bool i2cFail=false,lockFail=false,readCorrupt=false,persistentFault=false;
 inline uint8_t regs[4]={255,255,0,255};inline int selected=-1,bit=0;inline uint16_t tx=0;
 inline uint16_t driver[2][6]={};inline int spiWrites=0,unsafeConfig=0;
 inline std::vector<std::array<int,2>> writes;
@@ -28,7 +28,7 @@ inline void latch(uint8_t next){
   if(!was&&now){selected=chip;bit=0;tx=0;}
   if(was&&!now&&selected==chip){
    assert(bit==16);int addr=(tx>>11)&15;
-   if(!(tx&0x8000)&&addr>=2&&addr<=5){driver[chip][addr]=tx&0x7ff;spiWrites++;if(next&0xfc)unsafeConfig++;}
+   if(!(tx&0x8000)&&addr>=2&&addr<=5){driver[chip][addr]=tx&0x7ff;if(addr==2 && (tx&1)){if(!Mock::persistentFault)driver[chip][0]=driver[chip][1]=0;driver[chip][2]&=~1;}spiWrites++;if(next&0xfc)unsafeConfig++;}
    selected=-1;
   }
  }
