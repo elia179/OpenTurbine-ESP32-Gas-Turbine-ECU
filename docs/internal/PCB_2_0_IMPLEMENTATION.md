@@ -148,9 +148,11 @@ component pad nets and the generated profile still match; R72/R73 remain
 
 ## Additional EMI-review starting settings
 
-Read `pcb-emi-review-2026-11-03/EMI_REVIEW.md`: two proposed local
-GND-return fixes remain unapplied; hold the prototype-order recommendation.
-No mapping change or software workaround is appropriate. Set explicit HS/LS
+Read the corrected `pcb-emi-review-2026-11-03/EMI_REVIEW.md`: the extra
+GND-link proposals and mandatory-bridge order hold are withdrawn. Preserve
+the intentional single-point ground scheme; neither link was applied. The
+subsequent DC scenario check showed alternate load-return current through
+quiet copper. No mapping change or software workaround is appropriate. Set explicit HS/LS
 source/sink currents to 50/100 mA (HS unlocked 0x300, locked 0x600; LS 0x300),
 retaining 4 µs TDRIVE, 400 ns dead time, latched OCP and mandatory readback.
 TI SLVSDY6A tables 15/16 confirm current codes 0000/0000. New PWM channels
