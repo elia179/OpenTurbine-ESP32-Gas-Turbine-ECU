@@ -2,7 +2,7 @@
 
 Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.6.1-dev firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 
-Source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`, SHA256 `df6822fba0ed6c8f3518ae10a60deed2fe1b93b494cf7bd33f427770cb6a7fcf`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
+Source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`, SHA256 `16657592b2bd7f13b94ed5a753310adb5d058cbb4f9ad684c6dc72ae456cf6d2`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
 
 ## Choose connectors, then functions
 

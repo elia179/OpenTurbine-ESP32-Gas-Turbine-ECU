@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import zipfile
 
-EXPECTED_SOURCE_SHA256='df6822fba0ed6c8f3518ae10a60deed2fe1b93b494cf7bd33f427770cb6a7fcf'
+EXPECTED_SOURCE_SHA256='16657592b2bd7f13b94ed5a753310adb5d058cbb4f9ad684c6dc72ae456cf6d2'
 
 
 def components(project):

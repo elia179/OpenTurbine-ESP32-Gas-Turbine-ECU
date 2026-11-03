@@ -129,7 +129,7 @@ so no physical output waveform or hardware coexistence result is claimed.
 ## Final PCB source reconciliation — 3 November 2026
 
 Authoritative final source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`,
-SHA256 `df6822fba0ed6c8f3518ae10a60deed2fe1b93b494cf7bd33f427770cb6a7fcf`.
+SHA256 `16657592b2bd7f13b94ed5a753310adb5d058cbb4f9ad684c6dc72ae456cf6d2`.
 Compared every component pad/net and generated profile against the earlier
 reviewed source: both match exactly. R72/R73 are now 2.2 kΩ; MISO R2130 stays
 4.7 kΩ. Retain 100 kHz I²C/driver SPI, the existing profile identity, and all
@@ -141,3 +141,7 @@ A simulated transaction delay crosses the deadline and proves outputs remain
 off, heartbeat stops, and recovery requires physical reset. Native backend tests
 pass at 100 Hz, 10 kHz and 20 kHz. Physical waveform/coexistence checks remain
 pending: no serial ports were present.
+
+Final ADC-caption export refresh: checksum matches the release manifest. All
+component pad nets and the generated profile still match; R72/R73 remain
+2.2 kΩ. Only source provenance changed; no firmware rebuild is required.
