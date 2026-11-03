@@ -27,7 +27,7 @@ uint8_t setupChip=0,pollChip=0;
 char reason[96]={};
 struct Wave {mcpwm_timer_handle_t timer=nullptr; mcpwm_oper_handle_t oper=nullptr;
     mcpwm_cmpr_handle_t compare=nullptr; mcpwm_gen_handle_t gen=nullptr;
-    uint32_t period=0,frequency=0,pendingSinceUs=0; float demand=0; bool pending=false;};
+    uint32_t period=0,frequency=0,pendingSinceUs=0; float demand=0; bool pending=false,attached=false;};
 Wave waves[6];
 mcpwm_sync_handle_t sync[2]={};
 const PcbProfileManager::Catalog* profile(){return PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;}
@@ -77,14 +77,16 @@ bool verifyExpander(){uint8_t dir,pol,out;return regRead(3,dir)&&regRead(2,pol)&
 bool verifyDriver(uint8_t chip){
     driverStatusFault=false;uint16_t value,status;
     if(!read(chip,0,status)||!read(chip,1,value))return false;
+    // Prove chip identity/configuration before interpreting fault bits. An
+    // unplugged, pulled-high MISO also returns 0x7ff, not a real overcurrent.
+    for(uint8_t addr=2;addr<=5;addr++){
+        uint16_t actual;const uint16_t expected=addr==2?control:addr==3?gateHSLocked:addr==4?gateLS:ocp;
+        if(!read(chip,addr,actual)||actual!=expected)return false;
+    }
     if(status||value){
         driverStatusFault=true;
         const char* kind=(status&0x23f)?"overcurrent":(status&0x40)?"overtemperature":(status&0x80)||(value&0x40)?"undervoltage":(value&0x80)?"temperature warning":"gate-drive fault";
         snprintf(driverDiagnostic,sizeof(driverDiagnostic),"Driver %u %s (status %03X/%03X)",unsigned(chip+1),kind,unsigned(status),unsigned(value));return false;
-    }
-    for(uint8_t addr=2;addr<=5;addr++){
-        const uint16_t expected=addr==2?control:addr==3?gateHSLocked:addr==4?gateLS:ocp;
-        if(!read(chip,addr,value)||value!=expected)return false;
     }
     return true;
 }
@@ -112,9 +114,9 @@ bool acknowledgeFault(){
 bool attach(int pin,uint32_t frequency){
     const int i=indexOf(pin);if(i<0)return false;
     if(frequency && (frequency<100 || frequency>20000))return false;
+    Wave& w=waves[i];if(w.timer)return w.attached && frequency && w.frequency==frequency;
     digitalWrite(pin,LOW);pinMode(pin,OUTPUT);
     if(!frequency)return true;
-    Wave& w=waves[i];if(w.timer)return w.frequency==frequency;
     w.frequency=frequency;w.period=5000000UL/frequency;
     const int group=i/3;
     mcpwm_timer_config_t tc={};tc.group_id=group;tc.clk_src=MCPWM_TIMER_CLK_SRC_DEFAULT;
@@ -139,7 +141,7 @@ bool attach(int pin,uint32_t frequency){
         ok=ok&&mcpwm_timer_set_phase_on_sync(w.timer,&phase)==ESP_OK && mcpwm_timer_enable(w.timer)==ESP_OK &&
             mcpwm_timer_start_stop(w.timer,MCPWM_TIMER_START_NO_STOP)==ESP_OK;
     }
-    if(!ok){forceLow(i);return false;}return true;
+    if(!ok){forceLow(i);return false;}w.attached=true;return true;
 }
 void write(int pin,float demand){
     const int i=indexOf(pin);if(i<0)return;
@@ -181,7 +183,11 @@ bool parkControlExpander(){
 void begin(bool prerequisitesReady){
     if(!active())return;
     state=State::Off;recoverableFault=false;reason[0]=0;
-    for(int i=0;i<6;i++){digitalWrite(profile()->powerInh[i],LOW);pinMode(profile()->powerInh[i],OUTPUT);forceLow(i);}
+    for(int i=0;i<6;i++){
+        // Reconfiguring an attached pin as GPIO can disconnect its MCPWM route.
+        if(!waves[i].gen){digitalWrite(profile()->powerInh[i],LOW);pinMode(profile()->powerInh[i],OUTPUT);}
+        forceLow(i);
+    }
     digitalWrite(profile()->outputEnableGpio,LOW);pinMode(profile()->outputEnableGpio,OUTPUT);
     if(!prerequisitesReady){fail("peripheral/watchdog initialization failed");return;}
     if(Config::controlLoopHz<100){fail("set System loop target to at least 100 Hz");return;}

@@ -13,7 +13,8 @@ inline uint32_t clockMs=1000;
 inline uint32_t millis(){return clockMs;}
 inline uint32_t micros(){return clockMs*1000;}
 inline void delayMicroseconds(int){}
-inline void pinMode(int,int){}
+inline bool mcpwmMapped[49]={};
+inline void pinMode(int pin,int){assert(!mcpwmMapped[pin]);}
 inline size_t strlcpy(char* dst,const char* src,size_t n){auto l=strlen(src);if(n){memcpy(dst,src,std::min(l,n-1));dst[std::min(l,n-1)]=0;}return l;}
 template<typename T,typename U,typename V>T constrain(T a,U b,V c){return a<T(b)?T(b):a>T(c)?T(c):a;}
 using std::isfinite;
@@ -88,7 +89,7 @@ inline int mcpwm_new_timer(const mcpwm_timer_config_t* c,Timer** t){*t=new Timer
 inline int mcpwm_new_operator(const mcpwm_operator_config_t*,Oper** o){*o=new Oper;return 0;}
 inline int mcpwm_operator_connect_timer(Oper*,Timer*){return 0;}
 inline int mcpwm_new_comparator(Oper*,const mcpwm_comparator_config_t*,Compare** c){*c=new Compare;return 0;}
-inline int mcpwm_new_generator(Oper*,const mcpwm_generator_config_t* c,Gen** g){*g=new Gen;(*g)->pin=c->gen_gpio_num;return 0;}
+inline int mcpwm_new_generator(Oper*,const mcpwm_generator_config_t* c,Gen** g){*g=new Gen;(*g)->pin=c->gen_gpio_num;mcpwmMapped[c->gen_gpio_num]=true;return 0;}
 inline int mcpwm_generator_set_force_level(Gen* g,int v,bool){g->force=v;Mock::gpio[g->pin]=v>0;return 0;}
 #define MCPWM_GEN_TIMER_EVENT_ACTION(...) 0
 #define MCPWM_GEN_COMPARE_EVENT_ACTION(...) 0

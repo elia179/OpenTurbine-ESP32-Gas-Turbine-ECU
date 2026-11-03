@@ -108,3 +108,20 @@ before clearing the recoverable driver state, so a late clear request cannot
 erase a real loop stall. Native tests pass STOP during PWM preload, all-off
 recovery, repeated clear idempotence, rejected low-loop-rate acknowledgement
 and heartbeat loss while a recoverable driver fault is awaiting clear.
+
+PWM-routing follow-up: do not reconfigure MCPWM-owned pins with pinMode at
+board startup or repeated attachment. Native fake GPIO tracks this ownership.
+Tests pass at 100/10000/20000 Hz for six channels, period/phase settings,
+partial-duty startup and 0%/100% overrides. Driver configuration is now verified
+before interpreting status bits, preventing a pulled-high/disconnected MISO
+from being reported as recoverable overcurrent. S3 servo attach starts at its
+native 14-bit limit. The pinned Arduino LEDC implementation was inspected: it
+reuses only matching timer frequency/resolution and rejects timer exhaustion;
+buzzer timing remains separate through its unique resolution. Physical waveform
+and six-power-plus-six-signal coexistence checks await the OTBench fixture.
+
+Also reject repeated attach after a partial MCPWM allocation failure; an
+allocated timer alone is not evidence of a usable generator. Boundary tests
+cover this failed-allocation retry and pulled-high SPI data as well. All three
+carrier-frequency runs pass. No serial ports were visible during this review,
+so no physical output waveform or hardware coexistence result is claimed.

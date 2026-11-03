@@ -83,7 +83,11 @@ public:
 
 private:
     static constexpr uint32_t PWM_FREQ_HZ  = 50;
+    #if defined(OT_PLATFORM_ESP32S3)
+    static constexpr uint8_t  MAX_RES_BITS = 14; // native S3 LEDC limit; avoid failed attach retries
+    #else
     static constexpr uint8_t  MAX_RES_BITS = 16;
+    #endif
     // Floor for the attach-retry. At 50 Hz a 12-bit timer still gives ~4.9 us
     // duty steps (~200 steps across a 1000 us servo band) — plenty for an ESC.
     static constexpr uint8_t  MIN_RES_BITS = 12;
