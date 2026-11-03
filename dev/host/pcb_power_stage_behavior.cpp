@@ -12,6 +12,7 @@ static void reset(){
 }
 static void run(unsigned ms){for(unsigned i=0;i<ms;i+=5){clockMs+=5;service(true);}}
 int main(){
+ assert((Drv8350Protocol::control & 0x400)==0);assert((Drv8350Protocol::ocp & 15)==1);
  reset();for(int pin:profile()->powerInh)assert(attach(pin,10000));
  begin(true);assert(!ready());assert(Mock::writes.size()>=3);
  assert((Mock::writes[0]==std::array<int,2>{1,3}));assert((Mock::writes[2]==std::array<int,2>{3,0}));
@@ -24,14 +25,14 @@ int main(){
  for(int i=0;i<6;i++){write(profile()->powerInh[i],0);assert(!(Mock::regs[1]&(1<<(i+2))));}
  assert(Mock::regs[1]==3);write(37,NAN);assert(Mock::regs[1]==3);
  // Fault-status and configuration corruption latch off, never auto-retry.
- write(37,1);Mock::driver[0][0]=1;run(50);assert(state==State::Fault&&!EngineData::instance().hardwareReady);
+ write(37,1);Mock::driver[0][0]=1;run(1000);assert(state==State::Fault&&!EngineData::instance().hardwareReady);
  assert(Mock::gpio[45]==LOW&&Mock::regs[1]==3&&waves[0].gen->force==0);
  Mock::driver[0][0]=0;run(500);write(37,1);assert(state==State::Fault&&Mock::regs[1]==3);
  reset();begin(true);run(300);assert(ready());clockMs+=76;checkDeadline();assert(state==State::Fault);run(100);assert(state==State::Fault);
  reset();Mock::i2cFail=true;begin(true);assert(state==State::Fault&&Mock::gpio[45]==LOW);
  reset();begin(false);assert(state==State::Fault&&Mock::spiWrites==0);
  reset();begin(true);run(300);assert(ready());Mock::i2cFail=true;write(37,1);assert(state==State::Fault&&waves[0].gen->force==0);
- reset();begin(true);run(300);assert(ready());Mock::driver[1][2]=0;run(60);assert(state==State::Fault);
+ reset();begin(true);run(300);assert(ready());Mock::driver[1][2]=0;run(1000);assert(state==State::Fault);
  reset();Config::controlLoopHz=50;begin(true);assert(state==State::Fault);Config::controlLoopHz=400;
  reset();begin(true);run(300);service(false);assert(state==State::Fault);
  reset();Mock::readCorrupt=true;begin(true);assert(state==State::Fault);

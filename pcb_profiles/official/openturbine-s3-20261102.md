@@ -36,10 +36,10 @@ Boot holds native INH and pulse commands safe, writes power-expander latch **0x0
 
 Initial driver policy, from TI SLVSDY6A tables 14–17:
 
-- 3x PWM, protected complementary switching; all-three-phase OCP action, gate undervoltage/gate-fault protection retained and thermal warning reported.
+- 3x PWM, protected complementary switching; associated-half-bridge OCP action, gate undervoltage/gate-fault protection retained and thermal warning reported.
 - 300 mA gate source / 600 mA sink, 4 µs peak-drive window, 400 ns minimum dead time.
-- Latched VDS OCP, 2 µs deglitch, 80 mV VDS threshold. These are prototype starting settings, **not calibrated load-current ratings**; verify switching and nuisance-trip margins on the real board.
-- Read back all programmed registers, then lock configuration. Poll status and configuration while active; a lost expander, invalid register, driver fault or missed control deadline latches the software backend off. No automatic OCP retry or fault-clear command is sent.
+- Latched VDS OCP, 2 µs deglitch, 70 mV VDS threshold (second-lowest). These are prototype starting settings, **not calibrated load-current ratings**; verify switching and nuisance-trip margins on the real board.
+- Read back all programmed registers, then lock configuration. Poll each driver's status and configuration once per second (alternating at 500 ms); a lost expander, invalid register, driver fault or missed control deadline latches the software backend off. No automatic OCP retry or fault-clear command is sent.
 
 A zero demand disables INL as well as INH, leaving both FETs off. A phase returning from off to partial duty preloads its new compare value for a full carrier period while disabled, preventing an old duty value from leaking into the first pulse. Positive PWM uses synchronous recirculation. Six independent MCPWM power timers leave LEDC available for six signal outputs; compatible equal-frequency power carriers are staggered. Software sync between the two timer groups has a small skew, and independently chosen frequencies drift. Scope verification and capacitor ripple/thermal measurements remain necessary. Power PWM is limited to 100–20,000 Hz; at 5 MHz timer resolution, the number of duty steps depends on frequency. Signal-output timing must fit the remaining LEDC channels/timers.
 
