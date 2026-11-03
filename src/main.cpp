@@ -4522,6 +4522,7 @@ void setup() {
     if (!EngineData::instance().watchdogReady)
         Serial.println("[OT] ERROR: control-loop watchdog initialization failed; START inhibited");
 
+    PcbPowerStage::begin(EngineData::instance().hardwareReady && EngineData::instance().watchdogReady);
     OT_DEBUG_PRINTLN("[OT] Setup complete");
 }
 
@@ -4656,6 +4657,10 @@ void loop() {
         ConfigApplyGate::release();
     }
 
+    PcbPowerStage::checkDeadline();
+    if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
+        g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
+    }
     checkStopSwitch();
     checkStartSwitch();
 
@@ -4765,6 +4770,10 @@ void loop() {
     // the short interval before its first physical demand remains covered.
     if (OutputActivity::anyPhysicalDemand(false)) ResetRecovery::markActive();
     Hardware::updateActuators();
+    PcbPowerStage::service(EngineData::instance().watchdogReady);
+    if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
+        g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
+    }
     uint32_t afterActuatorsUs = micros();
 
     // Clear the retained active marker only after two complete ECU loops have

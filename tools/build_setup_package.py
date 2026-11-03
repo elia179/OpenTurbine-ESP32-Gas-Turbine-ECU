@@ -68,11 +68,11 @@ COMMON_FLASH = [
     ("0x10000", "firmware.bin"),
 ]
 PACKAGE_SCHEMA = 4
-SETUP_TOOL_VERSION = "0.7.8"
-MINIMUM_SETUP_TOOL_VERSION = "0.7.4"
+SETUP_TOOL_VERSION = "0.7.9"
+MINIMUM_SETUP_TOOL_VERSION = "0.7.9"
 ESPTOOL_VERSION = "5.3.0"
 # Deliberate installer catalogue: historical profiles remain test fixtures, not choices.
-SHIPPED_OFFICIAL_PROFILES = ("openturbine-s3-20261028.otpcb.json",)
+SHIPPED_OFFICIAL_PROFILES = ("openturbine-s3-20261102.otpcb.json",)
 
 
 def source_commit() -> str:
@@ -252,6 +252,7 @@ def stage_package(stage: Path, esptool: Path, esptool_license: Path | None = Non
         "version": read_version(),
         "recommended": True,
         "package_schema": PACKAGE_SCHEMA,
+        "pcb_profile_max_format_major": 2,
         "setup_tool_version": SETUP_TOOL_VERSION,
         "minimum_setup_tool_version": MINIMUM_SETUP_TOOL_VERSION,
         "source_commit": source_commit(),

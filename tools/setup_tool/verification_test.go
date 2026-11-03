@@ -211,15 +211,15 @@ func TestCurrentPCBProfileContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", Targets: map[string]ManifestTarget{
+	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
 		"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}},
 	}}}
 	pkg.Manifest.Version = "2.6.0"
-	if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261028.otpcb.json")); err == nil {
+	if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json")); err == nil {
 		t.Fatal("new profile accepted with old firmware")
 	}
 	pkg.Manifest.Version = "2.6.1"
-	path, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261028.otpcb.json"))
+	path, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,11 +232,11 @@ func TestCurrentPCBProfileContainer(t *testing.T) {
 
 func TestCurrentPCBRejectsInvalidIndicatorEndpoints(t *testing.T) {
 	root, _ := filepath.Abs("../..")
-	source, err := os.ReadFile(filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261028.otpcb.json"))
+	source, err := os.ReadFile(filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", Targets: map[string]ManifestTarget{
+	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
 		"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}},
 	}}}
 	for _, tc := range []string{"shared-channel", "missing-device", "missing-gpio"} {
@@ -245,8 +245,16 @@ func TestCurrentPCBRejectsInvalidIndicatorEndpoints(t *testing.T) {
 			if err := json.Unmarshal(source, &profile); err != nil {
 				t.Fatal(err)
 			}
-			fixed := profile["fixed_functions"].(map[string]any)
-			led := fixed["status_led"].(map[string]any)
+			var led map[string]any
+			for _, row := range profile["ports"].([]any) {
+				p := row.(map[string]any)
+				if p["id"] == "status_led" {
+					led = p["modes"].([]any)[0].(map[string]any)
+				}
+			}
+			if led == nil {
+				t.Fatal("missing default status connector")
+			}
 			switch tc {
 			case "shared-channel":
 				led["channel"] = float64(7)
@@ -263,6 +271,51 @@ func TestCurrentPCBRejectsInvalidIndicatorEndpoints(t *testing.T) {
 			}
 			if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", path); err == nil {
 				t.Fatal("invalid indicator endpoint accepted")
+			}
+		})
+	}
+}
+
+func TestProtectedPowerStageRejectsUnsafeContracts(t *testing.T) {
+	root, _ := filepath.Abs("../..")
+	source, err := os.ReadFile(filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fault := range []string{"old-package", "old-format", "duplicate", "no-heartbeat", "wrong-device", "wrong-spi", "fast-i2c", "high-frequency"} {
+		t.Run(fault, func(t *testing.T) {
+			var doc map[string]any
+			if err := json.Unmarshal(source, &doc); err != nil {
+				t.Fatal(err)
+			}
+			pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}}}}}
+			fixed := doc["fixed_functions"].(map[string]any)
+			power := fixed["power_stage"].(map[string]any)
+			switch fault {
+			case "old-package":
+				pkg.Manifest.PCBProfileMaxFormatMajor = 0
+			case "old-format":
+				doc["format_version"].(map[string]any)["major"] = float64(1)
+			case "duplicate":
+				power["inh_gpio"].([]any)[1] = power["inh_gpio"].([]any)[0]
+			case "no-heartbeat":
+				fixed["output_enable"].(map[string]any)["mode"] = "static"
+			case "wrong-device":
+				power["control_device"] = "io"
+			case "wrong-spi":
+				power["spi_bus"] = "missing"
+			case "fast-i2c":
+				doc["buses"].([]any)[0].(map[string]any)["frequency_hz"] = float64(400000)
+			case "high-frequency":
+				power["maximum_pwm_hz"] = float64(100000)
+			}
+			data, _ := json.Marshal(doc)
+			path := filepath.Join(t.TempDir(), "profile.json")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", path); err == nil {
+				t.Fatal("unsafe power contract accepted")
 			}
 		})
 	}

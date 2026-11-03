@@ -111,6 +111,8 @@ def main() -> int:
     (ROOT / "artifacts").mkdir(exist_ok=True)
     with tmp_context as tmp:
         tests = [
+            ("pcb_profile_runtime_behavior", [str(ROOT / "dev/host/pcb_profile_runtime_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
+            ("pcb_power_stage_behavior", [str(ROOT / "dev/host/pcb_power_stage_behavior.cpp")], []),
             ("mavlink_migration_behavior", [str(ROOT / "dev/host/mavlink_migration_behavior.cpp")], []),
             ("mavlink_client_behavior", [str(ROOT / "dev/host/mavlink_client_behavior.cpp")], []),
             ("telemetry_catalog_behavior", [str(ROOT / "dev/host/telemetry_catalog_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
@@ -168,7 +170,7 @@ def main() -> int:
             }.get(name, name)
             exe = Path(tmp) / (exe_name + (".exe" if os.name == "nt" else ""))
             subprocess.run(compile_command(compiler, [
-                "-std=c++17", "-pthread",
+                "-std=c++17", "-pthread", "-DOT_HOST_TEST",
                 "-I", str(ROOT / "dev" / "host" / "fakes"),
                 "-I", str(ROOT),
                 "-I", str(arduino_json),

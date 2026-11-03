@@ -38,8 +38,9 @@ class BuildSetupPackageTests(unittest.TestCase):
                 mock.patch.object(build_setup_package, "read_version", return_value="9.9.9"):
                 manifest = build_setup_package.stage_package(stage, esptool, esptool_license)
             self.assertEqual(manifest["package_schema"], 4)
-            self.assertEqual(manifest["setup_tool_version"], "0.7.8")
-            self.assertEqual(manifest["minimum_setup_tool_version"], "0.7.4")
+            self.assertEqual(manifest["pcb_profile_max_format_major"],2)
+            self.assertEqual(manifest["setup_tool_version"], "0.7.9")
+            self.assertEqual(manifest["minimum_setup_tool_version"], "0.7.9")
             self.assertTrue((stage / "LICENSE").exists())
             self.assertTrue((stage / "THIRD_PARTY_NOTICES.md").exists())
             self.assertEqual(
@@ -51,9 +52,9 @@ class BuildSetupPackageTests(unittest.TestCase):
             self.assertTrue(any((stage / "pcb_profiles" / "targets").glob("*.json")))
             self.assertEqual(manifest["targets"]["esp32dev"]["pcb_profile"]["official_profiles"], [])
             shipped = manifest["targets"]["esp32s3dev"]["pcb_profile"]["official_profiles"]
-            self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261028"])
-            self.assertEqual(shipped[0]["revision"], "1.0-20261028")
-            source = __import__("json").loads((ROOT / "pcb_profiles/official/openturbine-s3-20261028.otpcb.json").read_text(encoding="utf-8"))
+            self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261102"])
+            self.assertEqual(shipped[0]["revision"], "2.0-20261102")
+            source = __import__("json").loads((ROOT / "pcb_profiles/official/openturbine-s3-20261102.otpcb.json").read_text(encoding="utf-8"))
             labels = {p["label"] for p in source["ports"]}
             expected = {"Start", "Stop"} | {f"Thermocouple {n}" for n in range(1,3)}
             for prefix, count in [("Input",6),("OUT",6),("PWM",6),("ADC",8)]:

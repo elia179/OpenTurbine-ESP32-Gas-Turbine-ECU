@@ -11,7 +11,14 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    if(packed)await p.route(/\/(hardware\.html|theme\.js|app\.js|style\.css)(?:\?.*)?$/,r=>{const name=new URL(r.request().url()).pathname.slice(1);return r.fulfill({status:200,contentType:name.endsWith('html')?'text/html':name.endsWith('js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});});
    const initial=await(await p.request.get(base+'/__sim/state')).json();const fixture=latestPcbFixture(initial);
    const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await p.goto(base+'/hardware.html');
-   await p.waitForFunction(()=>document.querySelector('#hardware-board-summary')?.textContent.includes('1.0-20261028'));
+   await p.waitForFunction(()=>document.querySelector('#hardware-board-summary')?.textContent.includes('2.0-20261102'));
+   await p.evaluate(()=>{
+     const c={pin:37,driver:5,pwm_freq_hz:20000,pwm_res_bits:14,safe_demand:0};
+     const html=registryPwmTimingEditor(c,0);
+     if(!html.includes('max="20000"')||!html.includes('5 MHz')||html.includes('PWM resolution (bits)'))throw Error('power timer editor must reflect MCPWM timing');
+     if(!registryInvertEditor('output',c,0).includes('Protected complementary'))throw Error('power output must not offer GPIO inversion');
+     if(!registryDemandEditor(c,0).includes('Off (fixed by PCB)'))throw Error('power output must not offer unsafe boot demand');
+   });
    assert.equal(await p.evaluate(()=>pcbProfile.ports.length),source.ports.length);assert.doesNotMatch(await p.locator('body').innerText(),/Pin conflict:/,'clean PCB preview has no unrelated development-board assignments');
    await p.evaluate(()=>{
     const ports=new Map(pcbProfile.ports.map(p=>[p.id,p]));

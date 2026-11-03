@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "../SharedPeripheralBus.h"
 
 namespace SoftwareSpiRead {
 // Shared by simple read-only thermocouple converters. noinline keeps one copy
@@ -8,6 +9,7 @@ __attribute__((noinline)) inline uint32_t bits(int clockPin, int chipSelectPin,
                                               int dataPin, uint8_t count,
                                               bool sampleHigh,
                                               unsigned int halfPeriodUs = 5) {
+    SharedPeripheralBus::Guard guard;if(!guard)return 0xffffffff;
     uint32_t raw = 0;
     // Set this device's idle level while every chip is deselected. The prior
     // transaction (possibly a different SPI mode) must not shift the first bit.

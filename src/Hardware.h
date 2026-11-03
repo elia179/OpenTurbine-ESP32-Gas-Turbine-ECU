@@ -1128,7 +1128,10 @@ namespace Hardware {
                                                  c.digitalHysteresisRaw, state);
                     ed.registryInputValue[i] = AdcThreshold::logicalValue(state, c.activeHigh);
                 } else {
-                    ed.registryInputValue[i] = registryAnalogPhysicalInput((float)raw, c);
+                    const auto* pcb=PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;
+                    if(pcb && pcb->hasSupplyVoltage && c.pin==pcb->supplyVoltageGpio && !strcmp(c.purpose,"battery_voltage") && c.calibrationPointCount<2)
+                        ed.registryInputValue[i]=analogReadMilliVolts(c.pin)*0.001f*c.analogDivider;
+                    else ed.registryInputValue[i] = registryAnalogPhysicalInput((float)raw, c);
                 }
                 const bool operatorPot = !strcmp(c.role, "operator") &&
                     (!strcmp(c.purpose, "throttle") || !strcmp(c.purpose, "idle"));
@@ -1311,7 +1314,16 @@ namespace Hardware {
         const bool tracked = outputOffset >= 0 &&
             outputOffset < ChannelRegistry::MAX_OUTPUT_CHANNELS;
         const uint8_t outputIndex = tracked ? (uint8_t)outputOffset : 0;
-        if (c.driver == ChannelRegistry::I2cRelay) {
+        if(PcbPowerStage::active() && !PcbPowerStage::ready() && !PcbPowerStage::ownsPin(c.pin) && c.pin>=0){
+            if(c.driver==ChannelRegistry::Servo || c.driver==ChannelRegistry::Pwm)ledcWrite(c.pin,0);
+            else if(c.driver==ChannelRegistry::Relay)digitalWrite(c.pin,c.inverted?HIGH:LOW);
+            return;
+        }
+        if (PcbPowerStage::ownsPin(c.pin)) {
+            const float value = demand<=0?0:c.driver==ChannelRegistry::Relay?1.0f:
+                constrain(c.minValue,0.0f,1.0f)+(constrain(c.maxValue,0.0f,1.0f)-constrain(c.minValue,0.0f,1.0f))*demand;
+            PcbPowerStage::write(c.pin,value);
+        } else if (c.driver == ChannelRegistry::I2cRelay) {
             I2CDeviceManager::writeOutput(c, demand);
         } else if (c.driver == ChannelRegistry::Relay) {
             digitalWrite(c.pin, RelayDemand::physicalLevel(demand, c.inverted) ? HIGH : LOW);
@@ -1442,7 +1454,11 @@ namespace Hardware {
             const auto& c = reg.outputs[i];
             if (!(g_registryOutputMeta[i] & REG_OUTPUT_MANAGED)) continue;
             ed.registryOutputDemand[i] = constrain(c.safeDemand, 0.0f, 1.0f);
-            if (c.driver == ChannelRegistry::I2cRelay) {
+            if(PcbPowerStage::ownsPin(c.pin)) {
+                if(!PcbPowerStage::attach(c.pin,c.driver==ChannelRegistry::Pwm?(c.pwmTimingConfigured?c.pwmFrequency:5000U):0)){
+                    ed.hardwareReady=false;snprintf(ed.hardwareFault,sizeof(ed.hardwareFault),"PCB power PWM attach failed: %s",c.id);
+                }
+            } else if (c.driver == ChannelRegistry::I2cRelay) {
                 // The manager wrote the configured safe latch before changing
                 // the TCA9554 direction register.
             } else if (c.driver == ChannelRegistry::Relay) {
@@ -3057,6 +3073,7 @@ namespace Hardware {
 
     // ── Actuator update: EngineData demands → physical signals ─
     inline void updateActuators() {
+        if(PcbPowerStage::active() && !PcbPowerStage::ready())return;
         auto& hw = HardwareConfig::instance();
         auto& ed = EngineData::instance();
         // Keep this at the final actuator boundary so no controller or rule

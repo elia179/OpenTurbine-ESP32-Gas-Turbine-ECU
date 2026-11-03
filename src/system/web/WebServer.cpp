@@ -1,5 +1,6 @@
 #include "../RecentEventLog.h"
 #include "WebServer.h"
+#include "../../hal/actuators/PcbPowerStage.h"
 #include "../../hal/i2c/I2CDeviceManager.h"
 #include "hardware_profile.h"
 #include "../version.h"
@@ -2562,6 +2563,10 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         doc["has_oil_temp"]          = HardwareConfig::hasOilTemp;
         doc["has_batt_voltage"]      = HardwareConfig::hasBattVoltage;
         doc["pcb_profile_active"] = PcbProfileManager::active();
+#if defined(OT_PLATFORM_ESP32S3)
+        doc["pcb_power_stage_state"] = PcbPowerStage::stateName();
+        doc["pcb_power_stage_fault"] = PcbPowerStage::faultReason();
+#endif
         doc["has_torque"]            = HardwareConfig::hasTorque;
         doc["has_thrust"]            = HardwareConfig::hasThrust;
         doc["has_fuel_press"]        = HardwareConfig::hasFuelPress;

@@ -1,4 +1,5 @@
 #pragma once
+#include "pcb/PcbProfileManager.h"
 
 // Bounded, allocation-free inventory used by configuration validation and
 // runtime binding resolution.  IDs are configuration keys; labels are never
@@ -1000,7 +1001,7 @@ private:
         if (c.driver == Pwm) return c.minValue >= 0.0f && c.maxValue <= 1.0f &&
                                     c.maxValue > c.minValue &&
                                     (!c.pwmTimingConfigured ||
-                                     pwmTimingValid(c.pwmFrequency, c.pwmResolution));
+                                     (PcbProfileManager::isPowerPin(c.pin) ? (c.pwmFrequency>=100 && c.pwmFrequency<=20000) : pwmTimingValid(c.pwmFrequency, c.pwmResolution)));
         return true;
     }
     static bool demandsValid(const Channel& c) {

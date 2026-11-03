@@ -112,6 +112,8 @@ bool applyMode(ChannelRegistry::Channel& channel,
     if(input && mode.pullDeviceIndex>=0) channel.pulldown=false;
 #endif
     if (!input) channel.safeDemand = mode.safeDemand;
+    if(!input && channel.driver==Driver::Pwm && PcbProfileManager::isPowerPin(channel.pin))
+        channel.pwmResolution=10; // MCPWM uses its timebase, not a user LEDC bit setting
 
     if (channel.driver == Driver::I2cDigital || channel.driver == Driver::I2cAnalog ||
         channel.driver == Driver::I2cLoadCell || channel.driver == Driver::I2cRelay) {
@@ -192,6 +194,8 @@ bool PcbProfileResolver::resolve(ChannelRegistry& registry,
                 if (channel.pin < 0)
                     return fail(reason, reasonSize,
                                 "bare-GPIO channel has no GPIO assignment");
+                if (PcbProfileManager::isPowerPin(channel.pin))
+                    return fail(reason,reasonSize,"PCB power outputs require their named connector");
                 if (PcbProfileManager::gpioReserved(channel.pin))
                     return fail(reason, reasonSize,
                                 "bare-GPIO channel uses a pin reserved by the PCB");

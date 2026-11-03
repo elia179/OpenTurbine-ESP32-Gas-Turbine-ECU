@@ -1411,7 +1411,7 @@ expect('LEDC capacity includes proportional starter-enable and air-starter regis
   hwConfig.includes('const bool registryOwnedProportional =') &&
   hwConfig.includes('!strcmp(channel.purpose, "starter_enable")') &&
   hwConfig.includes('!strcmp(channel.purpose, "air_starter")') &&
-  hwConfig.includes('if (registryOwnedProportional ||'));
+  hwConfig.includes('!PcbProfileManager::isPowerPin(channel.pin) && (registryOwnedProportional ||'));
 expect('control-loop pacing recalculates its fractional wait after yielding',
   main.includes('const uint32_t elapsedAfterYieldUs = micros() - loopStartUs;') &&
   main.includes('waitUs = elapsedAfterYieldUs < targetPeriodUs'));

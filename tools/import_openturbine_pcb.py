@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import zipfile
 
-EXPECTED_SOURCE_SHA256='29f260f731b2d72e9c8ff08bcb7c71bdce4a03e769cc2c65b509bc37a70b4eda'
+EXPECTED_SOURCE_SHA256='f3d77f6a5ef8931c1d90470fe6a58b8756b5f76afff5dd4e65246dec9d0d79fe'
 
 
 def components(project):
@@ -56,21 +56,29 @@ def make_profile(parts):
     check('U8', 11, '')  # Floating ADDR is 0x10 per TI address-selection table.
     for pad in (1,2,3): check('U17', pad, 'GND')
     for ref,channel in [('U20',1),('U21',2)]: check(ref,9,'TC_CS' if channel==1 else 'TC2_CS')
+    for ref,offset in [('U5',0),('U6',3)]:
+        for pin,net in [(18,'SPI_MISO'),(19,'SPI_MOSI'),(20,'SPI_SCK'),(21,'DRV1_CS_N' if not offset else 'DRV2_CS_N'),(22,'DRV_ENABLE')]: check(ref,pin,net)
+        for i in range(3):
+            check(ref,23+2*i,f'PWM_CMD{offset+i+1}');check(ref,24+2*i,f'INL{offset+i+1}')
+    for pin,net in zip([4,5,6,7,9,10,11,12],['DRV1_CS_N','DRV2_CS_N']+[f'INL{i}' for i in range(1,7)]):check('U2001',pin,net)
+    for pin,net in [(1,'+3V3'),(2,'GND'),(3,'GND')]:check('U2001',pin,net)
     profile = {
-        'format':'openturbine-pcb-profile', 'format_version':{'major':1,'minor':1},
-        'board':{'id':'openturbine-s3-20261028','name':'OpenTurbine PCB','revision':'1.0-20261028','manufacturer':'OpenTurbine','description':'28 Oct 2026; ESP32-S3-WROOM-1-N8; all parts fitted; OpenTurbine 2.6.1 required'},
+        'format':'openturbine-pcb-profile', 'format_version':{'major':2,'minor':0},
+        'board':{'id':'openturbine-s3-20261102','name':'OpenTurbine PCB','revision':'2.0-20261102','manufacturer':'OpenTurbine','description':'2 Nov 2026; ESP32-S3-WROOM-1-N8; all parts fitted; OpenTurbine 2.6.1 required'},
         'target':{'chip':'esp32-s3','minimum_flash_mb':8,'reviewed_strapping_gpio':[3,45,46]},
         'buses':[
-            {'id':'sensor_i2c','kind':'i2c','pins':{'sda':gpio('I2C_SDA'),'scl':gpio('I2C_SCL')},'frequency_hz':400000},
+            {'id':'sensor_i2c','kind':'i2c','pins':{'sda':gpio('I2C_SDA'),'scl':gpio('I2C_SCL')},'frequency_hz':100000},
             {'id':'thermocouple_spi','kind':'spi','pins':{'sck':gpio('SPI_SCK'),'miso':gpio('SPI_MISO'),'mosi':gpio('SPI_MOSI')}},
             {'id':'serial_0','kind':'uart','pins':{'tx':gpio('UART_TX'),'rx':gpio('UART_RX')}}],
         'devices':[
             {'id':'tc1','driver':'max31856','bus':'thermocouple_spi','select':{'gpio':gpio('TC_CS')},'expected':True},
             {'id':'tc2','driver':'max31856','bus':'thermocouple_spi','select':{'gpio':gpio('TC2_CS')},'expected':True},
             {'id':'adc','driver':'tla2528','bus':'sensor_i2c','address':16,'expected':True},
-            {'id':'io','driver':'tca9534','bus':'sensor_i2c','address':32,'expected':True}],
+            {'id':'io','driver':'tca9534','bus':'sensor_i2c','address':32,'expected':True},
+            {'id':'gate_io','driver':'tca9534','bus':'sensor_i2c','address':33,'expected':True}],
         'fixed_functions':{
-            'output_enable':{'gpio':gpio('OUTPUT_ENABLE'),'active_high':True,'safe_demand':0},
+            'output_enable':{'gpio':gpio('OUTPUT_ENABLE'),'active_high':True,'safe_demand':0,'mode':'health_heartbeat','frequency_hz':100},
+            'power_stage':{'driver':'drv8350s','control_device':'gate_io','spi_bus':'thermocouple_spi','inh_gpio':[gpio(f'PWM_RAW{i}') for i in range(1,7)],'spi_hz':100000,'maximum_pwm_hz':20000},
             'supply_voltage':{'gpio':gpio('BAT_ADC_MCU'),'divider':37,'reference_mv':3300,'label':'ECU supply voltage'},
             'mavlink':{'bus':'serial_0'}}, 'ports':[]}
     ports = profile['ports']
@@ -78,7 +86,7 @@ def make_profile(parts):
         ports.append({'id':f'thermocouple_{i}','label':f'Thermocouple {i}','connector':f'J{42+i}','modes':[{'id':'temperature','adapter':'spi_thermocouple','device':f'tc{i}'}]})
     for i in range(1,9):
         check(f'J{19+i}',1,f'ANALOG_EXT{i}')
-        ports.append({'id':f'analog_{i}','label':f'ADC {i}','connector':f'J{19+i}','description':'0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail','modes':[
+        ports.append({'id':f'analog_{i}','label':f'ADC {i}','connector':f'J{19+i}','description':'0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail','modes':[
             {'id':'analog','adapter':'i2c_adc_input','device':'adc','channel':i-1,'reference_mv':5000,'limits':{'minimum_mv':0,'maximum_mv':5000}},
             {'id':'switch','adapter':'i2c_adc_digital_input','device':'adc','channel':i-1,'reference_mv':5000}]})
     for i in range(1,7):
@@ -89,8 +97,9 @@ def make_profile(parts):
             for kind,adapter in [('frequency','pcnt_input'),('rc','rc_pwm_input'),('duty','pwm_duty_input'),('switch','digital_input')]]})
     for i in range(1,7):
         check(f'J{33+i}',1,f'PULSE_OUT{i}')
+        check(f'J{2*i+1}','+',f'CH{i}_OUT_POS');check(f'J{2*i+1}','-','GND')
         ports.append({'id':f'pulse_out_{i}','label':f'OUT {i}','connector':f'J{33+i}','description':'5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.','modes':[{'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_CMD{i}')},'safe_demand':0} for kind,adapter in [('servo','servo_output'),('pwm','pwm_output'),('on_off','relay_output')]]})
-        ports.append({'id':f'power_out_{i}','label':f'PWM {i}','connector':f'J{2*i+1}','description':'Low-side VIN load: PWM duty or on/off; shared hardware output enable','modes':[
+        ports.append({'id':f'power_out_{i}','label':f'PWM {i}','connector':f'J{2*i+1}','description':'Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum','modes':[
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PWM_RAW{i}')},'safe_demand':0}
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:

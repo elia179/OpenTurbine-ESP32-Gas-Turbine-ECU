@@ -10,7 +10,7 @@ GPIO workflow.
 
 ## Profile offered by the installer
 
-The only bundled official choice is [OpenTurbine PCB revision 1.0-20261028](official/openturbine-s3-20261028.md), for the supplied ESP32-S3-WROOM-1-N8 routing. It requires OpenTurbine 2.6.1 or newer. Plain development boards still work without a profile; Custom PCB profile remains available.
+The only bundled official choice is [OpenTurbine PCB revision 2.0-20261102](official/openturbine-s3-20261102.md), for the supplied ESP32-S3-WROOM-1-N8 routing. It requires the matching new OpenTurbine 2.6.1 implementation and Setup Tool 0.7.9 or newer. Plain development boards still work without a profile; Custom PCB profile remains available.
 
 `tools/build_setup_package.py` lists the shipped profile explicitly. The older `openturbine-ecu-s3-v1.otpcb.json` is retained for historical compatibility tests and is not included in the installer. Do not choose a profile from a similar-looking board: connector routing, voltage conditioning and output-enable polarity can differ.
 
@@ -112,7 +112,7 @@ choices such as colours, baud rate, and update interval where applicable.
 
 ### 2.6.1 profile additions
 
-The 28 October 2026 board uses `official/openturbine-s3-20261028.otpcb.json`;
+The current 2 November 2026 board uses `official/openturbine-s3-20261102.otpcb.json`;
 see its adjacent routing/assembly note. It requires an **ESP32-S3-WROOM-1-N8**,
 not N8R8. It is distinct from the older official S3 board profile.
 
@@ -125,6 +125,18 @@ external pull-up. These control channels are reserved and cannot also be
 assigned as ordinary user ports. Expander-backed indicators/pull controls
 are S3 capabilities; Classic retains its configurable GPIO indicators and existing
 format 1.0 PCB profiles. Format 1.1 profiles require S3 firmware.
+
+### Protected power stage (format 2.0)
+
+Format 2.0 is reserved for the implemented S3 DRV8350S backend: a dedicated
+0x21 TCA9534 controls two CS bits and six INL bits, while six named GPIO
+endpoints drive INH. It requires the health heartbeat, a complete shared SPI
+bus, 100 kHz I²C and safe off connector modes. The parser, source validator
+and Setup Tool reject unsupported combinations. The package declares
+`pcb_profile_max_format_major: 2`; a custom 2.0 profile cannot be combined
+with an older package. Older firmware rejects the major version rather than
+silently treating heartbeat enable as static GPIO. See the current board note
+for reset/latch behavior and the prototype-only driver settings.
 
 ## Output safety
 

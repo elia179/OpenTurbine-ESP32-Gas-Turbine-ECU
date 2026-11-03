@@ -161,8 +161,8 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     _require(profile.get("format") == "openturbine-pcb-profile",
              "format must be 'openturbine-pcb-profile'")
     version = profile.get("format_version")
-    _require(isinstance(version, dict) and version.get("major") == 1,
-             "format_version.major must be 1")
+    _require(isinstance(version, dict) and version.get("major") in (1,2),
+             "format_version.major must be 1 or 2")
     _require(isinstance(version.get("minor"), int) and 0 <= version["minor"] <= 255,
              "format_version.minor must be 0..255")
 
@@ -182,7 +182,7 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     _require(isinstance(target, dict) and target.get("chip") in TARGET_IDS,
              "target.chip must be esp32 or esp32-s3")
     chip = target["chip"]
-    _require(chip != "esp32" or version["minor"] == 0,
+    _require(chip != "esp32" or (version["major"] == 1 and version["minor"] == 0),
              "Classic ESP32 supports format 1.0 profiles; newer capabilities require S3")
     catalog = _target_catalog(chip)
     valid_gpio = set(catalog["gpio"])
@@ -289,15 +289,39 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
         _require(prior is None or prior == owner,f"{owner} conflicts with device channel owned by {prior}")
         device_channel_owners[(device,channel)]=owner
 
+    power = fixed.get('power_stage')
+    if power is not None:
+        _require(version=={'major':2,'minor':0} and chip=='esp32-s3', 'protected power stage requires format 2.0 and S3')
+        _require(power.get('driver')=='drv8350s' and power.get('spi_hz')==100000 and power.get('maximum_pwm_hz')==20000,'unsupported DRV8350 power-stage settings')
+        enable=fixed.get('output_enable',{})
+        _require(enable.get('mode')=='health_heartbeat' and enable.get('frequency_hz')==100 and enable.get('active_high') is True,'power stage needs the 100 Hz health heartbeat')
+        control=power.get('control_device')
+        _require(control in device_ids, 'power stage control device missing')
+        device=next(d for d in devices if d['id']==control)
+        _require(device.get('driver')=='tca9534' and device.get('address')==0x21,'power control needs a dedicated 0x21 TCA9534')
+        bus=next((b for b in buses if b['id']==device.get('bus')), {})
+        _require(bus.get('kind')=='i2c' and bus.get('frequency_hz')==100000,'power control requires 100 kHz I2C')
+        spi=next((b for b in buses if b['id']==power.get('spi_bus')), {})
+        _require(spi.get('kind')=='spi' and spi.get('pins',{}).get('mosi',-1)>=0, 'power stage SPI bus incomplete')
+        pins=power.get('inh_gpio',[])
+        _require(len(pins)==6 and len(set(pins))==6,'power stage requires six unique INH pins')
+        for pin in pins:
+            gpio(pin,'power INH',output=True)
+            modes=[m for p in ports for m in p.get('modes',[]) if m.get('endpoint',{}).get('gpio')==pin]
+            _require(modes and all(m['adapter'] in {'relay_output','pwm_output'} and m.get('active_high',True) and m.get('safe_demand')==0 for m in modes),'power INH must have a safe named PWM/on-off connector')
+        for ch in range(8): claim_device_channel(control,ch,'fixed_functions.power_stage')
+    else:
+        _require(version['major']==1 and fixed.get('output_enable',{}).get('mode','static')=='static','heartbeat/format 2.0 requires protected power stage')
+
     for key in ("status_led", "fault_led", "buzzer", "output_enable"):
         if key not in fixed:
             continue
         item = fixed[key]
         if key in {'fault_led','output_enable'}:
-            _require(version['minor'] >= 1, f'{key} requires profile format 1.1')
+            _require((version['major'] == 2 or version['minor'] >= 1), f'{key} requires profile format 1.1')
             _require(chip=='esp32-s3','These fixed PCB functions require ESP32-S3; generic GPIO Fault LEDs remain available on Classic')
         if key in {'status_led','fault_led'} and isinstance(item,dict) and 'device' in item:
-            _require(version['minor'] >= 1, f'{key} expander endpoint requires profile format 1.1')
+            _require((version['major'] == 2 or version['minor'] >= 1), f'{key} expander endpoint requires profile format 1.1')
             _require(chip=='esp32-s3','Expander-backed fixed indicators require ESP32-S3')
             _require(item.get('type','gpio')=='gpio','Expander-backed indicators must use plain GPIO type')
             _require('gpio' not in item and item.get('safe_demand')==0,f"{key} needs one endpoint and safe_demand 0")
@@ -403,7 +427,7 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
                          f"port {port_id}/{mode_id} refers to missing device")
             endpoint = mode.get("endpoint", {})
             if 'pull_control' in mode:
-                _require(version['minor'] >= 1, 'pull_control requires profile format 1.1')
+                _require((version['major'] == 2 or version['minor'] >= 1), 'pull_control requires profile format 1.1')
                 _require(chip=='esp32-s3','External PCB pull control requires ESP32-S3')
                 control=mode['pull_control']
                 _require(isinstance(control,dict) and isinstance(control.get('active_high'),bool),f"port {port_id} has invalid pull control")

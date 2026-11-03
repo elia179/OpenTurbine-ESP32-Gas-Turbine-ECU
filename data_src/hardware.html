@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261030b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261030b');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261102a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261102a');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -2306,6 +2306,8 @@ function registryPhaseTorqueSubcards(direction, c, index) {
       </div></div></div>`;
 }
 function registryInvertEditor(direction, c, index) {
+  if(direction==='output' && pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin)))
+    return `<div class="hw-field"><span class="hw-label">Output drive</span><output>Protected complementary half-bridge</output><span class="hw-desc">0% disables both FETs. Polarity and the safe off state are fixed by this PCB's power circuit.</span></div>`;
   if (direction === 'input') {
     if (['flame','ab_flame'].includes(registryDerivedPurpose(direction,c))) return '';
     const normalized = ['generic','throttle','idle','flame'].includes(registryDerivedPurpose(direction,c));
@@ -2318,6 +2320,8 @@ function registryInvertEditor(direction, c, index) {
   return `<div class="hw-field"><span class="hw-label">Output direction</span><span class="hw-desc">Reversed maps semantic 0% to the configured 100% electrical endpoint and semantic 100% to the 0% endpoint.</span><select onchange="updateRegistryChannel('${direction}',${index},'invert',this.value==='1')"><option value="0"${c.invert?'':' selected'}>Normal</option><option value="1"${c.invert?' selected':''}>Reversed</option></select></div>`;
 }
 function registryDemandEditor(c, index) {
+  if(pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin)))
+    return `<div class="hw-field"><span class="hw-label">Power-on demand</span><output>Off (fixed by PCB)</output></div>`;
   const safeChanged = registryFieldChangedClass('output', index, 'safe_demand');
   const safeInvalid = registryDemandProblem(c.safe_demand) ? ' field-error' : '';
   if (registryDerivedPurpose('output', c) === 'prop_pitch') {
@@ -2344,6 +2348,10 @@ function registryFaultSafeEditor(c, index) {
 }
 function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
+  if(pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin))){
+    const freq=Number(c.pwm_freq_hz??5000),ticks=Math.floor(5000000/Math.max(freq,1));
+    return `<div class="hw-field"><span class="hw-label">Power PWM carrier frequency (Hz)</span><span class="hw-desc">100–20,000 Hz. The 5 MHz power timer provides about ${ticks} duty steps at this frequency. Equal-frequency power channels use staggered phases to reduce simultaneous switching; electrical limits still need load testing.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}" type="number" min="100" max="20000" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>`;
+  }
   const freq = Number(c.pwm_freq_hz ?? 5000);
   const bits = Number(c.pwm_res_bits ?? 10);
   const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
@@ -3264,9 +3272,10 @@ function registryStatus(c) {
   if (Number(c.driver) === 5) {
     const frequency = Number(c.pwm_freq_hz ?? 5000), resolution = Number(c.pwm_res_bits ?? 10);
     const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
-    const maxFrequency = Math.min(100000, Math.floor(ledcClockHz / (2 ** resolution)));
-    if (frequency < 1 || frequency > maxFrequency || resolution < 8 || resolution > 14)
-      return {kind:'error', text:`PWM timing is not achievable: ${resolution} bits supports at most ${maxFrequency} Hz`};
+    const power=pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin));
+    const maxFrequency = power?20000:Math.min(100000, Math.floor(ledcClockHz / (2 ** resolution)));
+    if (frequency < (power?100:1) || frequency > maxFrequency || (!power && (resolution < 8 || resolution > 14)))
+      return {kind:'error', text:power?'Power PWM must be 100–20,000 Hz':`PWM timing is not achievable: ${resolution} bits supports at most ${maxFrequency} Hz`};
   }
   if ((actKey === 'igniter' || actKey === 'igniter2') && ensureActuatorObject(actKey).coil && !ensureActuatorObject(actKey).has_current) {
     return {kind:'error', text:'Current sensing required'};
@@ -3678,7 +3687,8 @@ function renderHardwareBoardSummary() {
       `${escapeHtmlText(pcbProfile.origin === 'official' ? 'Official OpenTurbine profile' : 'Custom PCB profile')} · ${escapeHtmlText(platformName)}`,
       `${assigned}/${Number(pcbProfile.port_count||0)} named PCB connections assigned`,
       `Registry: ${escapeHtmlText(registryCounts)}`,
-      'Physical GPIO, buses and fitted chips are fixed by the flash-time PCB profile.'
+      'Physical GPIO, buses and fitted chips are fixed by the flash-time PCB profile.',
+      ...(pcbProfile.fixed_functions?.power_stage ? ['Power outputs use protected half-bridges; 100–20,000 Hz. No onboard load-current measurement.', 'If the hardware safety latch trips, inspect the cause, then press RESET (EN) or power-cycle. A software reboot does not clear it; this may also be needed after a Wi-Fi firmware update.'] : [])
     ].map(line => `<div>${line}</div>`).join('');
     return;
   }

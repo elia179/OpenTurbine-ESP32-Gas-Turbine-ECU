@@ -1,5 +1,7 @@
 # 2.6.1 hardware qualification worksheet
 
+> Current PCB 2.0 work is recorded in [PCB_2_0_IMPLEMENTATION.md](PCB_2_0_IMPLEMENTATION.md). The historical bare-board results below do not qualify the new power stage or the latest build.
+
 Updated 28 October 2026. Both bare-board targets completed the focused no-load
 checks below; see [hardware evidence](HARDWARE_2.6.1_20261028.md). Assembled-PCB
 results remain pending. Do not reuse 2.6.0 evidence as proof for this build.

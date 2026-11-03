@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.8"
+	appVersion                  = "0.7.9"
 	packageCompatibilityVersion = "0.7.0"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
@@ -86,16 +86,17 @@ type AppConfig struct {
 }
 
 type Manifest struct {
-	Project                 string                    `json:"project"`
-	Version                 string                    `json:"version"`
-	Recommended             bool                      `json:"recommended"`
-	PackageSchema           int                       `json:"package_schema"`
-	SetupToolVersion        string                    `json:"setup_tool_version"`
-	MinimumSetupToolVersion string                    `json:"minimum_setup_tool_version"`
-	SourceCommit            string                    `json:"source_commit"`
-	Targets                 map[string]ManifestTarget `json:"targets"`
-	FirmwareOTA             string                    `json:"firmware_ota"`
-	WebAssets               string                    `json:"web_assets"`
+	PCBProfileMaxFormatMajor int                       `json:"pcb_profile_max_format_major"`
+	Project                  string                    `json:"project"`
+	Version                  string                    `json:"version"`
+	Recommended              bool                      `json:"recommended"`
+	PackageSchema            int                       `json:"package_schema"`
+	SetupToolVersion         string                    `json:"setup_tool_version"`
+	MinimumSetupToolVersion  string                    `json:"minimum_setup_tool_version"`
+	SourceCommit             string                    `json:"source_commit"`
+	Targets                  map[string]ManifestTarget `json:"targets"`
+	FirmwareOTA              string                    `json:"firmware_ota"`
+	WebAssets                string                    `json:"web_assets"`
 }
 
 type ManifestTarget struct {
@@ -148,9 +149,10 @@ type sourcePCBProfile struct {
 		Chip string `json:"chip"`
 	} `json:"target"`
 	Buses []struct {
-		ID   string         `json:"id"`
-		Kind string         `json:"kind"`
-		Pins map[string]int `json:"pins"`
+		ID          string         `json:"id"`
+		Kind        string         `json:"kind"`
+		Pins        map[string]int `json:"pins"`
+		FrequencyHz int            `json:"frequency_hz"`
 	} `json:"buses"`
 	Devices []struct {
 		ID      string `json:"id"`
@@ -165,7 +167,15 @@ type sourcePCBProfile struct {
 		StatusLED    *pcbFixedOutput `json:"status_led"`
 		FaultLED     *pcbFixedOutput `json:"fault_led"`
 		OutputEnable *pcbFixedOutput `json:"output_enable"`
-		Buzzer       *struct {
+		PowerStage   *struct {
+			Driver        string `json:"driver"`
+			ControlDevice string `json:"control_device"`
+			SPIBus        string `json:"spi_bus"`
+			INH           []int  `json:"inh_gpio"`
+			SPIHz         int    `json:"spi_hz"`
+			MaximumPWMHz  int    `json:"maximum_pwm_hz"`
+		} `json:"power_stage"`
+		Buzzer *struct {
 			GPIO       int      `json:"gpio"`
 			ActiveHigh *bool    `json:"active_high"`
 			SafeDemand *float64 `json:"safe_demand"`
@@ -218,12 +228,14 @@ type sourcePCBProfile struct {
 }
 
 type pcbFixedOutput struct {
-	GPIO       *int     `json:"gpio"`
-	Device     string   `json:"device"`
-	Channel    int      `json:"channel"`
-	ActiveHigh *bool    `json:"active_high"`
-	Type       string   `json:"type"`
-	SafeDemand *float64 `json:"safe_demand"`
+	Mode        string   `json:"mode"`
+	FrequencyHz int      `json:"frequency_hz"`
+	GPIO        *int     `json:"gpio"`
+	Device      string   `json:"device"`
+	Channel     int      `json:"channel"`
+	ActiveHigh  *bool    `json:"active_high"`
+	Type        string   `json:"type"`
+	SafeDemand  *float64 `json:"safe_demand"`
 }
 
 type pcbTargetCatalog struct {
@@ -3571,7 +3583,8 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 	if err := json.Unmarshal(source, &profile); err != nil {
 		return "", nil, fmt.Errorf("custom PCB profile is not valid UTF-8 JSON: %w", err)
 	}
-	if profile.Format != "openturbine-pcb-profile" || profile.FormatVersion.Major != 1 ||
+	if profile.Format != "openturbine-pcb-profile" || (profile.FormatVersion.Major != 1 && profile.FormatVersion.Major != 2) ||
+		(profile.FormatVersion.Major == 2 && profile.FormatVersion.Minor != 0) ||
 		profile.FormatVersion.Minor < 0 || profile.FormatVersion.Minor > 255 {
 		return "", nil, errors.New("custom PCB profile uses an unsupported format or major version")
 	}
@@ -3582,10 +3595,10 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 			needs261 = needs261 || mode.PullControl != nil
 		}
 	}
-	if needs261 && profile.FormatVersion.Minor < 1 {
+	if needs261 && profile.FormatVersion.Major == 1 && profile.FormatVersion.Minor < 1 {
 		return "", nil, errors.New("this PCB profile uses 2.6.1 capabilities and must declare format 1.1")
 	}
-	if profile.FormatVersion.Minor >= 1 {
+	if profile.FormatVersion.Major == 2 || profile.FormatVersion.Minor >= 1 {
 		compatible, err := versionAtLeast(pkg.Manifest.Version, "2.6.1")
 		if err != nil || !compatible {
 			return "", nil, errors.New("this PCB profile requires OpenTurbine 2.6.1 or newer; use the matching firmware setup package")
@@ -3596,7 +3609,7 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 	if target == "esp32s3dev" {
 		expectedChip, targetID = "esp32-s3", 2
 	}
-	if targetID == 1 && profile.FormatVersion.Minor > 0 {
+	if targetID == 1 && (profile.FormatVersion.Major != 1 || profile.FormatVersion.Minor > 0) {
 		return "", nil, errors.New("Classic ESP32 supports format 1.0 PCB profiles; newer capabilities require S3")
 	}
 	if profile.Target.Chip != expectedChip {
@@ -3845,6 +3858,9 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 			if !knownAdapters[mode.Adapter] {
 				warnings = append(warnings, fmt.Sprintf("port %s mode %s requires a newer firmware adapter %q", port.ID, mode.ID, mode.Adapter))
 			}
+			if strings.HasPrefix(mode.Adapter, "i2c_") && (mode.Device == "" || mode.Endpoint.GPIO != nil) {
+				return "", nil, fmt.Errorf("port %s requires one fitted I2C device endpoint", port.ID)
+			}
 			if mode.Device != "" && !deviceIDs[mode.Device] {
 				return "", nil, fmt.Errorf("port %s refers to missing device", port.ID)
 			}
@@ -3920,6 +3936,62 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 				nativeOutputLevels[pin] = physicalLevel
 			}
 		}
+	}
+	if power := profile.FixedFunctions.PowerStage; power != nil {
+		if profile.FormatVersion.Major != 2 || pkg.Manifest.PCBProfileMaxFormatMajor < 2 || expectedChip != "esp32-s3" {
+			return "", nil, errors.New("protected power stage requires format 2.0 and a matching new firmware package")
+		}
+		enable := profile.FixedFunctions.OutputEnable
+		if enable == nil || enable.Mode != "health_heartbeat" || enable.FrequencyHz != 100 || enable.ActiveHigh == nil || !*enable.ActiveHigh ||
+			power.Driver != "drv8350s" || power.SPIHz != 100000 || power.MaximumPWMHz != 20000 || len(power.INH) != 6 {
+			return "", nil, errors.New("invalid protected power-stage settings or heartbeat")
+		}
+		controlOK, spiOK := false, false
+		for _, device := range profile.Devices {
+			if device.ID == power.ControlDevice && device.Driver == "tca9534" && device.Address != nil && *device.Address == 0x21 {
+				for _, bus := range profile.Buses {
+					if bus.ID == device.Bus && bus.Kind == "i2c" && bus.FrequencyHz == 100000 {
+						controlOK = true
+					}
+				}
+			}
+		}
+		for _, bus := range profile.Buses {
+			if bus.ID == power.SPIBus && bus.Kind == "spi" {
+				_, hasMOSI := bus.Pins["mosi"]
+				_, hasMISO := bus.Pins["miso"]
+				spiOK = hasMOSI && hasMISO
+			}
+		}
+		if !controlOK || !spiOK {
+			return "", nil, errors.New("power-stage control expander or SPI bus is missing")
+		}
+		seen := map[int]bool{}
+		for _, pin := range power.INH {
+			if seen[pin] || !validPins[pin] || inputOnly[pin] {
+				return "", nil, errors.New("power stage needs six unique output GPIOs")
+			}
+			seen[pin] = true
+			found := false
+			for _, port := range profile.Ports {
+				for _, mode := range port.Modes {
+					if mode.Endpoint.GPIO != nil && *mode.Endpoint.GPIO == pin {
+						found = true
+						if (mode.Adapter != "pwm_output" && mode.Adapter != "relay_output") || mode.SafeDemand == nil || *mode.SafeDemand != 0 || (mode.ActiveHigh != nil && !*mode.ActiveHigh) {
+							return "", nil, errors.New("power-stage endpoints need safe active-high PWM/on-off connectors")
+						}
+					}
+					if mode.Device == power.ControlDevice || (mode.PullControl != nil && mode.PullControl.Device == power.ControlDevice) {
+						return "", nil, errors.New("power-stage expander is reserved for chip selects and phase enables")
+					}
+				}
+			}
+			if !found {
+				return "", nil, errors.New("power INH has no named connector")
+			}
+		}
+	} else if profile.FormatVersion.Major == 2 || (profile.FixedFunctions.OutputEnable != nil && profile.FixedFunctions.OutputEnable.Mode == "health_heartbeat") {
+		return "", nil, errors.New("format 2.0/health heartbeat requires a protected power stage")
 	}
 	// Re-marshal to a bounded canonical payload; encoding/json sorts map keys in
 	// the source object, matching the source-tool container semantics.

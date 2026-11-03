@@ -1,5 +1,6 @@
 #pragma once
 #include "IActuator.h"
+#include "PcbPowerStage.h"
 #include "RelayDemand.h"
 #include <Arduino.h>
 
@@ -21,6 +22,7 @@ public:
 
     void begin() override {
         if (_pin < 0) { _ready = false; return; }
+        if(PcbPowerStage::ownsPin(_pin)){_ready=_activeHigh&&PcbPowerStage::attach(_pin,0);_hasLast=false;off();return;}
         // Preload the inactive output latch before enabling the driver. This
         // avoids an active-low pulse during the INPUT -> OUTPUT transition.
         digitalWrite(_pin, _activeHigh ? LOW : HIGH);
@@ -47,6 +49,8 @@ public:
 private:
     void _write(bool on) {
         if (!_ready) return;
+        if(PcbPowerStage::ownsPin(_pin)){PcbPowerStage::write(_pin,on?1.0f:0.0f);_lastOn=on;_hasLast=true;return;}
+        if(PcbPowerStage::active() && !PcbPowerStage::ready()){digitalWrite(_pin,_activeHigh?LOW:HIGH);_hasLast=false;return;}
         if (_hasLast && on == _lastOn) return;
         digitalWrite(_pin, (_activeHigh ? on : !on) ? HIGH : LOW);
         _lastOn = on;

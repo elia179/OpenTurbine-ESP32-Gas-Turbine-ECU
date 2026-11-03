@@ -543,6 +543,8 @@ function registryPhaseTorqueSubcards(direction, c, index) {
       </div></div></div>`;
 }
 function registryInvertEditor(direction, c, index) {
+  if(direction==='output' && pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin)))
+    return `<div class="hw-field"><span class="hw-label">Output drive</span><output>Protected complementary half-bridge</output><span class="hw-desc">0% disables both FETs. Polarity and the safe off state are fixed by this PCB's power circuit.</span></div>`;
   if (direction === 'input') {
     if (['flame','ab_flame'].includes(registryDerivedPurpose(direction,c))) return '';
     const normalized = ['generic','throttle','idle','flame'].includes(registryDerivedPurpose(direction,c));
@@ -555,6 +557,8 @@ function registryInvertEditor(direction, c, index) {
   return `<div class="hw-field"><span class="hw-label">Output direction</span><span class="hw-desc">Reversed maps semantic 0% to the configured 100% electrical endpoint and semantic 100% to the 0% endpoint.</span><select onchange="updateRegistryChannel('${direction}',${index},'invert',this.value==='1')"><option value="0"${c.invert?'':' selected'}>Normal</option><option value="1"${c.invert?' selected':''}>Reversed</option></select></div>`;
 }
 function registryDemandEditor(c, index) {
+  if(pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin)))
+    return `<div class="hw-field"><span class="hw-label">Power-on demand</span><output>Off (fixed by PCB)</output></div>`;
   const safeChanged = registryFieldChangedClass('output', index, 'safe_demand');
   const safeInvalid = registryDemandProblem(c.safe_demand) ? ' field-error' : '';
   if (registryDerivedPurpose('output', c) === 'prop_pitch') {
@@ -581,6 +585,10 @@ function registryFaultSafeEditor(c, index) {
 }
 function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
+  if(pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin))){
+    const freq=Number(c.pwm_freq_hz??5000),ticks=Math.floor(5000000/Math.max(freq,1));
+    return `<div class="hw-field"><span class="hw-label">Power PWM carrier frequency (Hz)</span><span class="hw-desc">100–20,000 Hz. The 5 MHz power timer provides about ${ticks} duty steps at this frequency. Equal-frequency power channels use staggered phases to reduce simultaneous switching; electrical limits still need load testing.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}" type="number" min="100" max="20000" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>`;
+  }
   const freq = Number(c.pwm_freq_hz ?? 5000);
   const bits = Number(c.pwm_res_bits ?? 10);
   const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;

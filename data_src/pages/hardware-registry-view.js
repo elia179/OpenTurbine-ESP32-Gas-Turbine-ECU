@@ -170,9 +170,10 @@ function registryStatus(c) {
   if (Number(c.driver) === 5) {
     const frequency = Number(c.pwm_freq_hz ?? 5000), resolution = Number(c.pwm_res_bits ?? 10);
     const ledcClockHz = cfg?.platform === 'esp32s3' ? 40000000 : 80000000;
-    const maxFrequency = Math.min(100000, Math.floor(ledcClockHz / (2 ** resolution)));
-    if (frequency < 1 || frequency > maxFrequency || resolution < 8 || resolution > 14)
-      return {kind:'error', text:`PWM timing is not achievable: ${resolution} bits supports at most ${maxFrequency} Hz`};
+    const power=pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin));
+    const maxFrequency = power?20000:Math.min(100000, Math.floor(ledcClockHz / (2 ** resolution)));
+    if (frequency < (power?100:1) || frequency > maxFrequency || (!power && (resolution < 8 || resolution > 14)))
+      return {kind:'error', text:power?'Power PWM must be 100–20,000 Hz':`PWM timing is not achievable: ${resolution} bits supports at most ${maxFrequency} Hz`};
   }
   if ((actKey === 'igniter' || actKey === 'igniter2') && ensureActuatorObject(actKey).coil && !ensureActuatorObject(actKey).has_current) {
     return {kind:'error', text:'Current sensing required'};
@@ -584,7 +585,8 @@ function renderHardwareBoardSummary() {
       `${escapeHtmlText(pcbProfile.origin === 'official' ? 'Official OpenTurbine profile' : 'Custom PCB profile')} · ${escapeHtmlText(platformName)}`,
       `${assigned}/${Number(pcbProfile.port_count||0)} named PCB connections assigned`,
       `Registry: ${escapeHtmlText(registryCounts)}`,
-      'Physical GPIO, buses and fitted chips are fixed by the flash-time PCB profile.'
+      'Physical GPIO, buses and fitted chips are fixed by the flash-time PCB profile.',
+      ...(pcbProfile.fixed_functions?.power_stage ? ['Power outputs use protected half-bridges; 100–20,000 Hz. No onboard load-current measurement.', 'If the hardware safety latch trips, inspect the cause, then press RESET (EN) or power-cycle. A software reboot does not clear it; this may also be needed after a Wi-Fi firmware update.'] : [])
     ].map(line => `<div>${line}</div>`).join('');
     return;
   }

@@ -9,6 +9,9 @@ inline void pinMode(int, int) {}
 inline int digitalRead(int) { return 1; }
 #include "../../src/hal/i2c/I2CDeviceManager.h"
 #include "fakes/PcbProfileState.h"
+#if defined(OT_PLATFORM_ESP32S3)
+namespace PcbPowerStage { bool parkControlExpander(){return true;} }
+#endif
 
 static ChannelRegistry registry(bool dual = false) {
     ChannelRegistry r;

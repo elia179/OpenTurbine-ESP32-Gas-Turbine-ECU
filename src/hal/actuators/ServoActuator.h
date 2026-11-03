@@ -1,6 +1,7 @@
 #pragma once
 #include "../../system/Diagnostics.h"
 #include "IActuator.h"
+#include "PcbPowerStage.h"
 #include <Arduino.h>
 
 // Servo / ESC actuator: maps 0.0-1.0 to configured microsecond pulses.
@@ -105,6 +106,7 @@ private:
 
     void writePulseNow(int us) {
         if (!_ready) return;
+        if(PcbPowerStage::active() && !PcbPowerStage::ready()){ledcWrite(_pin,0);_lastUs=-1;return;}
         us = constrain(us, _minUs, _maxUs);
         if (us == _lastUs) return;
         uint32_t duty = ((uint64_t)us * PWM_FREQ_HZ * _maxDuty) / 1000000ULL;

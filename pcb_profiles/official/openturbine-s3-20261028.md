@@ -1,6 +1,8 @@
 # OpenTurbine PCB 1.0 — 28 October 2026 routing
 
-Profile: `openturbine-s3-20261028.otpcb.json`. Requires the **2.6.1 implementation**; do not install this profile with 2.6.0. This is the latest supplied PCB, not the older `openturbine-ecu-s3-v1` routing. Bench validation on an assembled board remains required.
+**Archived, not bundled. Do not use for PCB 2.0; see [the current profile](openturbine-s3-20261102.md).**
+
+Profile: `openturbine-s3-20261028.otpcb.json`. Requires the **2.6.1 implementation**; do not install this profile with 2.6.0. This was the supplied PCB on 28 October, not the older `openturbine-ecu-s3-v1` routing. Bench validation on an assembled board remains required.
 
 Source: `ProPrj_OpenTurbine PCB v1.0_2026-10-28 (1).epro2`, SHA256 `29f260f731b2d72e9c8ff08bcb7c71bdce4a03e769cc2c65b509bc37a70b4eda`. The importer reads the main PCB's component pad nets and checks connector/device routing. The source project is preserved unchanged.
 

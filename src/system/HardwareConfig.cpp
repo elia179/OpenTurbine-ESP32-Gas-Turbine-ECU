@@ -2267,18 +2267,19 @@ bool validatePlatformPins(const JsonDocument& doc,
     uint8_t ledcUsed = 0;
     auto countType012 = [&](const char* key) {
         JsonVariantConst item = actuators[key];
-        if (enabled(item) && (item["type"] | 0) != 2) ++ledcUsed;
+        if (enabled(item) && (item["type"] | 0) != 2 && !PcbProfileManager::isPowerPin(item["pin"] | -1)) ++ledcUsed;
     };
     for (const char* key : { "throttle", "starter", "oil_pump", "cool_fan",
                              "ab_pump", "oil_scavenge_pump", "fuel_pump2" })
         countType012(key);
-    if (enabled(actuators["bleed_valve"]) && (actuators["bleed_valve"]["type"] | 2) != 2) ++ledcUsed;
-    if (enabled(actuators["prop_pitch"]) && (actuators["prop_pitch"]["type"] | 0) != 2) ++ledcUsed;
-    if (enabled(actuators["igniter"]) && (actuators["igniter"]["pwm"] | false)) ++ledcUsed;
-    if (enabled(actuators["igniter2"]) && (actuators["igniter2"]["pwm"] | false)) ++ledcUsed;
+    if (enabled(actuators["bleed_valve"]) && (actuators["bleed_valve"]["type"] | 2) != 2 && !PcbProfileManager::isPowerPin(actuators["bleed_valve"]["pin"] | -1)) ++ledcUsed;
+    if (enabled(actuators["prop_pitch"]) && (actuators["prop_pitch"]["type"] | 0) != 2 && !PcbProfileManager::isPowerPin(actuators["prop_pitch"]["pin"] | -1)) ++ledcUsed;
+    if (enabled(actuators["igniter"]) && (actuators["igniter"]["pwm"] | false) && !PcbProfileManager::isPowerPin(actuators["igniter"]["pin"] | -1)) ++ledcUsed;
+    if (enabled(actuators["igniter2"]) && (actuators["igniter2"]["pwm"] | false) && !PcbProfileManager::isPowerPin(actuators["igniter2"]["pin"] | -1)) ++ledcUsed;
     JsonVariantConst glow = actuators["glow_plug"];
-    if (enabled(glow) && (glow["output_type"] | 0) == 0) ++ledcUsed;
-    if (enabled(glow) && (glow["type"] | 0) == 2 && (glow["fuel_type"] | 0) != 0) ++ledcUsed;
+    if (enabled(glow) && (glow["output_type"] | 0) == 0 && !PcbProfileManager::isPowerPin(glow["pin"] | -1)) ++ledcUsed;
+    if (enabled(glow) && (glow["type"] | 0) == 2 && (glow["fuel_type"] | 0) != 0 && !PcbProfileManager::isPowerPin(glow["fuel_pin"] | -1)) ++ledcUsed;
+    if(enabled(buzzer) && PcbProfileManager::isPowerPin(buzzer["pin"] | -1)){setHardwareValidationError("PCB power connectors cannot be used as direct buzzer GPIO");return false;}
     if (enabled(buzzer)) ++ledcUsed;
     if (parsedRegistry) {
         for (uint8_t i = 0; i < parsedRegistry->outputCount; ++i) {
@@ -2291,9 +2292,9 @@ bool validatePlatformPins(const JsonDocument& doc,
             const bool registryOwnedProportional =
                 !strcmp(channel.purpose, "starter_enable") ||
                 !strcmp(channel.purpose, "air_starter");
-            if (registryOwnedProportional ||
+            if (!PcbProfileManager::isPowerPin(channel.pin) && (registryOwnedProportional ||
                 (!parsedRegistry->ownsCoreOutput(channel) &&
-                 !parsedRegistry->boundToCoreOutput(channel))) ++ledcUsed;
+                 !parsedRegistry->boundToCoreOutput(channel)))) ++ledcUsed;
         }
     }
 #if defined(OT_PLATFORM_ESP32S3)
@@ -2301,6 +2302,33 @@ bool validatePlatformPins(const JsonDocument& doc,
 #else
     static constexpr uint8_t LEDC_AVAILABLE = 16;
 #endif
+    if(parsedRegistry)for(uint8_t i=0;i<parsedRegistry->outputCount;i++){
+        const auto& c=parsedRegistry->outputs[i];
+        if(!c.installed || !PcbProfileManager::isPowerPin(c.pin))continue;
+        if((c.driver!=ChannelRegistry::Pwm && c.driver!=ChannelRegistry::Relay) || c.inverted || c.safeDemand!=0 ||
+           (c.driver==ChannelRegistry::Pwm && c.pwmTimingConfigured && (c.pwmFrequency<100 || c.pwmFrequency>20000))){
+            setHardwareValidationError("PCB power output needs non-inverted PWM (100-20000 Hz) or on/off, safe demand zero");return false;
+        }
+    }
+    // Frequency + resolution identify an LEDC timer. Channel count alone
+    // cannot guarantee six signal outputs with incompatible timing can attach.
+    if(parsedRegistry){
+        uint32_t frequencies[16]={};uint8_t resolutions[16]={};uint8_t timers=0;
+        for(uint8_t i=0;i<parsedRegistry->outputCount;i++){
+            const auto& c=parsedRegistry->outputs[i];
+            if(!c.installed || PcbProfileManager::isPowerPin(c.pin) || (c.driver!=ChannelRegistry::Pwm && c.driver!=ChannelRegistry::Servo))continue;
+            const uint32_t freq=c.driver==ChannelRegistry::Servo?50:c.pwmFrequency;
+            const uint8_t bits=c.driver==ChannelRegistry::Servo?14:c.pwmResolution;
+            bool found=false;for(uint8_t t=0;t<timers;t++)if(frequencies[t]==freq && resolutions[t]==bits)found=true;
+            if(!found && timers<16){frequencies[timers]=freq;resolutions[timers++]=bits;}
+        }
+#if defined(OT_PLATFORM_ESP32S3)
+        const int timerLimit=4;
+#else
+        const int timerLimit=8;
+#endif
+        if(timers+(enabled(buzzer)?1:0)>timerLimit){setHardwareValidationError("PWM/servo outputs need too many independent timer frequencies/resolutions; share timing between compatible signal outputs");return false;}
+    }
     if (ledcUsed > LEDC_AVAILABLE) {
         static char ledcError[96];
         snprintf(ledcError, sizeof(ledcError),

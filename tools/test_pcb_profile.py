@@ -109,7 +109,7 @@ class PcbProfileValidationTests(unittest.TestCase):
 
 class CurrentBoardTests(unittest.TestCase):
     def setUp(self):
-        self.profile=json.loads((ROOT/'pcb_profiles/official/openturbine-s3-20261028.otpcb.json').read_text(encoding='utf-8'))
+        self.profile=json.loads((ROOT/'pcb_profiles/official/openturbine-s3-20261102.otpcb.json').read_text(encoding='utf-8'))
 
     def test_current_board_geometry(self):
         pcb_profile.validate_profile(self.profile)
@@ -119,6 +119,24 @@ class CurrentBoardTests(unittest.TestCase):
         self.assertEqual([ports[f'power_out_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[37,38,41,42,2,1])
         self.assertEqual([ports[f'pulse_out_{i}']['modes'][0]['endpoint']['gpio'] for i in range(1,7)],[18,8,9,39,40,21])
         self.assertEqual(self.profile['fixed_functions']['supply_voltage']['divider'],37)
+
+    def test_protected_power_stage_contract(self):
+        self.assertEqual(self.profile['format_version'],{'major':2,'minor':0})
+        fixed=self.profile['fixed_functions']
+        self.assertEqual(fixed['output_enable']['mode'],'health_heartbeat')
+        self.assertEqual(self.profile['buses'][0]['frequency_hz'],100000)
+        self.assertEqual(fixed['power_stage']['inh_gpio'],[37,38,41,42,2,1])
+        for mutation in ['old_format','static_enable','fast_i2c','wrong_address','duplicate_pin','phase_as_servo','steal_control']:
+            with self.subTest(mutation=mutation):
+                p=copy.deepcopy(self.profile);f=p['fixed_functions'];power=f['power_stage']
+                if mutation=='old_format':p['format_version']={'major':1,'minor':1}
+                if mutation=='static_enable':f['output_enable']['mode']='static'
+                if mutation=='fast_i2c':p['buses'][0]['frequency_hz']=400000
+                if mutation=='wrong_address':next(d for d in p['devices'] if d['id']=='gate_io')['address']=32
+                if mutation=='duplicate_pin':power['inh_gpio'][1]=power['inh_gpio'][0]
+                if mutation=='phase_as_servo':next(port for port in p['ports'] if port['id']=='power_out_1')['modes'][0]['adapter']='servo_output'
+                if mutation=='steal_control':next(port for port in p['ports'] if port['id']=='status_led')['modes'][0]['device']='gate_io'
+                with self.assertRaises(pcb_profile.ProfileError):pcb_profile.validate_profile(p)
 
     def test_latest_board_connectors_are_assigned_explicitly(self):
         self.assertTrue(all('default' not in mode for port in self.profile['ports'] if port['id'] not in ('status_led','fault_led','start_switch','stop_switch') for mode in port['modes']))

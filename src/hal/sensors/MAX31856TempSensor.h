@@ -2,6 +2,7 @@
 #include "../GpioInputBias.h"
 #include "ISensor.h"
 #include <Arduino.h>
+#include "../SharedPeripheralBus.h"
 
 // ============================================================
 //  MAX31856TempSensor — multi-type thermocouple, direct SPI
@@ -174,6 +175,7 @@ private:
     }
 
     void _writeReg(uint8_t reg, uint8_t val) {
+        SharedPeripheralBus::Guard guard;if(!guard)return;
         digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);
@@ -184,6 +186,7 @@ private:
     }
 
     uint8_t _readReg(uint8_t reg) {
+        SharedPeripheralBus::Guard guard;if(!guard)return 0xff;
         digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);
@@ -195,6 +198,7 @@ private:
 
     // Read 3 consecutive registers into a 24-bit value (MSB first)
     uint32_t _readReg3(uint8_t startReg) {
+        SharedPeripheralBus::Guard guard;if(!guard)return 0xffffff;
         digitalWrite(_clk, HIGH);
         digitalWrite(_cs, LOW);
         delayMicroseconds(1);

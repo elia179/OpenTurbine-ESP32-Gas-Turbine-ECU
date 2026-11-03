@@ -183,7 +183,8 @@ void PcbProfileManager::begin() {
         setFault("unsupported profile container");
         return;
     }
-    if (header.formatMajor != 1) {
+    if ((header.formatMajor != 1 && header.formatMajor != 2) ||
+        (header.formatMajor == 2 && header.formatMinor != 0)) {
         setFault("unsupported PCB profile format");
         return;
     }
@@ -293,7 +294,7 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                                      uint8_t formatMajor, uint8_t formatMinor,
                                      Origin origin) {
 #if defined(OT_PLATFORM_ESP32)
-    if(formatMinor>0){strlcpy(_fault,"PCB profile capabilities require S3",sizeof(_fault));return false;}
+    if(formatMajor>1 || formatMinor>0){strlcpy(_fault,"PCB profile capabilities require S3",sizeof(_fault));return false;}
 #endif
     JsonDocument doc;
     // The partition payload already belongs exclusively to this boot-time
@@ -475,6 +476,45 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
                              catalog->buzzerGpio, catalog->buzzerActiveHigh, nullptr)) {
             return reject("fixed PCB output has invalid GPIO or safe state");
         }
+#if !defined(OT_PLATFORM_ESP32)
+        const char* enableMode = fixed["output_enable"]["mode"] | "static";
+        if (strcmp(enableMode,"static") && strcmp(enableMode,"health_heartbeat")) return reject("unknown output enable mode");
+        catalog->healthHeartbeat = !strcmp(enableMode,"health_heartbeat");
+        JsonObjectConst power = fixed["power_stage"].as<JsonObjectConst>();
+        if (!power.isNull()) {
+            if (formatMajor!=2 || !catalog->healthHeartbeat || !catalog->hasOutputEnable ||
+                !catalog->outputEnableActiveHigh || (fixed["output_enable"]["frequency_hz"] | 0)!=100 ||
+                strcmp(power["driver"] | "","drv8350s") ||
+                (power["spi_hz"] | 0)!=100000 || (power["maximum_pwm_hz"] | 0)!=20000)
+                return reject("power stage needs format 2.0, 100 Hz heartbeat and supported DRV8350 settings");
+            const char* control=power["control_device"] | "";
+            for(uint8_t i=0;i<catalog->deviceCount;i++)
+                if(!strcmp(catalog->devices[i].id,control))catalog->powerControlDevice=i;
+            const int index=catalog->powerControlDevice;
+            if(index<0 || strcmp(catalog->devices[index].driver,"tca9534") || catalog->devices[index].address!=0x21)
+                return reject("power stage needs its dedicated 0x21 TCA9534");
+            const char* spi=power["spi_bus"] | "";
+            const Bus* powerBus=nullptr;
+            for(uint8_t i=0;i<catalog->busCount;i++)if(!strcmp(catalog->buses[i].id,spi))powerBus=&catalog->buses[i];
+            if(!powerBus || strcmp(powerBus->kind,"spi") || powerBus->mosi<0 || powerBus->miso<0)
+                return reject("power stage needs a complete SPI bus");
+            strlcpy(catalog->powerSpiBusId,spi,sizeof(catalog->powerSpiBusId));
+            const auto& controlDevice=catalog->devices[index];
+            bool sharedI2c=false;
+            for(uint8_t i=0;i<catalog->busCount;i++)if(!strcmp(catalog->buses[i].id,controlDevice.busId))
+                sharedI2c=!strcmp(catalog->buses[i].kind,"i2c") && catalog->buses[i].frequencyHz==100000;
+            if(!sharedI2c)return reject("power control requires the 100 kHz I2C bus");
+            JsonArrayConst pins=power["inh_gpio"].as<JsonArrayConst>();
+            if(pins.size()!=6)return reject("power stage requires six INH endpoints");
+            for(uint8_t i=0;i<6;i++){
+                const int pin=pins[i] | -1;
+                if(!validTargetPin(pin,true) || pin==catalog->outputEnableGpio)return reject("invalid power INH GPIO");
+                for(uint8_t j=0;j<i;j++)if(catalog->powerInh[j]==pin)return reject("duplicate power INH GPIO");
+                catalog->powerInh[i]=pin;
+            }
+            catalog->hasPowerStage=true;
+        } else if(catalog->healthHeartbeat || formatMajor==2) return reject("format 2.0 requires its protected power stage");
+#endif
         JsonObjectConst servoEnable = fixed["servo_output_enable"].as<JsonObjectConst>();
         if (!servoEnable.isNull()) {
             if (servoEnable["gpio"].isNull() ||
@@ -766,13 +806,28 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
         if(prior && prior!=owner)return false;
         prior=owner; return true;
     };
-    bool endpointOk=claimChannel(catalog->statusLedDeviceIndex,catalog->statusLedChannel,253) &&
+    bool endpointOk=true;
+    if(catalog->hasPowerStage)for(uint8_t ch=0;ch<8;ch++)endpointOk=endpointOk && claimChannel(catalog->powerControlDevice,ch,252);
+    endpointOk=endpointOk && claimChannel(catalog->statusLedDeviceIndex,catalog->statusLedChannel,253) &&
                     claimChannel(catalog->faultLedDeviceIndex,catalog->faultLedChannel,254);
     for(uint8_t i=0;i<catalog->portCount;i++) for(uint8_t j=0;j<catalog->ports[i].modeCount;j++){
         const auto& m=catalog->ports[i].modes[j];
         endpointOk=endpointOk && claimChannel(m.deviceIndex,m.channel,i+1) && claimChannel(m.pullDeviceIndex,m.pullChannel,i+60);
     }
     if(!endpointOk){return reject("PCB fixed/port/control device channels conflict");}
+    if(catalog->hasPowerStage)for(int pin:catalog->powerInh){
+        bool found=false;
+        for(uint8_t p=0;p<catalog->portCount;p++)for(uint8_t m=0;m<catalog->ports[p].modeCount;m++){
+            const auto& mode=catalog->ports[p].modes[m];
+            if(mode.gpio!=pin)continue;
+            found=true;
+            if((mode.adapter!=Adapter::PwmOutput && mode.adapter!=Adapter::RelayOutput) ||
+               mode.activeHigh==false || !mode.hasSafeDemand || mode.safeDemand!=0)
+                return reject("power connector supports only active-high PWM/on-off with safe demand zero");
+        }
+        if(!found)return reject("power INH has no named connector");
+    }
+
 #endif
     _catalog = catalog;
     return true;
@@ -845,7 +900,7 @@ bool PcbProfileManager::gpioReserved(int gpio) {
 
 void PcbProfileManager::setOutputsEnabled(bool enabled) {
 #if !defined(OT_PLATFORM_ESP32)
-    if(!active() || !_catalog->hasOutputEnable || _catalog->outputEnableGpio<0) return;
+    if(!active() || !_catalog->hasOutputEnable || _catalog->outputEnableGpio<0 || _catalog->healthHeartbeat) return;
     const bool high=enabled ? _catalog->outputEnableActiveHigh : !_catalog->outputEnableActiveHigh;
     digitalWrite(_catalog->outputEnableGpio,high?HIGH:LOW);
     pinMode(_catalog->outputEnableGpio,OUTPUT);
@@ -893,8 +948,14 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
 #if !defined(OT_PLATFORM_ESP32)
     if (_catalog->hasFaultLed)
         fixed["fault_led"]["available"] = true;
-    if (_catalog->hasOutputEnable)
+    if (_catalog->hasOutputEnable){
         fixed["output_enable"]["available"] = true;
+        fixed["output_enable"]["mode"] = _catalog->healthHeartbeat?"health_heartbeat":"static";
+    }
+    if(_catalog->hasPowerStage){
+        JsonObject power=fixed["power_stage"].to<JsonObject>();power["driver"]="drv8350s";power["maximum_pwm_hz"]=20000;
+        JsonArray pins=power["inh_gpio"].to<JsonArray>();for(int pin:_catalog->powerInh)pins.add(pin);
+    }
 #endif
     if (_catalog->hasServoOutputEnable)
         fixed["servo_output_enable"]["available"] = true;

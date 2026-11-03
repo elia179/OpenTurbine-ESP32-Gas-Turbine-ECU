@@ -114,6 +114,10 @@ public:
         int8_t faultLedGpio = -1, faultLedDeviceIndex = -1;
         uint8_t faultLedChannel = 0;
         bool hasOutputEnable = false, outputEnableActiveHigh = true;
+        bool healthHeartbeat = false, hasPowerStage = false;
+        int8_t powerControlDevice = -1;
+        int8_t powerInh[6] = {-1,-1,-1,-1,-1,-1};
+        char powerSpiBusId[24] = {};
         int8_t outputEnableGpio = -1;
 #endif
         bool hasServoOutputEnable = false;
@@ -150,6 +154,12 @@ public:
     static const Bus* findBusKind(const char* kind);
     static bool ownsBusKind(const char* kind);
     static bool gpioReserved(int gpio);
+    static bool isPowerPin(int pin) {
+#if defined(OT_PLATFORM_ESP32S3)
+        if(active() && _catalog && _catalog->hasPowerStage)for(int p:_catalog->powerInh)if(p==pin)return true;
+#endif
+        return false;
+    }
     // The shared buffer is kept disabled until every configured servo waveform
     // has been attached and initialized.
     static void setServoOutputsEnabled(bool enabled);

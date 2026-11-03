@@ -1,6 +1,7 @@
 #pragma once
 #include "../../system/Diagnostics.h"
 #include "IActuator.h"
+#include "PcbPowerStage.h"
 #include <Arduino.h>
 
 // ============================================================
@@ -48,6 +49,10 @@ public:
     }
 
     void begin() override {
+        if(PcbPowerStage::ownsPin(_pin)){
+            _ready=!_inverted && PcbPowerStage::attach(_pin,_freqHz);
+            _lastDuty=NO_DUTY;if(_ready)writeDuty(0);return;
+        }
         // A given (frequency, resolution) pair is only achievable if the LEDC
         // timer clock can divide finely enough: resolution_bits must satisfy
         // 2^bits <= clk/freq. The ESP32-S3 selects a lower LEDC clock than the
@@ -84,6 +89,7 @@ public:
             return;
         }
         value = _minOutput + value * (_maxOutput - _minOutput);
+        if(PcbPowerStage::ownsPin(_pin)){PcbPowerStage::write(_pin,value);return;}
         if (_inverted) value = 1.0f - value;
         uint32_t duty = (uint32_t)(value * _maxDuty);
         writeDuty(duty);
@@ -110,6 +116,8 @@ private:
     void writeDuty(uint32_t duty) {
         if (!_ready) return;
         duty = (uint32_t)constrain((int)duty, 0, (int)_maxDuty);
+        if(PcbPowerStage::ownsPin(_pin)){PcbPowerStage::write(_pin,float(duty)/_maxDuty);_lastDuty=duty;return;}
+        if(PcbPowerStage::active() && !PcbPowerStage::ready()){ledcWrite(_pin,_inverted?_maxDuty:0);_lastDuty=NO_DUTY;return;}
         if (duty == _lastDuty) return;
 
         // Log only on transitions into/out of 0% and 100% duty. set() is called

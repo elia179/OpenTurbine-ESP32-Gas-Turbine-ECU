@@ -7,6 +7,8 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "../SharedPeripheralBus.h"
+#include "../actuators/PcbPowerStage.h"
 #include "../../system/ChannelRegistry.h"
 #include "../../system/pcb/PcbProfileManager.h"
 
@@ -45,12 +47,14 @@ public:
                 ChannelRegistry::isAdcThresholdCondition(registry.inputs[i]);
         }
         if (!_enabled) return;
+        SharedPeripheralBus::Guard guard;if(!guard){_enabled=false;return;}
         Wire.begin(sda, scl, constrain(frequency, 10000U, 400000U));
         // The I2C manager runs from the control loop. The framework default is
         // 50 ms, which is long enough for a stuck accessory bus to disturb fuel
         // control. All supported transactions are only a few bytes; 5 ms still
         // accommodates the user-selectable 10 kHz minimum bus rate.
         Wire.setTimeOut(5);
+        PcbPowerStage::parkControlExpander();
         _interruptPin = interruptPin;
         if (_interruptPin >= 0) pinMode(_interruptPin, GpioInputBias::safeMode(_interruptPin, INPUT_PULLUP, INPUT));
         // A separately powered expander may retain an active output while the
@@ -65,6 +69,7 @@ public:
 
     static void tick(bool allowDiscovery = true) {
         if (!_enabled || !_registry) return;
+        SharedPeripheralBus::Guard guard;if(!guard)return;
         const uint32_t now = millis();
         if (!allowDiscovery) _scanActive = false;
         if (allowDiscovery && !_scanActive &&
@@ -107,6 +112,7 @@ public:
     static bool writeOutput(const ChannelRegistry::Channel& c, float demand) {
         if (!_enabled || c.driver != ChannelRegistry::I2cRelay ||
             c.deviceChannel >= 8 || !_present(c.i2cAddress, Tca9554)) return false;
+        SharedPeripheralBus::Guard guard;if(!guard)return false;
         if (!_ensureTcaConfiguration(c.i2cAddress)) return false;
         const uint8_t bit = (uint8_t)(1U << c.deviceChannel);
         const bool on = RelayDemand::physicalLevel(demand, c.inverted);
@@ -384,6 +390,10 @@ private:
     }
 
     static bool _configureTcaOutputs(uint8_t address, bool requirePresent) {
+#if defined(OT_PLATFORM_ESP32S3)
+        const auto* board=PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;
+        if(board && board->hasPowerStage && address==0x21)return true;
+#endif
         if (requirePresent && !_present(address, Tca9554)) return false;
         uint8_t direction = 0xFF, latch = 0;
         bool assigned = false;
