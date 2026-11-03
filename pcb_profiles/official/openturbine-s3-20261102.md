@@ -37,7 +37,7 @@ Boot holds native INH and pulse commands safe, writes power-expander latch **0x0
 Initial driver policy, from TI SLVSDY6A tables 14–17:
 
 - 3x PWM, protected complementary switching; associated-half-bridge OCP action, gate undervoltage/gate-fault protection retained and thermal warning reported.
-- 300 mA gate source / 600 mA sink, 4 µs peak-drive window, 400 ns minimum dead time.
+- 50 mA gate source / 100 mA sink, 4 µs peak-drive window, 400 ns minimum dead time.
 - Latched VDS OCP, 2 µs deglitch, 70 mV VDS threshold (second-lowest). These are prototype starting settings, **not calibrated load-current ratings**; verify switching and nuisance-trip margins on the real board.
 - Read back all programmed registers, then lock configuration. Poll each driver's status and configuration once per second (alternating at 500 ms); a reported driver fault stops outputs and is held for explicit Dashboard acknowledgement. The clear command is sent only on acknowledgement, with phases disabled, and both drivers must pass status/configuration readback. No automatic OCP retry occurs. Unverified expander/configuration failures or missed control deadlines stop the heartbeat.
 
@@ -56,3 +56,9 @@ The reviewed files do not qualify the requested 10–45 V, 30 A/channel or 100 A
 References: [TI DRV8350](https://www.ti.com/lit/ds/symlink/drv8350.pdf), [TI TLA2528](https://www.ti.com/lit/ds/symlink/tla2528.pdf), [ESP-IDF MCPWM](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/mcpwm.html).
 
 Final 3 November hardware revision: R72/R73 are 2.2 kΩ I²C pull-ups; R2130 MISO remains 4.7 kΩ. Keep initial I²C at 100 kHz and driver SPI at 100 kHz. Every component pad net and the generated profile were compared with the earlier reviewed source and are unchanged, so the profile ID/revision stays compatible. Higher bus rates need physical measurements. The 30 A/channel and 100 A total markings are not qualified continuous ratings.
+
+## Ground-return review hold
+
+The 3 November EMI review supersedes the prototype-order recommendation: two local GND-return connections near U5/U6 are proposed and **have not been applied** to this source/Gerbers. They change no software mapping. Apply and verify both connections with refilled copper, native DRC and a coherent new export before ordering. See the local `pcb-emi-review-2026-11-03/EMI_REVIEW.md` and its coordinate/illustration files. Its coupling figures are engineering scenario estimates, not measured noise or a full EM simulation.
+
+New PWM channels already default to 5 kHz. Retain that lower starting frequency for high-current qualification rather than assuming 20 kHz at full load is qualified. The 50/100 mA gate settings are explicit on both HS/LS, TDRIVE remains 4 µs, and readback is required before switching. Actual switching times, loss, temperature and dead time require measurement; slower gates trade lower noise for greater switching loss. Existing saved frequencies are preserved.

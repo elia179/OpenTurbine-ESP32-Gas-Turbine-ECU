@@ -145,3 +145,15 @@ pending: no serial ports were present.
 Final ADC-caption export refresh: checksum matches the release manifest. All
 component pad nets and the generated profile still match; R72/R73 remain
 2.2 kΩ. Only source provenance changed; no firmware rebuild is required.
+
+## Additional EMI-review starting settings
+
+Read `pcb-emi-review-2026-11-03/EMI_REVIEW.md`: two proposed local
+GND-return fixes remain unapplied; hold the prototype-order recommendation.
+No mapping change or software workaround is appropriate. Set explicit HS/LS
+source/sink currents to 50/100 mA (HS unlocked 0x300, locked 0x600; LS 0x300),
+retaining 4 µs TDRIVE, 400 ns dead time, latched OCP and mandatory readback.
+TI SLVSDY6A tables 15/16 confirm current codes 0000/0000. New PWM channels
+already default to 5 kHz; preserve saved configuration and start high-current
+qualification at that lower frequency. Model estimates are not measured edge
+timing, a full EM simulation or qualified current/thermal ratings.

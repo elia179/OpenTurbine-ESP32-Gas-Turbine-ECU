@@ -14,6 +14,7 @@ static void reset(){
 static void run(unsigned ms){for(unsigned i=0;i<ms;i+=5){clockMs+=5;service(true);}}
 int main(int argc,char** argv){
  const unsigned frequency=argc>1?std::atoi(argv[1]):10000;
+ assert(Drv8350Protocol::gateHS==0x300 && Drv8350Protocol::gateHSLocked==0x600 && Drv8350Protocol::gateLS==0x300);
  assert((Drv8350Protocol::control & 0x400)==0);assert((Drv8350Protocol::ocp & 15)==1);
  reset();for(int pin:profile()->powerInh)assert(attach(pin,frequency));
  begin(true);assert(!ready());assert(Mock::writes.size()>=3);
