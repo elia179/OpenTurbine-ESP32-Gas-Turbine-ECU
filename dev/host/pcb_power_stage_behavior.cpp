@@ -5,7 +5,7 @@
 #include <cstdlib>
 using namespace PcbPowerStage;
 static void reset(){
- state=State::Off;recoverableFault=false;latch=3;heartbeat=false;Mock::i2cFail=Mock::lockFail=Mock::readCorrupt=Mock::persistentFault=false;
+ Mock::transactionDelayMs=0;state=State::Off;recoverableFault=false;latch=3;heartbeat=false;Mock::i2cFail=Mock::lockFail=Mock::readCorrupt=Mock::persistentFault=false;
  Mock::regs[0]=255;Mock::regs[1]=255;Mock::regs[2]=0;Mock::regs[3]=255;
  Mock::selected=-1;Mock::bit=0;Mock::spiWrites=Mock::unsafeConfig=0;Mock::writes.clear();
  memset(Mock::driver,0,sizeof(Mock::driver));memset(Mock::gpio,0,sizeof(Mock::gpio));
@@ -56,6 +56,9 @@ int main(int argc,char** argv){
  reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
  clockMs+=76;assert(!acknowledgeFault()&&!recoverableFault&&Mock::gpio[45]==LOW);
  run(100);assert(faulted()&&!ready()&&!acknowledgeFault());
+ // A stall during the recovery transaction must not restore Ready.
+ reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
+ Mock::transactionDelayMs=5;assert(!acknowledgeFault()&&!recoverableFault&&Mock::gpio[45]==LOW);
  // A disconnected/pulled-high SPI bus is not a recoverable overcurrent.
  reset();begin(true);run(300);for(auto& driver:Mock::driver)for(auto& reg:driver)reg=0x7ff;
  run(1000);assert(faulted()&&!recoverableFault);assert(std::string(faultReason()).find("communication")!=std::string::npos);

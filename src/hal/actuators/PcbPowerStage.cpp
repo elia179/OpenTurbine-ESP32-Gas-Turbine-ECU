@@ -108,6 +108,9 @@ bool acknowledgeFault(){
         uint16_t ignored;
         if(!frame(chip,Drv8350Protocol::frame(false,2,control|1),ignored) || !verifyDriver(chip))return false;
     }
+    // Slow bus recovery must not erase a deadline crossed during CLR_FLT/readback.
+    checkDeadline();
+    if(!recoverableFault)return false;
     recoverableFault=false;state=State::Ready;reason[0]=0;
     auto& ed=EngineData::instance();ed.hardwareReady=true;ed.hardwareFault[0]=0;lastPoll=millis();return true;
 }

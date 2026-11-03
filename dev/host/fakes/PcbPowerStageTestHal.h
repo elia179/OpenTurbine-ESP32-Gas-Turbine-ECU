@@ -21,7 +21,7 @@ using std::isfinite;
 namespace Mock {
 inline int gpio[49]={};inline bool i2cFail=false,lockFail=false,readCorrupt=false,persistentFault=false;
 inline uint8_t regs[4]={255,255,0,255};inline int selected=-1,bit=0;inline uint16_t tx=0;
-inline uint16_t driver[2][6]={};inline int spiWrites=0,unsafeConfig=0;
+inline uint16_t driver[2][6]={};inline int spiWrites=0,unsafeConfig=0;inline uint32_t transactionDelayMs=0;
 inline std::vector<std::array<int,2>> writes;
 inline void latch(uint8_t next){
  for(int chip=0;chip<2;chip++){
@@ -53,6 +53,7 @@ public:
  void beginTransmission(uint8_t address){assert(address==0x21);data.clear();}
  void write(uint8_t v){data.push_back(v);}
  int endTransmission(bool=true){
+  clockMs+=Mock::transactionDelayMs;
   if(Mock::i2cFail)return 4;
   selectedReg=data[0];
   if(data.size()>1){Mock::writes.push_back({selectedReg,data[1]});

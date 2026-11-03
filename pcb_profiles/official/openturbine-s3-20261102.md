@@ -2,7 +2,7 @@
 
 Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.6.1-dev firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 
-Source: `OpenTurbine_PCB_2.0_reviewed_source.epro2`, SHA256 `f3d77f6a5ef8931c1d90470fe6a58b8756b5f76afff5dd4e65246dec9d0d79fe`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
+Source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`, SHA256 `df6822fba0ed6c8f3518ae10a60deed2fe1b93b494cf7bd33f427770cb6a7fcf`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
 
 ## Choose connectors, then functions
 
@@ -54,3 +54,5 @@ J42 selects onboard buck (1–2) or external BEC (2–3); JP7 disables the buck.
 The reviewed files do not qualify the requested 10–45 V, 30 A/channel or 100 A combined envelope. Inspect assembly/thermal-pad paste; measure rails, safe startup, heartbeat dropout and latch recovery first. Then use current-limited low-voltage dummy loads and scope VGS/VDS/dead time before increasing load. Verify ripple and temperatures with the intended 1.5 m leads, especially simultaneous partial-duty loads. No turbine-load testing or board purchase is part of this software change.
 
 References: [TI DRV8350](https://www.ti.com/lit/ds/symlink/drv8350.pdf), [TI TLA2528](https://www.ti.com/lit/ds/symlink/tla2528.pdf), [ESP-IDF MCPWM](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/mcpwm.html).
+
+Final 3 November hardware revision: R72/R73 are 2.2 kΩ I²C pull-ups; R2130 MISO remains 4.7 kΩ. Keep initial I²C at 100 kHz and driver SPI at 100 kHz. Every component pad net and the generated profile were compared with the earlier reviewed source and are unchanged, so the profile ID/revision stays compatible. Higher bus rates need physical measurements. The 30 A/channel and 100 A total markings are not qualified continuous ratings.

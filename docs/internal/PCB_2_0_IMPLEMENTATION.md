@@ -125,3 +125,19 @@ allocated timer alone is not evidence of a usable generator. Boundary tests
 cover this failed-allocation retry and pulled-high SPI data as well. All three
 carrier-frequency runs pass. No serial ports were visible during this review,
 so no physical output waveform or hardware coexistence result is claimed.
+
+## Final PCB source reconciliation — 3 November 2026
+
+Authoritative final source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`,
+SHA256 `df6822fba0ed6c8f3518ae10a60deed2fe1b93b494cf7bd33f427770cb6a7fcf`.
+Compared every component pad/net and generated profile against the earlier
+reviewed source: both match exactly. R72/R73 are now 2.2 kΩ; MISO R2130 stays
+4.7 kΩ. Retain 100 kHz I²C/driver SPI, the existing profile identity, and all
+current/thermal qualification limits. Importer now fingerprints the final source.
+
+Fault-clear now checks the heartbeat deadline again after the bus transaction,
+preventing a slow recovery transaction from restoring Ready after a loop stall.
+A simulated transaction delay crosses the deadline and proves outputs remain
+off, heartbeat stops, and recovery requires physical reset. Native backend tests
+pass at 100 Hz, 10 kHz and 20 kHz. Physical waveform/coexistence checks remain
+pending: no serial ports were present.
