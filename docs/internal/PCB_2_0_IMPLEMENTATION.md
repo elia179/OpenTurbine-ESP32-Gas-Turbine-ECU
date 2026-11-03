@@ -128,8 +128,8 @@ so no physical output waveform or hardware coexistence result is claimed.
 
 ## Final PCB source reconciliation — 3 November 2026
 
-Authoritative final source: `OpenTurbine_PCB_2.0_Final_2026-11-03.epro2`,
-SHA256 `16657592b2bd7f13b94ed5a753310adb5d058cbb4f9ad684c6dc72ae456cf6d2`.
+Authoritative final source: `ProPrj_OpenTurbine PCB 2.0 - FINAL aligned 2026-11-03_2026-11-03 (1).epro2`,
+SHA256 `6cb89dcf9fe68dc362a5b915513dd121d56a9decba07b2ad07eb203c01a08955`.
 Compared every component pad/net and generated profile against the earlier
 reviewed source: both match exactly. R72/R73 are now 2.2 kΩ; MISO R2130 stays
 4.7 kΩ. Retain 100 kHz I²C/driver SPI, the existing profile identity, and all
@@ -159,3 +159,21 @@ TI SLVSDY6A tables 15/16 confirm current codes 0000/0000. New PWM channels
 already default to 5 kHz; preserve saved configuration and start high-current
 qualification at that lower frequency. Model estimates are not measured edge
 timing, a full EM simulation or qualified current/thermal ratings.
+
+## Exact order-review handoff reconciliation
+
+Read `pcb-order-check-2026-11-03/SOFTWARE_HANDOFF_FINAL.md` and
+`FINAL_ORDER_REVIEW.md`. The authoritative archive is the Downloads source
+named above, fingerprint 6cb89dcf…a08955. Compared every component pad/net
+against the earlier reviewed source and regenerated the software profile:
+all nets and the complete profile match exactly. Routing changes preserve
+the intentional single-point ground; no extra ground links or firmware
+workaround are required. The hardware review found no confirmed prototype
+order blocker; this is not measured maximum-load or thermal qualification.
+
+The functional contract is already implemented: N8/no-PSRAM target, safe
+expander startup and serialized CS, disabled-phase 3x initialization and
+readback, explicit 50/100 mA HS/LS drive with 4 µs window, 1 s per-driver
+fault polling, main-loop heartbeat, deliberate MCPWM/LEDC allocation, and
+battery scale 37.0. New power channels default to 5 kHz; saved settings are
+preserved. Hardware waveforms/coexistence/rails and load tests remain pending.
