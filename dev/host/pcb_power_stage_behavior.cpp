@@ -39,6 +39,18 @@ int main(){
  reset();Config::controlLoopHz=50;begin(true);assert(state==State::Fault);Config::controlLoopHz=400;
  reset();begin(true);run(300);service(false);assert(state==State::Fault);
  reset();Mock::readCorrupt=true;begin(true);assert(state==State::Fault);
+ // STOP cancels an in-flight carrier preload; later service cannot enable it.
+ reset();begin(true);run(300);write(37,.4f);assert(waves[0].pending);write(37,0);run(30);
+ assert(!waves[0].pending&&Mock::regs[1]==3&&waves[0].demand==0);
+ // Acknowledgement preserves all-off; repeated requests do not write CLR_FLT again.
+ Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
+ Config::controlLoopHz=50;assert(!acknowledgeFault());Config::controlLoopHz=400;
+ assert(acknowledgeFault());const int writesAfterAck=Mock::spiWrites;
+ assert(acknowledgeFault()&&Mock::spiWrites==writesAfterAck);run(100);assert(Mock::regs[1]==3);
+ // Even a clear request arriving after a stall cannot revive the heartbeat.
+ reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
+ clockMs+=76;assert(!acknowledgeFault()&&!recoverableFault&&Mock::gpio[45]==LOW);
+ run(100);assert(faulted()&&!ready()&&!acknowledgeFault());
  // Unsigned deadline arithmetic remains correct across millis rollover.
  assert(!Drv8350Protocol::deadlineMissed(20,0xfffffff0));assert(Drv8350Protocol::deadlineMissed(100,0xfffffff0));
  std::cout<<"PASS real PCB backend: safe initialization, both driver readbacks, 6 MCPWM channels, phase enables, fault and I2C failures, deadline latch\n";

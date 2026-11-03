@@ -102,3 +102,9 @@ clear. Only unsafe communication/configuration, watchdog/progress failures or
 a real physical hardware latch trip retain the physical-reset requirement.
 Earlier statements above treating every driver fault as requiring reset are
 superseded by this correction. No automatic retry/restart is introduced.
+
+Recovery edge-case follow-up: acknowledgeFault rechecks the control deadline
+before clearing the recoverable driver state, so a late clear request cannot
+erase a real loop stall. Native tests pass STOP during PWM preload, all-off
+recovery, repeated clear idempotence, rejected low-loop-rate acknowledgement
+and heartbeat loss while a recoverable driver fault is awaiting clear.

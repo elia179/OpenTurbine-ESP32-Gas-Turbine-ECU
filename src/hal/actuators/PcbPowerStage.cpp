@@ -97,7 +97,8 @@ const char* stateName(){return !active()?"not fitted":state==State::Ready?"ready
 const char* faultReason(){return reason;}
 bool acknowledgeFault(){
     if(!active() || state!=State::Fault)return true;
-    if(!recoverableFault)return false;
+    checkDeadline(); // acknowledgement must not erase evidence of a stalled loop
+    if(!recoverableFault || Config::controlLoopHz<100)return false;
     SharedPeripheralBus::Guard guard;if(!guard || !verifyExpander())return false;
     for(int i=0;i<6;i++)forceLow(i);
     if(latch!=safeLatch)return false;
