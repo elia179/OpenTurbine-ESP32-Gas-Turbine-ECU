@@ -1,6 +1,6 @@
 # 2.6.1 local implementation — 28 October 2026
 
-> Current PCB 2.0 work is recorded in [PCB_2_0_IMPLEMENTATION.md](PCB_2_0_IMPLEMENTATION.md). The historical bare-board results below do not qualify the new power stage or the latest build.
+> Current OpenTurbine PCB v1.0 work is recorded in [PCB_1_IMPLEMENTATION.md](PCB_1_IMPLEMENTATION.md). The historical bare-board results below do not qualify the new power stage or the latest build.
 
 Status: implemented, flashed and tested on both bare development-board targets; **not released or electrically qualified on the new PCB**. See [hardware results](HARDWARE_2.6.1_20261028.md). The user selected ESP32-S3-WROOM-1-N8 (8 MB flash, no PSRAM) with the existing routing and confirmed all components will be fitted. Plain development boards remain supported without a profile.
 

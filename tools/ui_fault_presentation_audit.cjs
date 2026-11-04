@@ -17,6 +17,7 @@ const {chromium}=require('playwright');
     await page.waitForFunction(()=>document.querySelector('#fault-desc-text')?.textContent.includes('What to do:'));
     assert.match(await page.locator('#fault-desc-text').innerText(),/Engine over-speed/);
     const texts=await page.evaluate(()=>({
+      pcb:faultDescriptionText({fault_description:'PCB_OUTPUT_STAGE_FAULT: Driver 1 overcurrent'}),
       named:faultDescriptionText({fault_description:'OIL_PRESSURE_LOW: Scavenge <return>'}),
       previous:faultDescriptionText({fault_description:'Old descriptive fault. What to do: check wiring.'}),
       unknown:faultDescriptionText({fault_description:'FUTURE_FAULT: Named output'}),
@@ -24,6 +25,7 @@ const {chromium}=require('playwright');
       abort:faultDescriptionText({fault_description:'STARTUP_ABORT: FlameConfirm'}),
       multiple:faultDescriptionText({fault_description:'MULTIPLE_SENSOR_FAILURE: Named EGT <left>'})
     }));
+    assert.match(texts.pcb,/acknowledge.*recoverable.*Hard failures.*RESET/s);
     assert.match(texts.named,/Scavenge <return> pressure/);assert.match(texts.named,/What to do:/);
     assert.equal(texts.previous,'Old descriptive fault. What to do: check wiring.');
     assert.match(texts.unknown,/FUTURE_FAULT: Named output/);assert.match(texts.current,/Fuel pump current/);

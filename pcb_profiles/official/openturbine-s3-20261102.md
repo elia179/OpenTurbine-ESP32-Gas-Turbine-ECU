@@ -1,4 +1,4 @@
-# OpenTurbine PCB 2.0 — reviewed 2 November 2026
+# OpenTurbine PCB v1.0 — final source 4 November 2026
 
 Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.6.1-dev firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 

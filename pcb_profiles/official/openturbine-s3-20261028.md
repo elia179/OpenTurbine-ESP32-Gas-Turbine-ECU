@@ -1,6 +1,6 @@
 # OpenTurbine PCB 1.0 — 28 October 2026 routing
 
-**Archived, not bundled. Do not use for PCB 2.0; see [the current profile](openturbine-s3-20261102.md).**
+**Archived, not bundled. Do not use for the current OpenTurbine PCB v1.0 routing; see [the current profile](openturbine-s3-20261102.md).**
 
 Profile: `openturbine-s3-20261028.otpcb.json`. Requires the **2.6.1 implementation**; do not install this profile with 2.6.0. This was the supplied PCB on 28 October, not the older `openturbine-ecu-s3-v1` routing. Bench validation on an assembled board remains required.
 

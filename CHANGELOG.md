@@ -17,7 +17,10 @@ Target release: **2.6.1**.
 - Clarify USB setup with per-port detection activity, explicit checking/erasing/writing stages and stage-specific recovery. Avoid repeating slow failed connections solely for legacy esptool command spelling.
 
 - Add a separate optional Fault LED; it takes over fault blinking from the Status LED when fitted.
-- Add the 28 October 2026 OpenTurbine PCB profile for ESP32-S3-WROOM-1-N8, including I²C indicators, switchable pulse-input pull-ups and the shared output enable. Plain development boards retain profile-free configuration.
+- Add the final OpenTurbine PCB v1.0 profile for ESP32-S3-WROOM-1-N8, with named connectors, electrically compatible mode choices, configurable indicator functions and default Start/Stop connections. Plain development boards retain profile-free configuration.
+- Drive the PCB safety heartbeat only from progressing control-loop cycles. Configure and verify both DRV8350S devices after wake-up, preserve distinct OFF/PWM/continuous-ON behavior, retain fault protection and support explicit Dashboard acknowledgement of verified driver faults.
+- Allocate six PCB power channels to MCPWM alongside six LEDC signal outputs. Fix timer-sync fan-out using one-shot propagation within each group, preserving independent carrier frequencies. Initialize chip-select and output latches safely before enabling their pins.
+- Configure the external TLA2528 ADC explicitly and complete internal offset calibration without blocking the control loop; keep samples unavailable until calibration succeeds.
 - Expand the three main System sections on entry and share scroll-aware search/save controls on short viewports.
 - Show per-output commands and entry/during/exit actions inside compound sequencer blocks, using the same command model as the final-state recap.
 - Give the Wi-Fi Setup Tool one initial connection prompt, automatic checks after both restarts, visible final-verification progress, bounded read retries and verification-only retry after uploads finish. Readiness checks match the requested version, chip and build and wait for maintenance completion, including same-image updates.
@@ -25,7 +28,7 @@ Target release: **2.6.1**.
 - Preserve MAVLink-input controllers when loading settings, and show mapped controllers' input-loss output behavior.
 - Improve Setup Tool display scaling, use verification-specific reconnect actions, and report the firmware and web files actually verified.
 
-No-load MAVLink command, throttle and loss tests have passed on Classic ESP32 and ESP32-S3. Full release checks, update qualification and assembled-PCB validation remain separate requirements before publication.
+No-load MAVLink command, throttle and loss tests have passed on Classic ESP32 and ESP32-S3. Current fixture checks also cover engine-profile startup/STOP, I²C peripherals, indicators, browser/web transfers and the production MCPWM backend. Full release checks and update qualification remain required before publication. PCB support remains prototype support until assembled-board electrical, switching and thermal qualification is completed; bare-board checks do not establish maximum-current ratings.
 
 ## [2.6.0] — 2026-10-23
 - Dashboard output details now separate configured presets from active commands, show actual throttle-feedback holds and measured oil-pressure minimum, and clear stale command owners.

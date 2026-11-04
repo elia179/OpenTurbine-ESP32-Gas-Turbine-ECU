@@ -1,4 +1,4 @@
-# PCB 2.0 software reconciliation
+# OpenTurbine PCB v1.0 software reconciliation
 
 Local work for OpenTurbine 2.6.1-dev, started 2 November 2026. Not pushed,
 not published, not electrically qualified. No attached hardware was reflashed
@@ -22,7 +22,7 @@ software change. The withdrawn cached-pour warning is not used.
 ## Changes
 
 - Current bundled board profile becomes `openturbine-s3-20261102`, revision
-  `2.0-20261102`, target N8/no PSRAM. Generic devboards remain profile-free.
+  `1.0-20261104`, target N8/no PSRAM. Generic devboards remain profile-free.
 - Format 2.0 makes old firmware fail closed instead of ignoring a new driver
   contract. The parser, Python source validator, package marker and Setup Tool
   agree on this contract. Setup Tool is 0.7.9; the package minimum is 0.7.9.
@@ -259,3 +259,25 @@ OTBench tester firmware. The local package is refreshed separately. One native
 feedback-control executable remains blocked by Windows Application Control;
 there is no complete full-release-gate pass, and no security bypass was used.
 Actual PCB power/rail/thermal qualification remains a later prototype task.
+
+Board-name correction: the user-facing product is **OpenTurbine PCB v1.0**.
+Its profile revision is 1.0-20261104; the stable profile ID and all routing
+remain unchanged. Historical source/archive filenames containing PCB 2.0/V2
+are retained verbatim for provenance. Profile format 2.0 is a software
+compatibility version, not the physical board version.
+
+## Final naming and UI audit maintenance
+
+Use the exact user-specified display name OpenTurbine PCB v1.0 throughout the
+profile, Setup Tool package catalogue and current documentation. The stable
+profile ID is retained; revision is 1.0-20261104. Source filenames containing
+V2 are provenance, not the product name. Package tests assert the exact label.
+
+Refreshed the qualification worksheet/changelog. Removed stale October-only
+cache-key expectations from UI audits; they now compare all links/assets to
+the dashboard generation. Web revision is 20261104a. Protection shortcuts
+reveal shared controls before calculating sticky-header clearance. Native
+keyboard toggle coverage waits for smooth-scroll destinations; separate
+pointer-navigation audits cover real button navigation. Clarified PCB fault
+guidance for hard failures that stop the heartbeat. Cross-browser focused
+source/compressed cases pass; broader-suite results are logged separately.

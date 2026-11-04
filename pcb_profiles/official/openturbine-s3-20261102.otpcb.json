@@ -6,10 +6,10 @@
   },
   "board": {
     "id": "openturbine-s3-20261102",
-    "name": "OpenTurbine PCB",
-    "revision": "2.0-20261102",
+    "name": "OpenTurbine PCB v1.0",
+    "revision": "1.0-20261104",
     "manufacturer": "OpenTurbine",
-    "description": "2 Nov 2026; ESP32-S3-WROOM-1-N8; all parts fitted; OpenTurbine 2.6.1 required"
+    "description": "4 Nov 2026; ESP32-S3-WROOM-1-N8; OpenTurbine 2.6.1 required"
   },
   "target": {
     "chip": "esp32-s3",

@@ -11,7 +11,8 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    if(packed)await p.route(/\/(hardware\.html|theme\.js|app\.js|style\.css)(?:\?.*)?$/,r=>{const name=new URL(r.request().url()).pathname.slice(1);return r.fulfill({status:200,contentType:name.endsWith('html')?'text/html':name.endsWith('js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});});
    const initial=await(await p.request.get(base+'/__sim/state')).json();const fixture=latestPcbFixture(initial);
    const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await p.goto(base+'/hardware.html');
-   await p.waitForFunction(()=>document.querySelector('#hardware-board-summary')?.textContent.includes('2.0-20261102'));
+   await p.waitForFunction(expected=>document.querySelector('#hardware-board-summary')?.textContent.includes(expected),source.board.revision);
+   assert.ok((await p.locator('#hardware-board-summary').innerText()).includes('OpenTurbine PCB v1.0'));
    await p.evaluate(()=>{
      const c={pin:37,driver:5,pwm_freq_hz:20000,pwm_res_bits:14,safe_demand:0};
      const html=registryPwmTimingEditor(c,0);

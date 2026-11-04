@@ -55,6 +55,7 @@ function refreshProtectionCount(){
   badge.title='Enabled protection functions with fitted prerequisites, including fuel limiting. Incomplete startup setup is excluded; a valid startup guard counts once. Operation also depends on engine state and each protection’s conditions.';
 }
 function openProtection(key){
+  window.OTScrollControls?.reveal();
   const card=document.querySelector(`[data-protection="${key}"]`);if(!card)return;
   for(let node=card;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
   requestAnimationFrame(()=>{

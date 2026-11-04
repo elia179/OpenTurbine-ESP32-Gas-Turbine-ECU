@@ -1,68 +1,91 @@
-# 2.6.1 hardware qualification worksheet
+# 2.6.1 qualification worksheet
 
-> Current PCB 2.0 work is recorded in [PCB_2_0_IMPLEMENTATION.md](PCB_2_0_IMPLEMENTATION.md). The historical bare-board results below do not qualify the new power stage or the latest build.
-
-Updated 28 October 2026. Both bare-board targets completed the focused no-load
-checks below; see [hardware evidence](HARDWARE_2.6.1_20261028.md). Assembled-PCB
-results remain pending. Do not reuse 2.6.0 evidence as proof for this build.
+Updated 4 November 2026. Current implementation and evidence boundaries are
+recorded in [PCB_1_IMPLEMENTATION.md](PCB_1_IMPLEMENTATION.md). The dated
+[28 October evidence](HARDWARE_2.6.1_20261028.md) is historical and does not
+identify the current binaries or qualify the OpenTurbine PCB v1.0 switching stage.
 
 ## Identify the installation
 
-Record target, module marking, measured flash size, firmware build ID, package
-SHA256, PCB revision/profile ID (or explicitly no profile), attached test fixture,
-and the original engine-file backup. The current application IDs are Classic
-`268cf1be3900e35d` and S3 `b1668964bf92625e`. Web files must match the current
-review package byte-for-byte; an application ID alone does not identify the web UI.
+Use the build IDs in the current local package manifest and compare them with
+`/api/device_info`. Verify the package against its sibling `.sha256` file.
+Do not copy old build IDs into a new signoff. Web assets must also match the
+package; the live browser audit compared all 12 files on each target.
 
-For the new PCB use **ESP32-S3-WROOM-1-N8**, all components fitted, and profile
-`openturbine-s3-20261028`, revision `1.0-20261028`. The older official S3 profile
-has different routing. Bare Classic/S3 development boards use no profile.
+Final source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`, SHA256
+`e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`.
+PCB target is **ESP32-S3-WROOM-1-N8, 8 MB flash, no PSRAM**. The current
+compatible profile remains `openturbine-s3-20261102`, revision `1.0-20261104`,
+format 2.0. Final component/filter and SPI-series-resistor changes preserve
+its complete generated connector profile. Read the
+[profile notes](../../pcb_profiles/official/openturbine-s3-20261102.md).
+Bare Classic/S3 development boards use no PCB profile.
 
-## Both development-board targets
+## Current bare-board evidence
 
-| Check | Evidence to retain | Result |
-| --- | --- | --- |
-| USB installation, cold boot, reset and warm reboot | Tool log, serial boot output, exact identity | USB writes/reset/warm reboot passed both; cold power cycle pending |
-| Hardware/Controllers/System/Sequence browsing | Desktop and short landscape screenshots, console errors, repeated navigation | Passed both targets; no JS errors in focused UI audits |
-| Engine-file download and identical restore | Before/after semantic comparison and original backup | Passed both; backups retained privately |
-| Invalid engine-file rejection | Response and unchanged current configuration | Passed both |
-| Wi-Fi application and web update | Both reconnects, visible verification progress, complete byte comparisons | Windows Setup Tool passed both; 12/12 served files matched on each |
-| Delayed AP return and wrong Wi-Fi | Recoverable waiting/retry and useful support log | Classic disconnected timeout/recovery passed; deliberately wrong board pending |
-| Interrupted verification | Verification-only retry, no duplicate uploads, no false success | Passed Classic Windows tool; one firmware and one web upload |
-| Native Fault LED, Status LED and legacy configurations | Fault/clear, active-high/low, fallback, reboot persistence | Active-high separate indicator and clear passed both; other physical variants pending (host tests passed) |
-| Sequencer expanded commands | Compare renamed and optional outputs with requested logical commands on a no-load fixture | Live ImmediateCut cards/retained oil note passed both; broader variants host-tested |
-| Short viewport controls | Touch/keyboard focus, dirty strip, save/error states, orientation changes | Live restore/clean state passed both at 1024 and 390 width; actual tablet review pending |
-| Short soak and memory | No resets, unexplained stalls or declining memory during browsing/transfers | Passed focused browsing/saves/restores: Classic 248 s, S3 214 s; recovered transport resets recorded |
+Logs and private identity/configuration checkpoints are under
+`artifacts/pcb2/nov4-hardware/`. Original full 4 MB Classic and 16 MB S3 flash
+images were backed up before installing DUT/tester firmware. Those private
+backups are not committed or included in the public package.
 
-Existing helpers include `tools/live_release_readonly_audit.cjs`,
-`tools/live_system_maintenance_audit.cjs`, `tools/live_engine_file_roundtrip.cjs`
-and the Classic/S3 bench smoke scripts. Read their fixture requirements before
-execution. Write-capable helpers require their explicit bench/write switches;
-do not invoke them against an unidentified board or copy old fixture pin plans
-onto the new PCB.
+| Check | Current result and scope |
+| --- | --- |
+| Firmware builds, OTA/linker and filesystem budgets | Both targets pass; see current build/budget records |
+| USB install, reset and post-install identity | Verified writes on both; final installed Classic matches the local package build ID |
+| Web upload and served bytes | Complete transfers on both; all 12 served assets match |
+| Live browser | Both pass touch fullscreen/style checks at phone/tablet widths; no JS errors, writes or reboot in the read-only audit |
+| Three engine profiles per target | Turbojet, turboshaft and turboprop I/O, START/RUNNING and physical STOP pass on both |
+| Engine-file restoration | Exact readback verified; Classic initially rejected cleanup as storage-busy, then restored exactly; both records retained |
+| Shared I2C peripherals | 14 checks per chip pass against the wired tester emulator, including calibration and disconnect health |
+| Separate Status/Fault indicators | Both targets pass separate cadence, clear and exact configuration restoration |
+| N1 overspeed and STOP isolation | Classic dedicated campaign passes both physical fuel-isolation cases; S3 STOP also covered in all three profiles |
+| Production MCPWM backend | 63 fixture assertions pass with real S3 MCPWM/LEDC and simulated driver/expander replies |
+| Independent PWM frequencies | Two wired paths retain 5 kHz and 2.5 kHz with six distinct MCPWM frequencies and six LEDC channels allocated |
+| PCB UI | Source/compressed catalogue cases pass Chromium, Firefox and WebKit; broader audit results are tracked separately |
+| Native feedback-control executable | Blocked by Windows Application Control enterprise signing policy; no complete full-native gate pass is claimed |
 
-## Assembled PCB only
+The waveform fixture measures MCU output behavior at 1/5/10/20 kHz,
+25/50/75% duty, OFF/continuous ON, reported-fault recovery and loop stall.
+The other four carriers' relative edges and all real power-stage behavior
+remain unmeasured. Tester pulse capture is not an independent oscilloscope.
+Classic intermediate ADC sweeps are unavailable with the S3 tester.
+The three profiles use timed dry startup; they are not a causal turbine plant.
 
-A bare S3 module cannot establish these results. Use the actual assembled board
-and appropriate no-load/dummy-load fixtures and measurement equipment.
+## Assembled PCB qualification
 
-| Check | Expected observation | Result |
-| --- | --- | --- |
-| Output-enable GPIO45 | Inactive through boot/reset/profile validation; enabled only after output initialization, also with power-only or pulse-only assignments | Pending |
-| Power outputs 1–6 | Correct connector, inactive polarity, switching and reset behavior | Pending |
-| Pulse outputs 1–6 | Correct connector, waveform, level shifting and shared enable | Pending |
-| Pulse inputs 1–6 | Conditioned input response, frequency/count scaling and correct GPIO mapping | Pending |
-| External pull-ups | P0–P5 independent; changing or recovering one does not change either LED | Pending |
-| Status and Fault LEDs | P6/P7 active-low; fault blinking moves to Fault LED and clears correctly | Pending |
-| I2C faults/recovery | No unintended pull-up or LED latch changes; useful missing-device diagnosis | Pending |
-| Eight TLA2528 ADC channels | 0x10 address, measured AVDD/reference, channel isolation and known-voltage sweeps | Pending |
-| Both MAX31856 inputs | Independent CS, configuration, temperature, disconnect and recovery | Pending |
-| Battery measurement | Measured resistor population/ratio and comparison against meter | Pending |
-| Start/Stop, UART and exposed buses | Correct physical routing and configured behavior | Pending |
+The PCB is not available yet. These items remain future prototype work and
+must not be represented as bare-board test results.
+
+| Check | Required evidence |
+| --- | --- |
+| GPIO45 health heartbeat and hardware latch | LOW near end of setup, nominal 5 ms high/low only with loop progress; measure actual rail/heartbeat dropout, delayed startup and EN recovery |
+| Both DRV8350S devices | Safe 0x03 gate-expander latch before direction; sleep/wake and repeated configuration/readback before switching |
+| OFF/PWM/continuous ON | Verify INL-low high-impedance OFF versus enabled complementary switching and 100% high-side ON |
+| Six power outputs | Connector mapping, polarity, VGS/VDS, dead time, overshoot, OCP and cross-channel behavior |
+| Phasing and combined operation | Scope all six relative carriers, group skew and ripple with representative leads |
+| Six signal outputs | Real 5 V levels, servo/PWM timing, safe startup and shared hardware enable |
+| Inputs and pull-ups | All six conditioned pulse inputs; all 64 pull-up combinations and active-low LEDs on actual U17 |
+| ADC and battery | Eight known-voltage sweeps against measured AVDD; battery calibrated mV multiplied by 37.0 and compared with a meter |
+| Thermocouples | Both MAX31856 devices, unassigned-CS parking, type/filter configuration, open probe, stale/recovery and bus contention |
+| Start/Stop, UART and buses | Physical connector wiring, debounce, compatible voltage levels and communication faults |
+| Current/thermal envelope | Current-limited low-load bring-up, temperatures/ripple and staged voltage/current increases; no measured per-channel current exists |
+
+Start with explicit 50 mA source / 100 mA sink, 4 us TDRIVE, retained
+protection/readback and lower PWM frequency such as 5 kHz. The 20 kHz limit
+and 30 A/channel / 100 A combined labels are not qualified continuous ratings.
+Preserve the final single-point ground scheme; the extra-link proposal was
+withdrawn. Hardware latch recovery requires physical RESET/EN or power cycle.
+Normal reported driver faults use explicit Dashboard acknowledgement after
+safe-state/readback checks. Neither path automatically restarts the engine.
 
 ## Release decision
 
-Fix failures, repeat affected checks, then run `tools/run_release_checks.py` and
-the applicable hardware qualification campaigns against the exact final build.
-Record the user's UI approval and physical results before tagging/publishing.
-The local unsigned Setup Tool and review ZIP are not a signed public release.
+Finish the independent release stages and retain their results. An execution
+blocked by OS signing policy is an unresolved gate, not a passing assertion.
+Complete that native test in an approved environment before claiming the full
+release gate passes. Do not weaken OS policy or firmware safety restrictions.
+
+A devboard software release can precede assembled-PCB qualification when the
+PCB support is identified as unqualified prototype support and the limitations
+above are retained. No turbine run or maximum-load approval follows from these
+checks. Keep changes local until the user authorizes pushing/publication.

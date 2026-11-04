@@ -53,7 +53,8 @@ class BuildSetupPackageTests(unittest.TestCase):
             self.assertEqual(manifest["targets"]["esp32dev"]["pcb_profile"]["official_profiles"], [])
             shipped = manifest["targets"]["esp32s3dev"]["pcb_profile"]["official_profiles"]
             self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261102"])
-            self.assertEqual(shipped[0]["revision"], "2.0-20261102")
+            self.assertEqual(shipped[0]["revision"], "1.0-20261104")
+            self.assertEqual(shipped[0]["name"], "OpenTurbine PCB v1.0")
             source = __import__("json").loads((ROOT / "pcb_profiles/official/openturbine-s3-20261102.otpcb.json").read_text(encoding="utf-8"))
             labels = {p["label"] for p in source["ports"]}
             expected = {"Start", "Stop"} | {f"Thermocouple {n}" for n in range(1,3)}
