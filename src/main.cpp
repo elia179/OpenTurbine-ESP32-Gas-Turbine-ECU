@@ -4524,7 +4524,8 @@ void setup() {
     if (!EngineData::instance().watchdogReady)
         Serial.println("[OT] ERROR: control-loop watchdog initialization failed; START inhibited");
 
-    PcbPowerStage::begin(EngineData::instance().hardwareReady && EngineData::instance().watchdogReady);
+    PcbPowerStage::begin(EngineData::instance().hardwareReady && EngineData::instance().watchdogReady &&
+                         (!PcbPowerStage::active() || I2CDeviceManager::enabled()));
     OT_DEBUG_PRINTLN("[OT] Setup complete");
 }
 

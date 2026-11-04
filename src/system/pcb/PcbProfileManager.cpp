@@ -250,6 +250,11 @@ void PcbProfileManager::driveEarlySafeStates() {
         driveLevel(pin, !activeHigh);
     };
 
+    // All SPI slaves must be deselected before any shared-bus clocks occur,
+    // including converters that have not been assigned to an input yet.
+    for (uint8_t i = 0; i < _catalog->deviceCount; ++i)
+        driveLevel(_catalog->devices[i].selectGpio, true);
+
     // Fixed indicators are always defined with a safe demand of zero.
     // For a NeoPixel, holding the data line inactive prevents spurious frames;
     // StatusLED initialization clears any previously latched pixel later.

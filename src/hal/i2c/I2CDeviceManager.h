@@ -37,7 +37,8 @@ public:
         _enabled = enabled && sda >= 0 && scl >= 0 && sda != scl;
         _registry = &registry;
         _tcaConfigured = 0;
-        _tlaConfigured = 0;
+        _tlaConfigured = _tlaCalibrated = 0;
+        _tlaCalibratingAddress = 0;
         _tlaPendingRegistryIndex = 255;
         for (uint8_t i = 0; i < registry.inputCount; ++i) {
             _valid[i] = false;
@@ -55,6 +56,18 @@ public:
         // accommodates the user-selectable 10 kHz minimum bus rate.
         Wire.setTimeOut(5);
         PcbPowerStage::parkControlExpander();
+#if defined(OT_PLATFORM_ESP32S3)
+        const auto* board=PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;
+        if(board && board->hasPowerStage){
+            // Known PCB auxiliary expander: LEDs and pull-ups OFF first, even
+            // if its separately powered latch survived an ESP reset. Apply
+            // the configured pull-ups only after this safe initialization.
+            if(!_writeReg(0x20,0x01,0xFF) || !_writeReg(0x20,0x02,0) ||
+               !_writeReg(0x20,0x03,0)){
+                _markMissing(0x20,Tca9554);_enabled=false;return;
+            }
+        }
+#endif
         _interruptPin = interruptPin;
         if (_interruptPin >= 0) pinMode(_interruptPin, GpioInputBias::safeMode(_interruptPin, INPUT_PULLUP, INPUT));
         // A separately powered expander may retain an active output while the
@@ -203,7 +216,9 @@ private:
     inline static uint8_t _tcaLatch[8] = {};
     inline static uint8_t _tcaDirection[8] = {255,255,255,255,255,255,255,255};
     inline static uint16_t _tcaVerifiedTick[8] = {};
-    inline static uint8_t _tcaConfigured = 0, _tlaConfigured = 0;
+    inline static uint8_t _tcaConfigured = 0, _tlaConfigured = 0, _tlaCalibrated = 0;
+    inline static uint8_t _tlaCalibratingAddress = 0;
+    inline static uint32_t _tlaCalibrationMs = 0;
     inline static uint8_t _tlaPendingRegistryIndex = 255;
     inline static uint32_t _tlaPendingMs = 0;
     inline static bool _nauConfigured = false;
@@ -484,15 +499,38 @@ private:
     static bool _configureTla(uint8_t address) {
         const uint8_t bit = (uint8_t)(1U << (address - 0x10));
         _tlaConfigured &= (uint8_t)~bit;
-        // Restore the protocol even if the separately powered ADC retained
-        // GPIO, averaging, or sequencer settings from an earlier application.
+        if (_tlaCalibratingAddress) {
+            if (_tlaCalibratingAddress != address) return false;
+            uint8_t general = 0;
+            if (!_tlaReadReg(address, 0x01, general) ||
+                millis() - _tlaCalibrationMs >= 100UL) {
+                _tlaCalibratingAddress = 0;
+                _markMissing(address, Tla2528); return false;
+            }
+            if (general & 0x02) return false; // CAL self-clears; never publish while busy
+            _tlaCalibratingAddress = 0;
+            _tlaCalibrated |= bit;
+        }
+        // Explicit manual sequencing, all analog inputs, averaging disabled,
+        // normal conversion mode and appended channel ID. Do not inherit the
+        // state of a separately powered ADC from an earlier application.
         const bool ok = _tlaWriteReg(address, 0x10, 0) &&
                         _tlaWriteReg(address, 0x05, 0) &&
                         _tlaWriteReg(address, 0x03, 0) &&
+                        _tlaWriteReg(address, 0x04, 0) &&
                         _tlaWriteReg(address, 0x02, 0x10);
-        if (ok) _tlaConfigured |= bit;
-        else _markMissing(address, Tla2528);
-        return ok;
+        if (!ok) {_markMissing(address, Tla2528); return false;}
+        if (!(_tlaCalibrated & bit)) {
+            // TI SBAS961A section 7.3.4: request internal offset calibration,
+            // then poll from later control cycles instead of blocking the loop.
+            if (!_tlaWriteReg(address, 0x01, 0x02)) {
+                _markMissing(address, Tla2528); return false;
+            }
+            _tlaCalibratingAddress = address; _tlaCalibrationMs = millis();
+            return false;
+        }
+        _tlaConfigured |= bit;
+        return true;
     }
 
     static void _parkAssignedRelayOutputs() {
@@ -696,9 +734,9 @@ private:
             }
         } else if (c.driver == ChannelRegistry::I2cAnalog &&
                    _present(c.i2cAddress, Tla2528)) {
-            ok = ((_tlaConfigured & (1U << (c.i2cAddress - 0x10))) ||
-                  _configureTla(c.i2cAddress)) &&
-                 _tlaWriteReg(c.i2cAddress, 0x11, c.deviceChannel);
+            if (!(_tlaConfigured & (1U << (c.i2cAddress - 0x10))) &&
+                !_configureTla(c.i2cAddress)) { _valid[i] = false; return; }
+            ok = _tlaWriteReg(c.i2cAddress, 0x11, c.deviceChannel);
             if (ok && Wire.requestFrom(c.i2cAddress, (uint8_t)2) == 2) {
                 const uint16_t frame = ((uint16_t)Wire.read() << 8) | Wire.read();
                 if ((frame & 0x0FU) != c.deviceChannel) {

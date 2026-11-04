@@ -20,6 +20,7 @@ int main(){
  load(source);assert(PcbProfileManager::active());const auto* p=PcbProfileManager::catalog();
  assert(p->hasPowerStage&&p->healthHeartbeat&&p->powerControlDevice>=0&&p->portCount==34&&p->supplyVoltageDivider==37);
  PcbProfileManager::driveEarlySafeStates();for(int pin:p->powerInh)assert(gpio[pin]==LOW);
+ assert(gpio[14]==HIGH && gpio[3]==HIGH); // even unassigned thermocouples stay deselected
  PcbProfileManager::setOutputsEnabled(true);assert(gpio[45]==LOW);
  ChannelRegistry registry;ChannelRegistry::Channel output;output.installed=true;output.direction=ChannelRegistry::Output;output.driver=ChannelRegistry::Pwm;
  strlcpy(output.id,"power_test",sizeof(output.id));strlcpy(output.name,"Power test",sizeof(output.name));strlcpy(output.role,"generic",sizeof(output.role));strlcpy(output.purpose,"generic",sizeof(output.purpose));

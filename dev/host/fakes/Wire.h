@@ -23,6 +23,8 @@ struct FakeWire {
     std::array<uint8_t, 32> tla{};
     std::array<uint16_t, 8> tlaSamples{{500,1000,1500,2000,2500,3000,3500,4000}};
     uint8_t tlaPreviousChannel = 0;
+    bool tlaCalibrationStuck=false;unsigned tlaCalibrationRequests=0;uint32_t tlaCalibrationStarted=0;
+    std::vector<Write> tcaWrites;
     int tcaFailRegister = -1;
     void begin(int, int, uint32_t) {}
     void setTimeOut(unsigned) {}
@@ -35,6 +37,7 @@ struct FakeWire {
             if (tx.size() == 2) {
                 if (pointer == tcaFailRegister) return 2;
                 tca[pointer & 3] = tx[1];
+                tcaWrites.push_back({pointer,tx[1],millis()});
             }
             return 0;
         }
@@ -48,6 +51,7 @@ struct FakeWire {
                     tlaStale = true;
                 }
                 tla[pointer & 31] = tx[2];
+                if(pointer==1 && (tx[2]&2)){++tlaCalibrationRequests;tlaCalibrationStarted=millis();}
             }
             return 0;
         }
@@ -80,7 +84,10 @@ struct FakeWire {
         if ((a == 0x20 && tcaPresent) || (a == 0x10 && tlaPresent)) {
             rx.clear(); readIndex = 0;
             if (a == 0x20) rx.push_back(pointer == 0 ? tca[0] ^ tca[2] : tca[pointer & 3]);
-            else if (count == 1) rx.push_back(pointer == 0 ? 0x80 : tla[pointer & 31]);
+            else if (count == 1) {
+                if(pointer==1 && !tlaCalibrationStuck && millis()-tlaCalibrationStarted>=4)tla[1]&=~2;
+                rx.push_back(pointer == 0 ? 0x80 : tla[pointer & 31]);
+            }
             else {
                 const uint8_t channel = tlaStale ? tlaPreviousChannel : tla[0x11];
                 tlaStale = false;

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import zipfile
 
-EXPECTED_SOURCE_SHA256='6cb89dcf9fe68dc362a5b915513dd121d56a9decba07b2ad07eb203c01a08955'
+EXPECTED_SOURCE_SHA256='e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4'
 
 
 def components(project):
@@ -52,6 +52,8 @@ def make_profile(parts):
     def check(ref, pad, net):
         if parts[ref]['pads'].get(str(pad)) != net:
             raise ValueError(f'{ref} pad {pad}: expected {net}, got {parts[ref]["pads"].get(str(pad))}')
+    for ref,net in [('R2211','SPI_SCK'),('R2212','SPI_MOSI')]:
+        check(ref,1,net+'_MCU');check(ref,2,net)
     check('U18',1,'+5V_MAIN');check('U18',2,'GND');check('U18',22,'PULSE_OE_N');check('U18',23,'+3V3');check('U18',24,'+3V3')
     check('U8', 11, '')  # Floating ADDR is 0x10 per TI address-selection table.
     for pad in (1,2,3): check('U17', pad, 'GND')
@@ -68,7 +70,7 @@ def make_profile(parts):
         'target':{'chip':'esp32-s3','minimum_flash_mb':8,'reviewed_strapping_gpio':[3,45,46]},
         'buses':[
             {'id':'sensor_i2c','kind':'i2c','pins':{'sda':gpio('I2C_SDA'),'scl':gpio('I2C_SCL')},'frequency_hz':100000},
-            {'id':'thermocouple_spi','kind':'spi','pins':{'sck':gpio('SPI_SCK'),'miso':gpio('SPI_MISO'),'mosi':gpio('SPI_MOSI')}},
+            {'id':'thermocouple_spi','kind':'spi','pins':{'sck':gpio('SPI_SCK_MCU'),'miso':gpio('SPI_MISO'),'mosi':gpio('SPI_MOSI_MCU')}},
             {'id':'serial_0','kind':'uart','pins':{'tx':gpio('UART_TX'),'rx':gpio('UART_RX')}}],
         'devices':[
             {'id':'tc1','driver':'max31856','bus':'thermocouple_spi','select':{'gpio':gpio('TC_CS')},'expected':True},

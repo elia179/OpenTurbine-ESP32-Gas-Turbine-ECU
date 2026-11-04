@@ -4,6 +4,7 @@
 #include "../../src/hal/AdcThreshold.h"
 #include "../../src/hal/i2c/LossRecheck.h"
 #include "../../src/system/ChannelRegistry.h"
+#include "fakes/PcbProfileState.h"
 #include <cassert>
 #include <cmath>
 #include <cstring>

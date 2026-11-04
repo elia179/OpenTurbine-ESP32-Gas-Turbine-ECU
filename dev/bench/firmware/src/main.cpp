@@ -123,6 +123,7 @@ static volatile uint8_t g_i2cReg = 0;
 static volatile uint8_t g_i2cRegs[32] = {};
 static volatile uint8_t g_i2cPhase = 0;
 static volatile uint16_t g_tlaRaw = 2048;
+static volatile uint32_t g_tlaCalMs = 0;
 static volatile int32_t g_nauRaw = 0;
 static volatile uint32_t g_nauAnalogMs = 0, g_nauCalMs = 0;
 static volatile uint8_t g_nauCalMask = 0;
@@ -146,6 +147,7 @@ static void i2cEmuReceive(int count) {
         }
         if (first == 0x08 && count > 0 && Wire.available()) {
             g_i2cRegs[g_i2cReg & 0x1F] = Wire.read();
+            if(g_i2cReg==1 && (g_i2cRegs[1]&2))g_tlaCalMs=millis();
             --count;
         }
     } else {
@@ -182,6 +184,8 @@ static void i2cEmuReceive(int count) {
 }
 
 static void preloadPeripheralReply() {
+    if(g_i2cEmuMode==I2C_EMU_TLA2528 && (g_i2cRegs[1]&2) &&
+       uint32_t(millis()-g_tlaCalMs)>=4)g_i2cRegs[1]&=uint8_t(~2);
     uint8_t reply[2];
     size_t length = 1;
     if (g_i2cEmuMode == I2C_EMU_TLA2528 && !g_tlaRegisterRead) {

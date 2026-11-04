@@ -57,6 +57,11 @@ int main(int argc,char** argv){
  reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
  clockMs+=76;assert(!acknowledgeFault()&&!recoverableFault&&Mock::gpio[45]==LOW);
  run(100);assert(faulted()&&!ready()&&!acknowledgeFault());
+ // Configuration that stalls must never authorize a pending power command.
+ reset();begin(true);run(255);Mock::transactionDelayMs=5;run(5);
+ assert(faulted()&&!ready()&&Mock::gpio[45]==LOW&&Mock::regs[1]==3);
+ // Hardware reset/sleep clears driver registers; boot must configure both again.
+ reset();begin(true);run(300);assert(ready()&&Mock::spiWrites==10);
  // A stall during the recovery transaction must not restore Ready.
  reset();begin(true);run(300);Mock::driver[0][0]=1;run(1000);assert(recoverableFault);
  Mock::transactionDelayMs=5;assert(!acknowledgeFault()&&!recoverableFault&&Mock::gpio[45]==LOW);

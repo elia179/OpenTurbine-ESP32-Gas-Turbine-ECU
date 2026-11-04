@@ -78,6 +78,7 @@ int main() {
     I2CDeviceManager::begin(true,21,22,-1,100000,r);
     tick(50);
     assert(Wire.tla[5]==0 && Wire.tla[3]==0 && Wire.tla[0x10]==0 && Wire.tla[2]==0x10);
+    assert(Wire.tlaCalibrationRequests==1 && !(Wire.tla[1]&2));
     // A selected-channel change can expose an old latched result. Every
     // published value must carry its own ID, including alternating channels.
     for(unsigned i=0; i<40; ++i) { tick(2); read(0,1500); read(1,2000); }
@@ -103,6 +104,11 @@ int main() {
     Wire.tlaSamples[0] = 1000; tick(2); valueAt(1800);
     fakeMillisClock() += 510; assert(!read(0,1000));
     Wire.tlaSamples[0] = 3000; tick(2); valueAt(3000);
+    Wire=FakeWire{};Wire.tlaPresent=true;Wire.tlaCalibrationStuck=true;
+    I2CDeviceManager::begin(true,21,22,-1,100000,r);tick(120);
+    assert(!read(0,1000));assert(Wire.tlaCalibrationRequests>=1);
+    Wire.tlaCalibrationStuck=false;I2CDeviceManager::requestScan();tick(100);
+    assert(read(0,500));
     std::cout << "TLA2528 invalid range rejection, healthy smoothing and stale filter recovery passed\n";
     // Pot calibration has command deadbands at its physical endpoints. They
     // must remain usable on an external ADC too, including reversed wiring.
@@ -156,6 +162,7 @@ int main() {
     I2CDeviceManager::begin(true,4,5,-1,400000,r);
     assert(Wire.tca[1]==0xC1);
     auto* board=const_cast<PcbProfileManager::Catalog*>(PcbProfileManager::catalog());
+    board->hasPowerStage=true;
     board->portCount=6;const int pins[]={35,36,6,7,15,16};
     r.inputCount=6;
     for(int i=0;i<6;i++) {
@@ -167,7 +174,14 @@ int main() {
     }
     for(unsigned mask=0;mask<64;mask++) {
         for(int i=0;i<6;i++)r.inputs[i].pullup=mask&(1U<<i);
-        I2CDeviceManager::begin(true,4,5,-1,400000,r);
+        Wire.tcaWrites.clear();
+        I2CDeviceManager::begin(true,4,5,-1,100000,r);
+#if defined(OT_PLATFORM_ESP32S3)
+        assert(Wire.tcaWrites.size()>=3);
+        assert(Wire.tcaWrites[0].reg==1 && Wire.tcaWrites[0].value==255);
+        assert(Wire.tcaWrites[1].reg==2 && Wire.tcaWrites[1].value==0);
+        assert(Wire.tcaWrites[2].reg==3 && Wire.tcaWrites[2].value==0);
+#endif
         assert(Wire.tca[3]==0 && Wire.tca[1]==(uint8_t)(0xC0|((~mask)&0x3F)));
         assert(I2CDeviceManager::writeIndicator(true,true));
         assert((Wire.tca[1]&0x3F)==((~mask)&0x3F));

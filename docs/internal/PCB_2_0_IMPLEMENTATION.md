@@ -128,8 +128,8 @@ so no physical output waveform or hardware coexistence result is claimed.
 
 ## Final PCB source reconciliation — 3 November 2026
 
-Authoritative final source: `ProPrj_OpenTurbine PCB 2.0 - FINAL aligned 2026-11-03_2026-11-03 (1).epro2`,
-SHA256 `6cb89dcf9fe68dc362a5b915513dd121d56a9decba07b2ad07eb203c01a08955`.
+Authoritative final source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`,
+SHA256 `e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`.
 Compared every component pad/net and generated profile against the earlier
 reviewed source: both match exactly. R72/R73 are now 2.2 kΩ; MISO R2130 stays
 4.7 kΩ. Retain 100 kHz I²C/driver SPI, the existing profile identity, and all
@@ -177,3 +177,31 @@ readback, explicit 50/100 mA HS/LS drive with 4 µs window, 1 s per-driver
 fault polling, main-loop heartbeat, deliberate MCPWM/LEDC allocation, and
 battery scale 37.0. New power channels default to 5 kHz; saved settings are
 preserved. Hardware waveforms/coexistence/rails and load tests remain pending.
+
+## 4 November final brief reconciliation
+
+Source `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2` supersedes
+earlier revisions (SHA256 e3b5d7a4…f073c4). Importer verifies the new
+R2211/R2212 MCU-to-bus SPI net split and regenerates an identical profile.
+Final I²C pull-ups are 1.8 kΩ; ADC filters 100 nF; battery C2 1 µF.
+GPIOs/profile identity remain compatible. Updated modeled heartbeat dropout
+is 0.54/0.67 s, not a measured bound; retain the 75 ms software deadline.
+
+Fixed missing early CS parking for both thermocouples, including unassigned
+devices; auxiliary 0xFF latch before direction and before configured pull-ups;
+and a post-SPI deadline check before any pending PWM phase enable. Added
+nonblocking TLA2528 internal offset calibration with 100 ms timeout, explicit
+OPMODE, manual sequencing/no averaging and withheld samples until completion.
+Driver sleep/reset reconfiguration, configuration-delay failure and all-off
+recovery are covered by focused backend tests. Hardware release validation
+uses the existing bare-board tester/DUT fixture; real PCB stage qualification
+will follow when that board exists. No substantial loads are authorized.
+
+Bring-up follow-through: PCB heartbeat prerequisites now include successful
+I²C-manager initialization. OTBench TLA emulation now models self-clearing
+offset calibration. The broader native run found a missing generic PCB-state
+fixture in the S3 controller test; added that fixture and both controller
+variants pass. A separate feedback-control native executable remains blocked
+by Windows Application Control after the existing bounded retries; no policy
+bypass is used. Earlier compiler-cache file-access interruptions are recorded
+in the local logs. These are not passing full-release results.

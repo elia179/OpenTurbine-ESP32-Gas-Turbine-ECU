@@ -227,6 +227,7 @@ void service(bool controlHealthy){
     if(state==State::Configure){
         bool ok=program(setupChip,3,gateHS)&&program(setupChip,4,gateLS)&&program(setupChip,5,ocp)&&program(setupChip,2,control)&&program(setupChip,3,gateHSLocked)&&verifyDriver(setupChip);
         if(!ok){fail("DRV8350 setup/readback failed");return;}
+        checkDeadline();if(state==State::Fault)return;
         if(++setupChip==2){state=State::Ready;ed.hardwareReady=true;ed.hardwareFault[0]=0;lastPoll=millis();}
     }else if(lastProgress-lastPoll>=500){
         SharedPeripheralBus::Guard guard;
@@ -235,6 +236,7 @@ void service(bool controlHealthy){
         // Alternate at 500 ms: each driver is checked once per second.
         pollChip^=1;lastPoll=millis();
     }
+    checkDeadline();if(state==State::Fault)return;
     if(state==State::Ready)for(int i=0;i<6;i++){
         Wave& w=waves[i];
         if(!w.pending || uint32_t(micros()-w.pendingSinceUs)<(1000000UL+w.frequency-1)/w.frequency)continue;

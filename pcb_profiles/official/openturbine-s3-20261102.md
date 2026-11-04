@@ -2,7 +2,7 @@
 
 Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.6.1-dev firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 
-Source: `ProPrj_OpenTurbine PCB 2.0 - FINAL aligned 2026-11-03_2026-11-03 (1).epro2`, SHA256 `6cb89dcf9fe68dc362a5b915513dd121d56a9decba07b2ad07eb203c01a08955`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
+Source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`, SHA256 `e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
 
 ## Choose connectors, then functions
 
@@ -62,3 +62,11 @@ Final 3 November hardware revision: R72/R73 are 2.2 kΩ I²C pull-ups; R2130 MIS
 The corrected 3 November EMI review withdraws the extra U5/U6 ground-link proposal and its mandatory-bridge order hold. Preserve the intentional single-point ground connection. The links were never applied; no firmware mapping or profile changes result. A later DC scenario check showed the links would divert load-return current into quiet copper, so the earlier signal-pickup comparison alone did not justify them. See the corrected local `pcb-emi-review-2026-11-03/EMI_REVIEW.md`. Its geometry checks and approximate pickup/current models are not measured noise, guaranteed bounds or a full EM simulation. Maximum-load operation remains unqualified.
 
 New PWM channels already default to 5 kHz. Retain that lower starting frequency for high-current qualification rather than assuming 20 kHz at full load is qualified. The 50/100 mA gate settings are explicit on both HS/LS, TDRIVE remains 4 µs, and readback is required before switching. Actual switching times, loss, temperature and dead time require measurement; slower gates trade lower noise for greater switching loss. Existing saved frequencies are preserved.
+
+## 4 November source and startup update
+
+Current source is `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2` (fingerprint above). It supersedes the earlier source revisions: I²C R72/R73 are now **1.8 kΩ**, SCK/MOSI have 47 Ω series resistors, ADC channel filters are 1 kΩ/100 nF and battery C2 is 1 µF. MISO remains pulled up by 4.7 kΩ. Initial buses remain at 100 kHz; the software thermocouple SPI is also conservatively 100 kHz. The series resistors split the MCU/bus net names without changing GPIO assignments. The complete generated connector profile is unchanged.
+
+Both thermocouple CS pins are parked high before peripheral setup, even if unassigned. Auxiliary expander startup writes 0xFF before output direction, then applies the configured pull-ups/LED states. TLA2528 setup explicitly selects all-analog/manual mode, no averaging and channel-ID output, requests offset calibration and polls it without blocking control. Samples stay invalid until calibration completes; timeout/communication loss keep them unavailable. External sensor calibration remains separate.
+
+Hardware safety timing is unmeasured. The latest brief gives modeled examples of roughly 0.54 s when heartbeat stops low and 0.67 s when it stops high; these supersede the earlier approximate 100 ms hardware estimate. The software progress deadline remains 75 ms. Driver sleep resets its registers: every hardware reset/startup repeats the disabled-phase wake/configuration/readback process. A hard safety shutdown is never automatically rearmed.
