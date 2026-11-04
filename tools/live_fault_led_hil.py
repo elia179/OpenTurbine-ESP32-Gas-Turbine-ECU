@@ -7,6 +7,7 @@ Requires --allow-write; never use with engine loads attached.
 import argparse
 import copy
 import json
+import re
 from pathlib import Path
 import sys
 import time
@@ -32,7 +33,8 @@ def main():
     assert info['target']==('esp32dev' if classic else 'esp32s3dev')
     assert info['state']=='STANDBY' and not info['outputs_active']
     assert info.get('pcb_profile',{}).get('state')=='absent','This test requires bare-board OTBench routing'
-    assert info['firmware_version']=='2.6.1','This campaign targets the 2.6.1 indicator implementation'
+    expected=re.search(r'#define\s+OT_VERSION\s+"([^"]+)"',(ROOT/'src/system/version.h').read_text(encoding='utf-8')).group(1)
+    assert info['firmware_version']==expected, 'Installed firmware does not match this checkout'
     original=dut._get('/api/ecu_config')
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.with_suffix('.backup.json').write_text(json.dumps(original,indent=2),encoding='utf-8')

@@ -11,6 +11,7 @@
 #include "../../system/Config.h"
 #include <Wire.h>
 #include <driver/mcpwm_prelude.h>
+#include <driver/gpio.h>
 #include <math.h>
 #endif
 
@@ -29,9 +30,10 @@ struct Wave {mcpwm_timer_handle_t timer=nullptr; mcpwm_oper_handle_t oper=nullpt
     mcpwm_cmpr_handle_t compare=nullptr; mcpwm_gen_handle_t gen=nullptr;
     uint32_t period=0,frequency=0,pendingSinceUs=0; float demand=0; bool pending=false,attached=false;};
 Wave waves[6];
-mcpwm_sync_handle_t sync[2]={};
+mcpwm_sync_handle_t sync[2]={},groupSync[2]={};
 const PcbProfileManager::Catalog* profile(){return PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;}
 int indexOf(int pin){const auto* p=profile();if(!p||!p->hasPowerStage)return -1;for(int i=0;i<6;i++)if(p->powerInh[i]==pin)return i;return -1;}
+void prepareLow(int pin){gpio_set_level(static_cast<gpio_num_t>(pin),0);pinMode(pin,OUTPUT);}
 bool regWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(0x21);Wire.write(reg);Wire.write(value);return Wire.endTransmission(true)==0;}
 bool regRead(uint8_t reg,uint8_t& value){Wire.beginTransmission(0x21);Wire.write(reg);if(Wire.endTransmission(false)!=0||Wire.requestFrom(uint8_t(0x21),uint8_t(1))!=1)return false;value=Wire.read();return true;}
 bool setLatch(uint8_t value){if(value==latch)return true;if(!regWrite(1,value))return false;latch=value;return true;}
@@ -118,7 +120,7 @@ bool attach(int pin,uint32_t frequency){
     const int i=indexOf(pin);if(i<0)return false;
     if(frequency && (frequency<100 || frequency>20000))return false;
     Wave& w=waves[i];if(w.timer)return w.attached && frequency && w.frequency==frequency;
-    digitalWrite(pin,LOW);pinMode(pin,OUTPUT);
+    prepareLow(pin);
     if(!frequency)return true;
     w.frequency=frequency;w.period=5000000UL/frequency;
     const int group=i/3;
@@ -135,8 +137,19 @@ bool attach(int pin,uint32_t frequency){
         mcpwm_generator_set_action_on_compare_event(w.gen,MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,w.compare,MCPWM_GEN_ACTION_LOW))==ESP_OK &&
         mcpwm_comparator_set_compare_value(w.compare,1)==ESP_OK;
     if(ok){
-        if(!sync[group]){mcpwm_soft_sync_config_t cfg={};ok=mcpwm_new_soft_sync_src(&cfg,&sync[group])==ESP_OK;}
-        mcpwm_timer_sync_phase_config_t phase={};phase.sync_src=sync[group];
+        const bool master=!sync[group];
+        if(master){
+            mcpwm_soft_sync_config_t cfg={};
+            mcpwm_timer_sync_src_config_t propagated={};
+            // ESP-IDF permits a software sync source on only one timer. Route
+            // that master's input sync to its output for the two followers.
+            // Propagation is one-shot, not a periodic timer event: unequal
+            // carrier frequencies must remain independent after boot.
+            propagated.flags.propagate_input_sync=true;
+            ok=mcpwm_new_soft_sync_src(&cfg,&sync[group])==ESP_OK &&
+               mcpwm_new_timer_sync_src(w.timer,&propagated,&groupSync[group])==ESP_OK;
+        }
+        mcpwm_timer_sync_phase_config_t phase={};phase.sync_src=master?sync[group]:groupSync[group];
         // Six nominal phases; independent-frequency channels naturally drift.
         // Group software triggers have a small skew, not a hardware global sync.
         phase.count_value=(uint64_t(w.period)*((i%3)*2+(group?1:0)) / 6)%w.period;
@@ -188,10 +201,10 @@ void begin(bool prerequisitesReady){
     state=State::Off;recoverableFault=false;reason[0]=0;
     for(int i=0;i<6;i++){
         // Reconfiguring an attached pin as GPIO can disconnect its MCPWM route.
-        if(!waves[i].gen){digitalWrite(profile()->powerInh[i],LOW);pinMode(profile()->powerInh[i],OUTPUT);}
+        if(!waves[i].gen)prepareLow(profile()->powerInh[i]);
         forceLow(i);
     }
-    digitalWrite(profile()->outputEnableGpio,LOW);pinMode(profile()->outputEnableGpio,OUTPUT);
+    prepareLow(profile()->outputEnableGpio);
     if(!prerequisitesReady){fail("peripheral/watchdog initialization failed");return;}
     if(Config::controlLoopHz<100){fail("set System loop target to at least 100 Hz");return;}
     SharedPeripheralBus::Guard guard;

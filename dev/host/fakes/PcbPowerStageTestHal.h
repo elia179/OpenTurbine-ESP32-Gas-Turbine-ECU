@@ -37,6 +37,8 @@ inline void latch(uint8_t next){
 }
 }
 inline void digitalWrite(int pin,int v){Mock::gpio[pin]=v;}
+using gpio_num_t=int;
+inline int gpio_set_level(gpio_num_t pin,int value){digitalWrite(pin,value);return 0;}
 inline int digitalRead(int){
  if(Mock::selected<0)return 1;
  const int chip=Mock::selected;Mock::tx=uint16_t((Mock::tx<<1)|Mock::gpio[11]);
@@ -79,11 +81,12 @@ public:
 };
 using esp_err_t=int;constexpr int ESP_OK=0;
 constexpr int MCPWM_TIMER_CLK_SRC_DEFAULT=0,MCPWM_TIMER_COUNT_MODE_UP=0,MCPWM_TIMER_DIRECTION_UP=0,MCPWM_TIMER_EVENT_EMPTY=0,MCPWM_GEN_ACTION_HIGH=1,MCPWM_GEN_ACTION_LOW=0,MCPWM_TIMER_START_NO_STOP=0;
-struct Timer{int group=0;uint32_t phase=0;};struct Oper{};struct Compare{uint32_t value=0;};struct Gen{int pin=-1,force=-1;};struct Sync{};
+struct Timer{int group=0;uint32_t phase=0;};struct Oper{};struct Compare{uint32_t value=0;};struct Gen{int pin=-1,force=-1;};struct Sync{bool software=true;Timer* owner=nullptr;bool propagate=false;};
 using mcpwm_timer_handle_t=Timer*;using mcpwm_oper_handle_t=Oper*;using mcpwm_cmpr_handle_t=Compare*;using mcpwm_gen_handle_t=Gen*;using mcpwm_sync_handle_t=Sync*;
 struct mcpwm_timer_config_t{int group_id,clk_src;uint32_t resolution_hz,period_ticks;int count_mode;};
 struct mcpwm_operator_config_t{int group_id;};struct mcpwm_comparator_config_t{struct{bool update_cmp_on_tez;}flags;};
 struct mcpwm_generator_config_t{int gen_gpio_num;};struct mcpwm_soft_sync_config_t{};
+struct mcpwm_timer_sync_src_config_t{int timer_event;struct{bool propagate_input_sync;}flags;};
 struct mcpwm_timer_sync_phase_config_t{Sync* sync_src;uint32_t count_value;int direction;};
 inline bool mcpwmFailure=false;
 inline int mcpwm_new_timer(const mcpwm_timer_config_t* c,Timer** t){*t=new Timer;(*t)->group=c->group_id;return mcpwmFailure?1:0;}
@@ -98,7 +101,12 @@ inline int mcpwm_generator_set_action_on_timer_event(Gen*,int){return 0;}
 inline int mcpwm_generator_set_action_on_compare_event(Gen*,int){return 0;}
 inline int mcpwm_comparator_set_compare_value(Compare* c,uint32_t v){c->value=v;return 0;}
 inline int mcpwm_new_soft_sync_src(const mcpwm_soft_sync_config_t*,Sync** s){*s=new Sync;return 0;}
-inline int mcpwm_timer_set_phase_on_sync(Timer* t,const mcpwm_timer_sync_phase_config_t* p){t->phase=p->count_value;return 0;}
+inline int mcpwm_new_timer_sync_src(Timer* t,const mcpwm_timer_sync_src_config_t* c,Sync** s){*s=new Sync;(*s)->software=false;(*s)->owner=t;(*s)->propagate=c->flags.propagate_input_sync;return 0;}
+inline int mcpwm_timer_set_phase_on_sync(Timer* t,const mcpwm_timer_sync_phase_config_t* p){
+ if(!p->sync_src)return 1;
+ if(p->sync_src->software){if(p->sync_src->owner&&p->sync_src->owner!=t)return 1;p->sync_src->owner=t;}
+ t->phase=p->count_value;return 0;
+}
 inline int mcpwm_timer_enable(Timer*){return 0;}
 inline int mcpwm_timer_start_stop(Timer*,int){return 0;}
 inline int mcpwm_soft_sync_activate(Sync*){return 0;}

@@ -205,3 +205,33 @@ variants pass. A separate feedback-control native executable remains blocked
 by Windows Application Control after the existing bounded retries; no policy
 bypass is used. Earlier compiler-cache file-access interruptions are recorded
 in the local logs. These are not passing full-release results.
+
+## Physical MCU waveform follow-up — 4 November
+
+The new fixture-only `dev/bench/pwm_probe` compiles the actual production
+PcbPowerStage.cpp against real ESP-IDF MCPWM/LEDC, with driver/expander replies
+simulated and a fixture-specific GPIO map. It is never packaged as ECU firmware.
+Physical testing found an SDK restriction missed by the original host fake:
+a software sync source can attach to only one timer. Fixed each group to use
+one software-synced master with input-sync propagation to two followers.
+Propagation is one-shot; it does not periodically reset independent carriers.
+The fake now enforces exclusive software-source ownership.
+
+Also preload GPIO latches through gpio_set_level before pinMode: Arduino 3
+rejects early digitalWrite on an unowned GPIO. This matters especially for
+unassigned thermocouple CS pins and the heartbeat before bus startup.
+
+The Classic tester captured the production MCPWM backend at 1/5/10/20 kHz,
+25/50/75% duty, static OFF/ON, reported-fault off/explicit clear and a 100 ms
+loop-stall injection. Six MCPWM timers and six LEDC outputs coexist; LEDC
+frequencies are read back. Two wired paths retain different 5 kHz/2.5 kHz
+carriers with all six timers using different frequencies. All 63 assertions
+pass. These are microcontroller captures, not independent scope or real driver
+measurements. Six-channel phase skew and MOSFET switching remain unqualified.
+
+S3 ECU firmware additionally passed 14 wired I²C emulator checks, three dry
+engine-profile startup/STOP campaigns, separate fault/status indicators and
+a live read-only browser audit matching all 12 served web assets. Original
+engine snapshots were restored by each campaign. Six source/compressed PCB
+UI cases pass across Chromium/Firefox/WebKit. Full original 4/16 MB flashes
+are preserved privately before tester/DUT installation.

@@ -22,6 +22,7 @@ int main(int argc,char** argv){
  write(37,1);assert(Mock::regs[1]==3);run(200);assert(!ready()&&Mock::spiWrites==0);run(100);
  assert(ready()&&EngineData::instance().hardwareReady&&Mock::spiWrites==10&&Mock::unsafeConfig==0);
  for(int i=0;i<6;i++)assert(waves[i].timer&&waves[i].gen&&waves[i].timer->group==i/3);
+ for(int group=0;group<2;group++){assert(sync[group]->software&&sync[group]->owner);assert(!groupSync[group]->software&&groupSync[group]->propagate);}
  assert(!attach(37,99)&&!attach(37,20001));assert(attach(37,frequency));
  for(int i=0;i<6;i++){assert(waves[i].period==5000000UL/frequency);assert(waves[i].timer->phase==(uint64_t(waves[i].period)*((i%3)*2+(i/3?1:0))/6)%waves[i].period);}
  // Each INL control preserves every unrelated phase/CS bit, including SPI polls.

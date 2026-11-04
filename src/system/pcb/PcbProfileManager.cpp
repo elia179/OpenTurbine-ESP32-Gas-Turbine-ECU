@@ -1,6 +1,9 @@
 #include "PcbProfileManager.h"
 
 #include <esp_partition.h>
+#if !defined(OT_HOST_TEST)
+#include <driver/gpio.h>
+#endif
 #include <new>
 #include "../../engine/EngineData.h"
 #include "../../hal/actuators/RelayDemand.h"
@@ -243,7 +246,13 @@ void PcbProfileManager::driveEarlySafeStates() {
 
     auto driveLevel = [](int pin, bool high) {
         if (pin < 0) return;
+#if defined(OT_HOST_TEST)
         digitalWrite(pin, high ? HIGH : LOW);
+#else
+        // Arduino 3 rejects digitalWrite before its GPIO ownership is set.
+        // Preload the hardware latch directly before enabling the output.
+        gpio_set_level(static_cast<gpio_num_t>(pin), high ? 1 : 0);
+#endif
         pinMode(pin, OUTPUT);
     };
     auto driveInactive = [&](int pin, bool activeHigh) {
