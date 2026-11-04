@@ -73,5 +73,7 @@ int main(int argc,char** argv){
  waves[0]=Wave{};mcpwmMapped[37]=false;mcpwmFailure=true;assert(!attach(37,frequency));mcpwmFailure=false;assert(!attach(37,frequency));
  // Unsigned deadline arithmetic remains correct across millis rollover.
  assert(!Drv8350Protocol::deadlineMissed(20,0xfffffff0));assert(Drv8350Protocol::deadlineMissed(100,0xfffffff0));
+ PcbProfileManager::enabled=false;Mock::gpio[45]=HIGH;const int heartbeatBefore=Mock::gpio[45];
+ begin(true);service(true);write(37,1);assert(!active()&&ready()&&!faulted()&&Mock::gpio[45]==heartbeatBefore);
  std::cout<<"PASS real PCB backend: safe initialization, both driver readbacks, 6 MCPWM channels, phase enables, fault and I2C failures, deadline latch\n";
 }
