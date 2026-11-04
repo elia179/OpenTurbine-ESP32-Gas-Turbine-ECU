@@ -281,3 +281,12 @@ keyboard toggle coverage waits for smooth-scroll destinations; separate
 pointer-navigation audits cover real button navigation. Clarified PCB fault
 guidance for hard failures that stop the heartbeat. Cross-browser focused
 source/compressed cases pass; broader-suite results are logged separately.
+
+Broader release follow-up: 17 turbine setup variants, I²C/load-cell source audit,
+independent MAVLink decoder, extended real sensor vectors and 26 release-tool
+unit tests pass. Updated cache-generation assertions no longer require an old
+October web revision. WebKit scroll focus tests explicitly request keyboard
+focus on System buttons instead of assuming mouse clicks focus buttons.
+Classic served-file/browser verification passes again after the 20261104a web
+upload, preserving STANDBY and inactive outputs. The Windows enterprise signing
+policy block on the native feedback-control executable remains unresolved.

@@ -94,7 +94,9 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
       const search=route==='controllers'?p.locator('.cfg-workspace input[type="search"]').first():p.locator('.cfg-workspace button').first();
       const r=await search.boundingBox();
       assert.ok(r.y>=48&&r.y+r.height<=viewport.height,'Search is visible after restoration');
-      await search.click();assert.equal(await search.evaluate(el=>el===document.activeElement),true);
+      if(route==='controllers')await search.click();
+      else await search.focus(); // WebKit mouse-clicks do not focus buttons; test keyboard focus explicitly.
+      assert.equal(await search.evaluate(el=>el===document.activeElement),true);
       await p.mouse.wheel(0,150);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'typing keeps search visible');
      }
      await p.evaluate(route=>{
