@@ -91,7 +91,7 @@ def main():
             dut.ensure_mode_standby()
             print('Restoring original engine file...',flush=True)
             before=dut.data().get('boot_count')
-            code,detail=dut._post('/api/ecu_config',original)
+            code,detail=dut.restore_engine_file(original)
             restored=code==200 and dc._wait_reboot(before)
             if restored:
                 actual=dut._get('/api/ecu_config')

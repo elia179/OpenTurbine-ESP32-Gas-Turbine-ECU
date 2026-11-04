@@ -240,3 +240,13 @@ Heartbeat timing clarification: GPIO45 does not need profile-load-time setup.
 Initialize it LOW in PcbPowerStage::begin near the end of setup, then generate
 pulses only from successful control-loop cycles. Early inactive-state parking
 continues for chip selects and ordinary outputs before bus/driver setup.
+
+Classic follow-through: 14/14 wired I²C checks, all three dry engine-profile
+campaigns, separate indicator behavior, and physical N1-overspeed/STOP fuel
+isolation pass. The profile campaign initially received an explicit HTTP 503
+pre-write storage-busy rejection during final restoration. The original engine
+was subsequently restored and compared exactly; the initial failed result and
+separate successful restoration evidence are both retained. Added bounded
+retries only for that explicit rejection to shared harness restoration. Safety,
+validation and ambiguous transport failures are not replayed. All 39 harness
+unit tests pass. No firmware storage restriction was relaxed.

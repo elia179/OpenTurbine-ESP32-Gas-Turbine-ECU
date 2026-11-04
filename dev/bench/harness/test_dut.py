@@ -156,5 +156,24 @@ class DutTelemetryCacheTests(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
 
 
+
+class EngineRestoreBusyTests(unittest.TestCase):
+    @patch("otbench.dut.time.sleep")
+    def test_explicit_prewrite_busy_can_retry_same_document(self, sleep):
+        dut=DUT("http://dut.invalid");doc={"hardware":{}}
+        dut._post=Mock(side_effect=[(503,{"error":"ECU storage is busy; retry the restore shortly"}),(200,{"reboot":True})])
+        self.assertEqual(dut.restore_engine_file(doc)[0],200)
+        self.assertEqual(dut._post.call_args_list,[call("/api/ecu_config",doc)]*2)
+        sleep.assert_called_once_with(.75)
+    def test_safety_and_ambiguous_failures_are_never_replayed(self):
+        for code in (0,400,409,423,500):
+            dut=DUT("http://dut.invalid");dut._post=Mock(return_value=(code,{"error":"not accepted"}))
+            self.assertEqual(dut.restore_engine_file({})[0],code);dut._post.assert_called_once()
+    @patch("otbench.dut.time.sleep")
+    def test_busy_retry_is_bounded(self, sleep):
+        dut=DUT("http://dut.invalid");dut._post=Mock(return_value=(503,{"error":"ECU storage is busy"}))
+        self.assertEqual(dut.restore_engine_file({},tries=3)[0],503)
+        self.assertEqual(dut._post.call_count,3);self.assertEqual(sleep.call_count,2)
+
 if __name__ == "__main__":
     unittest.main()

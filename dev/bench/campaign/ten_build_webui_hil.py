@@ -1258,7 +1258,7 @@ class TenBuildRunner:
         # cleanup result.
         deadline = time.time() + 5.0
         while True:
-            code, resp = self.dut._post("/api/ecu_config", self.original_ecu)
+            code, resp = self.dut.restore_engine_file(self.original_ecu)
             if code != 409 or "configuration update" not in str(resp).lower() or time.time() >= deadline:
                 break
             time.sleep(0.1)

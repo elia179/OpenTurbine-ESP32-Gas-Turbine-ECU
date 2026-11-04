@@ -293,6 +293,20 @@ class DUT:
             self._data_base = None
         return result
 
+    def restore_engine_file(self, engine, tries=6):
+        """Retry only an explicit pre-write storage-busy rejection.
+
+        The caller must still verify reboot and exact engine-file readback.
+        Never replay ambiguous transport failures or engine/safety rejections.
+        """
+        for attempt in range(tries):
+            code, reply = self._post("/api/ecu_config", engine)
+            busy = code == 503 and "ECU storage is busy" in str(reply.get("error", ""))
+            if not busy or attempt + 1 == tries:
+                return code, reply
+            time.sleep(0.75)
+        raise ValueError("restore attempts must be positive")
+
     def patch(self, path, obj):
         result = self._body(path, obj, "PATCH")
         if 200 <= result[0] < 300 and path in self._configuration_paths():

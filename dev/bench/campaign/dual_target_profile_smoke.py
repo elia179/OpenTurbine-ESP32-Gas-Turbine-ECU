@@ -138,7 +138,7 @@ class ProfileSmoke(TenBuildRunner):
     def restore_original(self):
         self.safe_standby()
         previous_boot = self.dut.data().get('boot_count')
-        code, reply = self.dut._post('/api/ecu_config', self.original_ecu)
+        code, reply = self.dut.restore_engine_file(self.original_ecu)
         if code != 200:
             raise RuntimeError(f'Original engine restore rejected: {reply}')
         if not self.dc._wait_reboot(previous_boot):

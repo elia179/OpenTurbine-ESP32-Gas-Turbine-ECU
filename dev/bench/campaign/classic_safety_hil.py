@@ -253,7 +253,7 @@ class ClassicSafetyHil:
         self.recover()
         previous_boot = self.dut.data().get("boot_count")
         for attempt in range(20):
-            code, detail = self.dut._post("/api/ecu_config", self.original_ecu)
+            code, detail = self.dut.restore_engine_file(self.original_ecu)
             if code != 409 or "storage is busy" not in str(detail).lower():
                 break
             print(f"[RESTORE] storage busy; retry {attempt + 1}/20", flush=True)
