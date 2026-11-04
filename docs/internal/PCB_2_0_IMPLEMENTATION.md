@@ -250,3 +250,12 @@ separate successful restoration evidence are both retained. Added bounded
 retries only for that explicit rejection to shared harness restoration. Safety,
 validation and ambiguous transport failures are not replayed. All 39 harness
 unit tests pass. No firmware storage restriction was relaxed.
+
+Final bare-board handoff: both targets build and pass image/linker/filesystem
+budgets; Classic live browser audit matches all 12 assets with no writes or
+reboot. The final Classic image was written with verified flash hash, boots
+in STANDBY with outputs inactive and retains the exact engine file. S3 remains
+OTBench tester firmware. The local package is refreshed separately. One native
+feedback-control executable remains blocked by Windows Application Control;
+there is no complete full-release-gate pass, and no security bypass was used.
+Actual PCB power/rail/thermal qualification remains a later prototype task.
