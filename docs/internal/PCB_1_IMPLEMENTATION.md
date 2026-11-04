@@ -290,3 +290,11 @@ focus on System buttons instead of assuming mouse clicks focus buttons.
 Classic served-file/browser verification passes again after the 20261104a web
 upload, preserving STANDBY and inactive outputs. The Windows enterprise signing
 policy block on the native feedback-control executable remains unresolved.
+
+All 53 UI audit programs now pass across the staged runs after correcting stale
+cache-key and browser-input test assumptions. Coverage is recorded per program
+in artifacts/pcb2/nov4-ui-coverage.json. This is not represented as a single
+uninterrupted full release-runner pass. Scroll controls pass all 24 browser/
+viewport/page combinations; safety matrix passes 29 cases / 85 fields / 8,713
+checks per source/compressed browser variant. The enterprise-policy-blocked
+native feedback-control executable still prevents a complete release gate.
