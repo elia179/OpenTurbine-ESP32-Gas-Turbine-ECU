@@ -274,7 +274,9 @@ void PcbProfileManager::driveEarlySafeStates() {
 #if !defined(OT_PLATFORM_ESP32)
     if (_catalog->hasFaultLed)
         driveInactive(_catalog->faultLedGpio, _catalog->faultLedActiveHigh);
-    if (_catalog->hasOutputEnable)
+    // A health heartbeat is initialized LOW by PcbPowerStage at the end of
+    // setup; its pulses begin only from successful control-loop cycles.
+    if (_catalog->hasOutputEnable && !_catalog->healthHeartbeat)
         driveInactive(_catalog->outputEnableGpio, _catalog->outputEnableActiveHigh);
 #endif
     if (_catalog->hasServoOutputEnable)

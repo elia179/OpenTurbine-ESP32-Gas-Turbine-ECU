@@ -235,3 +235,8 @@ a live read-only browser audit matching all 12 served web assets. Original
 engine snapshots were restored by each campaign. Six source/compressed PCB
 UI cases pass across Chromium/Firefox/WebKit. Full original 4/16 MB flashes
 are preserved privately before tester/DUT installation.
+
+Heartbeat timing clarification: GPIO45 does not need profile-load-time setup.
+Initialize it LOW in PcbPowerStage::begin near the end of setup, then generate
+pulses only from successful control-loop cycles. Early inactive-state parking
+continues for chip selects and ordinary outputs before bus/driver setup.

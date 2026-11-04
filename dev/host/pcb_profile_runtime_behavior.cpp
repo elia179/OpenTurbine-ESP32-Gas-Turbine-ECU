@@ -4,9 +4,9 @@
 #include <iostream>
 using std::isfinite;
 constexpr int LOW=0,HIGH=1,OUTPUT=1;
-static int gpio[49]={};
+static int gpio[49]={};static bool configured[49]={};
 inline void digitalWrite(int p,int v){gpio[p]=v;}
-inline void pinMode(int,int){}
+inline void pinMode(int pin,int){configured[pin]=true;}
 #include "../../src/system/pcb/PcbProfileManager.cpp"
 static uint32_t crc(const std::string& s){uint32_t c=~0u;for(uint8_t b:s){c^=b;for(int n=0;n<8;n++)c=(c>>1)^((c&1)?0xedb88320u:0);}return ~c;}
 static void load(JsonDocument& doc){
@@ -20,6 +20,7 @@ int main(){
  load(source);assert(PcbProfileManager::active());const auto* p=PcbProfileManager::catalog();
  assert(p->hasPowerStage&&p->healthHeartbeat&&p->powerControlDevice>=0&&p->portCount==34&&p->supplyVoltageDivider==37);
  PcbProfileManager::driveEarlySafeStates();for(int pin:p->powerInh)assert(gpio[pin]==LOW);
+ assert(!configured[45]); // heartbeat initialization belongs to end-of-setup backend begin
  assert(gpio[14]==HIGH && gpio[3]==HIGH); // even unassigned thermocouples stay deselected
  PcbProfileManager::setOutputsEnabled(true);assert(gpio[45]==LOW);
  ChannelRegistry registry;ChannelRegistry::Channel output;output.installed=true;output.direction=ChannelRegistry::Output;output.driver=ChannelRegistry::Pwm;
