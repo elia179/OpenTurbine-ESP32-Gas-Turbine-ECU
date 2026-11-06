@@ -8,9 +8,16 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
  for(const engine of [chromium,firefox,webkit])for(const packed of [false,true]){
   const browser=await engine.launch();try{
    const p=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
+   const navigate=async route=>{
+     try{await p.goto(base+route,{waitUntil:'domcontentloaded',timeout:30000});}
+     catch(error){
+       const state=await Promise.race([p.evaluate(()=>({url:location.href,ready:document.readyState,loading:typeof _hwLoading==='undefined'?null:_hwLoading,model:typeof _hardwareModelSnap,saveMessage:document.getElementById('save-msg')?.textContent})).catch(e=>({error:e.message})),new Promise(resolve=>setTimeout(()=>resolve({error:'Renderer did not answer the diagnostic probe'}),2000))]);
+       console.error('PCB audit navigation failed',JSON.stringify({engine:engine.name(),packed,route,state,errors}));throw error;
+     }
+   };
    if(packed)await p.route(/\/(hardware\.html|theme\.js|app\.js|style\.css)(?:\?.*)?$/,r=>{const name=new URL(r.request().url()).pathname.slice(1);return r.fulfill({status:200,contentType:name.endsWith('html')?'text/html':name.endsWith('js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});});
    const initial=await(await p.request.get(base+'/__sim/state')).json();const fixture=latestPcbFixture(initial);
-   const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await p.goto(base+'/hardware.html');
+   const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await navigate('/hardware.html');
    await p.waitForFunction(expected=>document.querySelector('#hardware-board-summary')?.textContent.includes(expected),source.board.revision);
    assert.ok((await p.locator('#hardware-board-summary').innerText()).includes('OpenTurbine PCB v1.0'));
    await p.waitForFunction(()=>typeof _hardwareModelSnap!=='undefined'&&!!_hardwareModelSnap&&!_hwLoading&&!document.querySelector('main').inert);
@@ -343,7 +350,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    assert.equal(await p.evaluate(()=>!!cfg._i2c_discovery.status_unavailable),false);
    assert.equal(await nameField.inputValue(),'Edited torque name');
    await p.unroute('**/api/i2c_discovery');
-   await p.goto(base+'/index.html');
+   await navigate('/index.html');
    await p.waitForFunction(()=>typeof renderRegistryOutputCards==='function');
    await p.evaluate(()=>{
      const outputs=[
@@ -356,7 +363,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
      const card=document.getElementById('registry-output-card-ui_aux_missing');
      if(card?.querySelector('.value').textContent!=='Unavailable'||card.querySelector('.binary-state-active'))throw Error('Missing output device displayed an active command as available');
    });
-   await p.goto(base+'/tools.html');
+   await navigate('/tools.html');
    await p.waitForFunction(()=>typeof timedToolBlockReason==='function'&&typeof hwCfg!=='undefined'&&hwCfg?.channel_registry);
    await p.evaluate(()=>{
      toolsTelemetryAvailable=true;engineMode='FAULT';
@@ -367,7 +374,7 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
      refreshTimedToolLockStates();
      if(!document.getElementById('state-'+tool.id).textContent.startsWith('Unavailable'))throw Error('Missing indicator device not explained');
    });
-   await p.goto(base+'/hardware.html');
+   await navigate('/hardware.html');
    await p.waitForFunction(()=>typeof pcbProfile!=='undefined'&&pcbProfile?.ports?.length>0&&!_hwLoading);
    await p.evaluate(()=>{
      const inputs=registryRoot().inputs,outputs=registryRoot().outputs;
