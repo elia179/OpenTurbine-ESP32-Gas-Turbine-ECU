@@ -1,10 +1,10 @@
 # OpenTurbine Setup Tool
 
-The 2.6.1 implementation shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. Both Classic and S3 have also passed the one-confirmation automatic reconnect flow. The assembled PCB remains a separate qualification item; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
+OpenTurbine 2.7.0 with Setup Tool 0.7.9 shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. Both Classic and S3 have also passed the one-confirmation automatic reconnect flow. The assembled PCB remains a separate qualification item; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
 
 Windows setup/update helper for OpenTurbine boards.
 
-Version 0.7.8 scales its custom layout, fonts and mouse hit testing with the
+Version 0.7.9 scales its custom layout, fonts and mouse hit testing with the
 monitor DPI and follows Windows' suggested bounds on monitor changes. The Wi-Fi update asks for the initial connection once, then automatically waits
 for the expected version, chip target, build identity and maintenance readiness
 after each restart. It asks again only if those checks fail. Verification retry
@@ -71,4 +71,19 @@ OpenTurbineSetupTool.exe
 OpenTurbineSetupTool.exe.sha256
 OpenTurbine_Recommended.zip
 OpenTurbine_Recommended.zip.sha256
+OpenTurbine_PCB_v1.0.otpcb.json
+OpenTurbine_PCB_v1.0.otpcb.json.sha256
 ```
+
+Upload chunks require an explicit JSON `ok:true` acknowledgement. A successful
+HTTP status alone does not confirm that data was accepted. Lost transport
+responses retry only the exact offset; malformed/rejected acknowledgements
+stop with an explanation. Engine backups always create a unique timestamped
+directory, including when multiple snapshots are made in the same second.
+
+
+The release pipeline launches the freshly built Windows EXE and checks its
+initial window and message loop before publishing. This invokes no install or
+update action. Managed Windows signing policies can still reject an unsigned
+build; the pipeline signs releases when the project's signing certificate is
+configured, and otherwise the published tool remains unsigned.

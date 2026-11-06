@@ -290,6 +290,7 @@ async function validateBeforeSave(cfg) {
   const claimedOutputs = new Set();
   customControls.forEach((control, index) => {
     const label = String(control.name || `Custom controller ${index + 1}`);
+    if(new TextEncoder().encode(String(control.name||'')).length>23)errors.push(`${label}: shorten the controller name to 23 UTF-8 bytes. Accented characters and symbols can use more than one byte.`);
     const output = String(control.target || '');
     const kind = Number(control.kind || 0);
     if(kind===0&&(!Number.isInteger(Number(control.confirm_ms??0))||Number(control.confirm_ms??0)<0||Number(control.confirm_ms??0)>60000))
@@ -644,24 +645,8 @@ function _cancelSaveRecap() {
 
 // These page-owned Hardware writes also require an explicit acknowledgement.
 async function _saveConfigHardwarePatch(source, patch) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch('/api/hardware?source=' + source, {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(patch), signal:controller.signal
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok || result?.ok === false)
-      throw new Error(result?.detail || result?.error || `Hardware HTTP ${response.status}`);
-    if (result?.ok !== true)
-      throw new Error('Hardware save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
-    return result;
-  } catch (error) {
-    if (controller.signal.aborted || error instanceof TypeError)
-      throw new Error('Hardware save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
-    throw error;
-  } finally { clearTimeout(timeout); }
+  const {data}=await window.OTSaveHardwarePatch(patch,source);
+  return data;
 }
 
 // OT_CONTROLLERS_ONLY_BEGIN

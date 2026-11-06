@@ -24,5 +24,14 @@ int main(){
  assert(count==120&&first==181&&last==300);
  MemoryFile empty;RecentEventLog::seekTail(empty);assert(!empty.available());
  MemoryFile small{"{bad}\n{\"ev\":\"BOOT\",\"t\":0}\n"};RecentEventLog::seekTail(small);assert(RecentEventLog::next(small,line,sizeof(line))); // damaged prefix is ignored by decode
+ // The JSON route must keep complete newest records within its byte budget.
+ MemoryFile bounded=f;bounded.seek(0);RecentEventLog::seekTail(bounded,256);
+ size_t bytes=0;int newest=-1,boundedCount=0;
+ while(RecentEventLog::next(bounded,line,sizeof(line))){
+  doc.clear();if(deserializeJson(doc,line)||!doc["ev"].is<const char*>())continue;
+  bytes+=strlen(line)+1;newest=doc["t"];++boundedCount;
+ }
+ assert(bytes<=256&&boundedCount>0&&newest==300);
+ MemoryFile noRoom=f;noRoom.seek(0);RecentEventLog::seekTail(noRoom,1);assert(!noRoom.available());
  std::cout<<"Recent event tail: newest 120 independent of cached count; malformed, oversized, legacy commas, short and empty logs passed.\n";
 }

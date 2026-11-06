@@ -48,6 +48,7 @@ function validateSequenceHardwareForSave() {
 }
 
 function validateCustomBlockLimits() {
+  const bytes=value=>new TextEncoder().encode(String(value||'')).length;
   const entries = Object.entries(hwCfg.custom_blocks || {});
   const errors = [];
   const sensors = getEnabledSensors();
@@ -57,9 +58,9 @@ function validateCustomBlockLimits() {
   entries.forEach(([key, def]) => {
     const label = def?.label || key;
     const steps = Array.isArray(def?.steps) ? def.steps : [];
-    if (key.length > MAX_CUSTOM_KEY_LEN) errors.push(`${key}: key is longer than ${MAX_CUSTOM_KEY_LEN} characters.`);
-    if ((def?.label || '').length > MAX_CUSTOM_LABEL_LEN) errors.push(`${label}: label is longer than ${MAX_CUSTOM_LABEL_LEN} characters.`);
-    if ((def?.desc || '').length > MAX_CUSTOM_DESC_LEN) errors.push(`${label}: description is longer than ${MAX_CUSTOM_DESC_LEN} characters.`);
+    if (bytes(key) > MAX_CUSTOM_KEY_LEN) errors.push(`${key}: key exceeds ${MAX_CUSTOM_KEY_LEN} UTF-8 bytes.`);
+    if (bytes(def?.label) > MAX_CUSTOM_LABEL_LEN) errors.push(`${label}: shorten the name to ${MAX_CUSTOM_LABEL_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);
+    if (bytes(def?.desc) > MAX_CUSTOM_DESC_LEN) errors.push(`${label}: shorten the description to ${MAX_CUSTOM_DESC_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);
     if (steps.length > MAX_CUSTOM_STEPS) errors.push(`${label}: ${steps.length}/${MAX_CUSTOM_STEPS} steps.`);
     if (def?.type === 'action' && !steps.length) errors.push(`${label}: action block has no steps.`);
     if (def?.type === 'while' && !sensors.some(sensor =>
@@ -75,7 +76,16 @@ function validateCustomBlockLimits() {
   return errors;
 }
 
+let _seqSavePending=false;
 async function saveAll() {
+  if(!_seqDirty||_seqSavePending||_seqLoading)return;
+  const editingSurface=document.querySelector('main'),wasInert=editingSurface?.inert;
+  _seqSavePending=true;updateSequenceSaveControls();
+  try{await _saveSequenceChanges();}
+  catch(error){setSaveStatus('Warning: '+error.message);}
+  finally{if(editingSurface)editingSurface.inert=wasInert;_seqSavePending=false;updateSequenceSaveControls();}
+}
+async function _saveSequenceChanges() {
   if (!_seqDirty) return;
   await refreshEngineStatus();
   if (engineMode !== 'STANDBY' && engineMode !== 'FAULT') {
@@ -104,6 +114,7 @@ async function saveAll() {
   const warnings = _validateSequence(startup);
   if (warnings.length && !await OTDialog.confirm('Sequence warnings:\n\n' + warnings.map(w => '- ' + w).join('\n') + '\n\nSave anyway?', {title:'Sequence safety warnings', confirmText:'Save anyway', danger:true})) return;
   setSaveStatus('Saving engine file...');
+  const editingSurface=document.querySelector('main');if(editingSurface)editingSurface.inert=true;
   try {
     if (typeof stopSequenceTelemetry === 'function') stopSequenceTelemetry();
     if (typeof window.OTWaitForPageTelemetryIdle === 'function') {
@@ -129,10 +140,7 @@ async function saveAll() {
     });
     const hardwareReboot = Object.keys(hardwarePatch).length > 0;
     if (hardwareReboot) {
-      const response = await fetch('/api/hardware?source=sequence', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)});
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false)
-        throw new Error(result.error || result.detail || `Hardware HTTP ${response.status}`);
+      await window.OTSavePatch('/api/hardware?source=sequence',hardwarePatch);
     }
     let settingsReboot = false;
     if (Object.keys(settingsPatch).length) {
@@ -140,10 +148,8 @@ async function saveAll() {
         setSaveStatus('Sequence hardware saved — reconnecting to save page settings…');
         await window.OTWaitForSaveRestart();
       }
-      const settingsResponse = await fetch('/api/config', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(settingsPatch)});
-      const settingsResult = await settingsResponse.json().catch(() => ({}));
-      if (!settingsResponse.ok || settingsResult.ok === false)
-        throw new Error(settingsResult.error || settingsResult.reason || `Settings HTTP ${settingsResponse.status}`);
+      const {response:settingsResponse,data:settingsResult}=await window.OTSavePatch('/api/config',settingsPatch);
+      if(!settingsResponse.ok)throw new Error(settingsResult.error||settingsResult.reason||`Settings HTTP ${settingsResponse.status}`);
       settingsReboot = settingsResult.reboot === true;
     }
     const rebooting = hardwareReboot || settingsReboot;
@@ -156,6 +162,7 @@ async function saveAll() {
     }
   } catch (error) {
     setSaveStatus('Warning: ' + error.message);
+    if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
   }
 }
 
@@ -195,8 +202,8 @@ function setSaveStatus(message) {
 function updateSequenceSaveControls() {
   const save = document.getElementById('save-btn');
   const discard = document.getElementById('seq-discard-btn');
-  if (save) save.disabled = !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
-  if (discard) discard.disabled = !_seqDirty;
+  if (save) save.disabled = _seqLoading || _seqSavePending || !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
+  if (discard) discard.disabled = _seqLoading || _seqSavePending || !_seqDirty;
 }
 
 let _sequenceEditSnap = null;
@@ -236,6 +243,7 @@ document.addEventListener('click', async event => {
 }, true);
 
 async function discardSequenceChanges() {
+  if(_seqSavePending||_seqLoading)return;
   if (!_seqDirty) return;
   if (!await OTDialog.confirm('Discard every unsaved sequence change?', {title:'Discard changes?', confirmText:'Discard', danger:true})) return;
   await loadAll();

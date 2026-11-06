@@ -156,6 +156,16 @@ def _target_catalog(chip: str) -> dict:
         raise ProfileError(f"target catalog for {chip!r} is unavailable: {exc}") from exc
 
 
+def _utf8_size(value: str) -> int:
+    """Match the firmware's fixed byte buffers, including non-ASCII labels."""
+    if "\0" in value:
+        raise ProfileError("Text fields cannot contain NUL UTF-8 bytes")
+    try:
+        return len(value.encode("utf-8"))
+    except UnicodeError as exc:
+        raise ProfileError("Text fields must contain valid UTF-8") from exc
+
+
 def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     warnings: list[str] = []
     _require(profile.get("format") == "openturbine-pcb-profile",
@@ -171,12 +181,12 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     _require(isinstance(board.get("id"), str) and BOARD_ID_RE.fullmatch(board["id"]),
              "board.id must be a stable lowercase ID up to 40 characters")
     for key, limit in (("name", 47), ("revision", 15)):
-        _require(isinstance(board.get(key), str) and 0 < len(board[key]) <= limit,
-                 f"board.{key} must be 1..{limit} characters")
+        _require(isinstance(board.get(key), str) and 0 < _utf8_size(board[key]) <= limit,
+                 f"board.{key} must be 1..{limit} UTF-8 bytes")
     for key, limit in (("manufacturer", 31), ("description", 95)):
         value = board.get(key, "")
-        _require(isinstance(value, str) and len(value) <= limit,
-                 f"board.{key} must be at most {limit} characters")
+        _require(isinstance(value, str) and _utf8_size(value) <= limit,
+                 f"board.{key} must be at most {limit} UTF-8 bytes")
 
     target = profile.get("target")
     _require(isinstance(target, dict) and target.get("chip") in TARGET_IDS,
@@ -355,8 +365,8 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
                  1 <= item["divider"] <= 100,
                  "fixed_functions.supply_voltage divider must be 1..100")
         label = item.get("label", "ECU supply voltage")
-        _require(isinstance(label, str) and len(label) <= 31,
-                 "fixed_functions.supply_voltage label must be at most 31 characters")
+        _require(isinstance(label, str) and _utf8_size(label) <= 31,
+                 "fixed_functions.supply_voltage label must be at most 31 UTF-8 bytes")
         gpio(item["gpio"], "fixed_functions.supply_voltage")
         claim_gpio(item["gpio"], "fixed_functions.supply_voltage")
     for key in ("cluster_serial", "mavlink"):
@@ -369,14 +379,14 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
     for index, port in enumerate(ports):
         _require(isinstance(port, dict), f"ports[{index}] must be an object")
         port_id = stable_id(port, f"ports[{index}]")
-        _require(isinstance(port.get("label"), str) and 0 < len(port["label"]) <= 31,
-                 f"port {port_id} label must be 1..31 characters")
+        _require(isinstance(port.get("label"), str) and 0 < _utf8_size(port["label"]) <= 31,
+                 f"port {port_id} label must be 1..31 UTF-8 bytes")
         connector = port.get("connector", "")
         description = port.get("description", "")
-        _require(isinstance(connector, str) and len(connector) <= 23,
-                 f"port {port_id} connector must be at most 23 characters")
-        _require(isinstance(description, str) and len(description) <= 79,
-                 f"port {port_id} description must be at most 79 characters")
+        _require(isinstance(connector, str) and _utf8_size(connector) <= 23,
+                 f"port {port_id} connector must be at most 23 UTF-8 bytes")
+        _require(isinstance(description, str) and _utf8_size(description) <= 79,
+                 f"port {port_id} description must be at most 79 UTF-8 bytes")
         modes = port.get("modes")
         _require(isinstance(modes, list) and 0 < len(modes) <= MAX_MODES,
                  f"port {port_id} must have 1..{MAX_MODES} modes")
@@ -409,14 +419,14 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
                          len(default["id"]) <= 19 and ID_RE.fullmatch(default["id"]),
                          f"port {port_id}/{mode_id} default ID is invalid")
                 _require(isinstance(default.get("name"), str) and
-                         0 < len(default["name"]) <= 23,
-                         f"port {port_id}/{mode_id} default name must be 1..23 characters")
+                         0 < _utf8_size(default["name"]) <= 23,
+                         f"port {port_id}/{mode_id} default name must be 1..23 UTF-8 bytes")
                 _require(isinstance(default.get("role"), str) and
-                         0 < len(default["role"]) <= 17,
-                         f"port {port_id}/{mode_id} default role must be 1..17 characters")
+                         0 < _utf8_size(default["role"]) <= 17,
+                         f"port {port_id}/{mode_id} default role must be 1..17 UTF-8 bytes")
                 _require(isinstance(default.get("purpose"), str) and
-                          0 < len(default["purpose"]) <= 19,
-                          f"port {port_id}/{mode_id} default purpose must be 1..19 characters")
+                          0 < _utf8_size(default["purpose"]) <= 19,
+                          f"port {port_id}/{mode_id} default purpose must be 1..19 UTF-8 bytes")
                 _require(adapter in ADAPTERS and
                          _default_compatible(adapter, default["purpose"], default["role"]),
                          f"port {port_id}/{mode_id} default is incompatible with adapter {adapter}")
@@ -462,6 +472,18 @@ def validate_profile(profile: dict, *, strict: bool = False) -> list[str]:
 
     if strict and warnings:
         raise ProfileError("strict validation warnings:\n- " + "\n- ".join(warnings))
+    headers=profile.get('gpio_headers',[])
+    _require(isinstance(headers,list) and len(headers)<=12,'gpio_headers must contain at most 12 GPIOs')
+    _require(all(type(pin) is int for pin in headers) and len(set(headers))==len(headers),'gpio_headers must contain unique GPIO numbers')
+    for pin in headers:
+        gpio(pin,'GPIO header')
+        owner=gpio_owners.get(pin,'')
+        _require(not owner or owner.startswith('port '),'GPIO header conflicts with fixed PCB wiring')
+        _require(pin not in profile.get('fixed_functions',{}).get('power_stage',{}).get('inh_gpio',[]),'power driver input cannot be a raw GPIO header')
+    notes=profile.get('gpio_header_notes',{})
+    _require(isinstance(notes,dict),'gpio_header_notes must be an object')
+    for key,value in notes.items():
+        _require(key in {str(pin) for pin in headers} and isinstance(value,str) and _utf8_size(value)<64,'GPIO header note must refer to a header and fit 63 UTF-8 bytes')
     return warnings
 
 

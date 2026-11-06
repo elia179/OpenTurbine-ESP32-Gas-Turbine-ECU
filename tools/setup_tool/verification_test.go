@@ -211,14 +211,14 @@ func TestCurrentPCBProfileContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
+	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.7.0", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
 		"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}},
 	}}}
 	pkg.Manifest.Version = "2.6.0"
 	if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json")); err == nil {
 		t.Fatal("new profile accepted with old firmware")
 	}
-	pkg.Manifest.Version = "2.6.1"
+	pkg.Manifest.Version = "2.7.0"
 	path, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", filepath.Join(root, "pcb_profiles", "official", "openturbine-s3-20261102.otpcb.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestCurrentPCBRejectsInvalidIndicatorEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
+	pkg := &Package{Root: root, Manifest: Manifest{Version: "2.7.0", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{
 		"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}},
 	}}}
 	for _, tc := range []string{"shared-channel", "missing-device", "missing-gpio"} {
@@ -288,7 +288,7 @@ func TestProtectedPowerStageRejectsUnsafeContracts(t *testing.T) {
 			if err := json.Unmarshal(source, &doc); err != nil {
 				t.Fatal(err)
 			}
-			pkg := &Package{Root: root, Manifest: Manifest{Version: "2.6.1", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}}}}}
+			pkg := &Package{Root: root, Manifest: Manifest{Version: "2.7.0", PCBProfileMaxFormatMajor: 2, Targets: map[string]ManifestTarget{"esp32s3dev": {PCBProfile: PCBProfilePartition{Address: "0x610000", Size: 65536}}}}}
 			fixed := doc["fixed_functions"].(map[string]any)
 			power := fixed["power_stage"].(map[string]any)
 			switch fault {

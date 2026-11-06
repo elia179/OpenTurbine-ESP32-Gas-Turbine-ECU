@@ -122,11 +122,39 @@ bool applyMode(ChannelRegistry::Channel& channel,
         channel.i2cAddress = device->address;
         channel.deviceChannel = mode.channel;
         channel.pin = -1;
-        if (channel.driver == Driver::I2cAnalog)
+        if (channel.driver == Driver::I2cAnalog) {
             channel.i2cReferenceMv = mode.referenceMv;
+            channel.pullup=false;channel.pulldown=false;
+        }
     }
     return true;
 }
+}
+
+int PcbProfileResolver::digitalMirrorPin(JsonObjectConst source) {
+    const char* portId=source["physical_port"] | "";
+    if(!portId[0])return (source["driver"] | -1)==ChannelRegistry::Digital?(source["pin"] | -1):-1;
+    const auto* port=PcbProfileManager::findPort(portId);
+    const auto* mode=port?PcbProfileManager::findMode(*port,source["physical_mode"] | ""):nullptr;
+    return mode&&!strcmp(PcbProfileManager::adapterName(mode->adapter),"digital_input")?mode->gpio:-1;
+}
+
+bool PcbProfileResolver::resolveChannel(ChannelRegistry::Channel& channel, char* reason, size_t reasonSize) {
+    if (!PcbProfileManager::active()) return !PcbProfileManager::faulted();
+    const auto* catalog=PcbProfileManager::catalog();
+    if(catalog && catalog->hasSupplyVoltage && channel.direction==ChannelRegistry::Input && !strcmp(channel.id,"battery_voltage")){
+        channel.installed=true;channel.driver=ChannelRegistry::Analog;channel.pin=catalog->supplyVoltageGpio;
+        channel.minValue=0;channel.maxValue=4095;channel.analogDivider=catalog->supplyVoltageDivider;
+        channel.physicalPortId[0]=channel.physicalModeId[0]='\0';
+        strlcpy(channel.role,"voltage",sizeof(channel.role));strlcpy(channel.purpose,"battery_voltage",sizeof(channel.purpose));return true;
+    }
+    const bool hasPort=channel.physicalPortId[0],hasMode=channel.physicalModeId[0];
+    if(hasPort!=hasMode)return fail(reason,reasonSize,"PCB channel has an incomplete named-port assignment");
+    if(!hasPort)return true;
+    const auto* port=PcbProfileManager::findPort(channel.physicalPortId);
+    const auto* mode=port?PcbProfileManager::findMode(*port,channel.physicalModeId):nullptr;
+    if(!mode)return fail(reason,reasonSize,"saved channel refers to a missing PCB connector or signal type");
+    return applyMode(channel,*mode,reason,reasonSize);
 }
 
 bool PcbProfileResolver::resolve(ChannelRegistry& registry,
@@ -191,6 +219,25 @@ bool PcbProfileResolver::resolve(ChannelRegistry& registry,
                 // builders may deliberately use a spare GPIO. It remains an
                 // ordinary registry channel and still passes the platform,
                 // role/driver, and global collision validation.
+                const bool spiTemperature = channel.direction == ChannelRegistry::Input &&
+                    channel.temperatureInterface >= 1 && channel.temperatureInterface <= 3;
+                const bool remote = channel.driver >= ChannelRegistry::I2cDigital;
+                if (remote) {
+                    for (uint8_t d = 0; d < catalog->deviceCount; ++d)
+                        if (catalog->devices[d].address == channel.i2cAddress)
+                            return fail(reason, reasonSize,
+                                        "use a named PCB connector for an onboard I2C device");
+                    continue;
+                }
+                if (spiTemperature) {
+                    if (channel.spiCs < 0 || PcbProfileManager::gpioReserved(channel.spiCs))
+                        return fail(reason, reasonSize, "external thermocouple needs a free CS GPIO");
+                    const auto* bus = PcbProfileManager::findBusKind("spi");
+                    if (bus && (channel.spiClk != bus->sck || channel.spiMiso != bus->miso ||
+                        (channel.temperatureInterface == 3 && channel.spiMosi != bus->mosi)))
+                        return fail(reason, reasonSize, "external thermocouple must use the shared PCB SPI bus");
+                    continue;
+                }
                 if (channel.pin < 0)
                     return fail(reason, reasonSize,
                                 "bare-GPIO channel has no GPIO assignment");
@@ -323,8 +370,12 @@ void PcbProfileResolver::applyFixedPeripherals() {
             if (rx) *rx = -1;
             return;
         }
-        tx = bus->tx;
-        if (rx) *rx = bus->rx;
+        // Defaults are seeded before reading the user document. Preserve
+        // explicit routing, including a monitoring-only RX of -1.
+        if (tx < 0) {
+            tx = bus->tx;
+            if (rx) *rx = bus->rx;
+        }
     };
     applySerial(catalog->mavlinkBusId[0]?catalog->mavlinkBusId:catalog->clusterSerialBusId, HardwareConfig::hasMAVLink,
                 HardwareConfig::mavlinkTxPin, &HardwareConfig::mavlinkRxPin);

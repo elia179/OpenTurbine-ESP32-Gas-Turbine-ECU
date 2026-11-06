@@ -466,6 +466,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         locked: !!state.data.config_locked,
         session_log: clone(state.settings.session_log || {}),
+        channel_registry: clone(hardware.channel_registry || {inputs:[],outputs:[]}),
+        capture: {budget_bytes:16128,timestamp_bytes:4,prefix_bytes:2,registry_value_bytes:4,fields:{"n1":[4,false],"n2":[4,false],"tot":[2,true],"tit":[2,true],"oil_temp":[2,true],"oil":[2,true],"p1":[2,true],"p2":[2,true],"torque":[6,true],"thrust":[2,true],"throttle":[2,true],"starter":[2,true],"oil_pct":[2,true],"batt":[2,true],"fuel_press":[2,true],"fuel_flow":[4,false],"glow":[2,true],"wet_glow":[2,true],"glow_current":[2,true],"ign_current":[2,true],"ign2_current":[2,true],"oil_current":[2,true],"fp2":[2,true],"ab":[17,true],"prop":[2,true],"mode":[1,false],"loop":[20,false]}},
         telemetry: {
           log_standby: !!state.settings.telemetry?.log_standby,
           snapshot_interval_ms: state.settings.telemetry?.snapshot_interval_ms || 10000

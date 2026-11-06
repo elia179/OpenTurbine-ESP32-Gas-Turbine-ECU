@@ -6,7 +6,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101012">
 <title>OpenTurbine — System</title>
-<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
+<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <style>
 :root{--bg:#101012;--surface:#17171a;--surface-2:#1d1d20;--surface-3:#262629;--border:#313135;--border-light:#42424a;--text:#f5f5f7;--text-2:#cecdd4;--dim:#a0a0a8;--green:#33cf7a;--red:#ff4d5f;--yellow:#ffcf4d;--blue:#5ab8ca;--accent:#ee7620;--font-ui:system-ui,-apple-system,'Segoe UI',sans-serif;--font-mono:'SF Mono','Menlo','Consolas',monospace}
 *,*::before,*::after{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:14px;line-height:1.5}nav{overflow-x:auto;max-width:100%;height:48px;display:flex;align-items:center;padding:0 1.25rem;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}nav a{height:48px;line-height:48px;padding:0 .9rem;color:var(--dim);text-decoration:none;text-transform:uppercase;letter-spacing:.06em;font-size:.75rem;font-weight:600;border-bottom:2px solid transparent;white-space:nowrap}nav a.active{color:var(--text);border-bottom-color:var(--accent)}.conn-dot{flex-shrink:0;width:7px;height:7px;border-radius:50%;display:inline-block;margin-left:auto}.conn-dot.connected{background:var(--green);box-shadow:0 0 6px var(--green)}.conn-dot.disconnected{background:var(--red)}.conn-label{font-size:.63rem;color:var(--dim);margin-left:.4rem;text-transform:uppercase;letter-spacing:.05em}main{padding:1.5rem;max-width:920px;margin:0 auto}button{font-family:var(--font-ui);font-size:.78rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;min-height:44px;padding:.42rem 1.1rem;border-radius:6px;border:1px solid var(--border-light);background:var(--surface-3);color:var(--text-2);cursor:pointer}button:hover{color:var(--text);background:var(--surface-2)}button:disabled{opacity:.3;cursor:default}button.primary{background:var(--accent);border-color:var(--accent);color:#2b1405}.view-toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface-2)}.view-toggle button{border:0;border-radius:0;background:transparent}.view-toggle button.active{background:var(--accent);color:#2b1405}select,input{font-family:var(--font-mono);font-size:.82rem;padding:.32rem .55rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)}input[type=checkbox]{width:auto;accent-color:var(--accent)}.cfg-section{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:1rem 1.2rem;margin-bottom:.85rem}.cfg-title{font-size:.68rem;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.75rem}.cfg-field{display:flex;flex-direction:column;gap:.22rem;min-width:0}.cfg-label{font-size:.65rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;font-weight:700}.cfg-desc{font-size:.72rem;color:var(--dim);line-height:1.45}.cfg-field input,.cfg-field select{width:100%;max-width:100%}.cfg-field input:focus,.cfg-field select:focus{outline:none;border-color:var(--accent)}.cfg-field input:disabled,.cfg-field select:disabled{opacity:.45}.error-banner{border-radius:9px;padding:.7rem 1rem;margin-bottom:.85rem;font-size:.82rem;background:color-mix(in srgb,var(--red) 8%,transparent);border:1px solid color-mix(in srgb,var(--red) 40%,transparent);color:var(--red)}.save-bar{position:sticky;bottom:0;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:1rem;display:flex;align-items:center;gap:.75rem;margin-top:1rem}.save-bar a{color:var(--dim)}.save-msg{font-size:.78rem;color:var(--dim)}.live-val{font-size:.72rem;color:var(--accent);margin-left:.5rem}.field-changed{border-color:var(--yellow)!important;box-shadow:0 0 0 1px var(--yellow)}.save-recap-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:999}.save-recap-card{width:min(720px,92vw);max-height:82vh;background:var(--surface);border:1px solid var(--border-light);border-radius:9px;overflow:hidden}.save-recap-header,.save-recap-footer{display:flex;align-items:center;gap:.7rem;padding:.85rem 1rem;border-bottom:1px solid var(--border)}.save-recap-footer{border-top:1px solid var(--border);border-bottom:0;justify-content:flex-end}.save-recap-body{padding:1rem;overflow:auto;max-height:55vh}.save-recap-subtitle{padding:.75rem 1rem;color:var(--dim);font-size:.78rem;border-bottom:1px solid var(--border)}@media(max-width:700px){main{padding:1rem}.cfg-grid{grid-template-columns:minmax(0,1fr)}.save-bar{position:static;flex-wrap:wrap}nav{overflow-x:auto}.conn-dot{margin-left:.75rem}}
@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261104a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261104a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
   <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
   <a href="/system.html" class="active ot-nav-system" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
-  <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
+  <span id="conn" class="conn-dot loading"></span><span id="conn-label" class="conn-label" aria-live="polite">Loading…</span>
 </nav>
 <main>
   <div class="cfg-workspace">
@@ -2235,24 +2235,8 @@ function _cancelSaveRecap() {
 
 // These page-owned Hardware writes also require an explicit acknowledgement.
 async function _saveConfigHardwarePatch(source, patch) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch('/api/hardware?source=' + source, {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(patch), signal:controller.signal
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok || result?.ok === false)
-      throw new Error(result?.detail || result?.error || `Hardware HTTP ${response.status}`);
-    if (result?.ok !== true)
-      throw new Error('Hardware save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
-    return result;
-  } catch (error) {
-    if (controller.signal.aborted || error instanceof TypeError)
-      throw new Error('Hardware save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
-    throw error;
-  } finally { clearTimeout(timeout); }
+  const {data}=await window.OTSaveHardwarePatch(patch,source);
+  return data;
 }
 
 // OT_SYSTEM_ONLY_BEGIN
@@ -3584,28 +3568,10 @@ function _escHtml(s) {
 
 // ── Boot: load config + hardware config, then render ────────
 async function fetchJsonWithTimeout(url, ms = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!r.ok) throw new Error(url + ' returned HTTP ' + r.status);
-    const text = await r.text();
-    return JSON.parse(text);
-  } finally {
-    clearTimeout(timer);
-  }
+  return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 3) {
-  let lastError;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchJsonWithTimeout(url);
-    } catch (e) {
-      lastError = e;
-      await new Promise(resolve => setTimeout(resolve, 200 + i * 300));
-    }
-  }
-  throw lastError;
+async function fetchJsonWithRetry(url, attempts = 5) {
+  return window.OTReadJson(url, {attempts});
 }
 
 function revealConfigDeepLink() {
@@ -3680,25 +3646,35 @@ async function startSystemOTA(input) {
       let response;
       let error;
       for (let attempt = 0; attempt < 5; attempt++) {
+        const controller=new AbortController();
+        const timeout=setTimeout(()=>controller.abort(),20000);
+        let result;
         try {
           response = await fetch(`/api/firmware_chunk?offset=${offset}&final=${final ? 1 : 0}`, {
-            method:'POST', body:file.slice(offset, end), cache:'no-store'
+            method:'POST', body:file.slice(offset, end), cache:'no-store', signal:controller.signal
+          });
+          result=await response.json().catch(error=>{
+            if(controller.signal.aborted)throw error;
+            return null;
           });
         } catch (caught) {
           error = caught;
-          if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 800));
+          if (attempt < 4) {
+            state.textContent=`Connection interrupted — retrying ${attempt + 1}/4…`;
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
           continue;
-        }
-        // A received HTTP rejection is authoritative (engine state, active
-        // outputs, invalid image, etc.). Only an ambiguous lost response is
-        // safe and useful to retry at the same offset.
-        if (!response.ok) {
-          const result = await response.json().catch(() => ({}));
-          throw new Error(result.error || `HTTP ${response.status}`);
-        }
+        } finally {clearTimeout(timeout);}
+        // Only transport loss is retried at this same idempotent chunk offset.
+        // Received rejections and invalid acknowledgements stop immediately.
+        if (!response.ok || result?.ok === false)
+          throw new Error(result?.error || `HTTP ${response.status}`);
+        if (result?.ok !== true)
+          throw new Error('Update outcome is unconfirmed: no valid acknowledgement. Reconnect and verify the installed firmware before retrying.');
+        error=null;
         break;
       }
-      if (!response?.ok) throw error || new Error('Firmware chunk rejected');
+      if (error || !response?.ok) throw error || new Error('Firmware chunk rejected');
       const pct = Math.round(end / file.size * 100);
       fill.style.width = pct + '%';
       state.textContent = `Uploading ${pct}%`;
@@ -3774,7 +3750,7 @@ function startSystemWebAssetsUpdate(input) {
     xhr.onload = () => {
       try {
         const result = JSON.parse(xhr.responseText);
-        if (!result.ok) throw new Error(result.error || 'Unknown error');
+        if (xhr.status < 200 || xhr.status >= 300 || result?.ok !== true) throw new Error(result?.error || 'No valid web-update acknowledgement');
         completedBytes += chunk.size;
         if (end < file.size) return sendNext(index, end);
         if (index + 1 < ordered.length) return sendNext(index + 1);

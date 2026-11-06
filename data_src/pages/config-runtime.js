@@ -1137,28 +1137,10 @@ function _escHtml(s) {
 
 // ── Boot: load config + hardware config, then render ────────
 async function fetchJsonWithTimeout(url, ms = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!r.ok) throw new Error(url + ' returned HTTP ' + r.status);
-    const text = await r.text();
-    return JSON.parse(text);
-  } finally {
-    clearTimeout(timer);
-  }
+  return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 3) {
-  let lastError;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchJsonWithTimeout(url);
-    } catch (e) {
-      lastError = e;
-      await new Promise(resolve => setTimeout(resolve, 200 + i * 300));
-    }
-  }
-  throw lastError;
+async function fetchJsonWithRetry(url, attempts = 5) {
+  return window.OTReadJson(url, {attempts});
 }
 
 function revealConfigDeepLink() {
@@ -1233,25 +1215,35 @@ async function startSystemOTA(input) {
       let response;
       let error;
       for (let attempt = 0; attempt < 5; attempt++) {
+        const controller=new AbortController();
+        const timeout=setTimeout(()=>controller.abort(),20000);
+        let result;
         try {
           response = await fetch(`/api/firmware_chunk?offset=${offset}&final=${final ? 1 : 0}`, {
-            method:'POST', body:file.slice(offset, end), cache:'no-store'
+            method:'POST', body:file.slice(offset, end), cache:'no-store', signal:controller.signal
+          });
+          result=await response.json().catch(error=>{
+            if(controller.signal.aborted)throw error;
+            return null;
           });
         } catch (caught) {
           error = caught;
-          if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 800));
+          if (attempt < 4) {
+            state.textContent=`Connection interrupted — retrying ${attempt + 1}/4…`;
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
           continue;
-        }
-        // A received HTTP rejection is authoritative (engine state, active
-        // outputs, invalid image, etc.). Only an ambiguous lost response is
-        // safe and useful to retry at the same offset.
-        if (!response.ok) {
-          const result = await response.json().catch(() => ({}));
-          throw new Error(result.error || `HTTP ${response.status}`);
-        }
+        } finally {clearTimeout(timeout);}
+        // Only transport loss is retried at this same idempotent chunk offset.
+        // Received rejections and invalid acknowledgements stop immediately.
+        if (!response.ok || result?.ok === false)
+          throw new Error(result?.error || `HTTP ${response.status}`);
+        if (result?.ok !== true)
+          throw new Error('Update outcome is unconfirmed: no valid acknowledgement. Reconnect and verify the installed firmware before retrying.');
+        error=null;
         break;
       }
-      if (!response?.ok) throw error || new Error('Firmware chunk rejected');
+      if (error || !response?.ok) throw error || new Error('Firmware chunk rejected');
       const pct = Math.round(end / file.size * 100);
       fill.style.width = pct + '%';
       state.textContent = `Uploading ${pct}%`;
@@ -1327,7 +1319,7 @@ function startSystemWebAssetsUpdate(input) {
     xhr.onload = () => {
       try {
         const result = JSON.parse(xhr.responseText);
-        if (!result.ok) throw new Error(result.error || 'Unknown error');
+        if (xhr.status < 200 || xhr.status >= 300 || result?.ok !== true) throw new Error(result?.error || 'No valid web-update acknowledgement');
         completedBytes += chunk.size;
         if (end < file.size) return sendNext(index, end);
         if (index + 1 < ordered.length) return sendNext(index + 1);

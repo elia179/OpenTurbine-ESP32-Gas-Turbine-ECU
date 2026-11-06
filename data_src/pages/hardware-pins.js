@@ -68,7 +68,7 @@ const GPIO_DB_ESP32S3 = {
   43: {u:1, label:'GPIO43 (UART TX)'},
   44: {u:1, label:'GPIO44 (UART RX)'},
   45: {s:1, label:'GPIO45 (strap)'},
-  46: {s:1, i:1, label:'GPIO46 (strap, input only)'},
+  46: {s:1, label:'GPIO46 (strap)'},
   47: {label:'GPIO47'},
   48: {label:'GPIO48 (YD onboard RGB / NeoPixel)'},
 };
@@ -132,8 +132,20 @@ function collectPinUsage() {
     // reserved_gpio contains only fixed functions and immutable profile buses.
     // Assigned labelled connectors are added through their resolved registry
     // channels, leaving unused exposed connector GPIOs available to a new bus.
-    (pcbProfile.reserved_gpio || []).forEach(pin =>
-      add(pin, `${profileName} fixed GPIO`, 'pcb-reserved'));
+    // A protected output's drive GPIO is reserved from raw wiring, but its
+    // named connector remains user-assignable. Count its registry assignment
+    // once, not again as an unrelated fixed function. Raw pickers still limit
+    // these pins to the connector's supported electrical modes.
+    const connectorPins = new Set((pcbProfile.ports || []).flatMap(port =>
+      (port.modes || []).map(mode => Number(mode.gpio ?? -1))).filter(pin => pin >= 0));
+    (pcbProfile.reserved_gpio || []).forEach(pin => {
+      if (connectorPins.has(Number(pin))) return;
+      const groups = cfg.spi?.enabled ? {
+        [cfg.spi.sck_pin]:'spi-clk', [cfg.spi.miso_pin]:'spi-miso',
+        [cfg.spi.mosi_pin]:'spi-mosi'
+      } : {};
+      add(pin, `${profileName} fixed GPIO`, groups[pin] || 'pcb-reserved');
+    });
   }
   // START/STOP registry channels mirror the legacy controls fields. Count
   // either representation, not both, or a valid PCB assignment is reported
@@ -159,7 +171,7 @@ function collectPinUsage() {
   if (!profileActive && cfg.actuators?.fault_led?.enabled && !(profileActive && pcbProfile?.fixed_functions?.fault_led?.available))
     add(cfg.actuators.fault_led.pin,'Fault LED','fault-led');
   const mv = cfg.mavlink || {};
-  if (mv.enabled && !(profileActive && pcbProfile?.fixed_functions?.mavlink?.available))
+  if (mv.enabled)
     { add(mv.tx_pin, 'MAVLink TX'); add(mv.rx_pin, 'MAVLink RX'); }
   if (cfg.buzzer?.enabled &&
       !(profileActive && pcbProfile?.fixed_functions?.buzzer?.available))
@@ -209,15 +221,14 @@ function collectPinUsage() {
   });
   (r.outputs || []).forEach(ch => {
     if (!ch || ch.installed === false) return;
-    if (addProfilePortPin(ch, 'output')) return;
     const label = registryDisplayName('output', ch, ch.id || 'Registry output');
-    add(ch.pin, label);
+    if (!addProfilePortPin(ch, 'output')) add(ch.pin, label);
     const actuatorKey = registryCoreActuatorKey(ch);
     const dedicated = actuatorKey ? cfg.actuators?.[actuatorKey] : null;
-    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet-glow pilot fuel');
+    if (actuatorKey === 'glow_plug' && Number(dedicated?.type || 0) === 2) add(dedicated?.fuel_pin, 'Wet-glow pilot fuel', 'auxiliary');
     const currentEnabled = dedicated ? !!dedicated.has_current : !!ch.has_current;
     const currentPin = dedicated ? dedicated.current_pin : ch.current_pin;
-    if (currentEnabled) add(currentPin, `${label} current`);
+    if (currentEnabled) add(currentPin, `${label} current`, 'auxiliary');
   });
   return usage;
 }
@@ -226,16 +237,34 @@ function collectUsedPins() {
   for (const pin of collectPinUsage().keys()) pins.add(+pin);
   return pins;
 }
+// Raw auxiliary wiring in PCB mode is limited to exposed GPIOs and input
+// connectors. Output power stages and level-shifted OUT pins are not spare pads.
+function pcbRawPinLabels(mode) {
+  const labels=new Map();
+  for(const pin of [...(pcbProfile.gpio_headers||[]),...Object.keys(pcbProfile.gpio_labels||{})])
+    labels.set(Number(pin),pcbProfile.gpio_labels?.[String(pin)]?`${pcbProfile.gpio_labels[String(pin)]} (GPIO ${pin})`:`GPIO ${pin}`);
+  const electrical=pinElectricalMode(mode);
+  if(['in','any','adc','spi-miso'].includes(electrical))
+    for(const port of pcbProfile.ports||[])
+      for(const m of port.modes||[]) {
+        const compatible=electrical==='adc'?m.adapter==='analog_input':
+          ['digital_input','pcnt_input','rc_pwm_input','pwm_duty_input'].includes(m.adapter);
+        if(compatible&&Number(m.gpio)>=0&&!labels.has(Number(m.gpio)))labels.set(Number(m.gpio),port.label);
+      }
+  return labels;
+}
 function buildPinOptions(currentVal, mode) {
   const pinUsage = collectPinUsage();
   const shareGroup = pinShareGroupForMode(mode);
   const electricalMode = pinElectricalMode(mode);
   const current = Number(currentVal ?? -1);
+  const pcbLabels=pcbProfileActive()?pcbRawPinLabels(mode):null;
   let html = '<option value="-1">— Not assigned —</option>';
   const safe = [], strap = [], inOnly = [], uart = [];
   for (const [gpio, info] of Object.entries(GPIO_DB).sort((a,b) => +a[0] - +b[0])) {
     const g = +gpio;
     if (info.r) continue;
+    if (pcbLabels&&!pcbLabels.has(g)&&g!==current)continue;
     if (electricalMode === 'adc') { if (!info.adc1) continue; }
     else if (electricalMode === 'out' || electricalMode === 'status-led') { if (info.i) continue; }
     const usedBy = pinUsage.get(g) || [];
@@ -244,10 +273,11 @@ function buildPinOptions(currentVal, mode) {
     // profile-owned pin appear free.
     const usedByOther = g !== current ? usedBy : usedBy.filter(u => u.group === 'pcb-reserved');
     const busShareOk = !!shareGroup && usedByOther.length > 0 && usedByOther.every(u => u.group === shareGroup);
-    const disabled = usedByOther.length > 0 && !busShareOk;
+    const disabled = (pcbLabels&&!pcbLabels.has(g)) || (usedByOther.length > 0 && !busShareOk);
     const usedLabels = [...new Set(usedByOther.map(u => u.label).filter(Boolean))].slice(0, 3).join(', ');
     let suffix = '';
-    if (disabled) suffix += ` [used by ${usedLabels || 'another device'}]`;
+    if (pcbLabels&&!pcbLabels.has(g))suffix += ' [not an exposed GPIO on this PCB]';
+    else if (disabled) suffix += ` [used by ${usedLabels || 'another device'}]`;
     else if (busShareOk) suffix += ` [${pinShareLabel(shareGroup)}]`;
     else if (g === current && usedBy.length > 1 && !shareGroup) suffix += ' [conflict]';
     if (info.s) { strap.push({g, cls:'pin-strap', suffix: suffix + ' ⚠ strap', disabled}); continue; }
@@ -262,7 +292,7 @@ function buildPinOptions(currentVal, mode) {
       const sel = g === current ? ' selected' : '';
       const dis = disabled ? ' disabled' : '';
       const title = disabled ? ` title="${escapeHtmlText(suffix.replace(/^\s+/, ''))}"` : '';
-      s += `<option value="${g}" class="${cls}"${sel}${dis}${title}>GPIO${g}${suffix}</option>`;
+      s += `<option value="${g}" class="${cls}"${sel}${dis}${title}>${escapeHtmlText(pcbLabels?.get(g)||`GPIO ${g}`)}${suffix}</option>`;
     }
     return s + '</optgroup>';
   }

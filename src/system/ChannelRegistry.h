@@ -255,6 +255,7 @@ public:
         float minimumRunDemand = 0.0f; // operational floor inside the electrical output range
         uint32_t pwmFrequency = 5000;
         uint8_t pwmResolution = 10;
+        uint8_t pwmZeroMode = 0; // PCB PWM: 0=brake (default), 1=coast; no effect on logic outputs
         bool pwmTimingConfigured = false;
         bool inverted = false;
         bool activeHigh = true;
@@ -603,8 +604,14 @@ public:
         write(in, inputs, inputCount); write(out, outputs, outputCount);
         for (uint8_t i=0;i<bindingCount;i++) { JsonObject b=bind.add<JsonObject>(); b["key"]=JsonString(bindings[i].key); b["channel"]=JsonString(bindings[i].channelId); }
     }
-    bool fromJson(JsonObjectConst root) {
-        clear(); if (!read(root["inputs"], Input) || !read(root["outputs"], Output)) return false;
+    using PhysicalResolver = bool (*)(Channel&, char*, size_t);
+    bool fromJson(JsonObjectConst root, PhysicalResolver resolvePhysical = nullptr) {
+        _validationError[0]='\0';
+        clear();
+        for(const char* key:{"inputs","outputs","bindings"})if(!root[key].isNull()&&!root[key].is<JsonArrayConst>()){
+            snprintf(_validationError,sizeof(_validationError),"Channel registry %s must be an array",key);return false;
+        }
+        if (!read(root["inputs"], Input, resolvePhysical) || !read(root["outputs"], Output, resolvePhysical)) return false;
         for (JsonObjectConst b : root["bindings"].as<JsonArrayConst>()) {
             if (bindingCount >= MAX_BINDINGS) return false;
             Binding& x = bindings[bindingCount];
@@ -937,6 +944,7 @@ private:
                c.hx711Scale >= 0.000001f && c.hx711Scale <= 1000000.0f;
     }
     static bool rangeValid(const Channel& c) {
+        if(c.pwmZeroMode>1 || (c.pwmZeroMode && (c.driver!=Pwm || !PcbProfileManager::isPowerPin(c.pin))))return false;
         if (!PiecewiseCalibration::valid(c.calibrationPointCount,
                                          c.calibrationRaw, c.calibrationValue)) return false;
         const bool thresholdInput = isAdcThresholdCondition(c);
@@ -1238,6 +1246,7 @@ private:
             if (c.mirrorOf[0]) o["mirror_of"] = JsonString(c.mirrorOf);
             if (c.forceSafeOnFault) o["force_safe_on_fault"] = true;
             if (c.minimumRunDemand != 0.0f) o["min_run_demand"] = c.minimumRunDemand;
+            if (c.pwmZeroMode) o["pwm_zero_mode"] = c.pwmZeroMode;
             if (c.pwmTimingConfigured) { o["pwm_freq_hz"] = c.pwmFrequency; o["pwm_res_bits"] = c.pwmResolution; }
             if (c.inverted) o["invert"] = true;
             // Active-high is the electrical default but is rendered as a
@@ -1270,9 +1279,18 @@ private:
             }
         }
     }
-    bool read(JsonVariantConst v, Direction d) {
+    bool read(JsonVariantConst v, Direction d, PhysicalResolver resolvePhysical) {
         for (JsonObjectConst o : v.as<JsonArrayConst>()) {
             Channel c; c.direction = d; c.installed = true;
+            auto fits=[&](const char* key,size_t capacity){
+                if(o[key].isNull())return true;
+                if(o[key].is<const char*>() && strlen(o[key].as<const char*>())<capacity)return true;
+                snprintf(_validationError,sizeof(_validationError),"Channel %s must be text shorter than %u UTF-8 bytes",key,unsigned(capacity));return false;
+            };
+            if(!fits("id",sizeof(c.id)) || !fits("name",sizeof(c.name)) || !fits("role",sizeof(c.role)) ||
+               !fits("purpose",sizeof(c.purpose)) || !fits("mirror_of",sizeof(c.mirrorOf)) ||
+               !fits("physical_port",sizeof(c.physicalPortId)) || !fits("physical_mode",sizeof(c.physicalModeId)) ||
+               !fits("flow_input",sizeof(c.flowInputId)) || !fits("tc_type",sizeof(c.tcType)))return false;
             strlcpy(c.id, o["id"] | "", sizeof(c.id)); strlcpy(c.name, o["name"] | c.id, sizeof(c.name)); strlcpy(c.role, o["role"] | "generic", sizeof(c.role));
             strlcpy(c.purpose, o["purpose"] | derivePurpose(d, c.id, c.role), sizeof(c.purpose));
             strlcpy(c.mirrorOf, o["mirror_of"] | "", sizeof(c.mirrorOf));
@@ -1313,6 +1331,9 @@ private:
             c.temperatureInterface = o["temp_interface"] | 0; c.spiClk = o["spi_clk"] | -1; c.spiCs = o["spi_cs"] | -1; c.spiMiso = o["spi_miso"] | -1; c.spiMosi = o["spi_mosi"] | -1; strlcpy(c.tcType, o["tc_type"] | "K", sizeof(c.tcType));
             c.temperatureResolution = o["temp_resolution"] | 10; c.thermistorBeta = o["ntc_beta"] | 3950.0f; c.thermistorR0 = o["ntc_r0"] | 10000.0f; c.thermistorRFixed = o["ntc_r_fixed"] | 10000.0f; c.thermistorPullup = o["ntc_pullup"] | true;
             c.safeDemand = o["safe_demand"] | (!strcmp(c.purpose, "prop_pitch") ? 1.0f : 0.0f); c.forceSafeOnFault = o["force_safe_on_fault"] | false; c.minimumRunDemand = o["min_run_demand"] | 0.0f; c.pwmTimingConfigured = !o["pwm_freq_hz"].isNull() || !o["pwm_res_bits"].isNull(); c.pwmFrequency = o["pwm_freq_hz"] | 5000; c.pwmResolution = o["pwm_res_bits"] | 10;
+            if(!o["pwm_zero_mode"].isNull() && (!o["pwm_zero_mode"].is<int>() ||
+               o["pwm_zero_mode"].as<int>()<0 || o["pwm_zero_mode"].as<int>()>1))return false;
+            c.pwmZeroMode = o["pwm_zero_mode"] | 0;
             c.inverted = o["invert"] | false; c.activeHigh = o["active_high"] | true; c.pullup = o["pullup"] | false; c.pulldown = o["pulldown"] | false; c.hasCurrent = o["has_current"] | false; c.currentPin = o["current_pin"] | -1; c.currentMvPerA = o["current_mv_a"] | 100.0f; c.currentZeroV = o["current_zero_v"] | 1.65f; c.currentMaxAmps = o["current_max_a"] | 0.0f; c.currentReadyAmps = o["current_ready_a"] | 3.0f; c.currentTripDelayMs = o["current_trip_delay_ms"] | 5000UL;
             c.ignitionProfileConfigured = !o["ignition_mode"].isNull() ||
                 !o["ignition_dwell_ms"].isNull() || !o["ignition_rest_ms"].isNull() ||
@@ -1328,6 +1349,7 @@ private:
             c.hasFlowMonitor = o["has_flow_monitor"] | false; c.minimumFlow = o["minimum_flow_l_min"] | 0.0f;
             strlcpy(c.flowInputId, o["flow_input"] | "", sizeof(c.flowInputId));
             if (c.pullup) c.pulldown = false;
+            if (resolvePhysical && !resolvePhysical(c, _validationError, sizeof(_validationError))) return false;
             if (!add(c)) {
                 Serial.printf(
                     "[ChannelRegistry] rejected %s channel id=%s driver=%u pin=%d "

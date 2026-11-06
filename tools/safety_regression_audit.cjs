@@ -485,7 +485,7 @@ expect('event log routes preserve specific downloads and reject malformed displa
   web.indexOf('_server.on("/api/log/csv"') < web.indexOf('_server.on("/api/log",') &&
   read('src/system/RecentEventLog.h').includes("line[n-1]==','") &&
   read('src/system/RecentEventLog.h').includes("line[n-1]=='}'") &&
-  (web.match(/RecentEventLog::seekTail\(f\)/g) || []).length === 2 &&
+  (web.match(/RecentEventLog::seekTail\(f,/g) || []).length === 2 &&
   (web.match(/if \(!_gateLogRead\(req\)\) return;/g) || []).length === 3 &&
   web.includes('Another log view or download is in progress; retry shortly'));
 expect('PCB ADC switch availability uses the supported analogue device driver',
@@ -670,7 +670,7 @@ expect('empty session-log selection does not write timestamp-only run files',
 expect('general sensor session logging persists and resolves stable selected channel IDs',
   configSerialize.includes('sl["registry_inputs"].as<JsonArrayConst>()') &&
   configSerialize.includes('sl["registry_inputs"].to<JsonArray>()') &&
-  sessionLogger.includes('_prepareRegistryCaptureMask()') &&
+  sessionLogger.includes('_configuredRegistryCaptureMask()') &&
   sessionLogger.includes('Config::sessionRegistryInputIds[selected]') &&
   sessionLogger.includes('row.registryInputs[i] = ed.registryInputValue[i]'));
 expect('logging UI offers each fitted general sensor independently',
@@ -791,9 +791,13 @@ expect('browser web-asset upload retries transport interruptions at the same off
   configRuntime.includes('const sendNext = (index, offset = 0, attempt = 0)') &&
   configRuntime.includes('sendNext(index, offset, attempt + 1)') &&
   configRuntime.includes('xhr.ontimeout = retryTransport'));
+const firmwareUploader = configRuntime.slice(configRuntime.indexOf('async function startSystemOTA'),configRuntime.indexOf('function startSystemWebAssetsUpdate'));
 expect('browser firmware upload does not retry authoritative ECU rejections',
-  configRuntime.includes('A received HTTP rejection is authoritative') &&
-  /catch \(caught\)[\s\S]{0,240}continue;[\s\S]{0,240}if \(!response\.ok\)/.test(configRuntime));
+  /catch \(caught\)[\s\S]*?continue;[\s\S]*?finally \{clearTimeout\(timeout\);\}[\s\S]*?if \(!response\.ok \|\| result\?\.ok === false\)/.test(firmwareUploader));
+expect('browser firmware upload bounds response bodies and requires boolean success',
+  firmwareUploader.includes('setTimeout(()=>controller.abort(),20000)') &&
+  firmwareUploader.includes('result=await response.json()') &&
+  firmwareUploader.includes('if (result?.ok !== true)'));
 expect('Setup Tool bounded uploads retry only ambiguous transport failures',
   setupMain.includes('func postRawChunkWithRetry') &&
   setupMain.includes('postRawChunkWithRetry(client, u, payload[offset:end])') &&
@@ -840,10 +844,10 @@ expect('OTA success uses delayed guarded restart so its HTTP response can leave 
   web.includes('_scheduleRestart("firmware OTA", 3000)') &&
   !web.includes('if (_otaPendingRestart) {\n        _restartCleanly("firmware OTA")'));
 expect('active session logging buffers a bounded newest tail in RAM',
-  sessionLogger.includes('SESSION_QUEUE_ROWS = 64') &&
-  sessionLogger.includes('xQueueReceive(_rowQueue, &oldest, 0)') &&
+  sessionLogger.includes('SESSION_QUEUE_BYTES = 64 * sizeof(SessionRow)') &&
+  sessionLogger.includes('_rowRing.push(reinterpret_cast<const char*>(packed), bytes, true, overwritten)') &&
   sessionLogger.includes('_acceptRows = true;') &&
-  sessionLogger.includes('if (!_acceptRows || !_rowQueue) return;') &&
+  sessionLogger.includes('if (!_acceptRows || !_rowStorage) return;') &&
   sessionLogger.includes('(_acceptRows || _startPending || _endPending || _open) ? "" : _currentPath'));
 expect('compact telemetry keeps live session-recorder state current',
   web.includes('doc["lg"] = SessionLogger::droppedRows();') &&
@@ -852,12 +856,12 @@ expect('compact telemetry keeps live session-recorder state current',
   web.includes('setFlag(f2,30, SessionLogger::captureActive())') &&
   web.includes('doc["session_log_path"] = SessionLogger::currentPath();'));
 expect('session logger reports an unavailable queue instead of pretending to record',
-  sessionLogger.includes('if (!_rowQueue) _rowQueue = xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow));') &&
-  /if \(!_rowQueue\) \{[\s\S]{0,180}_healthy = false;[\s\S]{0,100}_errorCode = 1;/.test(sessionLogger));
+  sessionLogger.includes('std::malloc(SESSION_QUEUE_BYTES)') &&
+  /if \(!_rowStorage\) \{[\s\S]{0,180}_healthy = false;[\s\S]{0,100}_errorCode = 1;/.test(sessionLogger));
 expect('flight recorder overflow preserves newest fault and shutdown evidence',
   flightRecorder.includes('s_drainActive') &&
-  flightRecorder.includes('s_ringTail = (uint8_t)((s_ringTail + 1) % RING_SLOTS)') &&
-  flightRecorder.includes('s_droppedEvents = s_droppedEvents + 1'));
+  flightRecorder.includes('s_ring.push(eventJson, length, !s_drainActive, overwritten)') &&
+  flightRecorder.includes('s_droppedEvents = s_droppedEvents + overwritten'));
 expect('sequencer runs configured exit actions only on success or accepted timeout',
   sequenceEngine.includes('case BlockResult::Complete:') &&
   sequenceEngine.includes('case BlockResult::TimeoutContinue:') &&
@@ -1034,7 +1038,7 @@ expect('bounded web JSON serialization measures once and calls ArduinoJson',
   web.includes('return serializeJson(doc, buf, len);') &&
   web.includes('return _serializeJsonBounded(doc, buf, len);') &&
   !/_serializeJsonBounded\([^)]*\)\s*\{[\s\S]{0,350}return _serializeJsonBounded/.test(web));
-expect('TX and RX workspaces are reserved before Wi-Fi service starts',
+expect('TX and Classic RX are reserved before Wi-Fi; S3 RX is allocated only for requests',
   web.includes('#if defined(CONFIG_IDF_TARGET_ESP32S3)') &&
   web.includes('using WebRxBuffer = char[24576]') &&
   web.includes('using WebRxBuffer = char[16384]') &&
@@ -1044,9 +1048,12 @@ expect('TX and RX workspaces are reserved before Wi-Fi service starts',
   web.includes('class ClassicRxWorkspaceLoan') &&
   web.includes('static WebRxBuffer* _allocateWebRxStorage()') &&
   web.includes('g_webRxStorage = _allocateWebRxStorage()') &&
-  web.includes('if (!g_webRxStorage || !g_webTxStorage)') &&
+  web.includes('#if !defined(OT_PLATFORM_ESP32S3)\n    g_webRxStorage = _allocateWebRxStorage();\n#endif') &&
+  web.includes('if (!g_webTxStorage\n#if !defined(OT_PLATFORM_ESP32S3)\n        || !g_webRxStorage') &&
+  web.includes('if (index == 0 && !g_webRxStorage) candidate = _allocateWebRxStorage();') &&
   web.includes('g_webRxLen = 0;') &&
-  !web.includes('released = g_webRxStorage') &&
+  web.includes('released = g_webRxStorage;') &&
+  web.includes('if (released) heap_caps_free(released);') &&
   (web.match(/heap_caps_malloc\(sizeof\(WebTxBuffer\)/g) || []).length === 1 &&
   main.includes('const bool webServerReady = WebServer::begin()') &&
   main.includes('Web server unavailable - physical engine control remains available') &&
@@ -1054,7 +1061,8 @@ expect('TX and RX workspaces are reserved before Wi-Fi service starts',
   !web.includes('static char   g_webRxBuf[16384]') &&
   !web.includes('static char   g_webTxBuf[16384]'));
 expect('maximum legal hardware JSON is streamed independently of fixed web scratch buffers',
-  web.includes('new (std::nothrow) AsyncJsonResponse(false)') &&
+  web.includes('new (std::nothrow) StreamedJsonResponse()') &&
+  web.includes('_sendWorkspaceSnapshot(req, doc);') &&
   web.includes('HardwareConfig::toJson(doc, true)') &&
   web.includes('_configRestoreError = total > 196608UL') &&
   web.includes('len > 196608UL - index') &&
@@ -1104,9 +1112,9 @@ expect('hardware saves a recursive page-owned patch without restoring unrelated 
   hardwareState.includes('function mergeHardwareRegistryRows(') &&
   hardwareState.includes("(key === 'inputs' || key === 'outputs')") &&
   hardwareSave.includes('mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {})') &&
-  hardwareSave.includes("fetch('/api/hardware?source=hardware'") &&
-  hardwareSave.includes("method: 'PATCH'") &&
-  hardwareSave.includes('JSON.stringify(hardwarePatch)') &&
+  hardwareSave.includes("OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true)") &&
+  read('data_src/ui_dialog.js').includes("method:'PATCH'") &&
+  read('data_src/ui_dialog.js').includes('body:JSON.stringify(patch)') &&
   !hardwareSave.includes("fetch('/api/ecu_config?source=hardware'") &&
   web.includes('const bool hardwarePagePatch') &&
   web.includes('Config::autoFillNewlyEnabledSafety(prevSafOilT, prevSafFP'));
@@ -1197,8 +1205,8 @@ expect('calibration PATCH uses the actual persisted channel id after purpose-bas
   !calibrationHtml.includes("registryCalibrationPatch('torque_main',"));
 expect('calibration settings save only changed fields and cannot overwrite a stale full snapshot',
   calibrationHtml.includes('window.OTSaveConfigPatch(patch)') &&
-  webApp.includes("fetch('/api/config', {") &&
-  webApp.includes("method:'PATCH'") &&
+  webApp.includes("OTSavePatch('/api/config',patch,true)") &&
+  read('data_src/ui_dialog.js').includes("method:'PATCH'") &&
   !webApp.includes("const engineResponse = await fetch('/api/ecu_config', {cache:'no-store'});") &&
   !webApp.includes('merge(engine.settings, patch);') &&
   !calibrationHtml.includes("fetch('/api/config').then"));
@@ -1212,8 +1220,8 @@ expect('coolant pressure offers the same local and shared-I2C analog adapters as
 expect('sequence saves send only page-owned setting and hardware patches',
   sequenceHtml.includes('loadedHwCfg = cloneSequenceJson(hwCfg)') &&
   sequenceHtml.includes('loadedCfg = cloneSequenceJson(cfg)') &&
-  sequenceHtml.includes("fetch('/api/config', {method:'PATCH'") &&
-  sequenceHtml.includes("fetch('/api/hardware?source=sequence', {method:'PATCH'") &&
+  sequenceHtml.includes("OTSavePatch('/api/config',settingsPatch)") &&
+  sequenceHtml.includes("OTSavePatch('/api/hardware?source=sequence',hardwarePatch)") &&
   sequenceHtml.includes('mergeSequenceEdits(loadedCfg, cfg, {})') &&
   !sequenceHtml.includes("fetch('/api/ecu_config', {method:'POST'"));
 expect('sequence endpoint-type changes cannot reinterpret Boolean commands as proportional demands',
@@ -1437,13 +1445,13 @@ expect('session rollover preserves the previous RAM backlog and rejects malforme
   sessionLogger.includes('if (_startPending || _endPending || _open) {') &&
   sessionLogger.includes('if (!rowComplete) {') &&
   sessionLogger.includes('if (wrote < 0 || (size_t)wrote >= available) rowComplete = false;'));
-expect('disabled session capture does not reserve the Classic row queue',
-  !/SessionLogger::begin\(\)[\s\S]{0,300}xQueueCreate/.test(sessionLogger) &&
+expect('disabled session capture does not reserve the Classic capture storage',
+  !/SessionLogger::begin\(\)[\s\S]{0,300}std\.malloc/.test(sessionLogger) &&
   sessionLogger.indexOf('Config::sessionLogMask == 0 && _registryCaptureMask == 0') <
-    sessionLogger.indexOf('xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow))'));
+    sessionLogger.indexOf('std::malloc(SESSION_QUEUE_BYTES)'));
 expect('completed session capture returns its row queue memory',
-  sessionLogger.includes('vQueueDelete(_rowQueue);') &&
-  (sessionLogger.match(/_rowQueue = nullptr;/g) || []).length >= 2);
+  sessionLogger.includes('std::free(storage);') &&
+  (sessionLogger.match(/_releaseCaptureStorage\(\);/g) || []).length >= 2);
 expect('pending reboot releases and freezes automation ownership so a rule cannot strand the restart',
   main.includes('if (!WebServer::rebootPending()) RulesEngine::evaluate();') &&
   main.includes('Rule ownership was released above'));
@@ -1476,11 +1484,18 @@ expect('full telemetry defers without a conflict when the bounded response works
   webApp.includes('async function loadDashboardSnapshot(attempt = 0)') &&
   webApp.includes('data?._snapshot_deferred') &&
   webApp.includes('loadDashboardSnapshot(attempt + 1)'));
-expect('low-heap request rejection uses the framework-safe abort path only on Classic',
-  web.includes('#if defined(OT_PLATFORM_ESP32)') &&
+expect('both targets reject low-heap reads through the framework-safe abort path',
+  web.includes('#if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)') &&
   web.includes('request->method() == HTTP_GET &&') &&
   web.includes('(ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||') &&
-  web.includes('ESP.getFreeHeap() < 24576 || ESP.getMaxAllocHeap() < 8192)') &&
+  web.includes('const uint32_t minimumHeap = apiRead ? 24576 : 8192;') &&
+  web.includes('const uint32_t minimumBlock = apiRead ? 8192 : 2048;') &&
+  web.includes('ESP.getFreeHeap() < minimumHeap || ESP.getMaxAllocHeap() < minimumBlock)') &&
+  web.includes('LargeReadBudget::busy()') &&
+  web.includes('const bool largeReplyBusy = snapshotRead && LargeReadBudget::busy();') &&
+  web.includes('if (request && request->method() == HTTP_GET && largeReplyBusy)') &&
+  web.includes('Another snapshot is being sent; retry shortly') &&
+  !web.includes('!g_webTxStorage || largeReplyBusy ||') &&
   (web.match(/request->abort\(\)/g) || []).length >= 1 &&
   web.includes('if (req->client()) req->abort();') &&
   !web.includes('req->client()->close()'));
@@ -1493,7 +1508,7 @@ expect('both targets use the bounded transfer workspace for large config reads',
   web.includes('_sendLargeReadJson(req, g_webTxBuf, n);') &&
   !web.includes('#if defined(OT_PLATFORM_ESP32S3)\n        _sendLargeReadJson(req, g_webTxBuf, n);\n#else\n        _sendOwnedJson(req, g_webTxBuf, n);'));
 expect('completed bounded log views release their read gate before TCP keep-alive teardown',
-  web.includes('The LittleFS read and response construction are complete.') &&
+  /FlightRecorder::unlockLog\(\);\s*_sendLargeReadJson\(req, g_webTxBuf, used\);\s*_releaseLogRead\(req\);/.test(web) &&
   (web.match(/_releaseLogRead\(req\);/g) || []).length >= 3);
 expect('complete engine restores separate portable value checks from uploaded-hardware dependencies',
   configCpp.includes('return validateSettingsDoc(doc, false);') &&
@@ -1579,7 +1594,8 @@ expect('web assets and JSON replies declare the server one-response lifecycle',
 expect('Hardware uses its sufficient one-hertz REST status path without competing websocket ownership',
   hardwareState.includes("fetch('/api/telemetry'") &&
   hardwareState.includes('setInterval(refreshHardwareStatus, 1000)') &&
-  hardwareState.includes('setTimeout(() => controller.abort(), 8000)') &&
+  hardwareState.includes('return window.OTReadJson(url, {attempts});') &&
+  read('data_src/ui_dialog.js').includes('Math.min(timeoutMs, remaining)') &&
   hardwareHtml.includes('const loaded = await loadHardware();') &&
   hardwareHtml.includes('if (loaded) startStatusPoll();') &&
   !hardwareState.includes('new WebSocket('));

@@ -16,11 +16,13 @@ bool ready();
 bool faulted();
 bool acknowledgeFault();
 const char* stateName();
+const char* driverState(uint8_t chip);
 const char* faultReason();
 #else
 inline bool active(){return false;}inline bool ownsPin(int){return false;}inline bool attach(int,uint32_t){return false;}
 inline bool parkControlExpander(){return true;}
 inline void write(int,float){}inline void begin(bool){}inline void checkDeadline(){}inline void service(bool){}inline bool ready(){return true;}inline bool faulted(){return false;}inline bool acknowledgeFault(){return true;}
+inline const char* driverState(uint8_t){return "Not fitted";}
 inline const char* stateName(){return "not fitted";}inline const char* faultReason(){return "";}
 #endif
 }

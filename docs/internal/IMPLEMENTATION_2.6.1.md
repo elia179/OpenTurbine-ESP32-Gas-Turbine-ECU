@@ -17,7 +17,7 @@ Status: implemented, flashed and tested on both bare development-board targets; 
 
 ## PCB artifact and reproducibility
 
-[Profile](../../pcb_profiles/official/openturbine-s3-20261028.otpcb.json) and [routing/assembly notes](../../pcb_profiles/official/openturbine-s3-20261028.md).
+[Profile](../../pcb_profiles/archive/openturbine-s3-20261028.otpcb.json) and [routing/assembly notes](../../pcb_profiles/archive/openturbine-s3-20261028.md).
 
 `tools/import_openturbine_pcb.py` reads the supplied EasyEDA archive as data, checks its source fingerprint and component pad nets, and leaves it unchanged. Regeneration matched the checked-in JSON byte-for-byte. The input SHA256 is `29f260f731b2d72e9c8ff08bcb7c71bdce4a03e769cc2c65b509bc37a70b4eda`.
 

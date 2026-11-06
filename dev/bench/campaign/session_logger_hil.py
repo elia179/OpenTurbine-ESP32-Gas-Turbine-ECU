@@ -26,7 +26,7 @@ SESSION_FIELDS = (
 def session_cfg(**enabled):
     cfg = {key: False for key in SESSION_FIELDS}
     cfg.update(enabled)
-    # The logger deliberately retains 64 newest rows in RAM while engine
+    # The logger retains selected fields within a fixed RAM budget while engine
     # control is active. Use the product default here so the campaign proves
     # the ordinary user path without depending on a deliberately aggressive
     # diagnostic interval.

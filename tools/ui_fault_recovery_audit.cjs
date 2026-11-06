@@ -7,6 +7,10 @@ if(compressed)await p.route(/\/(app\.js|index\.html|style\.css|theme\.js)(?:\?.*
 await p.request.post(base+'/__sim/reset');
 const initial={mode:'FAULT',fault_description:'DI fault: channel 1 triggered',fault_latched:true,fault_clear_allowed:true,stop_switch_active:false,limited_start_allowed:false,limited_start_sensor:'TOT',di_channels:[{state:true,pin:35,label:'Low Oil <left>',role:'oil_zero_switch'}],seq_has_errors:false,seq_has_structural_errors:false,extra_cooldown_active:false};
 await p.request.post(base+'/__sim/data',{data:initial});await p.goto(base+'/index.html');await p.waitForFunction(()=>_lastData?.fault_latched===true);
+// The cases below deliberately replace ECU state between assertions. Drain
+// background samples so an older scenario cannot overwrite a manually applied
+// frame. The START workflow's own fresh-state GETs remain real and asserted.
+await p.evaluate(async()=>{_telemetryPauseDepth++;await waitForGlobalTelemetryIdle(4000);stopGlobalTelemetry();});
 assert.equal(await p.locator('#btn-start').isDisabled(),false);assert.match(await p.locator('#fault-desc-text').innerText(),/Low Oil <left>.*GPIO 35.*confirmation/);
 assert(await p.locator('#fault-hardware-link').isVisible());assert(await p.locator('#fault-limits-link').isVisible());assert(!(await p.locator('#fault-calibration-link').isVisible()));assert(!(await p.locator('#fault-tools-link').isVisible()));assert.match(await p.locator('#fault-limits-link').getAttribute('href'),/#protection-low_oil$/);
 assert.equal(await p.locator('#fault-desc-text left').count(),0);
@@ -25,7 +29,6 @@ await p.request.post(base+'/__sim/data',{data:initial});await p.evaluate(async()
 await p.evaluate(()=>{window._testAlerts=[];OTDialog.alert=async message=>{window._testAlerts.push(message);};});await p.locator('#btn-start').click();await p.waitForFunction(()=>window._testAlerts.some(a=>/not returned to STANDBY/.test(a)));assert.deepEqual(started,['limited']);
 const modern=await p.evaluate(()=>({oil:faultDescriptionText({fault_description:'OIL_SWITCH: Oil 2'}),input:faultDescriptionText({fault_description:'INPUT_FAULT: Safety switch'}),lost:faultDescriptionText({fault_description:'INPUT_UNAVAILABLE: Remote oil switch'})}));assert.match(modern.oil,/Oil 2.*oil-pressure switch/);assert.match(modern.input,/Safety switch.*Hardware/);assert.match(modern.lost,/became unavailable/);
 // Non-switch faults retain the existing calibration/limit/tool actions.
-await p.evaluate(async()=>{_telemetryPauseDepth++;await waitForGlobalTelemetryIdle(4000);stopGlobalTelemetry();});
 await p.evaluate(()=>applyData({mode:'FAULT',fault_description:'OVERSPEED',fault_latched:true,fault_clear_allowed:false}));assert(!(await p.locator('#fault-hardware-link').isVisible()));assert(await p.locator('#fault-calibration-link').isVisible());assert(await p.locator('#fault-tools-link').isVisible());
 for(const width of [1280,800,390]){await p.setViewportSize({width,height:960});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
 assert.deepEqual(errors,[]);console.log(engine.name()+' '+(compressed?'gzip':'source')+': named switch diagnostics, contextual links, acknowledgment/cancel, fresh-state verification, separate reduced-start confirmation, blocked clear and mobile passed');

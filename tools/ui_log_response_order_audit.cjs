@@ -38,8 +38,45 @@ const {chromium,firefox,webkit}=require('playwright');
    await p.evaluate(()=>{window.__past=previewSession(77);});await reply(await captured(past,1),csv(2,777));await p.evaluate(()=>__past);
    await reply(current[2],csv(5,500));await p.evaluate(()=>__currentC);
    assert.match(await p.locator('#session-rows').innerText(),/5 rows/);assert.equal(await p.evaluate(()=>_sessionPreviewRun),77);assert.equal(await p.evaluate(()=>_sessionRows.length),2);
-   assert.match(await p.locator('#session-preview-msg').innerText(),/Run #77/);assert.deepEqual(errors,[]);await p.close();
-   console.log(`${name} ${gzip?'gzip':'source'}: stale list/empty/error responses ignored, invalid list explained, current availability and selected historical preview remain consistent`);
+   assert.match(await p.locator('#session-preview-msg').innerText(),/Run #77/);let attempts=0,permanent=false;
+   await p.route('**/api/log/csv',route=>{
+     attempts++;
+     const status=permanent?400:attempts===1?429:attempts===2?503:200;
+     return route.fulfill({status,contentType:status===200?'text/csv':'application/json',
+       body:status===200?'t,ev,details'+String.fromCharCode(13,10):JSON.stringify({error:permanent?'Permanent failure':'Busy'})});
+   });
+   const downloaded=await p.evaluate(async()=>{
+     const original=downloadLogBlob;let file;
+     downloadLogBlob=(blob,name)=>{file={name,bytes:blob.size};};
+     try{await downloadLog('csv');return file;}finally{downloadLogBlob=original;}
+   });
+   assert.equal(attempts,3);assert.deepEqual(downloaded,{name:'event_log.csv',bytes:14});
+   attempts=0;permanent=true;
+   const messages=await p.evaluate(async()=>{
+     const original=window.alert,messages=[];window.alert=message=>messages.push(message);
+     try{await downloadLog('csv');return messages;}finally{window.alert=original;}
+   });
+   assert.equal(attempts,1);assert.match(messages.join(' '),/Permanent failure/);
+   await p.evaluate(()=>renderPersistenceHealth({session_logger_healthy:true,
+     session_capacity_rows:1056,session_queued_rows:100,session_capture_interval_ms:1000,
+     session_capture_active:true,session_dropped_rows:3,event_recorder_healthy:true}));
+   assert.match(await p.locator('#persistence-health').innerText(),/100\/1056 samples.*1056 s.*dropped 3/);
+   await p.evaluate(()=>{
+     SLOG_BITS.forEach(bit=>document.querySelector(`[data-bit="${bit}"]`).checked=['n1','tot','oil'].includes(bit));
+     document.querySelectorAll('[data-registry-log-id]').forEach(x=>x.checked=false);
+     document.getElementById('session-log-interval').value='1000';updateSessionEstimate();
+   });
+   assert.equal(await p.locator('#session-buffer-estimate').innerText(),'Up to 19.2 min');
+   await p.locator('#session-log-interval').fill('2000');
+   assert.equal(await p.locator('#session-buffer-estimate').innerText(),'Up to 38.4 min');
+   await p.evaluate(()=>{SLOG_BITS.forEach(bit=>document.querySelector(`[data-bit="${bit}"]`).checked=false);updateSessionEstimate();});
+   assert.match(await p.locator('#session-buffer-estimate').innerText(),/Select channels/);
+   let eventAttempts=0;
+   await p.route('**/api/log',r=>{eventAttempts++;return reply(r,eventAttempts===1?JSON.stringify({error:'ECU is busy'}):'[{"t":1,"ev":"BOOT"}]',eventAttempts===1?503:200);});
+   await p.evaluate(()=>loadLog());assert.equal(eventAttempts,2);
+   assert.match(await p.locator('#log-count').innerText(),/1 recent events/);
+   assert.deepEqual(errors,[]);await p.close();
+   console.log(`${name} ${gzip?'gzip':'source'}: session response ordering, busy download retries and permanent-error handling passed`);
   }}finally{await browser.close();}
  }
  process.exit(0);

@@ -45,16 +45,27 @@ const {chromium,firefox,webkit}=require('playwright');
       else{idleMin=minimum;idleMax=maximum;idleInputType=type;saveIdle();}
       cases.push({purpose,type,reversed,shown,patch:sent});
     }
+    cfg.hardware.channel_registry.inputs.forEach(c=>{c.driver=9;c.i2c_reference_mv=5000;});
+    cfg.calibration={throttle_min_raw:0,throttle_max_raw:4095,idle_min_raw:0,idle_max_raw:4095};
+    thMin=thMax=idleMin=idleMax=null;
+    const i2cRendered=[];
+    for(const raw of [0,2048,4095]){
+      window.applyData({...live,throttle_input_type:'adc',idle_input_type:'adc',registry_inputs:cfg.hardware.channel_registry.inputs.map(c=>({id:c.id,raw,healthy:true}))});
+      i2cRendered.push(['cal-th-raw','cal-idle-raw','th-hi','idle-range-hi'].map(id=>document.getElementById(id).textContent));
+    }
+    throttleInputType='adc';thMin=0;thMax=4095;saveThrottle();const i2cSaved=sent;
     sent=initialSent;
     cfg.hardware.channel_registry.inputs.forEach(c=>c.driver=1);
     cfg.hardware.channel_registry.inputs.unshift({id:'retired',purpose:'throttle',driver:1,installed:false});
     const retiredSkipped=operatorAdcRaw(d,'throttle')===4095;
     const missing=Number.isNaN(operatorAdcRaw({throttle_input_raw:157},'throttle'));
-    return {retiredSkipped,cases,rendered,physical,captured,sent,missing,badPercent:operatorPercent(NaN,0,4095),equalPercent:operatorPercent(5,5,5),normalPercent:operatorPercent(2048,82,4054)};
+    return {retiredSkipped,cases,rendered,i2cRendered,i2cSaved,physical,captured,sent,missing,badPercent:operatorPercent(NaN,0,4095),equalPercent:operatorPercent(5,5,5),normalPercent:operatorPercent(2048,82,4054)};
    });
    assert.deepEqual(result.rendered,['3300 mV','0 mV']);assert.deepEqual(result.physical,[4095,0]);assert.deepEqual(result.captured,[4095,0]);
    assert.equal(result.sent.settings.calibration.throttle_min_raw,82);assert.equal(result.sent.settings.calibration.throttle_max_raw,4054);
    assert.equal(result.sent.hw.channel_registry_calibration.min,82);assert.equal(result.sent.hw.channel_registry_calibration.max,4054);
+   assert.deepEqual(result.i2cRendered,[['0 mV','0 mV','5000 mV','5000 mV'],['2501 mV','2501 mV','5000 mV','5000 mV'],['5000 mV','5000 mV','5000 mV','5000 mV']]);
+   assert.equal(result.i2cSaved.settings.calibration.throttle_min_raw,82);assert.equal(result.i2cSaved.settings.calibration.throttle_max_raw,4054);
    assert.ok(result.retiredSkipped);
    for(const c of result.cases){
     assert.deepEqual(c.shown.map(v=>Math.round(v[0])),[0,50,100],JSON.stringify(c));

@@ -51,7 +51,18 @@ jobs:
 
       - name: Run canonical required safety gate
         shell: pwsh
-        run: python tools/run_release_checks.py
+        run: |
+          $hostCompiler = @('g++', 'clang++', 'cl', 'zig') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
+          if (-not $hostCompiler) {
+            $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+            $vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+            if (-not $vsRoot) { throw "No supported C++ compiler or Visual Studio C++ installation was found" }
+            Import-Module (Join-Path $vsRoot "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+            Enter-VsDevShell -VsInstallPath $vsRoot -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          }
+          python -c "import sys; sys.path.insert(0, 'tools'); from run_native_behavior_tests import compiler_command; print('Host C++ compiler:', compiler_command())"
+          if ($LASTEXITCODE -ne 0) { throw "Host C++ compiler preflight failed" }
+          python tools/run_release_checks.py
 
       - name: Require generated assets to be committed
         run: git diff --exit-code -- data site/_includes/generated-config-fields.html
@@ -62,6 +73,10 @@ jobs:
         run: |
           go run github.com/akavel/rsrc@v0.10.2 -ico OpenTurbineSetupTool.ico -manifest OpenTurbineSetupTool.manifest -o rsrc_windows_amd64.syso
           go build -ldflags="-H windowsgui -s -w" -o OpenTurbineSetupTool.exe .
+
+      - name: Verify fresh Windows setup-tool window and message loop
+        shell: pwsh
+        run: .\tools\test_setup_tool_window.ps1 -ExePath .\tools\setup_tool\OpenTurbineSetupTool.exe
 
       - name: Sign setup tool
         if: env.WINDOWS_SIGNING_CERT_BASE64 != ''
@@ -97,6 +112,7 @@ jobs:
             --esptool-license $esptoolLicense `
             --output "dist\release\OpenTurbine_Recommended.zip"
           Copy-Item tools\setup_tool\OpenTurbineSetupTool.exe dist\release\OpenTurbineSetupTool.exe
+          Copy-Item pcb_profiles\official\openturbine-s3-20261102.otpcb.json dist\release\OpenTurbine_PCB_v1.0.otpcb.json
 
       - name: Verify release asset versions and checksums
         shell: pwsh
@@ -112,7 +128,7 @@ jobs:
           if ($manifest.setup_tool_version -ne $Matches[1]) { throw "Package/setup-tool version mismatch" }
           $toolSource -match 'packageCompatibilityVersion\s+=\s+"([^"]+)"' | Out-Null
           if ($manifest.minimum_setup_tool_version -ne $Matches[1]) { throw "Package minimum setup-tool version mismatch" }
-          foreach ($name in @("OpenTurbineSetupTool.exe", "OpenTurbine_Recommended.zip")) {
+          foreach ($name in @("OpenTurbineSetupTool.exe", "OpenTurbine_Recommended.zip", "OpenTurbine_PCB_v1.0.otpcb.json")) {
             $hash = (Get-FileHash (Join-Path "dist\release" $name) -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $name" | Set-Content -Encoding ascii (Join-Path "dist\release" "$name.sha256")
           }
@@ -129,9 +145,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $releaseNotePath = Join-Path "docs/releases" "$($env:GITHUB_REF_NAME.TrimStart('v')).md"
+          $releaseNoteArgs = @("--generate-notes")
+          if (Test-Path -LiteralPath $releaseNotePath) { $releaseNoteArgs = @("--notes-file", $releaseNotePath) }
           gh release create $env:GITHUB_REF_NAME `
             dist/release/OpenTurbineSetupTool.exe `
             dist/release/OpenTurbineSetupTool.exe.sha256 `
             dist/release/OpenTurbine_Recommended.zip `
             dist/release/OpenTurbine_Recommended.zip.sha256 `
-            --verify-tag --generate-notes --title "OpenTurbine $env:GITHUB_REF_NAME" --latest
+            dist/release/OpenTurbine_PCB_v1.0.otpcb.json `
+            dist/release/OpenTurbine_PCB_v1.0.otpcb.json.sha256 `
+            --verify-tag @releaseNoteArgs --title "OpenTurbine $env:GITHUB_REF_NAME" --latest

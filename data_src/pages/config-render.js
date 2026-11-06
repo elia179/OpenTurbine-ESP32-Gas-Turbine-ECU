@@ -231,7 +231,7 @@ function _defaultRuleForOutput(channel) {
     input_min:0,input_max:1,output_min:minFuel,output_max:1,mode_mask:4,activate_events:4,deactivate_events:24,
     target_source_type:0,target_source:'',target_fixed:0,target_low:0,target_high:1,
     target_input_min:0,target_input_max:1,response_gain:.02,integral_gain:.005,deadband:.01,
-    name:`${controllerChannelName(channel)} control`.slice(0,31),source:source?.id || '',target:channel.id};
+    name:OTTruncateUtf8(`${controllerChannelName(channel)} control`,23),source:source?.id || '',target:channel.id};
 }
 
 function createControllerForOutput(outputId) {
@@ -281,7 +281,7 @@ function migrateLegacyControllerDefinitions() {
     const output = usePitch ? propPitch : mainFuel;
     if (output && !owns(output)) {
       const rule = _defaultRuleForOutput(output);
-      rule.name = `${controllerChannelName(output)} N2 control`.slice(0,31);
+      rule.name = OTTruncateUtf8(`${controllerChannelName(output)} N2 control`,23);
       rule.kind = 2;
       rule.source = n2.id;
       rule.target_source_type = throttle ? 2 : 0;

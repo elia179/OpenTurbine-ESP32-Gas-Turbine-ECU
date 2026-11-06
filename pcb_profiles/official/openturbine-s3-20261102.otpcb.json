@@ -7,9 +7,9 @@
   "board": {
     "id": "openturbine-s3-20261102",
     "name": "OpenTurbine PCB v1.0",
-    "revision": "1.0-20261104",
+    "revision": "1.0-20261105",
     "manufacturer": "OpenTurbine",
-    "description": "4 Nov 2026; ESP32-S3-WROOM-1-N8; OpenTurbine 2.6.1 required"
+    "description": "4 Nov 2026 PCB; ESP32-S3-WROOM-1-N8; OpenTurbine 2.7.0 required"
   },
   "target": {
     "chip": "esp32-s3",
@@ -125,7 +125,7 @@
   "ports": [
     {
       "id": "thermocouple_1",
-      "label": "Thermocouple 1",
+      "label": "Thermocouple 1 Connector",
       "connector": "J43",
       "modes": [
         {
@@ -133,11 +133,12 @@
           "adapter": "spi_thermocouple",
           "device": "tc1"
         }
-      ]
+      ],
+      "description": "MAX31856 thermocouple input; use an ungrounded probe of the selected alloy"
     },
     {
       "id": "thermocouple_2",
-      "label": "Thermocouple 2",
+      "label": "Thermocouple 2 Connector",
       "connector": "J44",
       "modes": [
         {
@@ -145,13 +146,14 @@
           "adapter": "spi_thermocouple",
           "device": "tc2"
         }
-      ]
+      ],
+      "description": "MAX31856 thermocouple input; use an ungrounded probe of the selected alloy"
     },
     {
       "id": "analog_1",
-      "label": "ADC 1",
+      "label": "ADC 1 Connector",
       "connector": "J20",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -175,9 +177,9 @@
     },
     {
       "id": "analog_2",
-      "label": "ADC 2",
+      "label": "ADC 2 Connector",
       "connector": "J21",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -201,9 +203,9 @@
     },
     {
       "id": "analog_3",
-      "label": "ADC 3",
+      "label": "ADC 3 Connector",
       "connector": "J22",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -227,9 +229,9 @@
     },
     {
       "id": "analog_4",
-      "label": "ADC 4",
+      "label": "ADC 4 Connector",
       "connector": "J23",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -253,9 +255,9 @@
     },
     {
       "id": "analog_5",
-      "label": "ADC 5",
+      "label": "ADC 5 Connector",
       "connector": "J24",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -279,9 +281,9 @@
     },
     {
       "id": "analog_6",
-      "label": "ADC 6",
+      "label": "ADC 6 Connector",
       "connector": "J25",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -305,9 +307,9 @@
     },
     {
       "id": "analog_7",
-      "label": "ADC 7",
+      "label": "ADC 7 Connector",
       "connector": "J26",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -331,9 +333,9 @@
     },
     {
       "id": "analog_8",
-      "label": "ADC 8",
+      "label": "ADC 8 Connector",
       "connector": "J27",
-      "description": "0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail",
+      "description": "0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail",
       "modes": [
         {
           "id": "analog",
@@ -357,7 +359,7 @@
     },
     {
       "id": "pulse_in_1",
-      "label": "Input 1",
+      "label": "IN 1 Connector",
       "connector": "J28",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -417,7 +419,7 @@
     },
     {
       "id": "pulse_in_2",
-      "label": "Input 2",
+      "label": "IN 2 Connector",
       "connector": "J29",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -477,7 +479,7 @@
     },
     {
       "id": "pulse_in_3",
-      "label": "Input 3",
+      "label": "IN 3 Connector",
       "connector": "J30",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -537,7 +539,7 @@
     },
     {
       "id": "pulse_in_4",
-      "label": "Input 4",
+      "label": "IN 4 Connector",
       "connector": "J31",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -597,7 +599,7 @@
     },
     {
       "id": "pulse_in_5",
-      "label": "Input 5",
+      "label": "IN 5 Connector",
       "connector": "J32",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -657,7 +659,7 @@
     },
     {
       "id": "pulse_in_6",
-      "label": "Input 6",
+      "label": "IN 6 Connector",
       "connector": "J33",
       "description": "Conditioned input; switchable external 3.3 V pull-up",
       "modes": [
@@ -717,7 +719,7 @@
     },
     {
       "id": "pulse_out_1",
-      "label": "OUT 1",
+      "label": "OUT 1 Connector",
       "connector": "J34",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -749,7 +751,7 @@
     },
     {
       "id": "power_out_1",
-      "label": "PWM 1",
+      "label": "PWM 1 Connector",
       "connector": "J3",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -773,7 +775,7 @@
     },
     {
       "id": "pulse_out_2",
-      "label": "OUT 2",
+      "label": "OUT 2 Connector",
       "connector": "J35",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -805,7 +807,7 @@
     },
     {
       "id": "power_out_2",
-      "label": "PWM 2",
+      "label": "PWM 2 Connector",
       "connector": "J5",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -829,7 +831,7 @@
     },
     {
       "id": "pulse_out_3",
-      "label": "OUT 3",
+      "label": "OUT 3 Connector",
       "connector": "J36",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -861,7 +863,7 @@
     },
     {
       "id": "power_out_3",
-      "label": "PWM 3",
+      "label": "PWM 3 Connector",
       "connector": "J7",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -885,7 +887,7 @@
     },
     {
       "id": "pulse_out_4",
-      "label": "OUT 4",
+      "label": "OUT 4 Connector",
       "connector": "J37",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -917,7 +919,7 @@
     },
     {
       "id": "power_out_4",
-      "label": "PWM 4",
+      "label": "PWM 4 Connector",
       "connector": "J9",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -941,7 +943,7 @@
     },
     {
       "id": "pulse_out_5",
-      "label": "OUT 5",
+      "label": "OUT 5 Connector",
       "connector": "J38",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -973,7 +975,7 @@
     },
     {
       "id": "power_out_5",
-      "label": "PWM 5",
+      "label": "PWM 5 Connector",
       "connector": "J11",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -997,7 +999,7 @@
     },
     {
       "id": "pulse_out_6",
-      "label": "OUT 6",
+      "label": "OUT 6 Connector",
       "connector": "J39",
       "description": "5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.",
       "modes": [
@@ -1029,7 +1031,7 @@
     },
     {
       "id": "power_out_6",
-      "label": "PWM 6",
+      "label": "PWM 6 Connector",
       "connector": "J13",
       "description": "Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum",
       "modes": [
@@ -1053,7 +1055,7 @@
     },
     {
       "id": "start_switch",
-      "label": "Start",
+      "label": "Start Connector",
       "connector": "J_START",
       "modes": [
         {
@@ -1071,11 +1073,12 @@
             "purpose": "start_switch"
           }
         }
-      ]
+      ],
+      "description": "3.3 V GPIO switch input; contact to GND, default active-low with pull-up"
     },
     {
       "id": "stop_switch",
-      "label": "Stop",
+      "label": "Stop Connector",
       "connector": "J_STOP",
       "modes": [
         {
@@ -1093,11 +1096,12 @@
             "purpose": "stop_switch"
           }
         }
-      ]
+      ],
+      "description": "3.3 V GPIO switch input; contact to GND, default active-low with pull-up"
     },
     {
       "id": "status_led",
-      "label": "Status LED",
+      "label": "Status LED Connector",
       "description": "Onboard low-current LED; on/off control only",
       "modes": [
         {
@@ -1118,7 +1122,7 @@
     },
     {
       "id": "fault_led",
-      "label": "Fault LED",
+      "label": "Fault LED Connector",
       "description": "Onboard low-current LED; on/off control only",
       "modes": [
         {
@@ -1139,7 +1143,7 @@
     },
     {
       "id": "extension_46",
-      "label": "Extension GPIO46",
+      "label": "GPIO 46",
       "connector": "J18",
       "modes": [
         {
@@ -1153,7 +1157,7 @@
     },
     {
       "id": "extension_47",
-      "label": "Extension GPIO47",
+      "label": "GPIO 47",
       "connector": "J18",
       "modes": [
         {
@@ -1165,5 +1169,15 @@
         }
       ]
     }
-  ]
+  ],
+  "gpio_headers": [
+    17,
+    48,
+    46,
+    47
+  ],
+  "gpio_header_notes": {
+    "46": "Fixed 10 kΩ pull-down to GND; software cannot remove it.",
+    "47": "Fixed 10 kΩ pull-up to 3.3 V; software cannot remove it."
+  }
 }

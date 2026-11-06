@@ -1,4 +1,6 @@
 #include "SessionLogger.h"
+#include "SessionCapture.h"
+#include "ByteRecordRing.h"
 #include "../hal/actuators/RelayDemand.h"
 #include "SessionFiles.h"
 #include "Config.h"
@@ -11,29 +13,11 @@
 #include <cctype>
 #include <cstring>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <cstdlib>
 
-// ── Row snapshot passed through the inter-core queue ─────────
+// ── Row snapshot passed through the inter-core ring ─────────
 // Plain-old-data struct — Core 1 fills it, Core 0 writes it.
-struct SessionRow {
-    uint32_t t_ms;
-    uint32_t mask;
-    float    n1, n2, tot, tit, oilTemp, oilPressure, p1, p2;
-    float    throttleDemand, battVoltage, fuelPressure, fuelFlow;
-    float    torque, shaftPower, thrust, starterDemand;
-    float    glowPlugDemand, fuelPump2Demand, propPitchDemand, oilPumpPct;
-    float    wetGlowFuelDemand;
-    float    glowCurrentAmps, igniterCurrentAmps, igniter2CurrentAmps, oilPumpCurrentAmps;
-    float    abPumpDemand, abFuelOffset;
-    float    loopHz, loopPeriodMaxMs, loopExecAvgMs, loopExecMaxMs;
-    uint32_t loopOverrunCount;
-    int      abMode;
-    bool     abFlameOn;
-    bool     abRequest, abPermitted, abExecuting, abEvidence;
-    uint32_t abUnconfirmedFuelMs;
-    float    registryInputs[ChannelRegistry::MAX_INPUT_CHANNELS];
-    uint8_t  sysMode;   // SysMode cast to byte
-};
+using SessionRow = SessionCapture::Row<ChannelRegistry::MAX_INPUT_CHANNELS>;
 
 static File              _file;
 static volatile bool     _open      = false;
@@ -46,7 +30,25 @@ static volatile uint8_t  _errorCode = 0;
 static uint32_t          _evictionCount = 0;
 static uint32_t          _lastEvictedSession = 0;
 static char              _currentPath[40] = {};
-static QueueHandle_t     _rowQueue  = nullptr;
+static uint8_t*          _rowStorage = nullptr;
+static ByteRecordRing    _rowRing(nullptr, 0);
+static portMUX_TYPE      _rowMux = portMUX_INITIALIZER_UNLOCKED;
+static constexpr size_t PACKED_ROW_BYTES = 2*sizeof(SessionRow);
+
+static uint32_t _queuedRowCount() {
+    portENTER_CRITICAL(&_rowMux);
+    const uint32_t count = _rowRing.count();
+    portEXIT_CRITICAL(&_rowMux);
+    return count;
+}
+static void _releaseCaptureStorage() {
+    portENTER_CRITICAL(&_rowMux);
+    uint8_t* storage = _rowStorage;
+    _rowStorage = nullptr;
+    _rowRing.attach(nullptr, 0);
+    portEXIT_CRITICAL(&_rowMux);
+    std::free(storage);
+}
 static volatile bool     _startPending = false;
 static volatile bool     _endPending   = false;
 #if defined(OT_PLATFORM_ESP32S3)
@@ -64,7 +66,14 @@ static uint32_t          _lastFreeCheckMs = 0;
 static bool              _lowSpaceDropActive = false;
 static constexpr uint32_t SESSION_FLUSH_MS = 5000;
 static uint32_t          _lastFlushMs = 0;
-static constexpr uint16_t SESSION_QUEUE_ROWS = 64;
+// Retain the original worst-case byte budget, but spend it only on selected
+// fields. No PSRAM dependency and no increase in the active-run heap budget.
+static constexpr size_t SESSION_QUEUE_BYTES = 64 * sizeof(SessionRow);
+static SessionCapture::Layout _captureLayout;
+static uint32_t _captureMask = 0;
+static uint32_t _captureIntervalMs = 1000;
+static uint16_t _queueCapacity = 0;
+static bool _capturedGlowRelay = false;
 static uint32_t          _registryCaptureMask = 0;
 
 static bool _isGeneralRegistryInput(const ChannelRegistry::Channel& channel) {
@@ -80,19 +89,43 @@ static uint8_t _registryCaptureCount() {
     return count;
 }
 
-static void _prepareRegistryCaptureMask() {
-    _registryCaptureMask = 0;
+static uint32_t _configuredRegistryCaptureMask() {
+    uint32_t selectedMask = 0;
     for (uint8_t selected = 0; selected < Config::sessionRegistryInputCount; ++selected) {
         const char* id = Config::sessionRegistryInputIds[selected];
         if (!id[0]) continue;
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
             const auto& channel = HardwareConfig::channelRegistry.inputs[i];
             if (_isGeneralRegistryInput(channel) && !strcmp(channel.id, id)) {
-                _registryCaptureMask |= (1UL << i);
+                selectedMask |= (1UL << i);
                 break;
             }
         }
     }
+    return selectedMask;
+}
+
+static bool _prepareCaptureLayout() {
+    const bool valid = SessionCapture::configure<Config, ChannelRegistry::MAX_INPUT_CHANNELS>(
+        _captureLayout, _captureMask, _registryCaptureMask);
+    _queueCapacity = valid ? SESSION_QUEUE_BYTES / _captureLayout.storedBytes() : 0;
+    return valid && _captureLayout.maxBytes() <= PACKED_ROW_BYTES && _queueCapacity > 0;
+}
+
+static bool _receiveRow(SessionRow& row) {
+    char packed[PACKED_ROW_BYTES+1];
+    portENTER_CRITICAL(&_rowMux);
+    const size_t bytes = _rowRing.frontSize();
+    const bool received = _rowRing.peek(packed, sizeof(packed));
+    if (received) _rowRing.pop();
+    portEXIT_CRITICAL(&_rowMux);
+    if (!received) return false;
+    if (!_captureLayout.unpack(packed, bytes, &row)) {
+        _droppedRows = _droppedRows + 1; _healthy = false; _errorCode = 4;
+        return false;
+    }
+    row.mask = _captureMask;
+    return true;
 }
 
 static const char* _registryUnitSuffix(const ChannelRegistry::Channel& channel) {
@@ -123,7 +156,31 @@ const char* SessionLogger::currentPath() {
 
 uint32_t SessionLogger::droppedRows() { return _droppedRows; }
 uint32_t SessionLogger::queuedRows() {
-    return _rowQueue ? (uint32_t)uxQueueMessagesWaiting(_rowQueue) : 0U;
+    return _queuedRowCount();
+}
+static bool _hasCapturedLayout() { return _acceptRows || _startPending || _endPending || _open; }
+uint32_t SessionLogger::sampleBytes() {
+    if (_hasCapturedLayout()) return _captureLayout.storedBytes();
+    const uint32_t selected = _configuredRegistryCaptureMask();
+    if (!Config::sessionLogMask && !selected) return 0;
+    SessionCapture::Layout preview;
+    return SessionCapture::configure<Config, ChannelRegistry::MAX_INPUT_CHANNELS>(
+        preview, Config::sessionLogMask, selected) ? preview.storedBytes() : 0;
+}
+SessionLogger::FieldStorage SessionLogger::fieldStorage(uint32_t mask) {
+    SessionCapture::Layout layout;
+    if (!SessionCapture::configure<Config, ChannelRegistry::MAX_INPUT_CHANNELS>(layout,mask,0)) return {};
+    return {static_cast<uint16_t>(layout.bytes()-sizeof(uint32_t)),layout.hasScaledFields()};
+}
+size_t SessionLogger::storageBudget() { return SESSION_QUEUE_BYTES; }
+uint32_t SessionLogger::capacityRows() {
+    if (_hasCapturedLayout()) return _queueCapacity;
+    const uint32_t bytes = sampleBytes();
+    return bytes ? SESSION_QUEUE_BYTES / bytes : 0;
+}
+uint32_t SessionLogger::captureIntervalMs() {
+    return _hasCapturedLayout() ? _captureIntervalMs :
+        (Config::sessionLogIntervalMs > 0 ? Config::sessionLogIntervalMs : 500);
 }
 uint32_t SessionLogger::evictionCount() { return _evictionCount; }
 uint32_t SessionLogger::lastEvictedSession() { return _lastEvictedSession; }
@@ -219,7 +276,7 @@ static void _writeRow(const SessionRow& row) {
     if (mask & Config::SLOG_FUEL_PRESS) APPEND_ROW_FIELD(",%.2f",(double)row.fuelPressure);
     if (mask & Config::SLOG_FUEL_FLOW)  APPEND_ROW_FIELD(",%.3f",(double)row.fuelFlow);
     if (mask & Config::SLOG_GLOW) {
-        const float glowPct = (HardwareConfig::glowPlugOutputType == 1)
+        const float glowPct = _capturedGlowRelay
             ? (RelayDemand::requested(row.glowPlugDemand) ? 100.0f : 0.0f)
             : (row.glowPlugDemand * 100.0f);
         APPEND_ROW_FIELD(",%.0f", (double)glowPct);
@@ -254,7 +311,7 @@ static void _writeRow(const SessionRow& row) {
     if (mask & Config::SLOG_THRUST)     APPEND_ROW_FIELD(",%.2f",(double)row.thrust);
     if (mask & Config::SLOG_STARTER)    APPEND_ROW_FIELD(",%.1f",
                                                          (double)(row.starterDemand * 100.0f));
-    for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i)
+    for (uint8_t i = 0; i < ChannelRegistry::MAX_INPUT_CHANNELS; ++i)
         if (_registryCaptureMask & (1UL << i))
             APPEND_ROW_FIELD(",%.4f", (double)row.registryInputs[i]);
 
@@ -402,7 +459,7 @@ static void _openSession() {
         return;
     }
 
-    uint32_t mask = Config::sessionLogMask;
+    uint32_t mask = _captureMask;
     _file.print("t_ms");
     if (mask & Config::SLOG_MODE)       _file.print(",mode");
     if (mask & Config::SLOG_N1)         _file.print(",n1_rpm");
@@ -464,22 +521,13 @@ static void _closeSession() {
     if (!_open) {
         // A failed open still leaves the capture queue allocated. Nothing can
         // consume it now, so return that memory to the Classic immediately.
-        if (_rowQueue) {
-            vQueueDelete(_rowQueue);
-            _rowQueue = nullptr;
-        }
+        _releaseCaptureStorage();
         return;
     }
     _acceptRows = false;
 
-    // Drain any rows Core 0 hasn't written yet before marking the session
-    // closed. Low-space eviction uses _open/_currentPath to protect the active
-    // file, including this final close path.
-    if (_rowQueue) {
-        SessionRow row;
-        while (xQueueReceive(_rowQueue, &row, 0) == pdTRUE) _writeRow(row);
-    }
-
+    // drainQueue() has already persisted all rows in bounded batches. Never
+    // flush a longer packed backlog in one blocking web-task operation.
     _open = false;
     _file.flush();
     _file.close();
@@ -487,8 +535,7 @@ static void _closeSession() {
     // The queue is useful only while a run is being captured. Keeping its
     // worst-case row storage for the entire uptime cost a Classic about
     // 14 KiB precisely when the UI and configuration saves need heap most.
-    vQueueDelete(_rowQueue);
-    _rowQueue = nullptr;
+    _releaseCaptureStorage();
 }
 
 // ── Core 1: snapshot sensor state → queue (no file I/O) ──────
@@ -504,7 +551,7 @@ void SessionLogger::startSession() {
         _errorCode = 4;
         return;
     }
-    _prepareRegistryCaptureMask();
+    _registryCaptureMask = _configuredRegistryCaptureMask();
     // An empty field selection would otherwise create timestamp-only files and
     // periodically flush LittleFS during every run. Besides wasting flash,
     // those flushes can stall the ESP32 Wi-Fi task for hundreds of
@@ -514,14 +561,25 @@ void SessionLogger::startSession() {
         if (_open) _endPending = true;
         return;
     }
-    if (!_rowQueue) _rowQueue = xQueueCreate(SESSION_QUEUE_ROWS, sizeof(SessionRow));
-    if (!_rowQueue) {
+    _captureMask = Config::sessionLogMask;
+    _capturedGlowRelay = HardwareConfig::glowPlugOutputType == 1;
+    _captureIntervalMs = Config::sessionLogIntervalMs > 0 ? Config::sessionLogIntervalMs : 500;
+    if (!_prepareCaptureLayout()) {
+        _healthy = false;
+        _errorCode = 1;
+        return;
+    }
+    _releaseCaptureStorage();
+    _rowStorage = static_cast<uint8_t*>(std::malloc(SESSION_QUEUE_BYTES));
+    if (!_rowStorage) {
         _startPending = false;
         _healthy = false;
         _errorCode = 1;
         return;
     }
-    xQueueReset(_rowQueue);
+    portENTER_CRITICAL(&_rowMux);
+    _rowRing.attach(_rowStorage, SESSION_QUEUE_BYTES, _captureLayout.hasScaledFields() ? 0 : _captureLayout.bytes());
+    portEXIT_CRITICAL(&_rowMux);
     _currentPath[0] = '\0';
     _rowCount = 0;
     _droppedRows = 0;
@@ -539,15 +597,15 @@ void SessionLogger::endSession() {
 }
 
 void SessionLogger::tick() {
-    if (!_acceptRows || !_rowQueue) return;
+    if (!_acceptRows || !_rowStorage) return;
 
     uint32_t now      = millis();
-    uint32_t interval = Config::sessionLogIntervalMs > 0 ? Config::sessionLogIntervalMs : 500;
+    uint32_t interval = _captureIntervalMs;
     if (now - _lastMs < interval) return;
     _lastMs = now;
 
     auto&    ed   = EngineData::instance();
-    uint32_t mask = Config::sessionLogMask;
+    uint32_t mask = _captureMask;
 
     SessionRow row{};
     row.t_ms            = now;
@@ -598,11 +656,14 @@ void SessionLogger::tick() {
     // Active-engine flash writes are forbidden, so retain a bounded tail in
     // RAM. If a long/high-rate run fills the queue, discard the oldest row and
     // keep the newest shutdown/fault context. Telemetry reports the loss.
-    if (xQueueSendToBack(_rowQueue, &row, 0) != pdTRUE) {
-        SessionRow oldest;
-        (void)xQueueReceive(_rowQueue, &oldest, 0);
-        (void)xQueueSendToBack(_rowQueue, &row, 0);
-        _droppedRows = _droppedRows + 1;
+    uint8_t packed[PACKED_ROW_BYTES];
+    const size_t bytes = _captureLayout.pack(&row, packed, sizeof(packed));
+    uint32_t overwritten = 0;
+    portENTER_CRITICAL(&_rowMux);
+    const bool queued = bytes && _rowRing.push(reinterpret_cast<const char*>(packed), bytes, true, overwritten);
+    portEXIT_CRITICAL(&_rowMux);
+    if (!queued || overwritten) {
+        _droppedRows = _droppedRows + (queued ? overwritten : 1);
         _healthy = false;
         _errorCode = 4;
     }
@@ -616,19 +677,25 @@ void SessionLogger::drainQueue() {
         _startPending = false;
         _openSession();
     }
-    if (_endPending) {
-        _endPending = false;
+    if (_endPending && !_open) {
         _closeSession();
+        _endPending = false;
         return;
     }
-    if (!_open || !_rowQueue) return;
+    if (!_open || !_rowStorage) return;
     SessionRow row;
-    static constexpr uint8_t MAX_ROWS_PER_DRAIN = 2;
+    static constexpr uint8_t MAX_ROWS_PER_DRAIN = 8;
+    const uint32_t started = millis();
     uint8_t drained = 0;
-    while (_open && drained < MAX_ROWS_PER_DRAIN &&
-           xQueueReceive(_rowQueue, &row, 0) == pdTRUE) {
+    while (_open && drained < MAX_ROWS_PER_DRAIN && _receiveRow(row)) {
         _writeRow(row);
-        drained++;
+        ++drained;
+        if (millis() - started >= 10) break;
+    }
+    if (_endPending && _queuedRowCount() == 0) {
+        _closeSession();
+        _endPending = false;
+        return;
     }
     // This path also supports a session opened while already safe (for tests
     // and recovery). Active-engine calls are blocked by WebServer::tick().

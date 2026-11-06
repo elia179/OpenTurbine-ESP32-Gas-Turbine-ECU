@@ -99,15 +99,17 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
     localStorage.setItem('ot_dashboard_card_views_v1',JSON.stringify({'dashboard-warnings-card':{detail:'minimal',size:'small'}}));
    });
    await page.reload();await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});await feed({config_storage_fault:true});
+   await slot.waitFor({state:'visible',timeout:5000});await slot.locator('#config-storage-banner').waitFor({state:'visible',timeout:5000});
    assert.ok(await slot.isVisible());assert.ok(await slot.locator('#config-storage-banner').isVisible());
    assert.equal(await slot.getAttribute('data-dashboard-detail'),'normal');assert.equal(await slot.getAttribute('data-dashboard-size'),'wide');
    assert.equal(await page.evaluate(()=>document.querySelector('#dashboard-custom-cards').firstElementChild.id),'dashboard-warnings-card');
    await feed({});await page.locator('#dashboard-card-edit-btn').click();
+   await slot.waitFor({state:'visible',timeout:5000});
    assert.ok((await slot.boundingBox()).height<=60);
    await slot.screenshot({path:`artifacts/v255-dashboard/${engine}-${packaged?'packaged':'source'}-edit.png`});
    await page.locator('#dashboard-reset-btn').click();
    assert.ok(await page.evaluate(()=>!!(document.querySelector('#dashboard-warnings-card').compareDocumentPosition(document.querySelector('#n1-card'))&Node.DOCUMENT_POSITION_FOLLOWING)));
-   await page.locator('#dashboard-card-edit-btn').click();assert.equal(await slot.isVisible(),false);
+   await page.locator('#dashboard-card-edit-btn').click();await slot.waitFor({state:'hidden',timeout:5000});assert.equal(await slot.isVisible(),false);
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[],'Dashboard layout must not modify the ECU');
    assert.equal(await slot.locator('#captive-banner').count(),0,'Browser connection guidance remains in its global location');
    console.log(`${engine} ${packaged?'packaged':'source'}: thin edit slot, pointer/keyboard saved order, 11 warning lifecycles, links, old preferences, reset and 4 viewport widths passed; no ECU writes.`);

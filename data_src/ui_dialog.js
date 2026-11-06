@@ -1,6 +1,79 @@
 (function () {
   'use strict';
 
+  // Bound automatically generated display names without splitting UTF-8 text.
+  // User-entered names are validated separately and are never shortened here.
+  window.OTTruncateUtf8 = function(value, maxBytes) {
+    const encoder=new TextEncoder();let bytes=0,result='';
+    for(const character of String(value??'')) {
+      const length=encoder.encode(character).length;
+      if(bytes+length>maxBytes)break;
+      result+=character;bytes+=length;
+    }
+    return result;
+  };
+
+  // All pages require an explicit acknowledgement before reporting a save.
+  // Never replay a write when its response was lost: it may already be stored.
+  window.OTSavePatch = async function (url, patch, returnRejections = false) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(patch), signal:controller.signal
+      });
+      const data = await response.json().catch(() => null);
+      // Some pages render validation rejections themselves; preserve their response contract.
+      if ((!response.ok || data?.ok === false) && returnRejections) return {response, data:data ?? {}};
+      if (!response.ok || data?.ok === false)
+        throw new Error(data?.detail || data?.error || data?.reason || `Save HTTP ${response.status}`);
+      if (data?.ok !== true)
+        throw new Error('Save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
+      return {response, data};
+    } catch (error) {
+      if (controller.signal.aborted || error instanceof TypeError)
+        throw new Error('Save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
+      throw error;
+    } finally { clearTimeout(timeout); }
+  };
+
+  // Configuration reads can briefly compete with another page's snapshot.
+  // Retry only reads, honour the ECU's delay, and bound the whole operation.
+  window.OTReadJson = async function(url, {attempts = 5, timeoutMs = 8000, budgetMs = 25000} = {}) {
+    const deadline = Date.now() + budgetMs;
+    let lastError;
+    for (let attempt = 0; attempt < attempts; ++attempt) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, remaining));
+      let delay = 350 + attempt * 250 + Math.random() * 250;
+      try {
+        const response = await fetch(url, {cache:'no-store', signal:controller.signal});
+        if (response.ok) return JSON.parse(await response.text());
+        // Drain the rejection before waiting so it does not retain a socket.
+        const body = await response.text();
+        let detail;
+        try { detail = JSON.parse(body); } catch (_) {}
+        const error = new Error(detail?.error || url + ' returned HTTP ' + response.status);
+        error.retryableRead = [409, 429, 503].includes(response.status);
+        const seconds = Number(response.headers.get('Retry-After'));
+        if (Number.isFinite(seconds) && seconds > 0)
+          delay = Math.max(delay, Math.min(seconds * 1000, 3000));
+        throw error;
+      } catch (error) {
+        lastError = error;
+        const retryable = error.retryableRead === true ||
+          (error.retryableRead === undefined && (error instanceof TypeError || error.name === 'AbortError'));
+        if (!retryable || pageFetchController.signal.aborted || attempt + 1 >= attempts) throw error;
+      } finally { clearTimeout(timer); }
+      if (deadline - Date.now() <= delay) break;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    throw lastError || new Error(url + ' read timed out');
+  };
+
   // Abort API reads that are still in flight when leaving a page. Otherwise
   // they can occupy the Classic ESP32's small TCP pool behind the next page
   // load. Combine this page-lifetime signal with caller timeout signals.
@@ -60,8 +133,15 @@
         // arrived. Navigation must wait until the small ECU response body has
         // actually drained from the Classic's one-shot HTTP connection.
         let body = null;
-        if (method === 'GET' && response.headers.get('content-type')?.includes('application/json')) {
+        if (response.headers.get('content-type')?.includes('application/json')) {
+          // Keep the caller's abort signal connected through mutation ACK
+          // bodies too. Resolving at headers then removing this listener let
+          // a truncated firmware/save acknowledgement wait indefinitely.
           body = await response.clone().text();
+        } else if (method === 'GET' && pathname.startsWith('/api/')) {
+          // CSV and binary API downloads need the same timeout/navigation
+          // lifetime. Native link downloads are unaffected by this wrapper.
+          await response.clone().arrayBuffer();
         }
         if (cacheableConfig && response.ok && body !== null) {
           try { sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), body })); } catch (_) {}
@@ -84,7 +164,21 @@
     if (!largeRead) return performFetch();
     const queued = largeReadChain.catch(() => {}).then(performFetch);
     largeReadChain = queued.then(() => undefined, () => undefined);
-    return queued;
+    // A caller's deadline also applies while waiting for the shared read slot.
+    // Keep the physical queue intact, but settle the cancelled caller promptly;
+    // its already-aborted signal prevents a later queued request being sent.
+    return new Promise((resolve, reject) => {
+      const cancelled = () => reject(new DOMException('The read was aborted', 'AbortError'));
+      if (requestController.signal.aborted) cancelled();
+      else requestController.signal.addEventListener('abort', cancelled, {once:true});
+      queued.then(value => {
+        requestController.signal.removeEventListener('abort', cancelled);
+        resolve(value);
+      }, error => {
+        requestController.signal.removeEventListener('abort', cancelled);
+        reject(error);
+      });
+    });
   };
   const abortPageFetches = () => pageFetchController.abort();
   const waitForWindowLoad = (timeoutMs) => {
@@ -108,6 +202,13 @@
     }
   });
   let navigationStarting = false;
+  let navigationNotice;
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    navigationStarting = false;
+    navigationNotice?.remove();
+    document.documentElement.style.cursor = '';
+  });
   window.OTIsSamePageWarningLink = (anchor, target) => {
     if (!anchor.hasAttribute('data-ot-warning-link') || target.origin !== location.origin || target.pathname !== location.pathname) return false;
     const current = new URL(location.href);
@@ -173,6 +274,11 @@
     if (navigationStarting) return;
     navigationStarting = true;
     document.documentElement.style.cursor = 'progress';
+    navigationNotice = document.createElement('div');
+    navigationNotice.className = 'ot-navigation-notice';
+    navigationNotice.setAttribute('role', 'status');
+    navigationNotice.textContent = 'Loading\u2026';
+    document.body.appendChild(navigationNotice);
     window.dispatchEvent(new Event('ot:navigation-prepare'));
     // The navigation bar can be clicked while the Classic is still streaming
     // this page's CSS/JS. Finish load-blocking files before leaving so Chrome
@@ -194,6 +300,48 @@
     // cancellation before opening the replacement page.
     setTimeout(() => location.assign(target.href), 200);
   });
+
+  // One keyboard-focus rule for confirmations and the existing page modals.
+  const modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
+  const watchedModals=new WeakSet();
+  const visibleModal=el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden';
+  function topModal() {
+    return Array.from(document.querySelectorAll(modalSelector)).filter(visibleModal)
+      .sort((a,b)=>(parseInt(getComputedStyle(a).zIndex)||0)-(parseInt(getComputedStyle(b).zIndex)||0)).pop();
+  }
+  function modalTargets(modal) {
+    return Array.from(modal.querySelectorAll('button,input,select,textarea,a[href],[tabindex]'))
+      .filter(el=>!el.disabled&&el.tabIndex>=0&&!el.closest('[inert]')&&visibleModal(el));
+  }
+  function focusModal(modal,last=false) {
+    const targets=modalTargets(modal),target=last?targets[targets.length-1]:targets[0];
+    if(!target)modal.tabIndex=-1;
+    (target||modal).focus({preventScroll:true});
+  }
+  function watchModal(modal) {
+    if(watchedModals.has(modal))return;
+    watchedModals.add(modal);
+    if(!modal.hasAttribute('role'))modal.setAttribute('role','dialog');
+    modal.setAttribute('aria-modal','true');
+    let open=false,previous=null;
+    new MutationObserver(()=>{
+      const shown=!!visibleModal(modal);
+      if(shown&&!open){previous=document.activeElement;if(topModal()===modal&&!modal.contains(previous))focusModal(modal);}
+      else if(!shown&&open&&(modal.contains(document.activeElement)||document.activeElement===document.body)&&previous?.isConnected&&!previous.closest('[inert]')&&visibleModal(previous))previous.focus({preventScroll:true});
+      open=shown;
+    }).observe(modal,{attributes:true,attributeFilter:['style','class']});
+  }
+  document.addEventListener('focusin',event=>{
+    const modal=topModal();if(modal&&!modal.contains(event.target))focusModal(modal);
+  },true);
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Tab')return;
+    const modal=topModal();if(!modal)return;
+    const targets=modalTargets(modal),index=targets.indexOf(document.activeElement);
+    if(index<0||event.shiftKey&&index===0||!event.shiftKey&&index===targets.length-1){event.preventDefault();focusModal(modal,event.shiftKey);}
+  },true);
+  const watchPageModals=()=>document.querySelectorAll(modalSelector).forEach(watchModal);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchPageModals,{once:true});else watchPageModals();
 
   let activeResolve = null;
   let previousFocus = null;
@@ -240,6 +388,7 @@
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    watchModal(overlay);
     overlay.addEventListener('keydown', event => {
       if (event.key === 'Escape' && document.getElementById('ot-dialog-cancel').style.display !== 'none') finish(false);
     });

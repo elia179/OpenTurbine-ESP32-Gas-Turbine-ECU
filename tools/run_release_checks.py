@@ -72,6 +72,7 @@ def main() -> int:
         [node, "tools/generate_site_config_reference.cjs"],
     )
     run("public-content validation", [python, "tools/validate_public_content.py"])
+    run("fixture Wi-Fi reconnect behavior", [node, "tools/fixture_wifi_helper_test.cjs"])
     run("UI audit suite", [node, "tools/run_ui_audits.cjs"])
     run("safety regression audit", [node, "tools/safety_regression_audit.cjs"])
     run("turbine setup matrix", [node, "tools/turbine_setup_matrix_test.cjs"])
@@ -99,6 +100,8 @@ def main() -> int:
             "tools/test_pcb_profile.py",
             "tools/test_run_native_behavior_tests.py",
             "tools/test_mavlink_console.py",
+            "tools/test_update_transport.py",
+            "tools/test_network_admission_patch.py",
         ],
     )
     run(
@@ -158,6 +161,8 @@ def main() -> int:
                 filesystem_free,
             ],
         )
+
+    run("asynchronous JSON snapshot ownership", [python, "tools/test_json_snapshot.py"])
 
     print("\nAll OpenTurbine release checks passed.")
     return 0

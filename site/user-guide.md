@@ -378,7 +378,7 @@ For an illustrated example, follow [creating a controller]({{ '/guided-builds/co
 
 ### 10.3 Connect a remote display or controller
 
-Use **Hardware → Communications → MAVLink connection** to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile may supply fixed connector routing; bare development boards use 3.3 V UART signals and shared ground.
+Use **Hardware → Communications → MAVLink connection** to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile supplies named UART defaults; expand its advanced connection settings to inspect or change exposed pins. Unused UART pins can serve other GPIO functions. Bare development boards use 3.3 V UART signals and shared ground.
 
 Then open **System → Connections & runtime → MAVLink connection**. Match the receiver's baud rate. TX alone supports monitoring. Add RX to reveal sender IDs and throttle timeout; enable **Remote engine commands** only when Start, Stop, fault acknowledgement or fitted afterburner controls are required. IDs filter a trusted sender; they are not authentication.
 

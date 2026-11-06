@@ -134,7 +134,7 @@ The implementation should model automatic reduced-power demand and operator-requ
 
 ### OT-AUD-002 — registry START held at boot can auto-start
 
-The official S3 PCB profile assigns START to a TCA9554 registry input (`pcb_profiles/official/openturbine-ecu-s3-v1.otpcb.json:207`). Registry input health/value is consumed by `registryControlInput()` in `src/main.cpp:2964-2977`.
+The official S3 PCB profile assigns START to a TCA9554 registry input (`pcb_profiles/archive/openturbine-ecu-s3-v1.otpcb.json:207`). Registry input health/value is consumed by `registryControlInput()` in `src/main.cpp:2964-2977`.
 
 On the first control-loop iteration, `checkStartSwitch()` runs before `Hardware::updateSensors()` (`src/main.cpp:3375-3381`). Registry health is initially false, so a physically held START is observed as not pressed. The initialization block then sets `startReleasedSinceBoot = true` (`src/main.cpp:3042-3051`). Once the first registry sample becomes healthy, the still-held switch looks like a new rising edge and queues START (`src/main.cpp:3053-3067`). A disconnect/reconnect while the switch is held can produce the same class of false edge.
 
@@ -218,7 +218,7 @@ Minimum tester rule if code cannot be changed in time: every ECU must be provisi
 
 ### OT-AUD-004 — registry STOP loss fails open
 
-The official S3 profile assigns STOP to a TCA9554 registry input (`pcb_profiles/official/openturbine-ecu-s3-v1.otpcb.json:206`). `registryControlInput()` returns false when that channel is unhealthy (`src/main.cpp:2964-2977`), and `checkStopSwitch()` consequently treats loss as inactive (`src/main.cpp:2980-3013`).
+The official S3 profile assigns STOP to a TCA9554 registry input (`pcb_profiles/archive/openturbine-ecu-s3-v1.otpcb.json:206`). `registryControlInput()` returns false when that channel is unhealthy (`src/main.cpp:2964-2977`), and `checkStopSwitch()` consequently treats loss as inactive (`src/main.cpp:2980-3013`).
 
 The runtime fail-closed registry roles in `checkGeneralDI()` include `fault`, `estop`, conditionally `low_oil_switch`, and conditionally `oil_zero_switch`, but not `stop_switch` (`src/main.cpp:1603-1608`). Runtime expected-device handling faults unavailable engine-affecting I2C outputs, not the STOP input. Therefore a TCA9554 or bus failure during STARTUP/RUNNING can remove the software STOP path without causing shutdown.
 
@@ -465,7 +465,7 @@ Define endpoint presence by driver: direct GPIO drivers require a valid GPIO, wh
 
 ### OT-AUD-048 — advertised I²C AB-flame sensor is not connected to AB runtime
 
-The Hardware editor advertises `ab_flame` with direct digital/analog and I²C digital/analog drivers (`data_src/pages/hardware-registry-catalog.js:103-110`), and its adapter filter explicitly permits both digital and analog device-backed endpoints (`data_src/hardware.html:1267-1277`). The official S3 profile supplies TCA9554 digital inputs and TLA2528 analog inputs that can host those advertised modes (`pcb_profiles/official/openturbine-ecu-s3-v1.otpcb.json:21-25`, `pcb_profiles/official/openturbine-ecu-s3-v1.otpcb.json:51-112`, `pcb_profiles/official/openturbine-ecu-s3-v1.otpcb.json:206-214`). Generic registry sampling does read I²C input values and health into `registryInputValue/Healthy` (`src/Hardware.h:796-815`).
+The Hardware editor advertises `ab_flame` with direct digital/analog and I²C digital/analog drivers (`data_src/pages/hardware-registry-catalog.js:103-110`), and its adapter filter explicitly permits both digital and analog device-backed endpoints (`data_src/hardware.html:1267-1277`). The official S3 profile supplies TCA9554 digital inputs and TLA2528 analog inputs that can host those advertised modes (`pcb_profiles/archive/openturbine-ecu-s3-v1.otpcb.json:21-25`, `pcb_profiles/archive/openturbine-ecu-s3-v1.otpcb.json:51-112`, `pcb_profiles/archive/openturbine-ecu-s3-v1.otpcb.json:206-214`). Generic registry sampling does read I²C input values and health into `registryInputValue/Healthy` (`src/Hardware.h:796-815`).
 
 The AB-specific runtime never consumes them. Hardware topology resets `hasAbFlame` and then recognizes only installed `ab_flame` channels with `pin >= 0`, excluding both I²C drivers by construction (`src/system/HardwareConfig.cpp:4215-4227`). Sensor update similarly writes `ed.abFlameOn` and `ed.abFlameHealthy` only when `hasAbFlame && abFlamePin >= 0`; there is no registry lookup/mirror equivalent to the main combustor flame path immediately above it (`src/Hardware.h:1805-1839`, `src/Hardware.h:1860-1865`). By contrast, the UI's calibration and sequence surfaces infer availability directly from the registry purpose and will show the sensor as fitted (`data_src/calibration.html:708-713`, `data_src/sequence.html:2598-2607`).
 

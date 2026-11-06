@@ -55,7 +55,7 @@ public:
 namespace SharedPeripheralBus {struct Guard{explicit operator bool()const{return !Mock::lockFail;}};}
 class Config {public:inline static uint32_t controlLoopHz=400;};
 class EngineData {public:bool hardwareReady=true;char hardwareFault[128]={};static EngineData& instance(){static EngineData ed;return ed;}};
-class ChannelRegistry {public:enum Driver {Relay=4,Pwm=5,Servo=6};struct Channel {bool installed=true,inverted=false;int pin=-1;Driver driver=Servo;};uint8_t outputCount=0;Channel outputs[16];};
+class ChannelRegistry {public:enum Driver {Relay=4,Pwm=5,Servo=6};struct Channel {bool installed=true,inverted=false;int pin=-1;uint8_t pwmZeroMode=0;Driver driver=Servo;};uint8_t outputCount=0;Channel outputs[16];};
 class HardwareConfig {public:inline static ChannelRegistry channelRegistry;};
 class PcbProfileManager {
 public:

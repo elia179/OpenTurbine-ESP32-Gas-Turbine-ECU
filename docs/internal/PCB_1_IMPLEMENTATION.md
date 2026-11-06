@@ -298,3 +298,161 @@ uninterrupted full release-runner pass. Scroll controls pass all 24 browser/
 viewport/page combinations; safety matrix passes 29 cases / 85 fields / 8,713
 checks per source/compressed browser variant. The enterprise-policy-blocked
 native feedback-control executable still prevents a complete release gate.
+
+
+### November 4 — connector workflows and zero-demand behaviour
+
+The PCB profile now declares the exposed J18 GPIOs (17, 48, 46, 47). The
+ordinary GPIO editor remains available for them; Start/Stop connectors and
+GPIO17/48 cannot claim the same resource simultaneously. User-facing PCB
+choices use Connector names; GPIO choices use spaced GPIO labels. Legacy
+extension-port IDs remain readable. The six MOSFET INH pins remain reserved
+for their named power connectors even when no channel is assigned, preventing
+an unrelated bus or raw GPIO assignment from reusing a backend-owned pin.
+
+New assignments immediately carry GPIO/I2C/SPI transport metadata from the
+profile into the editor. This fixes wrong power-timer editors before reboot,
+multiple new ADCs sharing placeholder channel zero, and new thermocouples
+being rejected by registry validation before profile resolution. Read-only
+Advanced connection details expose these values without adding normal setup
+fields. Selecting the same input connector preserves the user's pull-up choice.
+ADC inputs never offer unsupported bias toggles.
+
+Power PWM now offers Brake (default, continuous low-side on at zero) and Coast
+(both off at zero). Both retain complementary PWM above zero. Initialization,
+reported driver faults, communication faults and missed progress deadlines
+inhibit both FETs. Coast is cleared when moving to a logic connector or on/off
+mode; its JSON value is strictly validated. DRV8350 OCP deglitch is now 4 us,
+with the 70 mV threshold and latched shutdown retained. Exhaustive chip-select
+mask checks preserve every INL bit and deselect the other driver.
+
+Three simulated PCB workflows (turbojet, free-power, dual-oil/auxiliaries) pass
+Hardware setup, mock storage/reload and Controllers/Calibration/Sequence/Tools
+page checks. Their exported registries also pass the real S3 registry parser.
+The largest setup uses all eight ADC connectors and both thermocouples; the
+free-power setup includes a raw GPIO47 PWM auxiliary. Named Start/GPIO17
+ownership is checked in both directions. The initial GPIO46 input-only restriction
+was later corrected against the S3 datasheet and framework capabilities.
+The source and compressed PCB audit passes Chromium, Firefox and WebKit.
+Seventeen profile validator tests, 217 source wiring/driver checks, backend
+behaviour at 100/5000/10000/20000 Hz, both firmware/filesystem builds and their
+memory budgets pass. No physical power PCB was exercised. No hardware flash
+or publication was performed during this review. Web revision: 20261104b.
+
+The final header workflow also covers switching an existing Start assignment
+between Start Connector and GPIO17 in place, without removing/recreating the
+channel. Focused complete setups pass Chromium source and Firefox/WebKit
+compressed assets, including normal signal-type controls on GPIO47.
+
+
+### Follow-up: mutation and import hardening
+
+Continued review found additional issues beyond initial successful setups:
+
+- Profile-backed wiring is canonicalized before registry insertion, avoiding
+  premature rejection of imported placeholder/stale GPIO, ADC and SPI fields.
+  A generic parser callback keeps PCB routing in the resolver. Final resource
+  and capability checks still run. Failed channel parsing clears partial state
+  and inhibits START rather than leaving a partial inventory active.
+- Legacy digital safety mirrors source their GPIO from profile metadata before
+  reconciliation; stale imported physical pins cannot survive in hidden slots.
+- Mirrored outputs expose a connector picker immediately and do not inherit a
+  power-specific Coast setting until they acquire a compatible power endpoint.
+- Saved offline assignments warn without blocking unrelated edits; genuinely
+  new unavailable assignments remain blocked. The web preflight no longer
+  accepts installed:false as a bypass: registry membership means installed.
+- Indicators support exposed GPIOs and normal polarity controls, including
+  disable/re-enable without losing the selected wiring. Connector defaults are
+  discovered from profile metadata rather than connector IDs.
+- GPIO46 was incorrectly treated as input-only throughout the S3 UI, firmware
+  and profile tools. Espressif's S3 datasheet and pinned IDF capability mask
+  confirm output support; the restriction was removed. Its boot strap warning
+  remains. GPIO46 has a physical 10 kOhm pull-down and GPIO47 a physical 10 kOhm
+  pull-up; profile-provided notes explain that software bias cannot remove them.
+- Background discovery alternates address scans with input sampling instead
+  of suspending samples for the whole scan. The focused test measured a 4 ms
+  maximum sample gap during discovery. I2C recovery and all 64 PCB pull-up/LED
+  combinations pass. This is host scheduling evidence, not a bus timing bound.
+- The hardware save review catches excess signal PWM channels and distinct
+  timer settings before submission; dedicated MCPWM power outputs are excluded.
+
+The expanded phase/digital-mirror tests and peripheral tests execute and pass.
+The updated combined PCB parser/resolver test compiles, but Windows Application
+Control blocks its executable after the bounded same-file retries (WinError
+4551). Its new import-runtime assertions remain unverified here. Do not claim
+that the earlier parser pass covers the expanded test. Physical PCB testing,
+release gate completion, hardware flashing and publication remain separate.
+
+Follow-up execution note: S3 peripheral behavior passes; the standalone S3 GPIO
+bias executable is additionally blocked by Windows Application Control after
+bounded retries. The browser GPIO regression passes independently.
+
+
+### Broader software review
+
+The next review expanded beyond PCB workflows. Hardware channels now reject
+oversized names/IDs/references before copying them into fixed buffers; UI
+preflight uses UTF-8 byte lengths. Channel registry lists explicitly reject
+non-array JSON instead of silently becoming empty lists. Controller names have
+the same byte-sized UI/backend check. Custom sequence block names/descriptions
+are checked by encoded bytes both in the dialog and before saving. Native
+registry/schema tests and source/compressed browser boundary tests pass.
+
+Setup Tool chunk writes require a parsed ok:true acknowledgement, not just a
+2xx HTTP status. Empty, malformed and explicit-failure responses stop without
+an automatic repeat; transport-loss retries retain exact offsets. Backup
+snapshots use unique directories even within one second, preventing overwrite.
+Go tests pass for both changes. Public-content validation, 27 release-tool
+unit tests, 39 harness tests, independent MAVLink decoding, 17 turbine setup
+variants and 321 safety checks pass. The broader UI run is staged: outdated
+GPIO46 output restrictions in two tests were corrected to match Espressif's
+S3 capability documentation; subsequent runs resume from those failures.
+Final all-program coverage must be recorded after the remaining audits finish.
+
+
+### Shared save handling and completed broader browser review (2026-11-04)
+
+The staged browser review completed all 55 programs present when it started.
+Two stale test expectations for S3 GPIO46 were corrected; subsequent runs
+resumed from the failing programs. This is staged coverage, not an uninterrupted
+release gate. Three additional source/compressed acknowledgement regressions
+bring current browser program coverage to 58.
+
+Save transport is now shared in ui_dialog.js, which is loaded by standalone
+Sequence as well as app.js pages. Config and Hardware wrappers retain their
+page-owned telemetry and validation behavior. Hardware previously accepted a
+malformed 2xx response as saved/rebooting; Sequence and Calibration could also
+accept responses without explicit ok:true. All now require a valid positive
+acknowledgement. Lost responses and timeouts never automatically replay a write.
+Sequence and Hardware reject duplicate save attempts, lock editing while a
+request is pending, retain the draft after failure and release the editor.
+Calibration only runs its success callback after confirmed success or a verified
+no-op. Config HTTP rejection objects remain available for detailed field errors.
+
+New source and packaged-page tests cover malformed/empty/explicitly rejected
+acknowledgements, successful saves, draft retention and duplicate locks; Sequence
+also covers timeout recovery. System/Controllers lifecycle checks pass in all
+three browsers after consolidation. Restore/calibration recovery and Hardware
+single-edit audits pass. Logs are in artifacts/pcb2/nov4-*-save-*.txt and
+nov4-shared-save-*.txt. No firmware was flashed and no changes were published.
+
+
+### Final maintenance transport review (2026-11-04)
+
+Browser firmware chunks now have a 20-second response/body timeout and require
+boolean ok:true acknowledgements. Explicit rejection or malformed replies stop
+without replay; transport loss retries the same offset with visible progress.
+Web-file uploads also require a successful HTTP status and boolean ok:true.
+The old unreachable Tools update functions were removed; System > Maintenance
+is the sole browser update implementation. This removes roughly 6 KB of source
+and approximately 1 KB of compressed installed code without removing UI controls.
+All three browsers pass source/compressed tests for malformed/false/string
+acknowledgements, HTTP errors, header/body stalls, exact-offset retries and
+complete firmware/web progress (tools/ui_update_transport_audit.cjs).
+
+The two command-line uploaders share acknowledgement validation and retry only
+transport exceptions, never explicit HTTP/application rejection. Empty web sets
+and nonpositive chunk/retry values are rejected before starting. Four focused
+unit tests pass. Final live evidence is being collected separately under
+artifacts/pcb2/nov4-final-hardware; do not infer a completed release gate from
+these implementation checks.

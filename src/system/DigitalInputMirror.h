@@ -21,7 +21,7 @@ inline bool registryRuntimeDiRole(const char* role) {
 // Preserve slot indexes, debounce and mode masks, but source wiring and purpose
 // from the canonical device. A removed or repurposed device must not leave a
 // second, invisible safety input behind. Unmarked legacy inputs remain intact.
-inline void reconcileRegistryDigitalInputs(JsonDocument& doc) {
+inline void reconcileRegistryDigitalInputs(JsonDocument& doc, int (*canonicalPin)(JsonObjectConst) = nullptr) {
     if (!doc["channel_registry"]["inputs"].is<JsonArray>()) return;
     for (JsonObject di : doc["di_channels"].as<JsonArray>()) {
         const char* id = di["registry_id"] | "";
@@ -31,10 +31,9 @@ inline void reconcileRegistryDigitalInputs(JsonDocument& doc) {
             if (!strcmp(candidate["id"] | "", id)) { source = candidate; break; }
         }
         const char* role = source["role"] | "";
-        if (!source.isNull() && (source["installed"] | true) &&
-            (source["driver"] | -1) == ChannelRegistry::Digital &&
-            (source["pin"] | -1) >= 0 && registryRuntimeDiRole(role)) {
-            di["pin"] = source["pin"];
+        const int pin=canonicalPin?canonicalPin(source):((source["driver"] | -1)==ChannelRegistry::Digital?(source["pin"] | -1):-1);
+        if (!source.isNull() && (source["installed"] | true) && pin>=0 && registryRuntimeDiRole(role)) {
+            di["pin"] = pin;
             di["role"] = role;
             di["active_h"] = source["active_high"] | true;
             di["label"] = source["name"] | id;

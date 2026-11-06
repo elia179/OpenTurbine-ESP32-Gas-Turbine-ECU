@@ -225,7 +225,7 @@ function enumNames(source, marker) {
           actuators: { status_led: { enabled: true, pin: 5 } }
         },
         checks: async () => {
-          assert.equal(await page.evaluate(() => buildPinOptions(46, 'out').includes('value="46"')), false);
+          assert.equal(await page.evaluate(() => buildPinOptions(46, 'out').includes('value="46"')), true);
         }
       }
     ];
@@ -402,7 +402,7 @@ function enumNames(source, marker) {
     assert.match(webSource, /doc\["has_oil_pump_current"\]\s+=\s+HardwareConfig::hasOilPump && HardwareConfig::hasOilPumpCurrentSensor/);
     assert.match(webSource, /doc\["uptime_s"\]\s+=\s+ed\.uptimeMs \/ 1000;\s*doc\["boot_count"\]\s+=\s+ed\.bootCount/);
     assert.match(webSource, /doc\["config_storage_fault"\]\s+=\s+ed\.configStorageFault/);
-    assert.match(webSource, /RecentEventLog::seekTail\(f\)/);
+    assert.match(webSource, /RecentEventLog::seekTail\(f,/);
     assert.match(fs.readFileSync('src/system/RecentEventLog.h','utf8'), /readBytesUntil\('\\n',line,capacity-1\)/);
     assert.match(webSource, /JsonDocument doc;[\s\S]*char lineBuf\[640\];[\s\S]*deserializeJson\(doc, lineBuf\)/);
     const calibrationHtml = fs.readFileSync(path.join('data_src', 'calibration.html'), 'utf8');
@@ -500,7 +500,7 @@ function enumNames(source, marker) {
     assert.match(webServer, /String writePath = _assetPath\(\(uint16_t\)asset, false\)/);
     assert.match(webServer, /_server\.on\("\/api\/web_asset_chunk"/);
     assert.doesNotMatch(webServer, /_server\.on\("\/api\/web_assets"/);
-    const toolsSource = fs.readFileSync(path.join('data_src', 'tools.html'), 'utf8');
+    const toolsSource = fs.readFileSync(path.join('data_src', 'pages', 'config-runtime.js'), 'utf8');
     const webAssetOrder = toolsSource.match(/const required = \[([\s\S]*?)\];/);
     assert.ok(webAssetOrder);
     assert.ok(webAssetOrder[1].lastIndexOf("'tools.html.gz'") >

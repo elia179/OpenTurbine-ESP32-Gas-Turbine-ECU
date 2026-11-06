@@ -66,7 +66,7 @@ async function hasOption(page, selector, value) {
       adc10: buildPinOptions(-1, 'adc').includes('value="10"'),
       adc11: buildPinOptions(-1, 'adc').includes('value="11"')
     }));
-    assert.deepEqual(s3Pins, {out46:false, out22:false, adc10:true, adc11:false});
+    assert.deepEqual(s3Pins, {out46:true, out22:false, adc10:true, adc11:false});
     results.push('ESP32-S3 pin selectors match firmware GPIO, output and ADC limits');
 
     const conflictMatrix = await page.evaluate(() => {

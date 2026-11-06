@@ -11,10 +11,15 @@ const executablePath = [process.env.PROGRAMFILES, process.env.LOCALAPPDATA]
   const browser = await chromium.launch({headless:true,...(executablePath ? {executablePath} : {})});
   try {
     const page = await browser.newPage({acceptDownloads:true});
+    await page.addInitScript(()=>{
+      for(const key of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1'])localStorage.setItem(key,'1');
+    });
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
     await page.goto(`${base}/log.html`, {waitUntil:'domcontentloaded'});
     await page.waitForFunction(() => /Connected/i.test(document.querySelector('#conn-label')?.textContent || ''));
+    await page.waitForFunction(()=>document.querySelector('#log-count')?.textContent.includes('recent events') ||
+      /No events/i.test(document.querySelector('#log-body')?.textContent||''));
     for (const [label, name] of [['Event CSV','event_log.csv'],['Event NDJSON','event_log.ndjson']]) {
       const pending = page.waitForEvent('download', {timeout:30000});
       await page.getByRole('button', {name:label, exact:true}).click();

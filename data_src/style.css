@@ -2411,3 +2411,66 @@ body.dashboard-awaiting-snapshot #adv-act-section {
 .registry-output-row .value { margin:0;font-size:.95rem; }
 .registry-output-row .output-range { display:none; }
 .registry-output-row .gauge-bar-wrap,.registry-output-row .output-current { grid-column:1/-1; }
+
+/* Expanded details use the available width without stretching adjacent cards. */
+#tool-area > .tool-card:has(> .tool-component-tests[open]),
+.telemetry > .card:has(> .command-details[open]) {
+  grid-column: 1 / -1;
+}
+#dashboard-custom-cards > .card:not([data-dashboard-detail="minimal"]):has(> .command-details[open]) {
+  grid-column: 1 / -1 !important;
+}
+.tool-component-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+}
+.tool-component-tests > .tool-desc { margin-bottom: .65rem; }
+.tool-component-grid > .tool-card { max-width: none; margin: 0; }
+@media (max-width: 700px) {
+  .tool-component-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.conn-dot.loading { background: #899198; box-shadow: none; }
+.ot-navigation-notice {
+  position: fixed;
+  z-index: 10001;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 2rem);
+  padding: .8rem 1.15rem;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 22px #0006;
+  font: 600 .9rem var(--font-ui);
+  text-align: center;
+  pointer-events: none;
+}
+
+.ot-navigation-notice { display: flex; align-items: center; gap: .65rem; }
+.ot-navigation-notice::before {
+  content: "";
+  width: .9rem;
+  height: .9rem;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: otLoadingSpin .8s linear infinite;
+}
+@keyframes otLoadingSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ot-navigation-notice::before { animation: none; }
+}
+
+.registry-add-option:disabled { pointer-events: auto; cursor: help; }
+
+/* Profile-provided connector reference inside Hardware board information. */
+.pcb-connection-guide { margin-top:.8rem; font-weight:400; line-height:1.6; }
+.pcb-connection-guide table { width:100%; border-collapse:collapse; margin:.75rem 0; }
+.pcb-connection-guide th,.pcb-connection-guide td { padding:.6rem .75rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--border); }
+.pcb-connection-guide th { color:var(--accent); }
+.pcb-connection-guide td:first-child { width:34%; }
+.pcb-connection-guide p,.pcb-connection-guide ul { margin:.75rem 0; }

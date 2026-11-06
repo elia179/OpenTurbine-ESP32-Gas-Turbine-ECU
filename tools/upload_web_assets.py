@@ -9,12 +9,13 @@ lost response can be retried without writing the same flash range twice.
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import time
 import urllib.parse
 import urllib.error
 import urllib.request
+
+from update_transport import TRANSPORT_ERRORS, read_acknowledgement
 
 
 ASSETS = (
@@ -35,9 +36,7 @@ def post_chunk(endpoint: str, name: str, offset: int, payload: bytes, final: boo
                  "Connection": "close"},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        result = json.loads(response.read().decode("utf-8"))
-    if not result.get("ok"):
-        raise RuntimeError(result.get("error") or "asset chunk was rejected")
+        result = read_acknowledgement(response)
     return result
 
 
@@ -61,7 +60,7 @@ def upload_once(base: str, data_dir: Path, chunk_size: int, timeout: float,
                     # Explicit ECU rejection is authoritative; only retry when
                     # it is unknown whether the response was delivered.
                     raise
-                except Exception as error:
+                except TRANSPORT_ERRORS as error:
                     last_error = error
                     if attempt == 4:
                         raise
@@ -107,13 +106,20 @@ def main() -> int:
     missing = [name for name in ASSETS if not (args.data / name).is_file()]
     if missing:
         raise SystemExit("missing generated assets: " + ", ".join(missing))
+    if args.attempts < 1 or args.chunk_size < 1 or args.timeout <= 0:
+        parser.error("attempts, chunk-size and timeout must be positive")
+    empty = [name for name in ASSETS if (args.data / name).stat().st_size == 0]
+    if empty:
+        parser.error("empty generated assets: " + ", ".join(empty))
     for attempt in range(1, args.attempts + 1):
         try:
             upload_once(args.base, args.data, args.chunk_size, args.timeout,
                         args.replay_first, args.replay_final)
             print("Web assets accepted; ECU is restarting.")
             return 0
-        except Exception as error:
+        except urllib.error.HTTPError:
+            raise
+        except TRANSPORT_ERRORS as error:
             if attempt == args.attempts:
                 raise
             print(f"\nAttempt {attempt} interrupted: {error}")

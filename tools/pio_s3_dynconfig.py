@@ -120,6 +120,56 @@ def patch_async_webserver_request(env):
             handle.write(patched)
 
 
+def patch_asynctcp_accept_reserve(env):
+    """Keep Wi-Fi/lwIP reserve before accepted clients enter the async queue.
+
+    Middleware runs after request allocation and header parsing. Several
+    queued accepts can consume that reserve before middleware gets a turn.
+    Reject unaffordable transports on the lwIP thread before client/event
+    allocation; tcp_abort here must return ERR_ABRT to the accept callback.
+    """
+    import os
+    path = os.path.join(env.subst("$PROJECT_LIBDEPS_DIR"), env["PIOENV"],
+                        "AsyncTCP", "src", "AsyncTCP.cpp")
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    marker = "// OpenTurbine: reserve Wi-Fi/lwIP heap before queueing an accept."
+    anchor = "  auto server = reinterpret_cast<AsyncServer *>(arg);"
+    legacy = """#if defined(ARDUINO) && defined(ESP32)
+  // OpenTurbine: reserve Wi-Fi/lwIP heap before queueing an accept.
+  if (ESP.getFreeHeap() < 32768 || ESP.getMaxAllocHeap() < 8192) {
+    tcp_abort(pcb);
+    return ERR_ABRT;
+  }
+#endif
+"""
+    guard = """#if defined(ARDUINO) && defined(ESP32)
+  // OpenTurbine: reserve Wi-Fi/lwIP heap before queueing an accept.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  constexpr uint32_t minimumHeap = 8192, minimumBlock = 2048;
+#else
+  constexpr uint32_t minimumHeap = 16384, minimumBlock = 4096;
+#endif
+  if (ESP.getFreeHeap() < minimumHeap || ESP.getMaxAllocHeap() < minimumBlock) {
+    tcp_abort(pcb);
+    return ERR_ABRT;
+  }
+#endif
+"""
+    if guard in text:
+        return
+    if legacy in text:
+        text = text.replace(legacy, guard, 1)
+    elif marker in text or text.count(anchor) != 1:
+        raise RuntimeError("AsyncTCP accept callback changed; review pinned dependency")
+    else:
+        text = text.replace(anchor, guard + anchor, 1)
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
 def patch_async_webserver_accept(env):
     """Reject an unaffordable HTTP request instead of terminating firmware.
 
@@ -565,6 +615,7 @@ def patch_async_webserver_paced_streaming(env):
 
 
 patch_async_webserver_request(env)
+patch_asynctcp_accept_reserve(env)
 patch_async_webserver_accept(env)
 patch_async_webserver_responses(env)
 patch_async_webserver_header_retention(env)

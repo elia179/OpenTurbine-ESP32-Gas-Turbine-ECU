@@ -51,7 +51,9 @@ public:
     // Current number of records in the log (0 before first write).
     static int recordCount();
     static uint32_t droppedEvents();
-    static uint8_t pendingCount();
+    static uint16_t pendingCount();
+    static uint32_t pendingBytes();
+    static uint32_t capacityBytes();
     static bool healthy();
     static uint8_t errorCode();
     static uint32_t lastDurableAppendMs();

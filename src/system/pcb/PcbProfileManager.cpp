@@ -137,7 +137,7 @@ __attribute__((noinline)) bool PcbProfileManager::validTargetPin(int pin, bool o
         0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,21,
         35,36,37,38,39,40,41,42,43,44,45,46,47,48
     };
-    if (output && pin == 46) return false;
+    // All exposed S3 GPIO pads support output, including GPIO46.
 #else
     static const int8_t pins[] = {
         0,1,2,3,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,
@@ -795,6 +795,22 @@ bool PcbProfileManager::parsePayload(uint8_t* payload, size_t length,
          !claimGpio(catalog->supplyVoltageGpio, fixedOwner++, false))) {
         return reject("fixed PCB output conflicts with another GPIO use");
     }
+    if (!doc["gpio_headers"].isNull() && !doc["gpio_headers"].is<JsonArrayConst>())return reject("GPIO headers must be an array");
+    if(!root["gpio_header_notes"].isNull() && !root["gpio_header_notes"].is<JsonObjectConst>())return reject("GPIO header notes must be an object");
+    for(JsonVariantConst value:doc["gpio_headers"].as<JsonArrayConst>()){
+        if(!value.is<int>() || catalog->gpioHeaderCount>=12)return reject("invalid GPIO header declaration");
+        const int pin=value.as<int>();
+        if(pin<0 || pin>=49 || !validTargetPin(pin,false) || gpioOwner[pin]>=100)return reject("GPIO header conflicts with fixed PCB wiring");
+        for(uint8_t prior=0;prior<catalog->gpioHeaderCount;prior++)if(catalog->gpioHeaders[prior]==pin)return reject("duplicate GPIO header");
+#if !defined(OT_PLATFORM_ESP32)
+        if(catalog->hasPowerStage)for(int inh:catalog->powerInh)if(inh==pin)return reject("power driver input cannot be a raw GPIO header");
+#endif
+        char noteKey[4];snprintf(noteKey,sizeof(noteKey),"%d",pin);
+        const auto note=root["gpio_header_notes"][noteKey];
+        if(!note.isNull() && (!note.is<const char*>() || strlen(note.as<const char*>())>=64))return reject("GPIO header note is invalid or too long");
+        strlcpy(catalog->gpioHeaderNotes[catalog->gpioHeaderCount],note | "",64);
+        catalog->gpioHeaders[catalog->gpioHeaderCount++]=pin;
+    }
     for (uint8_t i = 0; i < catalog->portCount; ++i) {
         const Port& port = catalog->ports[i];
         for (uint8_t j = 0; j < port.modeCount; ++j) {
@@ -889,8 +905,12 @@ bool PcbProfileManager::ownsBusKind(const char* kind) {
 
 bool PcbProfileManager::gpioReserved(int gpio) {
     if (!_catalog || gpio < 0) return false;
+#if !defined(OT_PLATFORM_ESP32)
+    if(_catalog->hasPowerStage)for(int pin:_catalog->powerInh)if(pin==gpio)return true;
+#endif
     for (uint8_t i = 0; i < _catalog->busCount; ++i) {
         const Bus& bus = _catalog->buses[i];
+        if (!strcmp(bus.kind, "uart")) continue; // Claimed by the enabled serial link.
         for (int pin : {bus.sda, bus.scl, bus.interrupt, bus.sck, bus.miso,
                         bus.mosi, bus.tx, bus.rx, bus.data})
             if (pin == gpio) return true;
@@ -947,6 +967,10 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
     out["origin"] = _catalog->origin == Origin::Official ? "official" :
                     _catalog->origin == Origin::Custom ? "custom" : "unknown";
     out["port_count"] = _catalog->portCount;
+    JsonArray gpioHeaders=out["gpio_headers"].to<JsonArray>();
+    for(uint8_t i=0;i<_catalog->gpioHeaderCount;i++)gpioHeaders.add(_catalog->gpioHeaders[i]);
+    JsonObject headerNotes=out["gpio_header_notes"].to<JsonObject>();
+    for(uint8_t i=0;i<_catalog->gpioHeaderCount;i++)if(_catalog->gpioHeaderNotes[i][0]){char key[4];snprintf(key,sizeof(key),"%d",_catalog->gpioHeaders[i]);headerNotes[key]=_catalog->gpioHeaderNotes[i];}
     JsonObject busOwnership = out["bus_ownership"].to<JsonObject>();
     busOwnership["i2c"] = ownsBusKind("i2c");
     busOwnership["spi"] = ownsBusKind("spi");
@@ -984,6 +1008,15 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
     if (serialBus[0]) {
         fixed["mavlink"]["available"] = true;
         fixed["mavlink"]["connection"] = serialBus;
+        const auto* bus = findBus(serialBus);
+        if (bus) {
+            fixed["mavlink"]["default_tx"] = bus->tx;
+            fixed["mavlink"]["default_rx"] = bus->rx;
+            JsonObject labels = out["gpio_labels"].to<JsonObject>();
+            char key[4];
+            snprintf(key, sizeof(key), "%d", bus->tx); labels[key] = "UART TX";
+            snprintf(key, sizeof(key), "%d", bus->rx); labels[key] = "UART RX";
+        }
     }
     if (!includePorts) return;
     JsonArray ports = out["ports"].to<JsonArray>();
@@ -1003,6 +1036,7 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
             m["id"] = mode.id; m["adapter"] = adapter;
             if (mode.gpio >= 0) m["gpio"] = mode.gpio;
             m["active_high"] = mode.activeHigh;
+            if(strstr(adapter,"output"))m["safe_demand"]=mode.safeDemand;
             m["pull"] = mode.pull == 1 ? "up" : mode.pull == 2 ? "down" : "none";
 #if !defined(OT_PLATFORM_ESP32)
             if(mode.pullDeviceIndex>=0) m["external_pullup"] = true;
@@ -1011,6 +1045,14 @@ void PcbProfileManager::toJson(JsonObject out, bool includePorts,
             if (device) {
                 m["device"] = device->id;
                 m["device_driver"] = device->driver;
+                if (!strcmp(adapter,"spi_thermocouple")) {
+                    const Bus* bus=findBus(device->busId);
+                    if(bus){m["spi_clk"]=bus->sck;m["spi_miso"]=bus->miso;m["spi_mosi"]=bus->mosi;m["spi_cs"]=device->selectGpio;}
+                }
+                if (device->address) {
+                    m["i2c_address"] = device->address;
+                    m["device_channel"] = mode.channel;
+                }
             }
             const DefaultAssignment* defaultAssignment = nullptr;
             for (uint8_t d = 0; d < _catalog->defaultCount; ++d) {

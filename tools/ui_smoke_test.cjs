@@ -1667,7 +1667,7 @@ function installedBrowser() {
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/status').length, 1);
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/list').length, 1);
     assert.equal(sessionRequests.filter(pathname => pathname === '/api/session/log').length, 1);
-    assert.equal(sessionRequests.filter(pathname => pathname === '/api/hardware').length, 1, 'Names load Hardware once per page visit');
+    assert.equal(sessionRequests.filter(pathname => pathname === '/api/hardware').length, 0, 'Compact session status supplies channel names without loading full Hardware');
     assert.equal(sessionRequests.some(pathname => ['/api/data','/api/config'].includes(pathname)), false);
     assert.equal(await page.locator('[data-bit="p1"]').count(), 1);
     assert.equal(await page.locator('[data-bit="p2"]').count(), 1);

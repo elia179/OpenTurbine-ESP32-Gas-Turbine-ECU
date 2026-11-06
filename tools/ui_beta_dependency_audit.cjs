@@ -281,7 +281,7 @@ async function optionDisabled(page, selector, value) {
     assert.match(sensorInterfaceUx.torqueEditor, /HX711 SCK GPIO/);
     assert.match(sensorInterfaceUx.torqueEditor, /Sensor interface/);
     assert.match(sensorInterfaceUx.torqueEditor, /NAU7802 I2C load cell/);
-    assert.equal(sensorInterfaceUx.torqueSignalEditor, '');
+    assert.match(sensorInterfaceUx.torqueSignalEditor, /Digital \/ HX711/);
     assert.match(sensorInterfaceUx.torquePins, /DOUT GPIO5 \/ SCK GPIO6/);
     assert.equal(sensorInterfaceUx.digitalRangeProblem, '');
     assert.match(sensorInterfaceUx.unsafeTotInterface, /low-range or general temperature/i);

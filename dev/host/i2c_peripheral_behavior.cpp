@@ -82,6 +82,21 @@ int main() {
     // A selected-channel change can expose an old latched result. Every
     // published value must carry its own ID, including alternating channels.
     for(unsigned i=0; i<40; ++i) { tick(2); read(0,1500); read(1,2000); }
+    // Discovery remains bounded but must keep publishing assigned inputs
+    // throughout the 17-address sweep instead of pausing them for 34 ms.
+    r.inputCount=1;tick(20);I2CDeviceManager::requestScan();
+    uint32_t previousSeq=0,previousSample=millis();unsigned fresh=0,maxGap=0;
+    float sampleValue;int32_t sampleRaw;uint32_t sampleSeq,sampleMs;
+    I2CDeviceManager::input(0,sampleValue,sampleRaw,previousSeq,previousSample);
+    for(unsigned step=0;step<50;step++){
+        fakeMillisClock()+=2;I2CDeviceManager::tick(true);
+        if(I2CDeviceManager::input(0,sampleValue,sampleRaw,sampleSeq,sampleMs)&&sampleSeq!=previousSeq){
+            maxGap=std::max(maxGap,unsigned(sampleMs-previousSample));previousSample=sampleMs;previousSeq=sampleSeq;++fresh;
+        }
+    }
+    std::cerr<<"discovery samples="<<fresh<<" max_gap_ms="<<maxGap<<std::endl;
+    if(fresh<15||maxGap>12)return 2;
+    r.inputCount=2;
     Wire.tla[2]=0; // reset removes the appended ID; driver must recover it.
     tick(50); assert(Wire.tla[2]==0x10);
     std::cout << "TLA2528 retained-configuration recovery, channel-ID isolation and reset recovery passed\n";

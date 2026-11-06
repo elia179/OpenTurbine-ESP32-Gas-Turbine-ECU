@@ -37,6 +37,7 @@ public:
         _enabled = enabled && sda >= 0 && scl >= 0 && sda != scl;
         _registry = &registry;
         _tcaConfigured = 0;
+        _scanInputTurn=false;
         _tlaConfigured = _tlaCalibrated = 0;
         _tlaCalibratingAddress = 0;
         _tlaPendingRegistryIndex = 255;
@@ -90,6 +91,7 @@ public:
             _scanRequested = false;
             _scanActive = true;
             _scanCursor = 0;
+            _scanInputTurn=false;
             _lastScanMs = now;
         }
         const bool interruptActive =
@@ -97,7 +99,11 @@ public:
         if (!interruptActive && now - _lastServiceMs < 2UL) return;
         _lastServiceMs = now;
         if (_scanActive) {
-            _scanStep();
+            // Discovery must not suspend operator/pressure feedback for an
+            // entire address sweep. Keep each control pass bounded and
+            // alternate maintenance work with assigned input sampling.
+            if(_scanInputTurn)_serviceOneInput();else _scanStep();
+            _scanInputTurn=!_scanInputTurn;
             return;
         }
         _serviceOneInput();
@@ -203,7 +209,7 @@ private:
     inline static uint8_t _serviceIndex = 0;
     inline static int8_t _interruptPin = -1;
     inline static uint8_t _scanCursor = 0;
-    inline static bool _scanActive = false;
+    inline static bool _scanActive = false, _scanInputTurn = false;
     inline static uint32_t _lastScanMs = 0, _lastServiceMs = 0;
     inline static float _values[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     inline static int32_t _raw[ChannelRegistry::MAX_INPUT_CHANNELS] = {};

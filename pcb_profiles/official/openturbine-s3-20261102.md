@@ -1,10 +1,14 @@
 # OpenTurbine PCB v1.0 — final source 4 November 2026
 
-Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.6.1-dev firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
+Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.7.0 firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 
 Source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`, SHA256 `e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
 
+The Setup Tool bundles this profile. A standalone [profile JSON download](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbine_PCB_v1.0.otpcb.json) is also included with the matched release; do not substitute an archived routing.
+
 ## Choose connectors, then functions
+
+Back up the engine file before switching a development board to this profile. If its existing GPIO configuration conflicts with the PCB wiring, the firmware uses safe defaults and inhibits START. Connect to the default Wi-Fi network `openturbine-s3-20261102`, then configure the named PCB connections or restore a compatible engine file. The Engine / Wi-Fi name can be changed on the System page.
 
 Add an input or output, choose a named connector once, then select its supported signal type. Engine purposes and names remain user configurable. Start/Stop and Status/Fault LEDs are prefitted defaults and remain configurable. Thermocouples, ADC channels, conditioning and buses come from the PCB profile.
 
@@ -22,7 +26,7 @@ Add an input or output, choose a named connector once, then select its supported
 | Battery monitor | ADC1 GPIO10; calibrated ADC millivolts × 37.0 |
 | Shared buses | I²C GPIO4/5 at 100 kHz; SPI MOSI/SCK/MISO GPIO11/12/13 |
 | MAVLink | UART TX/RX GPIO43/44 |
-| Extension | GPIO46 input only; GPIO47 has a physical 10 kΩ pull-up |
+| Extension | GPIO46 input/output (strapping pin, 10 kΩ pull-down); GPIO47 has a physical 10 kΩ pull-up |
 
 OUT is a signal connector, not a load-power output. PWM loads connect between the switched positive output and ground. No per-channel current ADC exists: the driver VDS protection does not measure or enforce an accurate 30 A/100 A current budget.
 
@@ -38,10 +42,10 @@ Initial driver policy, from TI SLVSDY6A tables 14–17:
 
 - 3x PWM, protected complementary switching; associated-half-bridge OCP action, gate undervoltage/gate-fault protection retained and thermal warning reported.
 - 50 mA gate source / 100 mA sink, 4 µs peak-drive window, 400 ns minimum dead time.
-- Latched VDS OCP, 2 µs deglitch, 70 mV VDS threshold (second-lowest). These are prototype starting settings, **not calibrated load-current ratings**; verify switching and nuisance-trip margins on the real board.
+- Latched VDS OCP, 4 µs deglitch, 70 mV VDS threshold (second-lowest). These are prototype starting settings, **not calibrated load-current ratings**; verify switching and nuisance-trip margins on the real board.
 - Read back all programmed registers, then lock configuration. Poll each driver's status and configuration once per second (alternating at 500 ms); a reported driver fault stops outputs and is held for explicit Dashboard acknowledgement. The clear command is sent only on acknowledgement, with phases disabled, and both drivers must pass status/configuration readback. No automatic OCP retry occurs. Unverified expander/configuration failures or missed control deadlines stop the heartbeat.
 
-A zero demand disables INL as well as INH, leaving both FETs off. A phase returning from off to partial duty preloads its new compare value for a full carrier period while disabled, preventing an old duty value from leaking into the first pulse. Positive PWM uses synchronous recirculation. Six independent MCPWM power timers leave LEDC available for six signal outputs; compatible equal-frequency power carriers are staggered. Software sync between the two timer groups has a small skew, and independently chosen frequencies drift. Scope verification and capacitor ripple/thermal measurements remain necessary. Power PWM is limited to 100–20,000 Hz; at 5 MHz timer resolution, the number of duty steps depends on frequency. Signal-output timing must fit the remaining LEDC channels/timers.
+Each power PWM channel offers Brake (default) or Coast at zero command. Brake holds INH LOW and INL HIGH, keeping the low-side MOSFET continuously on. Coast holds both LOW. Positive commands retain complementary PWM. Startup inhibition and PCB hardware faults always inhibit both MOSFETs. On/off channels coast when off. A phase returning from off to partial duty preloads its new compare value for a full carrier period while disabled, preventing an old duty value from leaking into the first pulse. Positive PWM uses synchronous recirculation. Six independent MCPWM power timers leave LEDC available for six signal outputs; compatible equal-frequency power carriers are staggered. Software sync between the two timer groups has a small skew, and independently chosen frequencies drift. Scope verification and capacitor ripple/thermal measurements remain necessary. Power PWM is limited to 100–20,000 Hz; at 5 MHz timer resolution, the number of duty steps depends on frequency. Signal-output timing must fit the remaining LEDC channels/timers.
 
 An ordinary engine fault/shutdown keeps the board heartbeat alive while the normal protection sequence handles cooling/oil outputs. A **reported driver fault** forces outputs off while the healthy control loop keeps its heartbeat running; inspect the reported fault, then acknowledge it on Dashboard. Communication/configuration failures that cannot prove safe operation, watchdog failure or lost control progress instead stop the heartbeat. Hardware rail/heartbeat shutdown also latches independently. There is no firmware-readable rail-valid/latch-clear pin, so software does not claim to observe that latch directly.
 
@@ -70,3 +74,50 @@ Current source is `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2` (fingerpr
 Both thermocouple CS pins are parked high before peripheral setup, even if unassigned. Auxiliary expander startup writes 0xFF before output direction, then applies the configured pull-ups/LED states. TLA2528 setup explicitly selects all-analog/manual mode, no averaging and channel-ID output, requests offset calibration and polls it without blocking control. Samples stay invalid until calibration completes; timeout/communication loss keep them unavailable. External sensor calibration remains separate.
 
 Hardware safety timing is unmeasured. The latest brief gives modeled examples of roughly 0.54 s when heartbeat stops low and 0.67 s when it stops high; these supersede the earlier approximate 100 ms hardware estimate. The software progress deadline remains 75 ms. Driver sleep resets its registers: every hardware reset/startup repeats the disabled-phase wake/configuration/readback process. A hard safety shutdown is never automatically rearmed.
+
+
+The J18 header exposes GPIO 17 and 48 (shared with Start and Stop connectors), plus GPIO 46 (input/output, strapping pin, fixed 10 kΩ pull-down) and GPIO 47. Header GPIO assignments use ordinary development-board controls; a connector and its shared GPIO cannot be assigned simultaneously. The profile declares these header locations. Advanced connection details show read-only GPIO, SPI chip-select/bus and I²C address/channel information.
+
+MAVLink defaults to UART TX GPIO 43 and UART RX GPIO 44. Hardware >
+Communications and indicators > Connection and advanced GPIO settings shows
+these pins and allows an unused GPIO to be selected. Disabling MAVLink releases
+its pins for other functions. Pin lists label the original connections UART TX
+and UART RX and prevent conflicting assignments. Shared sensor buses shows a compact bus summary. Edit buses lists fitted devices, their roles and reported health, including unassigned PCB devices.
+Thermocouples show Not checked until assigned to a temperature input.
+
+Free GPIOs retain normal development-board sensor support. Under the advanced
+external-sensor option, a MAX6675, MAX31855 or MAX31856 can share the PCB SPI
+bus with its own unused CS GPIO. A DS18B20/OneWire input uses a free GPIO and
+the external pull-up described on its card. External I2C ADC and load-cell
+devices can use the shared I2C bus. Device-dependent choices explain when their
+source is absent.
+
+MOSFET diagnostics has separate entries for PWM 1-3 and PWM 4-6. Each reports
+its own cached SPI check result. A driver that has not been checked is shown
+as Not checked. Onboard I2C chips explain their ADC, input pull-up, indicator
+or automatic driver-control role. Status and Fault LED commands are omitted
+from Dashboard actuator rows. Tools reports missing output devices as unavailable.
+
+
+Hardware connection choices refresh automatically with device health: a recovered
+source becomes selectable without reloading the page. If a device-status check
+fails, the page shows status unavailable and retries while retaining saved
+connections and any edits. A missing-device warning does not hide an invalid
+calibration that needs correcting before saving.
+
+
+Known PCB connectors can be assigned while their onboard device is offline.
+Hardware keeps the unavailable warning visible; configuring a connector does not
+make an absent chip operational. Undiscovered external I2C devices still need a
+responding bus/device before selection. Shaft-torsion pickups use the labelled
+input connectors or exposed GPIOs. Auxiliary raw-pin lists omit internal PCB
+wiring and output stages; shared connector/GPIO assignments explain the owner.
+
+
+The Hardware board summary includes a connector guide with profile-provided
+signal levels and typical uses. OUT is a 5 V control signal; PWM switches VIN
+positive. ADC inputs cover 0–5 V; exposed ESP32 GPIO/UART use 3.3 V logic.
+Do not treat prototype VDS protection settings as a qualified amp rating.
+The connector selector can move an analog speed input to a spare GPIO by
+selecting its compatible pulse interface. Analog-only sensors still require
+an actual ADC-capable input.

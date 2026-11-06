@@ -124,6 +124,7 @@ def main() -> int:
             ("startup_temperature_integration", [str(ROOT / "dev" / "host" / "startup_temperature_integration.cpp")], []),
             ("startup_temperature_behavior", [str(ROOT / "dev" / "host" / "startup_temperature_behavior.cpp")], []),
             ("operator_adc_behavior", [str(ROOT / "dev" / "host" / "operator_adc_behavior.cpp")], []),
+            ("log_memory_behavior", [str(ROOT / "dev" / "host" / "log_memory_behavior.cpp")], []),
             ("recent_event_log_behavior", [str(ROOT / "dev" / "host" / "recent_event_log_behavior.cpp")], []),
             ("controller_activation", [str(ROOT / "dev" / "host" / "controller_activation_behavior.cpp")], []),
             ("controller_activation_integration", [str(ROOT / "dev" / "host" / "controller_activation_integration.cpp")], []),

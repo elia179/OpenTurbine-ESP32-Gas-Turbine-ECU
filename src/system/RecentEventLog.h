@@ -1,6 +1,7 @@
 #pragma once
 #include <ArduinoJson.h>
 #include <stdint.h>
+#include <string.h>
 
 // Bounded reader shared by the browser JSON and CSV routes. Never use the
 // recorder's lazy/estimated count to select a tail from a possibly damaged file.
@@ -17,8 +18,8 @@ template<class File> bool next(File& file,char* line,size_t capacity) {
     }
     return false;
 }
-template<class File> void seekTail(File& file) {
-    uint32_t offsets[120];unsigned count=0,head=0;
+template<class File> void seekTail(File& file, size_t byteBudget = SIZE_MAX) {
+    uint32_t offsets[120];uint16_t sizes[120];unsigned count=0,head=0;size_t bytes=0;
 #ifdef ARDUINO
     unsigned scanned=0;
 #endif
@@ -30,8 +31,11 @@ template<class File> void seekTail(File& file) {
         if(++scanned%32==0)delay(0);
         #endif
         doc.clear();if(deserializeJson(doc,line)||!doc["ev"].template is<const char*>())continue;
-        offsets[head]=offset;head=(head+1)%120;if(count<120)++count;
+        if(count==120)bytes-=sizes[head];else ++count;
+        offsets[head]=offset;sizes[head]=strlen(line)+1;
+        bytes+=sizes[head];head=(head+1)%120;
+        while(count && bytes>byteBudget){bytes-=sizes[(head+120-count)%120];--count;}
     }
-    file.seek(count?offsets[count<120?0:head]:file.position());
+    file.seek(count?offsets[(head+120-count)%120]:file.position());
 }
 }

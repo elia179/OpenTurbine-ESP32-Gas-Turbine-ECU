@@ -272,5 +272,23 @@ int main() {
     adapter["registry_id"] = "removed_switch"; adapter["pin"] = 35;
     reconcileRegistryDigitalInputs(adapters);
     assert(adapter["pin"].as<int>() == -1);
+    // A physical resolver must supply the canonical pin before legacy safety slots are reconciled.
+    source["role"]="low_oil_switch";source["driver"]=0;source["pin"]=0;
+    adapter["registry_id"]="flame_main";adapter["pin"]=0;
+    reconcileRegistryDigitalInputs(adapters,+[](JsonObjectConst)->int{return 17;});
+    assert(adapter["pin"].as<int>()==17);
+    reconcileRegistryDigitalInputs(adapters,+[](JsonObjectConst)->int{return -1;});
+    assert(adapter["pin"].as<int>()==-1 && adapter["registry_id"].isNull());
+
+    JsonDocument textLimits;auto textInput=textLimits["inputs"].to<JsonArray>().add<JsonObject>();
+    textInput["id"]="user_switch";textInput["name"]=std::string(23,'a');textInput["role"]="generic";textInput["driver"]=0;textInput["pin"]=4;
+    ChannelRegistry textRegistry;assert(textRegistry.fromJson(textLimits.as<JsonObjectConst>()));
+    for(const auto& field: {std::pair<const char*,size_t>{"id",20},{"name",24},{"role",18},{"purpose",20},{"mirror_of",20},{"physical_port",24},{"physical_mode",24},{"flow_input",20},{"tc_type",2}}){
+        JsonDocument oversized;oversized.set(textLimits);oversized["inputs"][0][field.first]=std::string(field.second,'a');
+        assert(!textRegistry.fromJson(oversized.as<JsonObjectConst>()));assert(strstr(ChannelRegistry::validationError(),field.first));
+    }
+    for(const char* list:{"inputs","outputs","bindings"}){JsonDocument malformed;malformed.set(textLimits);malformed[list].to<JsonObject>();assert(!textRegistry.fromJson(malformed.as<JsonObjectConst>()));assert(strstr(ChannelRegistry::validationError(),"must be an array"));}
+    textInput["name"]=u8"äääääääääääa";assert(textRegistry.fromJson(textLimits.as<JsonObjectConst>()));
+    textInput["name"]=u8"ääääääääääää";assert(!textRegistry.fromJson(textLimits.as<JsonObjectConst>()));
     std::cout << "phase registry, speed ownership, named switches, long binding round-trip and load-cell calibration validation vectors passed\n";
 }

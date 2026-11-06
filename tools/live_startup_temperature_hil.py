@@ -1,9 +1,9 @@
 """Dry Classic startup/Running temperature protection with S3 MAX6675 stimulus.
 Restores the exact engine file captured immediately before this campaign.
 """
-import os,sys,time,json,subprocess
+import os,sys,time,json,subprocess,re
 from pathlib import Path
-os.environ['OTBENCH_EXPECT_VERSION']='2.6.0'
+os.environ.setdefault('OTBENCH_EXPECT_VERSION',re.search(r'#define\s+OT_VERSION\s+"([^"]+)"',(Path(__file__).resolve().parents[1]/'src/system/version.h').read_text(encoding='utf-8')).group(1))
 os.environ['OTBENCH_TEMP_STARTUP_MS']='8000'
 sys.path.insert(0,'dev/bench/campaign')
 from classic_temperature_safety_hil import ClassicTemperatureSafety
@@ -13,7 +13,7 @@ class Campaign(ClassicTemperatureSafety):
   if force or 'disconnected' in state:
    now=time.monotonic()
    if now-getattr(self,'_reconnect_at',0)>12:
-    self._reconnect_at=now;subprocess.run(['netsh','wlan','connect','name=OpenTurbine-followup'],stdout=subprocess.DEVNULL)
+    self._reconnect_at=now;subprocess.run(['netsh','wlan','connect','name='+os.environ.get('OTBENCH_WIFI_PROFILE',self.original_hw.get('profile_id','OpenTurbine'))],stdout=subprocess.DEVNULL)
  def patch(self,**values):
   if 'startup_egt_dwell_c' in values:values['startup_egt_dwell_enabled']=values['startup_egt_dwell_c']>0
 
@@ -52,7 +52,7 @@ class Campaign(ClassicTemperatureSafety):
   finally:
    try:
     self.recover();self.tester.raw('EMU OFF');self.tester.reset()
-    boot=self.dut.data().get('boot_count');code,reply=self.dut._post('/api/ecu_config',self.original_ecu)
+    boot=self.dut.data().get('boot_count');code,reply=self.dut.restore_engine_file(self.original_ecu)
     print('Restore response:',code,reply,flush=True)
     restored=code==200 and self.dc._wait_reboot(boot)
     if restored:restored=self.dut._get('/api/ecu_config')==self.original_ecu
@@ -61,4 +61,6 @@ class Campaign(ClassicTemperatureSafety):
    Path('artifacts/startup-temperature-classic-hil.json').write_text(json.dumps(payload,indent=2))
    print('Temperature HIL:',{k:payload[k] for k in ['complete','restored','error']},flush=True)
   return 0 if payload['complete'] else 1
-if __name__=='__main__':raise SystemExit(Campaign().run())
+if __name__=='__main__':
+ if '--allow-write' not in sys.argv:raise SystemExit('Requires --allow-write on the confirmed unloaded OTBench fixture')
+ raise SystemExit(Campaign().run())

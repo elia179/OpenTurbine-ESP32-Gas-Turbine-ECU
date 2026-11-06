@@ -1049,6 +1049,7 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         size_t claimedTargetCount = 0;
         for (JsonObjectConst rule : rules.as<JsonArrayConst>()) {
             const int kind = rule["kind"] | -1;
+            if(!validOptionalStableId(rule["name"], sizeof(Config::Rule::name)))return false;
             if (!validInt(rule["controller_id"], 1, 65535) ||
                 !validInt(rule["activate_event"], 0, 4) ||
                 !validInt(rule["activate_events"], 1, 31) ||

@@ -1281,6 +1281,8 @@ function confirmCustomBlock() {
   if (!label) { alert('Enter a block name.'); return; }
   const type = document.getElementById('cblk-type').value;
   const desc = document.getElementById('cblk-desc').value.trim();
+  const bytes=value=>new TextEncoder().encode(value).length;
+  if(bytes(label)>MAX_CUSTOM_LABEL_LEN||bytes(desc)>MAX_CUSTOM_DESC_LEN){alert(`Shorten the block name to ${MAX_CUSTOM_LABEL_LEN} UTF-8 bytes and description to ${MAX_CUSTOM_DESC_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);return;}
   if (!_editingKey && Object.keys(hwCfg.custom_blocks || {}).length >= MAX_CUSTOM_BLOCKS) {
     alert(`Maximum custom blocks reached (${MAX_CUSTOM_BLOCKS}). Edit or remove an existing custom block before adding another.`);
     return;

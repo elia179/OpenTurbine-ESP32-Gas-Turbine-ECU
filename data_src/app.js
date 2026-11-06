@@ -1112,6 +1112,7 @@ function decodeCompactTelemetry(frame, previous) {
     healthy:bit(frame.ih, index)
   }));
   if (Array.isArray(frame.ov)) out.registry_outputs = frame.ov.map((percent, index) => ({
+    ...(frame.oa === undefined ? {} : {available:bit(frame.oa,index)}),
     id:priorOutputs[index]?.id || String(index), demand:Number(percent)/1000,
     current_amps:Array.isArray(frame.oc) ? Number(frame.oc[index])/10 : undefined,
     current_healthy:bit(frame.oh, index)
@@ -1588,7 +1589,7 @@ function applyData(d) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
       if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261104a';
+        link.href = '/sequence.html?v=20261106d';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -2098,7 +2099,7 @@ function applyData(d) {
     const anyAdv = d.has_starter   || d.has_starter_en || d.has_fuel_sol  || d.has_igniter
                 || d.has_igniter2  || d.has_glow_plug  || d.has_bleed_valve || d.has_prop_pitch || d.has_fuel_pump2
                 || d.has_cool_fan  || d.has_airstarter  || d.has_oil_scavenge
-                || (d.pcb_profile_active&&(d.registry_outputs||[]).some(ch=>ch&&ch.id&&!registryOutputAlreadyHasCoreCard(ch)));
+                || (d.pcb_profile_active&&(d.registry_outputs||[]).some(ch=>ch&&ch.id&&!['status_led','fault_led'].includes(ch.purpose)&&!registryOutputAlreadyHasCoreCard(ch)));
     advActSection.style.display = anyAdv ? '' : 'none';
     // Personal ordering can move the card outside its original section.
     const capabilityCard = document.getElementById('actuator-outputs-card');
@@ -3175,7 +3176,7 @@ function renderRegistryOutputCards(d) {
   if(host.parentElement!==outputHost)outputHost.appendChild(host);
   host.style.display=grouped?'grid':'contents';host.style.gap=grouped?'.5rem':'';
   const rows = (Array.isArray(d.registry_outputs) ? d.registry_outputs : [])
-    .filter(ch => ch && ch.id && !registryOutputAlreadyHasCoreCard(ch));
+    .filter(ch => ch && ch.id && !['status_led','fault_led'].includes(ch.purpose) && !registryOutputAlreadyHasCoreCard(ch));
   const wanted = new Set(rows.map(ch => 'registry-output-card-' + ch.id));
   document.querySelectorAll('.registry-output-card[id]').forEach(card => {
     if (!wanted.has(card.id)) { card._dashboardHome?.remove(); card.remove(); }
@@ -3188,8 +3189,8 @@ function renderRegistryOutputCards(d) {
     const pct = demand * 100;
     const id = String(ch.id || `output_${i}`).replace(/[^a-zA-Z0-9_-]/g, '_');
     const active = relayDemandActive(demand);
-    const value = relay ? (active ? 'ON' : 'OFF') : `${pct.toFixed(1)}%`;
-    const valueClass = relay ? (active ? ' binary-state-active' : ' binary-state-inactive') : '';
+    const value = ch.available===false ? 'Unavailable' : relay ? (active ? 'ON' : 'OFF') : `${pct.toFixed(1)}%`;
+    const valueClass = ch.available===false ? ' dashboard-card-warning' : relay ? (active ? ' binary-state-active' : ' binary-state-inactive') : '';
     const name = registryDisplayName(ch);
     const range = registryOutputRangeText(ch);
     let card = document.getElementById('registry-output-card-' + id);
@@ -3220,9 +3221,9 @@ function renderRegistryOutputCards(d) {
         gauge.innerHTML = '<div class="gauge-bar"></div>';
         card.querySelector('.output-range').before(gauge);
       }
-      gauge.firstChild.style.width = pct + '%';
+      gauge.firstChild.style.width = (ch.available===false?0:pct) + '%';
     }
-    card.querySelector('.output-range').textContent = range;
+    card.querySelector('.output-range').textContent = ch.available===false ? 'Device unavailable - check Hardware.' : range;
     const current = card.querySelector('.output-current');
     current.classList.toggle('dashboard-card-warning',!!ch.has_current && ch.current_healthy === false);
     current.hidden = !ch.has_current;
@@ -3252,25 +3253,12 @@ if (_emptySeqBanner) _emptySeqBanner.style.display = 'none';
 // never turn an ordinary Classic ESP32 edit into a full engine-file restore:
 // that route needs substantially more contiguous RAM and belongs exclusively
 // to System > Backup & restore.
-window.OTSaveConfigPatch = async function(patch) {
-  return withGlobalTelemetryPaused(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      const response = await fetch('/api/config', {
-        method:'PATCH', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(patch), signal:controller.signal
-      });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok && data?.ok !== true)
-        throw new Error('Save outcome is unconfirmed: the ECU did not return a valid success acknowledgement. Verify the current settings before retrying.');
-      return {response, data:data ?? {}};
-    } catch (error) {
-      if (controller.signal.aborted || error instanceof TypeError)
-        throw new Error('Save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
-      throw error;
-    } finally { clearTimeout(timeout); }
-  });
+window.OTSaveHardwarePatch = function(patch, source = '') {
+  return withGlobalTelemetryPaused(() => window.OTSavePatch('/api/hardware'+(source?'?source='+encodeURIComponent(source):''),patch));
+};
+
+window.OTSaveConfigPatch = function(patch) {
+  return withGlobalTelemetryPaused(() => window.OTSavePatch('/api/config',patch,true));
 };
 
 // Fault presentation lives in the matched web bundle. Older human-readable

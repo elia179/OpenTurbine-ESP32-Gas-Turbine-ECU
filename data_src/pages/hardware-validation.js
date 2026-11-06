@@ -268,7 +268,7 @@ function updateSaveButton() {
   const locked = (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
   const hasConflict = _pinConflictBlocking;
   const registryInvalid = cfg ? registryInvalidChannels().length > 0 : false;
-  document.getElementById('btn-save').disabled = !_hwDirty || locked || hasConflict || registryInvalid;
+  document.getElementById('btn-save').disabled = _hwLoading || _hwSavePending || !_hwDirty || locked || hasConflict || registryInvalid;
   document.getElementById('standby-warn').style.display = locked ? '' : 'none';
 }
 

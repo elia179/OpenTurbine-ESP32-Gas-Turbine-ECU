@@ -1,11 +1,12 @@
 """Upload one OpenTurbine firmware image through the bounded OTA endpoint."""
 
 import argparse
-import json
 import time
 import urllib.parse
 import urllib.error
 import urllib.request
+
+from update_transport import TRANSPORT_ERRORS, read_acknowledgement
 from pathlib import Path
 
 
@@ -21,6 +22,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.chunk < 1:
+        parser.error("chunk must be positive")
     image = args.firmware.read_bytes()
     if not image:
         raise SystemExit("Firmware image is empty")
@@ -39,15 +42,13 @@ def main() -> int:
         for attempt in range(5):
             try:
                 with urllib.request.urlopen(request, timeout=20) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-                if not result.get("ok"):
-                    raise RuntimeError(result)
+                    result = read_acknowledgement(response)
                 break
             except urllib.error.HTTPError:
                 # The ECU answered: this is an authoritative safety or image
                 # rejection, not an ambiguous lost response.
                 raise
-            except Exception as error:  # transport recovery is offset-safe
+            except TRANSPORT_ERRORS as error:  # transport recovery is offset-safe
                 last_error = error
                 if attempt == 4:
                     raise
@@ -56,7 +57,7 @@ def main() -> int:
             raise last_error
         if args.replay_first and offset == 0:
             with urllib.request.urlopen(request, timeout=20) as response:
-                replay = json.loads(response.read().decode("utf-8"))
+                replay = read_acknowledgement(response)
             if not replay.get("ok") or not replay.get("replayed"):
                 raise RuntimeError(f"Firmware chunk replay was not acknowledged: {replay}")
             print("first chunk replay acknowledged; ", end="", flush=True)

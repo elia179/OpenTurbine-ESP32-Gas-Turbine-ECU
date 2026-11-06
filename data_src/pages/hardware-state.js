@@ -3,6 +3,8 @@
 // ═══════════════════════════════════════════════════
 let cfg = {};
 let _hwDirty = false;
+let _hwSavePending = false;
+let _hwLoading = true;
 let settingsCfg = {};
 let pcbProfile = {state:'absent', ports:[]};
 let engineMode = 'STANDBY';
@@ -216,37 +218,27 @@ function stopStatusPoll() {
   statusPollTimer = null;
 }
 
-async function fetchHardwareJson(url, attempts = 4) {
-  let lastError = null;
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    try {
-      const response = await fetch(url, {cache:'no-store', signal:controller.signal});
-      if (response.ok) return await response.json();
-      const detail = await response.json().catch(() => ({}));
-      lastError = new Error(detail.error || `HTTP ${response.status}`);
-      if (![409, 503].includes(response.status)) throw lastError;
-    } catch (error) {
-      lastError = error;
-      if (attempt + 1 >= attempts) break;
-    } finally {
-      clearTimeout(timeout);
-    }
-    await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
-  }
-  throw lastError || new Error('No response');
+async function fetchHardwareJson(url, attempts = 5) {
+  return window.OTReadJson(url, {attempts});
 }
 
 async function loadHardware() {
+  _hwLoading=true;
+  const editingSurface=document.querySelector('main');
+  if(editingSurface)editingSurface.inert=true;
+  document.getElementById('btn-save').disabled=true;
+  document.getElementById('btn-discard').disabled=true;
   document.getElementById('save-msg').textContent = 'Loading…';
   try {
     cfg = await fetchHardwareJson('/api/hardware');
     // Live bus state has its own small endpoint; keep it out of the large,
     // mostly-static editor document and fetch it only after that response has
     // completed.
-    try { cfg._i2c_discovery = await fetchHardwareJson('/api/i2c_discovery', 2); }
-    catch (_) { cfg._i2c_discovery = {}; }
+    try {
+      const discovery = await fetchHardwareJson('/api/i2c_discovery', 2);
+      if (!Array.isArray(discovery?.devices)) throw Error('Device status unavailable');
+      cfg._i2c_discovery = discovery;
+    } catch (_) { cfg._i2c_discovery = {status_unavailable:true}; }
     pcbProfile = cfg._pcb_profile || {state:'absent', ports:[]};
     if (pcbProfile.state === 'valid') {
       const ports = [];
@@ -281,25 +273,66 @@ async function loadHardware() {
     document.getElementById('save-msg').textContent = 'Loaded — no unsaved changes';
     document.getElementById('btn-discard').disabled = true;
     document.getElementById('hw-profile-badge').textContent = cfg.profile_id || 'OpenTurbine';
+    _hwLoading=false;
     updateSaveButton();
     startI2cDiscoveryPoll();
+    if(editingSurface)editingSurface.inert=false;
     return true;
   } catch(e) {
-    document.getElementById('save-msg').textContent = 'Load failed: ' + e;
+    document.getElementById('save-msg').textContent = 'Load failed: ' + e + '. Refresh Hardware to retry.';
     return false;
   }
 }
 
 let i2cDiscoveryTimer = null;
+let i2cDiscoveryInFlight = false;
+async function refreshBusDeviceStatus() {
+  if (!cfg || i2cDiscoveryInFlight || _hwLoading) return;
+  i2cDiscoveryInFlight = true;
+  try {
+    const latest = await fetchHardwareJson('/api/i2c_discovery', 2);
+    if (!Array.isArray(latest?.devices)) throw Error('Device status unavailable');
+    cfg._i2c_discovery = latest;
+  } catch (_) {
+    cfg._i2c_discovery = {...cfg._i2c_discovery,status_unavailable:true};
+  } finally {
+    i2cDiscoveryInFlight = false;
+  }
+  if (_hwLoading) return;
+  renderI2cDiscovery();
+  refreshRegistryDeviceStatuses();
+  updateSaveButton();
+}
 function startI2cDiscoveryPoll() {
   if (i2cDiscoveryTimer) return;
-  i2cDiscoveryTimer = setInterval(async () => {
-    try {
-      const latest = await fetchHardwareJson('/api/i2c_discovery', 2);
-      cfg._i2c_discovery = latest || {};
-      renderI2cDiscovery();
-    } catch (_) {}
-  }, 5000);
+  i2cDiscoveryTimer = setInterval(refreshBusDeviceStatus, 5000);
+}
+
+// Resolve live availability when a source is displayed, including recovery.
+function pcbModeLiveStatus(mode) {
+  const address=Number(mode?.i2c_address||0);
+  if (!address) return mode;
+  // Fitted profile devices can be configured offline. Availability remains
+  // separate, so a missing chip is never presented as a working input.
+  const configurable=(pcbProfile.ports||[]).some(p=>p.modes?.some(m=>m.id===mode.id&&Number(m.i2c_address)===address));
+  const scan=cfg._i2c_discovery;
+  if (scan?.status_unavailable)
+    return {...mode,configurable,available:false,status:'Device status unavailable'};
+  if (!Array.isArray(scan?.devices)) return {...mode,configurable};
+  const device=scan.devices.find(d=>Number(d.address)===address);
+  const rechecking=device?.rechecking || device?.state==='UNAVAILABLE_RECHECKING';
+  const available=scan.bus_active!==false && !!device?.present && !rechecking;
+  return {...mode,configurable,available,status:available?'Connected':scan.bus_active===false?
+    'I2C bus unavailable':rechecking?
+    'Device unavailable - rechecking':'Source device is not responding'};
+}
+
+function pcbModeSelectable(mode) { return !!mode && (mode.available!==false || mode.configurable===true); }
+
+function connectedI2cDevices(type) {
+  const scan=cfg._i2c_discovery;
+  if(scan?.status_unavailable || scan?.bus_active===false)return [];
+  return (scan?.devices||[]).filter(d=>d.present&&!d.rechecking&&d.state!=='UNAVAILABLE_RECHECKING'&&(!type||d.type===type));
 }
 
 function populate() {
@@ -468,17 +501,52 @@ function pcbModeCompatible(direction, purpose, role, mode) {
   if (adapter === 'i2c_load_cell' && !['torque','thrust','general_torque','general_thrust'].includes(purpose)) return false;
   return true;
 }
-function pcbCompatibleChoices(direction, purpose, role, currentPort = '') {
+function pcbGpioHeaderDriver(direction,c,pin = null) {
+  if(direction==='input' && (registryLoadCellIsHx711(c) || Number(c.torque_interface)===2 ||
+      Number(c.temp_interface)===5))return 0;
+  const driver=Number(c.driver);
+  if(direction==='output')return driver<8?driver:4;
+  // A connector change may also change the electrical interface. Do not let
+  // the currently selected external ADC hide compatible digital GPIO inputs.
+  const allowed=registryAllowedDrivers(direction,c.role,registryDerivedPurpose(direction,c)).filter(d=>d<8);
+  const native=[...new Set([...(driver<8?[driver]:[]),...allowed])];
+  return native.find(d=>pin===null || d!==1 || GPIO_DB?.[pin]?.adc1) ?? -1;
+}
+function pcbGpioHeaderChoices(direction, driver, current = null) {
+  const usage=collectPinUsage();
+  return [...new Set([...(pcbProfile?.gpio_headers||[]),...Object.keys(pcbProfile?.gpio_labels||{})].map(Number))].filter(pin=>{
+    const info=GPIO_DB?.[pin];
+    const candidateDriver=current?pcbGpioHeaderDriver(direction,current,pin):Number(driver);
+    return candidateDriver>=0&&info&&!info.r&&!(direction==='output'&&info.i)&&!(direction==='input'&&candidateDriver===1&&!info.adc1)&&candidateDriver<8;
+  }).map(pin=>{
+    const used=[...(usage.get(pin)||[])];
+    if(current&&Number(current.pin)===pin){const i=used.findIndex(u=>u.label===registryDisplayName(direction,current,current.id));if(i>=0)used.splice(i,1);}
+    const owners=[...new Set(used.map(u=>u.label))].join(', ');
+    const connector=(pcbProfile.ports||[]).find(p=>p.modes?.some(m=>Number(m.gpio)===pin));
+    const label=pcbProfile?.gpio_labels?.[String(pin)] ? `${pcbProfile.gpio_labels[String(pin)]} (GPIO ${pin})` : `GPIO ${pin}`;
+    return {pin,label,driver:current?pcbGpioHeaderDriver(direction,current,pin):Number(driver),available:!used.length,status:used.length?`Unavailable: ${label} is already used by ${owners}.${connector?` This GPIO and ${connector.label} share the same pin.`:''}`:(pcbProfile.gpio_header_notes?.[String(pin)]||'Exposed GPIO; configure it like a development-board pin.')};
+  });
+}
+function pcbCompatibleChoices(direction, purpose, role, currentPort = '', currentChannel = null) {
   const claimed = new Set([...(registryRoot().inputs||[]),...(registryRoot().outputs||[])]
     .map(c=>String(c.physical_port||'')).filter(id=>id && id!==currentPort));
   const choices = [];
+  const pinUsage = collectPinUsage();
   for (const port of (pcbProfile.ports || [])) {
     if (claimed.has(String(port.id))) continue;
-    for (const mode of (port.modes || [])) {
+    // Exposed header pins use normal GPIO controls. Keep named default connectors and existing legacy assignments visible.
+    if(port.id!==currentPort && port.modes?.length && port.modes.every(m=>(pcbProfile.gpio_headers||[]).includes(Number(m.gpio))) && !port.modes.some(m=>m.default))continue;
+    for (const configuredMode of (port.modes || [])) {
+      const mode=pcbModeLiveStatus(configuredMode);
       const thresholdUse=registryIsSwitchRole(role)||['start_switch','stop_switch','flame','ab_flame'].includes(purpose);
       const retainedMode=port.id===currentPort&&[...registryRoot().inputs,...registryRoot().outputs].some(c=>c.physical_port===currentPort&&c.physical_mode===mode.id);
       if(mode.adapter==='i2c_adc_digital_input'&&!thresholdUse&&!retainedMode)continue;
-      if (pcbModeCompatible(direction,purpose,role,mode)) choices.push({port,mode});
+      if (pcbModeCompatible(direction,purpose,role,mode)) {
+        const owner=[...registryRoot().inputs,...registryRoot().outputs].find(c=>c!==currentChannel&&!c.physical_port&&Number(c.pin)>=0&&Number(c.pin)===Number(mode.gpio));
+        const auxiliary=pinUsage.get(Number(mode.gpio))?.find(claim=>claim.group==='auxiliary');
+        if(auxiliary)choices.push({port,mode:{...mode,available:false,configurable:false,status:`Already used by ${auxiliary.label}.`}});
+        else choices.push({port,mode:owner?{...mode,available:false,configurable:false,status:`GPIO ${mode.gpio} is already used by ${owner.name||owner.id}. This connector and GPIO header share the same pin.`}:mode});
+      }
     }
   }
   const score = choice => {
@@ -543,33 +611,46 @@ function renderI2cDiscovery() {
   const assignedChannels = [...(registryRoot().inputs||[]),...(registryRoot().outputs||[])]
     .filter(c => Number(c.driver) >= 8 && Number(c.i2c_address) > 0);
   const devices = Array.isArray(scan.devices) ? scan.devices.map(d=>({...d})) : [];
+  const fitted = (scan.pcb_devices || []).filter(d=>d.bus==='i2c');
+  fitted.forEach(d=>{
+    const type=String(d.type).toUpperCase();
+    const live=devices.find(row=>Number(row.address)===Number(d.address));
+    if(live){ live.type=type; live.profile_owned=true; live.description=d.description; }
+    else devices.push({address:d.address,type,present:d.state==='Connected',profile_owned:true,reported_state:d.state,description:d.description});
+  });
   assignedChannels.forEach(c => {
     const type = Number(c.driver) === 8 || Number(c.driver) === 11 ? 'TCA9554'
       : Number(c.driver) === 9 ? 'TLA2528' : 'NAU7802';
-    if (!devices.some(d => Number(d.address) === Number(c.i2c_address) && d.type === type))
+    if (!devices.some(d => Number(d.address) === Number(c.i2c_address)))
       devices.push({address:Number(c.i2c_address), type, present:false, saved_only:true});
   });
+  renderPcbSpiDevices();
+  renderBusSummary();
   if (!cfg.i2c?.enabled) {
     box.innerHTML = '<div class="registry-empty"><div>I2C bus disabled.</div></div>';
+    return;
+  }
+  if (scan.status_unavailable && !devices.length) {
+    box.innerHTML = '<div class="hw-desc" role="status">Live device status is unavailable. Reconnecting to the ECU...</div>';
     return;
   }
   if (!devices.length) {
     box.innerHTML = '<div class="registry-empty"><div>No recognized I2C devices detected. Wiring assignments are preserved if a configured device is temporarily disconnected.</div></div>';
     return;
   }
-  box.innerHTML = devices.map(d => {
+  box.innerHTML = (scan.status_unavailable ? '<div class="hw-desc" role="status">Live device status is unavailable. Saved connections are retained. Retrying device status automatically.</div>' : '') + devices.map(d => {
     const address = `0x${Number(d.address||0).toString(16).toUpperCase().padStart(2,'0')}`;
     const assigned = assignedChannels.filter(c => Number(c.i2c_address) === Number(d.address)).length;
-    const help = d.type === 'TCA9554' ? '8 binary inputs or outputs'
+    const help = ['TCA9554','TCA9534'].includes(d.type) ? '8 binary inputs or outputs'
       : d.type === 'TLA2528' ? '8 analog input channels'
       : d.type === 'NAU7802' ? '2-channel bridge/load-cell ADC for thrust or torque' : 'recognized response';
-    const remove = !d.present && assigned
+    const remove = !scan.status_unavailable && !d.profile_owned && !d.present && assigned
       ? `<button type="button" class="danger" onclick="removeDisconnectedI2cDevice(${Number(d.address)},'${escapeHtmlText(d.type)}')">Remove device and assignments</button>` : '';
-    const state = d.present ? 'Connected'
-      : d.rechecking || d.state === 'rechecking' ? 'Unavailable — rechecking'
-      : 'Faulted';
-    const stateClass = d.present ? 'ok' : (state === 'Faulted' ? 'error' : 'warning');
-    return `<div class="hw-item-card" style="margin-top:.55rem"><div class="registry-card-summary"><div><strong>${escapeHtmlText(d.type)} at ${address}</strong><div class="hw-desc">${help} · ${assigned} assigned channel${assigned===1?'':'s'}</div></div><div style="display:flex;gap:.45rem;align-items:center;flex-wrap:wrap"><span class="registry-status registry-status-${stateClass}">${state}</span>${remove}</div></div></div>`;
+    const state = scan.status_unavailable ? 'Status unavailable' : d.reported_state ||
+      (d.rechecking || d.state==='UNAVAILABLE_RECHECKING' ? 'Unavailable - rechecking' :
+       d.present ? 'Connected' : 'Faulted');
+    const stateClass = scan.status_unavailable ? 'disabled' : d.present && !d.rechecking ? 'ok' : (['Faulted','Not responding','Not ready'].includes(state) ? 'error' : 'warning');
+    return `<div class="hw-item-card" style="margin-top:.55rem"><div class="registry-card-summary"><div><strong>${escapeHtmlText(d.type)} at ${address}</strong><div class="hw-desc">${escapeHtmlText(d.description||help)} · ${assigned} assigned channel${assigned===1?'':'s'}</div></div><div style="display:flex;gap:.45rem;align-items:center;flex-wrap:wrap"><span class="registry-status registry-status-${stateClass}">${state}</span>${remove}</div></div></div>`;
   }).join('');
 }
 
@@ -993,4 +1074,19 @@ function setStatusLedColor(key, value) {
   cfg.actuators.status_led[key] = hexToColor(value, cfg.actuators.status_led[key] || 0);
   dirty();
   updateStatusLedTypeUI();
+}
+
+function renderPcbSpiDevices() {
+  const box=document.getElementById('pcb-spi-devices');
+  if(!box)return;
+  const devices=(cfg._i2c_discovery?.pcb_devices||[]).filter(d=>d.bus==='spi');
+  const stale=cfg._i2c_discovery?.status_unavailable;
+  box.innerHTML=(stale?'<div class="hw-desc" role="status">Live device status unavailable.</div>':'')+devices.map(d=>{
+    if(stale)d={...d,state:'Status unavailable',detail:''};
+    const ok=['Connected','Ready','Input healthy','Responding'].includes(d.state);
+    const failed=['Not responding','Not ready','Input fault','Fault'].includes(d.state);
+    const detail=d.kind==='power_stage' ? d.description :
+      `Built-in thermocouple converter, CS GPIO ${d.cs_gpio}. Wiring is fixed by the PCB. Assign its named Thermocouple connector to an input.`;
+    return `<div class="hw-item-card" style="margin-top:.55rem"><div class="registry-card-summary"><div><strong>${escapeHtmlText(String(d.type).toUpperCase()+(d.output_first ? ` - PWM ${d.output_first}-${d.output_last}` : ''))}</strong><div class="hw-desc">${escapeHtmlText(detail)}</div></div><span class="registry-status registry-status-${ok?'ok':failed?'error':'disabled'}">${escapeHtmlText(d.state)}</span></div>${d.detail?`<div class="hw-desc">${escapeHtmlText(d.detail)}</div>`:''}</div>`;
+  }).join('');
 }

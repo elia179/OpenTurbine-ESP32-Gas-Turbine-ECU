@@ -1,5 +1,6 @@
 #include "RulesEngine.h"
 #include "FlightRecorder.h"
+#include "ByteRecordRing.h"
 #include "Config.h"
 #include "HardwareConfig.h"
 #include "SessionLogger.h"
@@ -39,22 +40,21 @@ static int s_lineCount = -1;
 // callers (logConfigChange from the web task, Config::load warnings), so
 // slot write + head advance + drop counting are serialized with s_ringMux.
 // Core 0 drains normally. While draining is paused, a full active-run queue
-// may advance s_ringTail to preserve newest evidence.
+// may discard the oldest complete records to preserve newest evidence.
 static constexpr size_t RING_SLOT_LEN = 500;   // fits the largest (FAULT) record
 #if defined(OT_PLATFORM_ESP32)
 // Keep scarce classic DRAM contiguous for the mandatory FreeRTOS timer-task
 // stack. RTC slow memory is internal, byte-addressable and always powered in
 // normal operation, so it is safe for this low-frequency producer queue. The
-// classic queue holds 14 pending records versus 15 on S3; normal draining is
-// much faster than event production, and overflow remains explicitly counted.
-static constexpr int RING_SLOTS = 15;
-RTC_NOINIT_ATTR static char s_ring[RING_SLOTS][RING_SLOT_LEN];
+// byte budget stays 7500 bytes on Classic and 8000 on S3. Short records
+// share unused space; overflow remains explicitly counted.
+static constexpr size_t RING_BYTES = 15 * RING_SLOT_LEN;
+RTC_NOINIT_ATTR static uint8_t s_ringStorage[RING_BYTES];
 #else
-static constexpr int RING_SLOTS = 16;
-static char s_ring[RING_SLOTS][RING_SLOT_LEN];
+static constexpr size_t RING_BYTES = 16 * RING_SLOT_LEN;
+static uint8_t s_ringStorage[RING_BYTES];
 #endif
-static volatile uint8_t s_ringHead = 0;
-static volatile uint8_t s_ringTail = 0;
+static ByteRecordRing s_ring(s_ringStorage, sizeof(s_ringStorage));
 static volatile bool    s_drainActive = false;
 static portMUX_TYPE     s_ringMux  = portMUX_INITIALIZER_UNLOCKED;
 // Overwrites already reported with an EVENTS_DROPPED marker (written by Core 0
@@ -342,13 +342,20 @@ uint32_t FlightRecorder::droppedEvents() {
     return s_droppedEvents;
 }
 
-uint8_t FlightRecorder::pendingCount() {
+uint16_t FlightRecorder::pendingCount() {
     portENTER_CRITICAL(&s_ringMux);
-    const uint8_t head = s_ringHead;
-    const uint8_t tail = s_ringTail;
+    const uint16_t count = static_cast<uint16_t>(s_ring.count());
     portEXIT_CRITICAL(&s_ringMux);
-    return head >= tail ? (uint8_t)(head - tail) : (uint8_t)(RING_SLOTS - tail + head);
+    return count;
 }
+
+uint32_t FlightRecorder::pendingBytes() {
+    portENTER_CRITICAL(&s_ringMux);
+    const uint32_t bytes = s_ring.used();
+    portEXIT_CRITICAL(&s_ringMux);
+    return bytes;
+}
+uint32_t FlightRecorder::capacityBytes() { return RING_BYTES; }
 
 bool FlightRecorder::healthy() { return _mutex != nullptr && s_lastError == 0; }
 uint8_t FlightRecorder::errorCode() { return s_lastError; }
@@ -360,7 +367,7 @@ void FlightRecorder::requestClear() {
     // after Core 0 removes the old file.
     if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
     portENTER_CRITICAL(&s_ringMux);
-    s_ringTail = s_ringHead;
+    s_ring.clear();
     s_droppedEvents = 0;
     s_droppedMarked = 0;
     s_clearPending = true;
@@ -507,7 +514,7 @@ static void _drainRingLocked() {
         }
     }
 
-    while (s_ringTail != s_ringHead || s_droppedEvents != s_droppedMarked) {
+    while (FlightRecorder::pendingCount() || s_droppedEvents != s_droppedMarked) {
         const size_t freeBytes = LittleFS.totalBytes() - LittleFS.usedBytes();
         const size_t reserveBytes = SessionLogger::reserveBytes();
         if (s_lineCount >= FlightRecorder::MAX_RECORDS ||
@@ -543,16 +550,23 @@ static void _drainRingLocked() {
         }
 
         int writtenSinceYield = 0;
-        while (s_ringTail != s_ringHead && s_lineCount < FlightRecorder::MAX_RECORDS) {
+        while (FlightRecorder::pendingCount() && s_lineCount < FlightRecorder::MAX_RECORDS) {
             if (LittleFS.totalBytes()-LittleFS.usedBytes()<reserveBytes+RING_SLOT_LEN) break;
-            if (fa.println(s_ring[s_ringTail]) == 0) {
+            char record[RING_SLOT_LEN];
+            portENTER_CRITICAL(&s_ringMux);
+            const bool haveRecord = s_ring.peek(record, sizeof(record));
+            portEXIT_CRITICAL(&s_ringMux);
+            if (!haveRecord) break;
+            if (fa.println(record) == 0) {
                 s_lastError = 3;
                 fa.close();
                 return;   // write failed (flash full?) — keep event, retry next tick
             }
             s_lineCount++;
             s_lastDurableAppendMs = millis();
-            s_ringTail = (uint8_t)((s_ringTail + 1) % RING_SLOTS);
+            portENTER_CRITICAL(&s_ringMux);
+            s_ring.pop();
+            portEXIT_CRITICAL(&s_ringMux);
             if (++writtenSinceYield >= 4) {
                 writtenSinceYield = 0;
                 delay(0);
@@ -565,7 +579,7 @@ static void _drainRingLocked() {
 
 void FlightRecorder::runEviction() {
     if (s_activeRawDownloads > 0) return;
-    bool ringPending = (s_ringTail != s_ringHead) || (s_droppedEvents != s_droppedMarked);
+    bool ringPending = pendingCount() || (s_droppedEvents != s_droppedMarked);
     if (!s_clearPending && !ringPending) return;
 
     // portMAX_DELAY is safe — this runs on Core 0 (web task), not the ECU loop.
@@ -614,22 +628,12 @@ void FlightRecorder::_append(const char* eventJson) {
     // load-warning logging), so slot claim + copy + head advance must be
     // atomic. The bounded <500-byte copy keeps the critical section a few µs.
     portENTER_CRITICAL(&s_ringMux);
-    uint8_t head = s_ringHead;
-    uint8_t next = (uint8_t)((head + 1) % RING_SLOTS);
-    if (next == s_ringTail) {
-        // Preserve newest evidence while persistence is paused. If Core 0 has
-        // already started draining, leave the consumer-owned tail untouched
-        // and drop this new record instead.
+    uint32_t overwritten = 0;
+    const size_t length = strnlen(eventJson, RING_SLOT_LEN);
+    if (length == RING_SLOT_LEN || !s_ring.push(eventJson, length, !s_drainActive, overwritten))
         s_droppedEvents = s_droppedEvents + 1;
-        if (s_drainActive) {
-            portEXIT_CRITICAL(&s_ringMux);
-            return;
-        }
-        s_ringTail = (uint8_t)((s_ringTail + 1) % RING_SLOTS);
-    }
-    strncpy(s_ring[head], eventJson, RING_SLOT_LEN - 1);
-    s_ring[head][RING_SLOT_LEN - 1] = '\0';
-    s_ringHead = next;
+    else
+        s_droppedEvents = s_droppedEvents + overwritten;
     portEXIT_CRITICAL(&s_ringMux);
 }
 

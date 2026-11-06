@@ -65,6 +65,51 @@ func TestPostRawChunkDoesNotRetryBoardRejection(t *testing.T) {
 	}
 }
 
+func TestPostRawChunkRequiresExplicitAcknowledgement(t *testing.T) {
+	for _, body := range []string{"", "<html>reconnect</html>", "{}", "null", `{"ok":false,"error":"write failed"}`, `{"ok":"true"}`, `{"ok":true} trailing`} {
+		t.Run(body, func(t *testing.T) {
+			attempts := 0
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				attempts++
+				return &http.Response{StatusCode: http.StatusAccepted, Status: "202 Accepted", Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+			})}
+			if err := postRawChunkWithRetry(client, "http://ecu/api/firmware_chunk", []byte("chunk")); err == nil {
+				t.Fatal("unconfirmed write treated as success")
+			}
+			if attempts != 1 {
+				t.Fatalf("must not automatically repeat unconfirmed writes: attempts=%d", attempts)
+			}
+		})
+	}
+}
+
+func TestBackupsInSameSecondKeepSeparateSnapshots(t *testing.T) {
+	base := t.TempDir()
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	first, err := newBackupDirectory(base, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(first, "ecu_config.json")
+	if err = os.WriteFile(path, []byte("first snapshot"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	second, err := newBackupDirectory(base, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("backup directory was reused")
+	}
+	if err = os.WriteFile(filepath.Join(second, "ecu_config.json"), []byte("second snapshot"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "first snapshot" {
+		t.Fatalf("earlier snapshot overwritten: %q, %v", data, err)
+	}
+}
+
 func TestBuildCustomPCBProfileContainer(t *testing.T) {
 	root := t.TempDir()
 	catalog := `{"chip":"esp32-s3","gpio":[8,9,10,16,17],"input_only_gpio":[],"strapping_gpio":[]}`
@@ -121,6 +166,55 @@ func TestBuildCustomPCBProfileContainer(t *testing.T) {
 	if err := json.Unmarshal(container[32:], &decoded); err != nil ||
 		decoded["format"] != "openturbine-pcb-profile" {
 		t.Fatalf("invalid JSON payload: %v", err)
+	}
+	for _, tc := range []struct{ field, value string }{
+		{"name", strings.Repeat("ä", 24)}, {"description", strings.Repeat("ä", 48)},
+		{"manufacturer", strings.Repeat("ä", 16)}, {"name", "PCB\x00hidden"},
+	} {
+		t.Run("reject text "+tc.field, func(t *testing.T) {
+			var raw map[string]any
+			if err := json.Unmarshal([]byte(source), &raw); err != nil {
+				t.Fatal(err)
+			}
+			raw["board"].(map[string]any)[tc.field] = tc.value
+			encoded, _ := json.Marshal(raw)
+			writeTestFile(t, sourcePath, string(encoded))
+			if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", sourcePath); err == nil {
+				t.Fatal("invalid board text was accepted")
+			}
+		})
+	}
+	extended := strings.Replace(source, `"minor":0`, `"minor":1`, 1)
+	writeTestFile(t, sourcePath, extended)
+	pkg.Manifest.Version = "2.6.1"
+	if _, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", sourcePath); err == nil || !strings.Contains(err.Error(), "2.7.0") {
+		t.Fatalf("older draft package accepted extended profile: %v", err)
+	}
+	pkg.Manifest.Version = "2.7.0"
+	extendedPath, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", sourcePath)
+	if err != nil {
+		t.Fatalf("matching release rejected profile: %v", err)
+	}
+	os.Remove(extendedPath)
+
+}
+
+func TestPCBTextStorageContract(t *testing.T) {
+	for _, tc := range []struct {
+		value          string
+		limit          int
+		required, want bool
+	}{
+		{strings.Repeat("ä", 23) + "A", 47, true, true},
+		{strings.Repeat("ä", 24), 47, true, false},
+		{"PCB\x00hidden", 47, true, false},
+		{strings.Repeat("ä", 11) + "A", 23, true, true},
+		{strings.Repeat("ä", 12), 23, true, false},
+		{"", 79, false, true}, {"", 31, true, false},
+	} {
+		if got := pcbTextFits(tc.value, tc.limit, tc.required); got != tc.want {
+			t.Errorf("text=%q limit=%d got=%v want=%v", tc.value, tc.limit, got, tc.want)
+		}
 	}
 }
 

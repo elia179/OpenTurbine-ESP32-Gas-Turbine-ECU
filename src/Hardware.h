@@ -2761,8 +2761,7 @@ namespace Hardware {
         parkProportional(hw.hasBleedValve, hw.bleedValvePin, hw.bleedValveType, hw.bleedValveActiveH, !hw.bleedValveActiveH);
         parkProportional(hw.hasPropPitch, hw.propPitchPin, hw.propPitchType, hw.propPitchActiveH, !hw.propPitchActiveH);
         if (hw.hasGlowPlug && hw.glowPlugType == 2 && hw.wetGlowFuelPin >= 0) {
-            if (hw.wetGlowFuelType == 0) driveInactive(hw.wetGlowFuelPin, hw.wetGlowFuelActiveH);
-            else driveInactive(hw.wetGlowFuelPin, hw.wetGlowFuelActiveH);
+            driveInactive(hw.wetGlowFuelPin, hw.wetGlowFuelActiveH);
         }
         if (hw.hasFuelSol)   driveInactive(hw.fuelSolPin, hw.fuelSolActiveH);
         if (hw.hasIgniter)   driveInactive(hw.igniterPin, hw.igniterActiveH);

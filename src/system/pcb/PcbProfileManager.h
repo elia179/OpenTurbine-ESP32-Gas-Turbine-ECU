@@ -103,6 +103,9 @@ public:
         DefaultAssignment* defaults = nullptr;
         uint8_t busCount = 0, deviceCount = 0, portCount = 0;
         uint8_t defaultCount = 0;
+        uint8_t gpioHeaderCount = 0;
+        int8_t gpioHeaders[12] = {};
+        char gpioHeaderNotes[12][64] = {};
         bool hasStatusLed = false, hasBuzzer = false;
         int8_t statusLedGpio = -1, buzzerGpio = -1;
         uint8_t statusLedType = 0;

@@ -1,4 +1,5 @@
 #include "PcbPowerStage.h"
+#include <atomic>
 #if defined(OT_PLATFORM_ESP32S3)
 #include "Drv8350Protocol.h"
 #if defined(OT_PCB_POWER_TEST)
@@ -20,6 +21,8 @@ namespace {
 using namespace Drv8350Protocol;
 enum class State:uint8_t {Off,Wake,Configure,Ready,Fault};
 State state=State::Off;
+enum class DriverCheck : uint8_t {NotChecked,Responding,Fault,Unavailable};
+std::atomic<DriverCheck> driverChecks[2]={DriverCheck::NotChecked,DriverCheck::NotChecked};
 uint8_t latch=safeLatch;
 bool heartbeat=false,recoverableFault=false,driverStatusFault=false;
 char driverDiagnostic[96]={};
@@ -28,7 +31,7 @@ uint8_t setupChip=0,pollChip=0;
 char reason[96]={};
 struct Wave {mcpwm_timer_handle_t timer=nullptr; mcpwm_oper_handle_t oper=nullptr;
     mcpwm_cmpr_handle_t compare=nullptr; mcpwm_gen_handle_t gen=nullptr;
-    uint32_t period=0,frequency=0,pendingSinceUs=0; float demand=0; bool pending=false,attached=false;};
+    uint32_t period=0,frequency=0,pendingSinceUs=0; float demand=0; bool pending=false,attached=false,zeroBraking=false;};
 Wave waves[6];
 mcpwm_sync_handle_t sync[2]={},groupSync[2]={};
 const PcbProfileManager::Catalog* profile(){return PcbProfileManager::active()?PcbProfileManager::catalog():nullptr;}
@@ -37,7 +40,16 @@ void prepareLow(int pin){gpio_set_level(static_cast<gpio_num_t>(pin),0);pinMode(
 bool regWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(0x21);Wire.write(reg);Wire.write(value);return Wire.endTransmission(true)==0;}
 bool regRead(uint8_t reg,uint8_t& value){Wire.beginTransmission(0x21);Wire.write(reg);if(Wire.endTransmission(false)!=0||Wire.requestFrom(uint8_t(0x21),uint8_t(1))!=1)return false;value=Wire.read();return true;}
 bool setLatch(uint8_t value){if(value==latch)return true;if(!regWrite(1,value))return false;latch=value;return true;}
-void forceLow(int i){if(waves[i].gen)mcpwm_generator_set_force_level(waves[i].gen,0,true);else digitalWrite(profile()->powerInh[i],LOW);waves[i].demand=0;waves[i].pending=false;}
+void forceLow(int i){if(waves[i].gen)mcpwm_generator_set_force_level(waves[i].gen,0,true);else digitalWrite(profile()->powerInh[i],LOW);waves[i].demand=0;waves[i].pending=false;waves[i].zeroBraking=false;}
+bool brakeAtZero(int i){
+    if(!waves[i].attached || !waves[i].frequency)return false; // on/off connectors coast
+    for(uint8_t c=0;c<HardwareConfig::channelRegistry.outputCount;c++){
+        const auto& output=HardwareConfig::channelRegistry.outputs[c];
+        if(output.installed && output.pin==profile()->powerInh[i])
+            return output.driver==ChannelRegistry::Pwm && output.pwmZeroMode==0;
+    }
+    return true; // default for an attached power PWM endpoint
+}
 bool verifyExpander();
 void fail(const char* why,bool recoverable=false){
     if(state==State::Fault && (recoverable || !recoverableFault))return;
@@ -77,6 +89,7 @@ bool read(uint8_t chip,uint8_t address,uint16_t& value){return frame(chip,Drv835
 bool program(uint8_t chip,uint8_t address,uint16_t value){uint16_t ignored,actual;return frame(chip,Drv8350Protocol::frame(false,address,value),ignored)&&read(chip,address,actual)&&actual==value;}
 bool verifyExpander(){uint8_t dir,pol,out;return regRead(3,dir)&&regRead(2,pol)&&regRead(1,out)&&dir==0&&pol==0&&out==latch;}
 bool verifyDriver(uint8_t chip){
+    driverChecks[chip]=DriverCheck::Unavailable;
     driverStatusFault=false;uint16_t value,status;
     if(!read(chip,0,status)||!read(chip,1,value))return false;
     // Prove chip identity/configuration before interpreting fault bits. An
@@ -86,10 +99,11 @@ bool verifyDriver(uint8_t chip){
         if(!read(chip,addr,actual)||actual!=expected)return false;
     }
     if(status||value){
-        driverStatusFault=true;
+        driverStatusFault=true;driverChecks[chip]=DriverCheck::Fault;
         const char* kind=(status&0x23f)?"overcurrent":(status&0x40)?"overtemperature":(status&0x80)||(value&0x40)?"undervoltage":(value&0x80)?"temperature warning":"gate-drive fault";
         snprintf(driverDiagnostic,sizeof(driverDiagnostic),"Driver %u %s (status %03X/%03X)",unsigned(chip+1),kind,unsigned(status),unsigned(value));return false;
     }
+    driverChecks[chip]=DriverCheck::Responding;
     return true;
 }
 }
@@ -97,6 +111,15 @@ bool active(){const auto* p=profile();return p&&p->hasPowerStage;}
 bool ownsPin(int pin){return indexOf(pin)>=0;}
 bool ready(){return !active()||state==State::Ready;}
 bool faulted(){return active()&&state==State::Fault;}
+const char* driverState(uint8_t chip){
+    if(!active()||chip>=2)return "Not fitted";
+    switch(driverChecks[chip].load()){
+        case DriverCheck::Responding:return ready()?"Responding":"Last check OK";
+        case DriverCheck::Fault:return "Fault";
+        case DriverCheck::Unavailable:return "Not responding";
+        default:return "Not checked";
+    }
+}
 const char* stateName(){return !active()?"not fitted":state==State::Ready?"ready":state==State::Fault?"fault":state==State::Off?"off":"initializing";}
 const char* faultReason(){return reason;}
 bool acknowledgeFault(){
@@ -161,13 +184,18 @@ bool attach(int pin,uint32_t frequency){
 }
 void write(int pin,float demand){
     const int i=indexOf(pin);if(i<0)return;
-    Wave& w=waves[i];demand=isfinite(demand)?constrain(demand,0.0f,1.0f):0;
+    Wave& w=waves[i];const bool validDemand=isfinite(demand);
+    demand=validDemand?constrain(demand,0.0f,1.0f):0;
+    const bool brake=validDemand && demand<=0 && brakeAtZero(i);
     if(state!=State::Ready){forceLow(i);return;}
-    if(demand==w.demand)return;
+    if(demand==w.demand && (demand>0 || brake==w.zeroBraking))return;
     SharedPeripheralBus::Guard guard;if(!guard){fail("peripheral bus timeout");return;}
     if(demand<=0){
         forceLow(i);
-        if(!setLatch(phaseLatch(latch,i,false)))fail("phase disable I2C failure");
+        // Ready-stage zero demand can deliberately keep the low side ON.
+        // forceLow cancels any pending PWM start before changing INL.
+        if(!setLatch(phaseLatch(latch,i,brake))){fail("phase zero-state I2C failure");return;}
+        w.zeroBraking=brake;
         return;
     }
     if(w.gen){
@@ -186,7 +214,8 @@ void write(int pin,float demand){
                 mcpwm_generator_set_force_level(w.gen,-1,true)!=ESP_OK){fail("PWM update failed");return;}
     }else digitalWrite(pin,HIGH);
     // First prepare INH with the phase disabled, then enable complementary
-    // operation. A zero command clears INL: low-side is not left on at STOP.
+    // operation. At zero, the configured Brake/Coast mode controls INL.
+    // Hardware faults and initialization always inhibit both FETs.
     if(!setLatch(phaseLatch(latch,i,true))){fail("phase enable I2C failure");return;}
     w.demand=demand;
 }
@@ -199,13 +228,14 @@ bool parkControlExpander(){
 void begin(bool prerequisitesReady){
     if(!active())return;
     state=State::Off;recoverableFault=false;reason[0]=0;
+    for(auto& check:driverChecks)check=DriverCheck::NotChecked;
     for(int i=0;i<6;i++){
         // Reconfiguring an attached pin as GPIO can disconnect its MCPWM route.
         if(!waves[i].gen)prepareLow(profile()->powerInh[i]);
         forceLow(i);
     }
     prepareLow(profile()->outputEnableGpio);
-    if(!prerequisitesReady){fail("peripheral/watchdog initialization failed");return;}
+    if(!prerequisitesReady){fail("PCB devices did not initialize. Check board power and Hardware > Shared sensor buses.");return;}
     if(Config::controlLoopHz<100){fail("set System loop target to at least 100 Hz");return;}
     SharedPeripheralBus::Guard guard;
     // Preload *all* outputs before direction, even if the separately powered
@@ -239,7 +269,7 @@ void service(bool controlHealthy){
     if(state==State::Wake){if(lastProgress-wakeAt>=250){state=State::Configure;setupChip=0;}return;}
     if(state==State::Configure){
         bool ok=program(setupChip,3,gateHS)&&program(setupChip,4,gateLS)&&program(setupChip,5,ocp)&&program(setupChip,2,control)&&program(setupChip,3,gateHSLocked)&&verifyDriver(setupChip);
-        if(!ok){fail("DRV8350 setup/readback failed");return;}
+        if(!ok){driverChecks[setupChip]=DriverCheck::Unavailable;fail("DRV8350 setup/readback failed");return;}
         checkDeadline();if(state==State::Fault)return;
         if(++setupChip==2){state=State::Ready;ed.hardwareReady=true;ed.hardwareFault[0]=0;lastPoll=millis();}
     }else if(lastProgress-lastPoll>=500){

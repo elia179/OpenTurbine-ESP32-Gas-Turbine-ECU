@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import struct
+import re
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -13,6 +14,13 @@ SPEC.loader.exec_module(build_setup_package)
 
 
 class BuildSetupPackageTests(unittest.TestCase):
+    def test_release_tool_and_package_versions_agree(self):
+        source = (ROOT / "tools/setup_tool/main.go").read_text(encoding="utf-8")
+        app = re.search(r'appVersion\s*=\s*"([^"]+)"', source).group(1)
+        minimum = re.search(r'packageCompatibilityVersion\s*=\s*"([^"]+)"', source).group(1)
+        self.assertEqual(app, build_setup_package.SETUP_TOOL_VERSION)
+        self.assertEqual(minimum, build_setup_package.MINIMUM_SETUP_TOOL_VERSION)
+
     def test_stage_package_uses_schema_and_compliance_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
@@ -53,13 +61,13 @@ class BuildSetupPackageTests(unittest.TestCase):
             self.assertEqual(manifest["targets"]["esp32dev"]["pcb_profile"]["official_profiles"], [])
             shipped = manifest["targets"]["esp32s3dev"]["pcb_profile"]["official_profiles"]
             self.assertEqual([p["id"] for p in shipped], ["openturbine-s3-20261102"])
-            self.assertEqual(shipped[0]["revision"], "1.0-20261104")
+            self.assertEqual(shipped[0]["revision"], "1.0-20261105")
             self.assertEqual(shipped[0]["name"], "OpenTurbine PCB v1.0")
             source = __import__("json").loads((ROOT / "pcb_profiles/official/openturbine-s3-20261102.otpcb.json").read_text(encoding="utf-8"))
             labels = {p["label"] for p in source["ports"]}
-            expected = {"Start", "Stop"} | {f"Thermocouple {n}" for n in range(1,3)}
-            for prefix, count in [("Input",6),("OUT",6),("PWM",6),("ADC",8)]:
-                expected |= {f"{prefix} {n}" for n in range(1,count+1)}
+            expected = {"Start Connector", "Stop Connector", "Status LED Connector", "Fault LED Connector", "GPIO 46", "GPIO 47"} | {f"Thermocouple {n} Connector" for n in range(1,3)}
+            for prefix, count in [("IN",6),("OUT",6),("PWM",6),("ADC",8)]:
+                expected |= {f"{prefix} {n} Connector" for n in range(1,count+1)}
             self.assertTrue(expected <= labels)
             self.assertFalse(any("openturbine-ecu-s3-v1" in str(p) for p in stage.rglob("*")))
             for target in manifest["targets"].values():

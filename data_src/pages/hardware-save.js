@@ -46,7 +46,7 @@ function _registryFieldLabel(key) {
     spi_miso:'SPI MISO GPIO', spi_mosi:'SPI MOSI GPIO', tc_type:'Thermocouple type',
     temp_resolution:'Temperature resolution', ntc_beta:'NTC beta coefficient', ntc_r0:'NTC resistance at 25 C',
     ntc_r_fixed:'NTC fixed resistor', ntc_pullup:'NTC divider orientation',
-    safe_demand:'Power-on demand', mirror_of:'Mirrored command source', force_safe_on_fault:'Force safe state on fault', min_run_demand:'Minimum reliable command', pwm_freq_hz:'PWM carrier frequency', pwm_res_bits:'PWM resolution', invert:'Signal inversion',
+    safe_demand:'Power-on demand', mirror_of:'Mirrored command source', force_safe_on_fault:'Force safe state on fault', min_run_demand:'Minimum reliable command', pwm_freq_hz:'PWM carrier frequency', pwm_res_bits:'PWM resolution', pwm_zero_mode:'At 0% command', invert:'Signal inversion',
     active_high:'Active polarity', pullup:'Internal pull-up', pulldown:'Internal pull-down',
     has_current:'Current sensing', current_pin:'Current sensor pin', current_mv_a:'Current sensor mV/A',
     current_zero_v:'Current zero voltage', current_max_a:'Current limit', current_ready_a:'Glow hot-status current', current_trip_delay_ms:'Overcurrent confirmation',
@@ -121,6 +121,7 @@ function _registryFieldRelevant(direction, channel, key) {
   }
   if (key === 'invert') return true;
   if (['safe_demand','mirror_of','force_safe_on_fault','min_run_demand'].includes(key)) return true;
+  if (key === 'pwm_zero_mode') return driver === 5 && !!pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(channel.pin));
   if (['pwm_freq_hz','pwm_res_bits'].includes(key)) return driver === 5;
   if (key === 'has_current') return true;
   if (['current_pin','current_mv_a','current_zero_v','current_max_a','current_trip_delay_ms','current_ready_a'].includes(key)) return !!channel?.has_current;
@@ -148,7 +149,7 @@ function _registryEffectiveValue(key, value, channel) {
     tc_type:'K', temp_resolution:10, ntc_beta:3950, ntc_r0:10000,
     ntc_r_fixed:10000, ntc_pullup:true, safe_demand:0, mirror_of:'',
     force_safe_on_fault:false, min_run_demand:0, pwm_freq_hz:5000,
-    pwm_res_bits:10, invert:false, active_high:true, pullup:false,
+    pwm_zero_mode:0, pwm_res_bits:10, invert:false, active_high:true, pullup:false,
     pulldown:false, has_current:false, current_pin:-1, current_mv_a:100,
     current_zero_v:1.65, current_max_a:0, current_ready_a:3, current_trip_delay_ms:5000, has_flow_monitor:false,
     minimum_flow_l_min:0, flow_input:'', ignition_mode:0, ignition_dwell_ms:6,
@@ -442,6 +443,7 @@ function _releaseInactivePinConflicts() {
 }
 
 async function saveHardware() {
+  if(_hwSavePending||_hwLoading)return;
   if (OTConfigEqual(hardwareEditState(),_hardwareModelSnap)) { dirty(); return; }
   normalizeUnavailableInputBias();
   reconcileRegistryDigitalInputs();
@@ -579,7 +581,7 @@ async function saveHardware() {
     fuel_sol:'fuel_shutoff', igniter:'igniter', igniter2:'ab_igniter', starter_en:'starter_enable',
     ab_sol:'ab_valve', ab_pump:'ab_pump', airstarter_sol:'air_starter', cool_fan:'cooling_fan',
     fuel_pump2:'fuel_pump', bleed_valve:'valve', prop_pitch:'prop_pitch', glow_plug:'glow_plug',
-    status_led:'warning_indicator'
+    status_led:'status_led'
   };
   for (const [key, label] of Object.entries({
     throttle:'Main Fuel Metering', starter:'Starter', oil_pump:'Oil Pump',
@@ -592,7 +594,7 @@ async function saveHardware() {
     const item = cfg.actuators?.[key];
     const registryOwned = key === 'bleed_valve'
       ? (registryRoot().outputs || []).some(c => c.id === 'bleed_valve')
-      : hasRegistryOutput(actuatorPurposes[key]);
+      : hasRegistryOutput(actuatorPurposes[key], key === 'status_led' ? 'status_led' : '');
     if (item?.enabled && !registryOwned) requirePin(item, 'pin', label);
   }
   if (cfg.actuators?.glow_plug?.enabled && Number(cfg.actuators.glow_plug.type || 0) === 2) {
@@ -753,6 +755,20 @@ function _cancelSaveRecap() {
 }
 
 async function _doSave() {
+  if(_hwSavePending||_hwLoading)return;
+  const editingSurface=document.querySelector('main'),wasInert=editingSurface?.inert;
+  _hwSavePending=true;
+  if(editingSurface)editingSurface.inert=true;
+  document.getElementById('btn-discard').disabled=true;
+  try {await _saveHardwareChanges();}
+  finally {
+    if(editingSurface)editingSurface.inert=wasInert;
+    _hwSavePending=false;
+    document.getElementById('btn-discard').disabled=!_hwDirty;
+    updateSaveButton();
+  }
+}
+async function _saveHardwareChanges() {
   const cb = document.getElementById('save-recap-confirm-btn');
   if (cb) cb.disabled = true;
   document.getElementById('save-recap-modal').style.display = 'none';
@@ -760,8 +776,6 @@ async function _doSave() {
   document.getElementById('btn-save').disabled = true;
   const nextProfileId = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
   const profileChanged = nextProfileId !== (_loadedProfileId || 'OpenTurbine');
-  const controller = new AbortController();
-  let timeout = null;
   try {
     // Hardware owns this page. Release live telemetry, then send only the
     // hardware document to its dedicated validator/save endpoint; firmware
@@ -771,24 +785,8 @@ async function _doSave() {
     const saveCfg = {...cfg};
     delete saveCfg._i2c_discovery;
     const hardwarePatch = mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {});
-    // A full Classic topology save can legitimately take several seconds.
-    // Timeout is an unknown result, never proof that a reboot/save succeeded.
-    timeout = setTimeout(() => controller.abort(), 15000);
-    const r = await fetch('/api/hardware?source=hardware', {
-      method: 'PATCH',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(hardwarePatch),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    const text = await r.text();
-    let j = {};
-    try { j = text ? JSON.parse(text) : {}; }
-    catch (_) {
-      if (r.ok) j = { ok:true, reboot:true };
-      else throw new Error(text || 'invalid save response');
-    }
-    if (j.ok) {
+    const {response:r,data:j}=await window.OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true);
+    if (r.ok && j.ok === true) {
       if (window.OTSetup) OTSetup.mark('hardware');
       clearDirty();
       document.getElementById('save-msg').textContent = 'Saved — rebooting…';
@@ -803,14 +801,8 @@ async function _doSave() {
       else updateSaveButton();
     }
   } catch(e) {
-    clearTimeout(timeout);
-    const timedOut = e.name === 'AbortError';
-    document.getElementById('save-msg').textContent = timedOut
-      ? 'Save status unknown — reconnect and verify before retrying'
-      : 'Not saved — the ECU could not be reached';
-    alert(timedOut
-      ? 'The ECU did not confirm whether Hardware was saved.\n\nReconnect to its Wi-Fi and reload Hardware to verify the setup before retrying.'
-      : 'Hardware was not saved because the ECU could not be reached.\n\nCheck that you are still connected to the OpenTurbine Wi-Fi, then try again.');
+    document.getElementById('save-msg').textContent = 'Save status unconfirmed — verify before retrying';
+    alert('The ECU did not confirm whether Hardware was saved.\n\n'+e.message+'\n\nReconnect and reload Hardware to verify the setup before retrying.');
     updateSaveButton();
   }
 }
@@ -874,6 +866,7 @@ function showRebootOverlay(nextWifiName = '') {
 }
 
 async function resetDefaults() {
+  if(_hwSavePending||_hwLoading)return;
   if (!await OTDialog.confirm('Discard unsaved changes and reload the last saved hardware configuration?', {
     title: 'Discard hardware changes?', confirmText: 'Discard changes', danger: true
   })) return;

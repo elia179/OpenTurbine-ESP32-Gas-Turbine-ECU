@@ -8,9 +8,23 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
-## [Unreleased]
+## [2.7.0] — 2026-11-06
 
-Target release: **2.6.1**.
+- Share bounded configuration-read recovery across Hardware, Controllers, System, Calibration, Sequence and Log settings. Honour retry delays for temporary snapshot contention and reject permanent errors without replaying them.
+- Keep browser timeouts active until update/save acknowledgement bodies and API downloads finish, preventing a partial response from stalling indefinitely.
+- Build S3 snapshots in the idle transmit workspace, retain only serialized response bytes during transfer, and reserve network heap for checked fallback allocations.
+- Recognize named PCB Status LED assignments during Hardware save validation instead of requiring an extra GPIO.
+
+- Bound overlapping large browser responses on both chips and release streamed JSON memory after its final transmitted chunk, including cancelled requests. Allocate the S3 receive workspace only during an active transfer and reserve network memory before queuing new TCP clients.
+- Count named PCB output assignments once in GPIO conflict checks, while retaining duplicate-connection and fixed-bus warnings.
+
+- Restore large S3 engine files using idle web-buffer memory, and stream large initial telemetry snapshots without truncating them. Report memory exhaustion separately from invalid configuration JSON.
+
+- Report persistent PCB output-stage faults once per fault episode instead of re-entering fault handling and flooding the event log during shutdown. Re-arm notification after recovery or acknowledgement.
+
+- Show compatible PCB connections for wet-glow pilot fuel and pump flow inputs. Reserve secondary pins alongside the main output and show supported external sensor interfaces directly in the connection picker.
+- Allow unreferenced new hardware drafts to be removed immediately. Keep confirmation for saved or referenced devices.
+- Show estimated recording time as channels and intervals change. Loop timing is opt-in for new setups.
 
 - Make the final USB erase action explicit, simplify PCB selection wording and recheck the connected chip before erase. Hide receive-only MAVLink tuning in TX-only setups while retaining its saved values. Refresh installation and packaging guidance to match the current tool.
 
@@ -28,7 +42,7 @@ Target release: **2.6.1**.
 - Preserve MAVLink-input controllers when loading settings, and show mapped controllers' input-loss output behavior.
 - Improve Setup Tool display scaling, use verification-specific reconnect actions, and report the firmware and web files actually verified.
 
-No-load MAVLink command, throttle and loss tests have passed on Classic ESP32 and ESP32-S3. Current fixture checks also cover engine-profile startup/STOP, I²C peripherals, indicators, browser/web transfers and the production MCPWM backend. Full release checks and update qualification remain required before publication. PCB support remains prototype support until assembled-board electrical, switching and thermal qualification is completed; bare-board checks do not establish maximum-current ratings.
+No-load MAVLink command, throttle and loss tests have passed on Classic ESP32 and ESP32-S3. Current fixture checks also cover engine-profile startup/STOP, I²C peripherals, indicators, browser/web transfers and the production MCPWM backend. Final local release evidence is recorded in `docs/internal/QUALIFICATION_2.7.0.md`; the earlier development worksheet remains available. PCB support remains prototype support until assembled-board electrical, switching and thermal qualification is completed; bare-board checks do not establish maximum-current ratings.
 
 ## [2.6.0] — 2026-10-23
 - Dashboard output details now separate configured presets from active commands, show actual throttle-feedback holds and measured oil-pressure minimum, and clear stale command owners.

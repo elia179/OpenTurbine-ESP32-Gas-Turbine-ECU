@@ -29,12 +29,13 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 )
 
 const (
 	appVersion                  = "0.7.9"
-	packageCompatibilityVersion = "0.7.0"
+	packageCompatibilityVersion = "0.7.9"
 	requiredPackageSchema       = 4
 	appTitle                    = "OpenTurbine Setup Tool"
 	ecuBaseURL                  = "http://192.168.4.1"
@@ -141,9 +142,11 @@ type sourcePCBProfile struct {
 		Minor int `json:"minor"`
 	} `json:"format_version"`
 	Board struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Revision string `json:"revision"`
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Revision     string `json:"revision"`
+		Manufacturer string `json:"manufacturer"`
+		Description  string `json:"description"`
 	} `json:"board"`
 	Target struct {
 		Chip string `json:"chip"`
@@ -189,6 +192,7 @@ type sourcePCBProfile struct {
 			GPIO        int     `json:"gpio"`
 			Divider     float64 `json:"divider"`
 			ReferenceMV float64 `json:"reference_mv"`
+			Label       string  `json:"label"`
 		} `json:"supply_voltage"`
 		ClusterSerial *struct {
 			Bus string `json:"bus"`
@@ -198,9 +202,11 @@ type sourcePCBProfile struct {
 		} `json:"mavlink"`
 	} `json:"fixed_functions"`
 	Ports []struct {
-		ID    string `json:"id"`
-		Label string `json:"label"`
-		Modes []struct {
+		ID          string `json:"id"`
+		Label       string `json:"label"`
+		Connector   string `json:"connector"`
+		Description string `json:"description"`
+		Modes       []struct {
 			ID          string `json:"id"`
 			Adapter     string `json:"adapter"`
 			Device      string `json:"device"`
@@ -3570,6 +3576,12 @@ func (ui *NativeUI) paintPCBProfileChoice(hdc uintptr, w, h int, choices []pcbPr
 	}
 }
 
+// PCB firmware stores these strings in fixed UTF-8 byte buffers.
+func pcbTextFits(value string, limit int, required bool) bool {
+	return (!required || value != "") && utf8.ValidString(value) &&
+		!strings.ContainsRune(value, 0) && len(value) <= limit
+}
+
 func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []string, error) {
 	targetInfo, ok := pkg.Manifest.Targets[target]
 	if !ok {
@@ -3578,6 +3590,9 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 	source, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot read custom PCB profile: %w", err)
+	}
+	if !utf8.Valid(source) {
+		return "", nil, errors.New("custom PCB profile must be valid UTF-8")
 	}
 	var profile sourcePCBProfile
 	if err := json.Unmarshal(source, &profile); err != nil {
@@ -3588,20 +3603,20 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		profile.FormatVersion.Minor < 0 || profile.FormatVersion.Minor > 255 {
 		return "", nil, errors.New("custom PCB profile uses an unsupported format or major version")
 	}
-	needs261 := profile.FixedFunctions.FaultLED != nil || profile.FixedFunctions.OutputEnable != nil ||
+	needsExtendedProfile := profile.FixedFunctions.FaultLED != nil || profile.FixedFunctions.OutputEnable != nil ||
 		(profile.FixedFunctions.StatusLED != nil && profile.FixedFunctions.StatusLED.Device != "")
 	for _, port := range profile.Ports {
 		for _, mode := range port.Modes {
-			needs261 = needs261 || mode.PullControl != nil
+			needsExtendedProfile = needsExtendedProfile || mode.PullControl != nil
 		}
 	}
-	if needs261 && profile.FormatVersion.Major == 1 && profile.FormatVersion.Minor < 1 {
-		return "", nil, errors.New("this PCB profile uses 2.6.1 capabilities and must declare format 1.1")
+	if needsExtendedProfile && profile.FormatVersion.Major == 1 && profile.FormatVersion.Minor < 1 {
+		return "", nil, errors.New("this PCB profile uses extended capabilities and must declare format 1.1 or 2.0")
 	}
 	if profile.FormatVersion.Major == 2 || profile.FormatVersion.Minor >= 1 {
-		compatible, err := versionAtLeast(pkg.Manifest.Version, "2.6.1")
+		compatible, err := versionAtLeast(pkg.Manifest.Version, "2.7.0")
 		if err != nil || !compatible {
-			return "", nil, errors.New("this PCB profile requires OpenTurbine 2.6.1 or newer; use the matching firmware setup package")
+			return "", nil, errors.New("this PCB profile requires OpenTurbine 2.7.0 or newer; use the matching firmware setup package")
 		}
 	}
 	expectedChip := "esp32"
@@ -3616,9 +3631,9 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		return "", nil, fmt.Errorf("custom PCB profile is for %s, but the detected board is %s",
 			profile.Target.Chip, expectedChip)
 	}
-	if !validStableID(profile.Board.ID, 40) || profile.Board.Name == "" ||
-		len(profile.Board.Name) > 47 || profile.Board.Revision == "" ||
-		len(profile.Board.Revision) > 15 {
+	if !validStableID(profile.Board.ID, 40) || !pcbTextFits(profile.Board.Name, 47, true) ||
+		!pcbTextFits(profile.Board.Revision, 15, true) ||
+		!pcbTextFits(profile.Board.Manufacturer, 31, false) || !pcbTextFits(profile.Board.Description, 95, false) {
 		return "", nil, errors.New("custom PCB profile has invalid board identity fields")
 	}
 	if len(profile.Buses) > 8 || len(profile.Devices) > 24 ||
@@ -3810,6 +3825,9 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		}
 	}
 	if fixed := profile.FixedFunctions.SupplyVoltage; fixed != nil {
+		if !pcbTextFits(fixed.Label, 31, false) {
+			return "", nil, errors.New("fixed function supply_voltage label exceeds its UTF-8 storage limit")
+		}
 		if fixed.Divider < 1 || fixed.Divider > 100 {
 			return "", nil, errors.New("fixed function supply_voltage divider must be 1..100")
 		}
@@ -3845,7 +3863,7 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		if err := claimID(port.ID, "port"); err != nil {
 			return "", nil, err
 		}
-		if port.Label == "" || len(port.Label) > 31 || len(port.Modes) < 1 || len(port.Modes) > 4 {
+		if !pcbTextFits(port.Label, 31, true) || !pcbTextFits(port.Connector, 23, false) || !pcbTextFits(port.Description, 79, false) || len(port.Modes) < 1 || len(port.Modes) > 4 {
 			return "", nil, fmt.Errorf("port %s has invalid label or mode count", port.ID)
 		}
 		modeIDs := map[string]bool{}
@@ -3875,9 +3893,9 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 			hasDefault := mode.Default.ID != "" || mode.Default.Name != "" ||
 				mode.Default.Role != "" || mode.Default.Purpose != ""
 			if hasDefault && (!validStableID(mode.Default.ID, 19) ||
-				mode.Default.Name == "" || len(mode.Default.Name) > 15 ||
-				mode.Default.Role == "" || len(mode.Default.Role) > 17 ||
-				mode.Default.Purpose == "" || len(mode.Default.Purpose) > 19) {
+				!pcbTextFits(mode.Default.Name, 23, true) ||
+				!pcbTextFits(mode.Default.Role, 17, true) ||
+				!pcbTextFits(mode.Default.Purpose, 19, true)) {
 				return "", nil, fmt.Errorf("port %s mode %s has an incomplete or invalid default assignment",
 					port.ID, mode.ID)
 			}
@@ -4585,8 +4603,8 @@ func backupConfig() (string, error) {
 		hardwareIdentity.ProfileID == "" || hardwareIdentity.ProfileID != settingsIdentity.ProfileID {
 		return "", fmt.Errorf("board backup has missing or mismatched engine profile IDs")
 	}
-	dir := filepath.Join(backupDir(), time.Now().Format("2006-01-02_15-04-05"))
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	dir, err := newBackupDirectory(backupDir(), time.Now())
+	if err != nil {
 		return "", err
 	}
 	p := filepath.Join(dir, "ecu_config.json")
@@ -4736,6 +4754,16 @@ func postRawChunkWithRetry(client *http.Client, endpoint string, payload []byte)
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				return &chunkHTTPError{code: resp.StatusCode, status: resp.Status, body: strings.TrimSpace(string(respBody))}
 			} else {
+				var acknowledgement struct {
+					OK    bool   `json:"ok"`
+					Error string `json:"error"`
+				}
+				if json.Unmarshal(respBody, &acknowledgement) != nil || !acknowledgement.OK {
+					if acknowledgement.Error != "" {
+						return fmt.Errorf("board did not confirm upload chunk: %s", acknowledgement.Error)
+					}
+					return errors.New("upload chunk outcome is unconfirmed: board returned no valid success acknowledgement; reconnect and verify the board before retrying")
+				}
 				return nil
 			}
 		}
@@ -4765,4 +4793,13 @@ func userDocumentsDir() string {
 	}
 	return "."
 }
+
+// Each snapshot owns a directory, even when two backups happen in one second.
+func newBackupDirectory(base string, now time.Time) (string, error) {
+	if err := os.MkdirAll(base, 0755); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(base, now.Format("2006-01-02_15-04-05")+"-")
+}
+
 func backupDir() string { return filepath.Join(userDocumentsDir(), "OpenTurbine", "Backups") }

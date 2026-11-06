@@ -66,7 +66,7 @@ def make_profile(parts):
     for pin,net in [(1,'+3V3'),(2,'GND'),(3,'GND')]:check('U2001',pin,net)
     profile = {
         'format':'openturbine-pcb-profile', 'format_version':{'major':2,'minor':0},
-        'board':{'id':'openturbine-s3-20261102','name':'OpenTurbine PCB v1.0','revision':'1.0-20261104','manufacturer':'OpenTurbine','description':'4 Nov 2026; ESP32-S3-WROOM-1-N8; OpenTurbine 2.6.1 required'},
+        'board':{'id':'openturbine-s3-20261102','name':'OpenTurbine PCB v1.0','revision':'1.0-20261105','manufacturer':'OpenTurbine','description':'4 Nov 2026 PCB; ESP32-S3-WROOM-1-N8; OpenTurbine 2.7.0 required'},
         'target':{'chip':'esp32-s3','minimum_flash_mb':8,'reviewed_strapping_gpio':[3,45,46]},
         'buses':[
             {'id':'sensor_i2c','kind':'i2c','pins':{'sda':gpio('I2C_SDA'),'scl':gpio('I2C_SCL')},'frequency_hz':100000},
@@ -85,33 +85,40 @@ def make_profile(parts):
             'mavlink':{'bus':'serial_0'}}, 'ports':[]}
     ports = profile['ports']
     for i in (1,2):
-        ports.append({'id':f'thermocouple_{i}','label':f'Thermocouple {i}','connector':f'J{42+i}','modes':[{'id':'temperature','adapter':'spi_thermocouple','device':f'tc{i}'}]})
+        ports.append({'id':f'thermocouple_{i}','label':f'Thermocouple {i}','connector':f'J{42+i}','description':'MAX31856 thermocouple input; use an ungrounded probe of the selected alloy','modes':[{'id':'temperature','adapter':'spi_thermocouple','device':f'tc{i}'}]})
     for i in range(1,9):
         check(f'J{19+i}',1,f'ANALOG_EXT{i}')
-        ports.append({'id':f'analog_{i}','label':f'ADC {i}','connector':f'J{19+i}','description':'0â€“5 V input via 1 kÎ©; ADC reference is the 5 V analog rail','modes':[
+        ports.append({'id':f'analog_{i}','label':f'ADC {i}','connector':f'J{19+i}','description':'0–5 V input via 1 kΩ; ADC reference is the 5 V analog rail','modes':[
             {'id':'analog','adapter':'i2c_adc_input','device':'adc','channel':i-1,'reference_mv':5000,'limits':{'minimum_mv':0,'maximum_mv':5000}},
             {'id':'switch','adapter':'i2c_adc_digital_input','device':'adc','channel':i-1,'reference_mv':5000}]})
     for i in range(1,7):
         check(f'J{27+i}',1,f'PULSE_EXT{i}')
         check('U17', [4,5,6,7,9,10][i-1],f'PULSE_PU_CTL{i}')
-        ports.append({'id':f'pulse_in_{i}','label':f'Input {i}','connector':f'J{27+i}','description':'Conditioned input; switchable external 3.3 V pull-up','modes':[
+        ports.append({'id':f'pulse_in_{i}','label':f'IN {i} Connector','connector':f'J{27+i}','description':'Conditioned input; switchable external 3.3 V pull-up','modes':[
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_IN{i}')},'pull':'none','pull_control':{'device':'io','channel':i-1,'active_high':False}}
             for kind,adapter in [('frequency','pcnt_input'),('rc','rc_pwm_input'),('duty','pwm_duty_input'),('switch','digital_input')]]})
     for i in range(1,7):
         check(f'J{33+i}',1,f'PULSE_OUT{i}')
         check(f'J{2*i+1}','+',f'CH{i}_OUT_POS');check(f'J{2*i+1}','-','GND')
-        ports.append({'id':f'pulse_out_{i}','label':f'OUT {i}','connector':f'J{33+i}','description':'5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.','modes':[{'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_CMD{i}')},'safe_demand':0} for kind,adapter in [('servo','servo_output'),('pwm','pwm_output'),('on_off','relay_output')]]})
-        ports.append({'id':f'power_out_{i}','label':f'PWM {i}','connector':f'J{2*i+1}','description':'Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum','modes':[
+        ports.append({'id':f'pulse_out_{i}','label':f'OUT {i} Connector','connector':f'J{33+i}','description':'5 V signal: servo/ESC, PWM duty or on/off. Not a load-power output.','modes':[{'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PULSE_CMD{i}')},'safe_demand':0} for kind,adapter in [('servo','servo_output'),('pwm','pwm_output'),('on_off','relay_output')]]})
+        ports.append({'id':f'power_out_{i}','label':f'PWM {i} Connector','connector':f'J{2*i+1}','description':'Switched VIN positive; synchronous PWM/on-off, 20 kHz maximum','modes':[
             {'id':kind,'adapter':adapter,'endpoint':{'gpio':gpio(f'PWM_RAW{i}')},'safe_demand':0}
             for kind,adapter in [('on_off','relay_output'),('pwm','pwm_output')]]})
     for name,pin in [('start',17),('stop',48)]:
-        ports.append({'id':f'{name}_switch','label':name.title(),'connector':'J_'+name.upper(),'modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':name+'_switch','name':name.title()+' switch','role':'digital_switch','purpose':name+'_switch'}}]})
+        ports.append({'id':f'{name}_switch','label':name.title()+' Connector','connector':'J_'+name.upper(),'description':'3.3 V GPIO switch input; contact to GND, default active-low with pull-up','modes':[{'id':'switch','adapter':'digital_input','endpoint':{'gpio':pin},'active_high':False,'pull':'up','default':{'id':name+'_switch','name':name.title()+' switch','role':'digital_switch','purpose':name+'_switch'}}]})
     for channel,purpose,label in [(6,'status_led','Status LED'),(7,'fault_led','Fault LED')]:
-        ports.append({'id':purpose,'label':label,'description':'Onboard low-current LED; on/off control only','modes':[
+        ports.append({'id':purpose,'label':label+' Connector','description':'Onboard low-current LED; on/off control only','modes':[
             {'id':'on_off','adapter':'i2c_digital_output','device':'io','channel':channel,'active_high':False,'safe_demand':0,
              'default':{'id':purpose,'name':label,'role':'indicator','purpose':purpose}}]})
     for pin in (46,47):
-        ports.append({'id':f'extension_{pin}','label':f'Extension GPIO{pin}','connector':'J18','modes':[{'id':'input','adapter':'digital_input','endpoint':{'gpio':pin}}]})
+        ports.append({'id':f'extension_{pin}','label':f'GPIO {pin}','connector':'J18','modes':[{'id':'input','adapter':'digital_input','endpoint':{'gpio':pin}}]})
+    for pad,net in [(3,'GPIO47_EXT'),(4,'GPIO46_EXT'),(5,'GPIO17_START'),(6,'GPIO48_STOP')]:check('J18',pad,net)
+    profile['gpio_headers']=[17,48,46,47]
+    check('R82',1,'GPIO46_EXT');check('R82',2,'GND')
+    check('R79',1,'+3V3');check('R79',2,'GPIO47_EXT')
+    profile['gpio_header_notes']={'46':'Fixed 10 kΩ pull-down to GND; software cannot remove it.','47':'Fixed 10 kΩ pull-up to 3.3 V; software cannot remove it.'}
+    for port in ports:
+        if port['id'].startswith(('thermocouple_','analog_')):port['label']+=' Connector'
     return profile
 
 

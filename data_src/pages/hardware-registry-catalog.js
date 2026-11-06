@@ -496,13 +496,13 @@ function registryTorqueInterfaceEditor(direction, c, index) {
   const scale = Number(c.hx711_scale ?? 1);
   const zero = Number(c.hx711_zero ?? 0);
   const clkClass = `${registryFieldChangedClass('input', index, 'hx711_clk')}${clk < 0 ? ' field-error' : ''}`;
-  const present = type => (cfg._i2c_discovery?.devices || []).some(d => d.type === type && d.present);
+  const present = type => connectedI2cDevices(type).length>0 || (pcbProfileActive()&&(pcbProfile.ports||[]).some(p=>p.modes?.some(m=>String(m.device_driver||'').toUpperCase()===type)));
   const i2cOption = (value, type, label, selected) => {
-    const unavailable = !cfg.i2c?.enabled ? ' — enable I2C bus' : !present(type) ? ' — not detected' : '';
+    const unavailable = present(type)&&pcbProfileActive() ? '' : !cfg.i2c?.enabled ? ' — enable I2C bus' : cfg._i2c_discovery?.status_unavailable ? ' - status unavailable' : cfg._i2c_discovery?.bus_active===false ? ' - bus unavailable' : !present(type) ? ' — not detected' : '';
     return `<option value="${value}"${selected?' selected':''}${!selected&&unavailable?' disabled':''}>${label}${unavailable}</option>`;
   };
   const choices = torque
-    ? `<option value="adc"${driver===1&&!hx?' selected':''}>Analog 0–3.3 V transmitter (ESP32 ADC)</option>
+    ? `<option value="adc"${driver===1&&!hx?' selected':''}>${pcbProfileActive()?'Analog voltage transmitter':'Analog 0–3.3 V transmitter (ESP32 ADC)'}</option>
        <option value="hx711"${hx?' selected':''}>HX711 load-cell amplifier</option>
        ${i2cOption('tla2528','TLA2528','TLA2528 analog input',driver===9)}
        ${i2cOption('nau7802','NAU7802','NAU7802 I2C load cell',driver===10)}
@@ -523,7 +523,7 @@ function registryPhaseTorqueSubcards(direction, c, index) {
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
     <div class="registry-card-summary"><div><strong>Reference shaft pickup</strong><div class="hw-desc">Conditioned square-wave reference. Its period is used for torque; shaft-speed output is optional.</div></div></div>
     <div class="registry-card-editor" style="display:block"><div class="hw-grid">
-      <div class="hw-field"><span class="hw-label">Reference GPIO</span><select onchange="updateRegistryChannel('input',${index},'pin',+this.value)">${buildPinOptions(c.pin,'in')}</select></div>
+      <div class="hw-field"><span class="hw-label">Reference pickup connection</span><select onchange="updateRegistryChannel('input',${index},'pin',+this.value)">${buildPinOptions(c.pin,'in')}</select></div>
       <div class="hw-field"><span class="hw-label">Reference pulses per shaft revolution</span><span class="hw-desc">Reference tooth count, including any gearing multiplier. Also sets the RPM and shaft-angle scale.</span><input type="number" min="0.001" max="1024" step="0.001" value="${registryFormatValue(c.pulses_per_unit ?? 1,3)}" onchange="updateRegistryChannel('input',${index},'pulses_per_unit',+this.value)"></div>
       <div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Use reference as shaft speed (optional)</span><span class="hw-desc">Choose one use. With all options off, only torque is reported and shaft power is not calculated.</span><div class="hw-toggle-row">
         <label class="hw-toggle"><input type="checkbox" ${source===1?'checked':''} ${n1Used?'disabled':''} onchange="updateRegistryChannel('input',${index},'phase_speed_source',this.checked?1:0)"><span></span> N1 speed${n1Used?' — already fitted':''}</label>
@@ -534,7 +534,7 @@ function registryPhaseTorqueSubcards(direction, c, index) {
     <div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
       <div class="registry-card-summary"><div><strong>Torque phase pickup</strong><div class="hw-desc">Second conditioned square wave, captured on the same MCPWM timer. If it fails, reference speed remains available.</div></div></div>
       <div class="registry-card-editor" style="display:block"><div class="hw-grid">
-        <div class="hw-field"><span class="hw-label">Phase GPIO</span><select onchange="updateRegistryChannel('input',${index},'phase_pin',+this.value)">${buildPinOptions(phasePin,'in')}</select></div>
+        <div class="hw-field"><span class="hw-label">Torque pickup connection</span><select onchange="updateRegistryChannel('input',${index},'phase_pin',+this.value)">${buildPinOptions(phasePin,'in')}</select></div>
         <div class="hw-field"><span class="hw-label">Torque pickup pulses per shaft revolution</span><span class="hw-desc">Set the effective tooth count of the torque/phase pickup separately. It must match the reference count for one-to-one phase pairing. Unequal unindexed wheels need an index or per-tooth calibration and are not accepted as torque inputs.</span><input type="number" min="0.001" max="1024" step="0.001" value="${registryFormatValue(c.phase_pulses_per_unit ?? c.pulses_per_unit ?? 1,3)}" onchange="updateRegistryChannel('input',${index},'phase_pulses_per_unit',+this.value)"></div>
         <div class="hw-field"><span class="hw-label">Input filter response</span><span class="hw-desc">1.0 follows each new torque sample; lower values smooth noise.</span><input type="number" min="0.01" max="1" step="0.01" value="${registryFormatValue(c.filter_alpha ?? 0.25,2)}" onchange="updateRegistryChannel('input',${index},'filter_alpha',+this.value)"></div>
         <div class="hw-field"><span class="hw-label">Zero-torque phase (shaft degrees)</span><span class="hw-desc">Capture while the shaft is spinning at zero load on Calibration, or enter a previously measured running zero here. Static tooth alignment is not a valid zero.</span><input type="number" min="-180" max="180" step="0.001" value="${registryFormatValue(c.phase_zero_deg ?? 0,3)}" onchange="updateRegistryChannel('input',${index},'phase_zero_deg',+this.value)"></div>
@@ -587,7 +587,8 @@ function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
   if(pcbProfile?.fixed_functions?.power_stage?.inh_gpio?.includes(Number(c.pin))){
     const freq=Number(c.pwm_freq_hz??5000),ticks=Math.floor(5000000/Math.max(freq,1));
-    return `<div class="hw-field"><span class="hw-label">Power PWM carrier frequency (Hz)</span><span class="hw-desc">100–20,000 Hz. The 5 MHz power timer provides about ${ticks} duty steps at this frequency. Equal-frequency power channels use staggered phases to reduce simultaneous switching; electrical limits still need load testing.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}" type="number" min="100" max="20000" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>`;
+    return `<div class="hw-field"><span class="hw-label">Power PWM carrier frequency (Hz)</span><span class="hw-desc">100–20,000 Hz. The 5 MHz power timer provides about ${ticks} duty steps at this frequency. Equal-frequency power channels use staggered phases to reduce simultaneous switching; electrical limits still need load testing.</span><input class="${registryFieldChangedClass('output',index,'pwm_freq_hz')}" type="number" min="100" max="20000" step="1" value="${freq}" oninput="updateRegistryChannel('output',${index},'pwm_freq_hz',+this.value)"></div>
+      <div class="hw-field"><span class="hw-label">At 0% command</span><span class="hw-desc">Brake keeps the low-side MOSFET on continuously. Coast turns both MOSFETs off. Positive PWM uses complementary switching in both modes. Startup inhibition and PCB hardware faults always turn both off.</span><select aria-label="At 0% command" class="${registryFieldChangedClass('output',index,'pwm_zero_mode')}" onchange="updateRegistryChannel('output',${index},'pwm_zero_mode',+this.value)"><option value="0"${Number(c.pwm_zero_mode??0)===0?' selected':''}>Brake — low-side on (default)</option><option value="1"${Number(c.pwm_zero_mode??0)===1?' selected':''}>Coast — both off</option></select></div>`;
   }
   const freq = Number(c.pwm_freq_hz ?? 5000);
   const bits = Number(c.pwm_res_bits ?? 10);
@@ -736,9 +737,11 @@ function registryTemperatureIsDigital(c) {
   return String(c?.role || '') === 'temperature' && [1,2,3,5].includes(iface);
 }
 function registrySignalTypeEditor(direction, c, index, driverClass) {
-  if (direction === 'input' && ['torque','general_torque'].includes(registryDerivedPurpose(direction,c))) return '';
+  if (direction === 'input' && registryLoadCellIsHx711(c))
+    return '<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Digital / HX711 (DOUT and SCK)</span></div>';
   if (direction === 'input' && Number(c.torque_interface || 0) === 2)
-    return `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Set by the phase-displacement interface.</span><select class="${driverClass}" disabled><option selected>Dual square-wave capture</option></select></div>`;
+    return '<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Digital / dual square-wave capture</span></div>';
+  if (direction === 'input' && ['torque','general_torque'].includes(registryDerivedPurpose(direction,c))) return '';
   if (direction === 'input' && registryTemperatureIsDigital(c)) {
     const signal = Number(c.temp_interface) === 5 ? 'Digital / OneWire' : 'Digital / SPI';
     return `<div class="hw-field"><span class="hw-label">Signal type</span><span class="hw-desc">Set by the selected digital temperature-sensor interface.</span><select class="${driverClass}" disabled><option selected>${signal}</option></select></div>`;
@@ -755,7 +758,7 @@ function registryInputPinLabel(c) {
   return 'GPIO pin';
 }
 function registryTemperatureInterfaceEditor(c, index) {
-  if (String(c.role||'') !== 'temperature' || Number(c.driver) !== 1) return '';
+  if (String(c.role||'') !== 'temperature' || ![1,9].includes(Number(c.driver))) return '';
   const iface = Number(c.temp_interface || 0), purpose = registryDerivedPurpose('input',c);
   const oil = purpose === 'oil_temperature', coolant = purpose === 'coolant_temp';
   const general = purpose === 'general_temperature';
@@ -775,7 +778,7 @@ function registryTemperatureInterfaceEditor(c, index) {
     : lowTemperature ? 'Choose the actual low-temperature sensor interface. NTC and DS18B20 must never be used for turbine-gas temperatures.'
     : 'Calibrated analog transmitter. Choose a MAX thermocouple amplifier for turbine-gas temperature probes.';
   let details = '';
-  if (iface >= 1 && iface <= 3) details = `<div class="hw-field"><span class="hw-label">Shared SPI bus</span><span class="hw-desc">${cfg.spi?.enabled ? `SCK GPIO ${Number(cfg.spi.sck_pin ?? -1)}, MISO GPIO ${Number(cfg.spi.miso_pin ?? -1)}${iface===3?`, MOSI GPIO ${Number(cfg.spi.mosi_pin ?? -1)}`:''}. Change these once under Shared sensor buses.` : 'SPI bus is disabled. Enable it under Shared sensor buses before this device can work.'}</span></div>${pin('spi_cs','out')}${iface===3?`<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the probe alloy fitted to this MAX31856 channel.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(v=>`<option value="${v}"${String(c.tc_type||'K')===v?' selected':''}>${v}</option>`).join('')}</select></div>`:''}`;
+  if (!c.physical_port && iface >= 1 && iface <= 3) details = `<div class="hw-field"><span class="hw-label">Shared SPI bus</span><span class="hw-desc">${cfg.spi?.enabled ? `SCK GPIO ${Number(cfg.spi.sck_pin ?? -1)}, MISO GPIO ${Number(cfg.spi.miso_pin ?? -1)}${iface===3?`, MOSI GPIO ${Number(cfg.spi.mosi_pin ?? -1)}`:''}. Change these once under Shared sensor buses.` : 'SPI bus is disabled. Enable it under Shared sensor buses before this device can work.'}</span></div>${pin('spi_cs','out')}${iface===3?`<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the probe alloy fitted to this MAX31856 channel.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(v=>`<option value="${v}"${String(c.tc_type||'K')===v?' selected':''}>${v}</option>`).join('')}</select></div>`:''}`;
   if (iface === 4) details = `<div class="hw-field"><span class="hw-label">Divider orientation</span><span class="hw-desc">This is the external calibrated resistor, not an internal GPIO pull.</span><select onchange="updateRegistryChannel('input',${index},'ntc_pullup',this.value==='1')"><option value="1"${c.ntc_pullup!==false?' selected':''}>Fixed resistor to 3.3 V, NTC to ground</option><option value="0"${c.ntc_pullup===false?' selected':''}>NTC to 3.3 V, fixed resistor to ground</option></select></div><div class="hw-field"><span class="hw-label">NTC beta coefficient</span><span class="hw-desc">Beta value from the thermistor datasheet, normally specified between 25 °C and 50 °C.</span><input type="number" min="1" step="1" value="${registryFormatValue(c.ntc_beta ?? 3950)}" oninput="updateRegistryChannel('input',${index},'ntc_beta',registryParseValue(this.value))"></div><div class="hw-field"><span class="hw-label">NTC resistance at 25 °C (Ω)</span><span class="hw-desc">Nominal thermistor resistance at 25 °C from its datasheet.</span><input type="number" min="1" step="1" value="${registryFormatValue(c.ntc_r0 ?? 10000)}" oninput="updateRegistryChannel('input',${index},'ntc_r0',registryParseValue(this.value))"></div><div class="hw-field"><span class="hw-label">Fixed divider resistor (Ω)</span><span class="hw-desc">Measured value of the external fixed resistor paired with the thermistor.</span><input type="number" min="1" step="1" value="${registryFormatValue(c.ntc_r_fixed ?? 10000)}" oninput="updateRegistryChannel('input',${index},'ntc_r_fixed',registryParseValue(this.value))"></div>`;
   if (iface === 5) details = `<div class="hw-field"><span class="hw-label">DS18B20 resolution</span><span class="hw-desc">Uses one data GPIO and an external 4.7 kΩ pull-up to 3.3 V. The 10-bit default updates in about 188 ms; higher resolution is slower.</span><select onchange="updateRegistryChannel('input',${index},'temp_resolution',+this.value)">${[9,10,11,12].map(v=>`<option value="${v}"${Number(c.temp_resolution ?? 10)===v?' selected':''}>${v}-bit</option>`).join('')}</select></div>`;
   return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">${heading}</span><select onchange="updateRegistryChannel('input',${index},'temp_interface',+this.value)">${choices}</select></div>${details}`;
@@ -798,6 +801,7 @@ function registryInputOptionsEditor(direction, c, index) {
       return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">OneWire wiring</span><span class="hw-desc">Use an external 4.7 kΩ pull-up to 3.3 V. Internal pull-up/down is not used for a DS18B20 bus.</span></div>`;
     return `${activeStateEditor}<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Input bias</span><span class="hw-desc">ADC inputs leave internal pull-up and pull-down resistors disabled so the analog reading is not biased.</span></div>`;
   }
+  if (d === 9) return `${activeStateEditor}<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">This ADC connector has no switchable pull-up or pull-down. Add an external resistor if the connected switch needs one.</span></div>`;
   if (d !== 0 && d !== 2) return `${activeStateEditor}<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Input bias</span><span class="hw-desc">This driven signal does not use the ESP32 internal pull-up or pull-down.</span></div>`;
   const polarityClass = registryFieldChangedClass(direction, index, 'active_high');
   const pullupClass = registryFieldChangedClass(direction, index, 'pullup');
@@ -806,7 +810,7 @@ function registryInputOptionsEditor(direction, c, index) {
   const polarity = d === 0 ? `<div class="hw-field"><span class="hw-label">Active polarity</span><select class="${polarityClass}" onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>Active HIGH</option><option value="0"${c.active_high === false ? ' selected' : ''}>Active LOW</option></select></div>` : '';
   if (pinHasNoInternalPull(c.pin)) return `${polarity}${unavailableInputBias(c.pin)}`;
   return `${polarity}
-          <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch or pulse sensor. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span><div class="hw-toggle-row">
+          <div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">Use one internal resistor for a plain switch or pulse sensor. Active LOW normally uses pull-up; active HIGH normally uses pull-down.</span>${pcbProfileActive()&&pcbProfile.gpio_header_notes?.[String(c.pin)]?`<span class="hw-desc">${escapeHtmlText(pcbProfile.gpio_header_notes[String(c.pin)])}</span>`:''}<div class="hw-toggle-row">
             <label class="hw-toggle"><input class="${pullupClass}${pullConflict}" type="checkbox" ${c.pullup ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pullup',this.checked)"><span></span> Pull-up</label>
             <label class="hw-toggle"><input class="${pulldownClass}${pullConflict}" type="checkbox" ${c.pulldown ? 'checked' : ''} onchange="updateRegistryChannel('input',${index},'pulldown',this.checked)"><span></span> Pull-down</label>
           </div></div>`;
@@ -996,7 +1000,7 @@ function registryCurrentEditor(direction, c, index) {
       <label class="hw-toggle"><input type="checkbox" ${enabled ? 'checked' : ''} onchange="${setEnabled}"><span></span> Enable</label>
     </div>
     ${enabled ? `<div class="registry-card-editor" style="display:block"><div class="hw-grid">
-      <div class="hw-field"><span class="hw-label">Current sensor ADC GPIO</span><span class="hw-desc">ADC-capable GPIO connected to the current sensor output.</span><select onchange="${fieldSet('pin','+this.value')}">${buildPinOptions(pin, 'adc')}</select></div>
+      <div class="hw-field"><span class="hw-label">Current sensor ADC GPIO</span><span class="hw-desc">${pcbProfileActive()?'Dedicated current feedback needs a native ADC GPIO. To monitor current through a PCB ADC connector, add a General current input.':'ADC-capable GPIO connected to the current sensor output.'}</span><select onchange="${fieldSet('pin','+this.value')}">${buildPinOptions(pin, 'adc')}</select></div>
       <div class="hw-field"><span class="hw-label">Sensor sensitivity (mV/A)</span><span class="hw-desc">Datasheet sensitivity at the ECU ADC pin. Example: ACS712-20A = 100 mV/A.</span><input type="number" min="1" max="10000" step="1" value="${registryFormatValue(mvA)}" oninput="${fieldSet('mv_a','+this.value')}"></div>
       <div class="hw-field"><span class="hw-label">Zero-current voltage (V)</span><span class="hw-desc">Sensor output voltage when no current flows.</span><input type="number" min="0" max="3.3" step="0.01" value="${registryFormatValue(zeroV)}" oninput="${fieldSet('zero_v','+this.value')}"></div>
        ${registryDerivedPurpose('output',c) === 'glow_plug' ? `<div class="hw-field"><span class="hw-label">Hot-status current (A)</span><span class="hw-desc">For monitoring: this powered plug is reported hot when measured current falls to or below this value. It does not delay the sequence.</span><input type="number" min="0" max="1000" step="0.1" value="${registryFormatValue(readyA)}" oninput="${fieldSet('ready_a','+this.value')}"></div>` : ''}
@@ -1032,6 +1036,7 @@ function registryGlowSubcards(c, index) {
   const fuelType = Number(act.fuel_type || 0);
   const fuelDelayS = Math.max(0, Number(act.fuel_delay_ms ?? 8000) / 1000);
   const rampMs = outputDriverIsOnOff(c.driver) ? 0 : Math.max(0, Number(c.ignition_ramp_ms) || 0);
+  const powerPilot = pcbProfileActive() && pcbWetGlowPowerPin(act.fuel_pin);
   const pilotBeforeRamp = wet && rampMs > 0 && Number(act.fuel_delay_ms ?? 8000) < rampMs;
   return `<div class="hw-item-card registry-subcard" style="grid-column:1/-1;margin:.35rem 0 0">
     <div class="registry-card-summary"><div><strong>Glow-plug type and ignition behavior</strong><div class="hw-desc">Wet glow includes its own pilot-fuel hardware in this device. A separately added Pilot Fuel output remains independent.</div></div></div>
@@ -1040,11 +1045,11 @@ function registryGlowSubcards(c, index) {
       ${registryIgnitionOnRampFields(c, index)}
     </div></div>
     ${wet ? `<div class="registry-card-editor" style="display:block;margin-top:.65rem"><div class="registry-card-summary"><div><strong>Wet-glow pilot fuel</strong><div class="hw-desc">This output belongs only to this wet glow plug and follows its command automatically.</div></div></div><div class="hw-grid">
-      <div class="hw-field"><span class="hw-label">Pilot-fuel GPIO</span><span class="hw-desc">GPIO driving the wet glow plug's own pilot-fuel pump or valve.</span><select onchange="setAct('glow_plug','fuel_pin',+this.value)">${buildPinOptions(Number(act.fuel_pin ?? -1),'out')}</select></div>
+      <div class="hw-field"><span class="hw-label">${pcbProfileActive()?'Pilot-fuel connection':'Pilot-fuel GPIO'}</span><span class="hw-desc">Connection for this wet glow plug’s pilot-fuel pump or valve.</span><select onchange="setRegistryWetGlowFuelPin(+this.value)">${registryWetGlowFuelPinOptions(act)}</select></div>
       <div class="hw-field"><span class="hw-label">Pilot-fuel signal</span><select onchange="setRegistryWetGlowFuelType(+this.value)"><option value="0"${fuelType===0?' selected':''}>Relay / on-off</option><option value="1"${fuelType===1?' selected':''}>PWM</option><option value="2"${fuelType===2?' selected':''}>Servo / ESC</option></select></div>
-      <div class="hw-field"><span class="hw-label">Active state</span><select onchange="setAct('glow_plug','fuel_active_h',this.value==='1')"><option value="1"${act.fuel_active_h!==false?' selected':''}>Active high</option><option value="0"${act.fuel_active_h===false?' selected':''}>Active low</option></select></div>
+      <div class="hw-field"><span class="hw-label">Active state</span><select ${pcbProfileActive()&&pcbWetGlowPowerPin(act.fuel_pin)?'disabled title="PCB power outputs use active high"':''} onchange="setAct('glow_plug','fuel_active_h',this.value==='1')"><option value="1"${act.fuel_active_h!==false?' selected':''}>Active high</option><option value="0"${act.fuel_active_h===false?' selected':''}>Active low</option></select></div>
       <div class="hw-field"><span class="hw-label">Pilot-fuel delay (seconds)</span><span class="hw-desc">Time from the glow On command until pilot fuel turns on; the timer runs while the glow output ramps.${pilotBeforeRamp ? ' Pilot fuel is currently set to start before the glow output reaches its On level.' : ''}</span><input type="number" min="0" max="3600" step="0.1" value="${registryFormatValue(fuelDelayS,1)}" oninput="setRegistryWetGlowDelaySeconds(+this.value)"></div>
-      ${fuelType===1 ? `<div class="hw-field"><span class="hw-label">PWM frequency (Hz)</span><input type="number" min="1" max="100000" value="${Number(act.fuel_freq_hz ?? 1000)}" oninput="setAct('glow_plug','fuel_freq_hz',+this.value)"></div><div class="hw-field"><span class="hw-label">PWM resolution (bits)</span><input type="number" min="8" max="14" value="${Number(act.fuel_res_bits ?? 10)}" oninput="setAct('glow_plug','fuel_res_bits',+this.value)"></div><div class="hw-field"><span class="hw-label">Minimum PWM duty (%)</span><input type="number" min="0" max="100" step="0.1" value="${Number(act.fuel_pwm_min_pct ?? 0)}" oninput="setAct('glow_plug','fuel_pwm_min_pct',+this.value)"></div><div class="hw-field"><span class="hw-label">Maximum PWM duty (%)</span><input type="number" min="0" max="100" step="0.1" value="${Number(act.fuel_pwm_max_pct ?? 100)}" oninput="setAct('glow_plug','fuel_pwm_max_pct',+this.value)"></div>` : ''}
+      ${fuelType===1 ? `<div class="hw-field"><span class="hw-label">PWM frequency (Hz)</span><input type="number" min="${powerPilot?100:1}" max="${powerPilot?20000:100000}" value="${Number(act.fuel_freq_hz ?? 1000)}" oninput="setAct('glow_plug','fuel_freq_hz',+this.value)"></div>${powerPilot?'':`<div class="hw-field"><span class="hw-label">PWM resolution (bits)</span><input type="number" min="8" max="14" value="${Number(act.fuel_res_bits ?? 10)}" oninput="setAct('glow_plug','fuel_res_bits',+this.value)"></div>`}<div class="hw-field"><span class="hw-label">Minimum PWM duty (%)</span><input type="number" min="0" max="100" step="0.1" value="${Number(act.fuel_pwm_min_pct ?? 0)}" oninput="setAct('glow_plug','fuel_pwm_min_pct',+this.value)"></div><div class="hw-field"><span class="hw-label">Maximum PWM duty (%)</span><input type="number" min="0" max="100" step="0.1" value="${Number(act.fuel_pwm_max_pct ?? 100)}" oninput="setAct('glow_plug','fuel_pwm_max_pct',+this.value)"></div>` : ''}
       ${fuelType===2 ? `<div class="hw-field"><span class="hw-label">Minimum pulse (µs)</span><input type="number" min="500" max="2500" value="${Number(act.fuel_min_us ?? 1000)}" oninput="setAct('glow_plug','fuel_min_us',+this.value)"></div><div class="hw-field"><span class="hw-label">Maximum pulse (µs)</span><input type="number" min="500" max="2500" value="${Number(act.fuel_max_us ?? 2000)}" oninput="setAct('glow_plug','fuel_max_us',+this.value)"></div>` : ''}
       ${fuelType!==0 ? `<div class="hw-field"><span class="hw-label">Pilot-fuel command (%)</span><span class="hw-desc">Demand applied after the delay.</span><input type="number" min="0" max="100" step="0.1" value="${Number(act.fuel_demand_pct ?? 100)}" oninput="setAct('glow_plug','fuel_demand_pct',+this.value)"></div>` : ''}
     </div></div>` : ''}
@@ -1201,10 +1206,11 @@ function registryOilFlowMonitorEditor(c, index) {
   const fitted = !!sensor;
   const compatible = (registryRoot().inputs || []).filter(row => registryDerivedPurpose('input', row) === pumpFlowPurpose(c));
   const driver = Number(sensor?.driver ?? 2);
-  const pinEditor = sensor && driver < 8
+  const connection = sensor ? registryProfilePortEditor('input',sensor,sensorIndex) : '';
+  const pinEditor = sensor && !connection && driver < 8
     ? `<div class="hw-field"><span class="hw-label">${driver === 2 ? 'Pulse GPIO' : 'Analog ADC GPIO'}</span><select onchange="updateRegistryChannel('input',${sensorIndex},'pin',+this.value)">${buildPinOptions(sensor.pin, driver === 1 ? 'adc' : 'in')}</select></div>`
     : '';
-  const deviceEditor = sensor && driver >= 8 ? registryI2cEditor('input', sensor, sensorIndex) : '';
+  const deviceEditor = sensor && !sensor.physical_port && driver >= 8 ? registryI2cEditor('input', sensor, sensorIndex) : '';
   const calibration = sensor
     ? `${registryPulseScaleEditor('input',sensor,sensorIndex)}${registryAnalogScaleEditor('input',sensor,sensorIndex)}`
     : '';
@@ -1216,7 +1222,7 @@ function registryOilFlowMonitorEditor(c, index) {
       <div class="hw-field" style="grid-column:1/-1"><span class="hw-label">${sensorName}</span><span class="hw-desc">This internal input belongs to this pump and is not added separately under Inputs. Its calibration is stored with the sensor.</span></div>
       ${compatible.length > 1 ? `<div class="hw-field"><span class="hw-label">Flow input for this pump</span><select onchange="updateRegistryChannel('output',${index},'flow_input',this.value);renderRegistryInventory()">${compatible.map(row=>`<option value="${escapeHtmlText(row.id)}"${row.id===(c.flow_input||sensor.id)?' selected':''}>${escapeHtmlText(row.name||row.id)}</option>`).join('')}</select></div>` : ''}
       ${pcbProfileActive() ? '' : registrySignalTypeEditor('input',sensor,sensorIndex,registryFieldChangedClass('input',sensorIndex,'driver'))}
-      ${pinEditor}${deviceEditor}${calibration}
+      ${connection}${pinEditor}${deviceEditor}${calibration}
       <div class="hw-field"><span class="hw-label">Low-flow monitoring</span><span class="hw-desc">Check this sensor whenever the pump is commanded on.</span><label class="hw-toggle"><input type="checkbox" ${c.has_flow_monitor?'checked':''} onchange="updateRegistryChannel('output',${index},'has_flow_monitor',this.checked)"><span></span> Monitor low flow</label></div>
       <div class="hw-field"><span class="hw-label">Minimum flow (L/min)</span><span class="hw-desc">Flow below this value is considered a fault while this pump is on.</span><input type="number" min="0.001" max="10000" step="0.01" value="${registryFormatValue(c.minimum_flow_l_min ?? 0.1)}" onchange="updateRegistryChannel('output',${index},'minimum_flow_l_min',Math.max(0.001,+this.value||0.1))"></div>
       <div class="hw-field"><span class="hw-label">Protection behavior</span><span class="hw-desc">Confirmation time and optional shutdown are in <a href="/controllers.html#oil-config-section">Controllers → Safety &amp; Limits → Oil Pressure Safety</a>.</span></div>
@@ -1238,14 +1244,13 @@ function registryI2cEditor(direction, c, index) {
   const driver = Number(c.driver);
   if (driver < 8) return '';
   const expected = driver === 8 || driver === 11 ? 'TCA9554' : driver === 9 ? 'TLA2528' : 'NAU7802';
-  const detected = (cfg._i2c_discovery?.devices || []).filter(d => d.type === expected);
   const currentAddress = Number(c.i2c_address || 0);
-  const connected = detected.filter(d => d.present);
+  const connected = connectedI2cDevices(expected);
   const addresses = [...new Set([currentAddress, ...connected.map(d=>Number(d.address))])].filter(Boolean);
   const addressOptions = addresses.map(a => {
     const present = connected.some(d=>Number(d.address)===a);
     const selected = currentAddress === a;
-    return `<option value="${a}"${selected?' selected':''}${!present?' disabled':''}>0x${a.toString(16).toUpperCase().padStart(2,'0')} — ${present?'connected':'Disconnected (saved assignment)'}</option>`;
+    return `<option value="${a}"${selected?' selected':''}${!present?' disabled':''}>0x${a.toString(16).toUpperCase().padStart(2,'0')} — ${present?'connected':cfg._i2c_discovery?.status_unavailable?'Status unavailable - saved address':cfg._i2c_discovery?.bus_active===false?'Bus unavailable - saved address':'Disconnected (saved assignment)'}</option>`;
   }).join('');
   const channelMax = expected === 'NAU7802' ? 2 : 8;
   const safety = direction === 'output'
@@ -1281,16 +1286,15 @@ function registryI2cEditor(direction, c, index) {
   return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">${expected} connection</span>${safety}<div class="hw-grid" style="margin-top:.5rem"><div class="hw-field"><span class="hw-label">Detected device</span><span class="hw-desc">Only devices responding on the live bus can be assigned. A saved missing device remains visible but cannot be selected for a new assignment.</span><select onchange="updateRegistryChannel('${direction}',${index},'i2c_address',+this.value)">${addressOptions || '<option value="">No connected device detected</option>'}</select></div><div class="hw-field"><span class="hw-label">Device channel</span><select onchange="updateRegistryChannel('${direction}',${index},'device_channel',+this.value)">${Array.from({length:channelMax},(_,v)=>`<option value="${v}"${Number(c.device_channel||0)===v?' selected':''}>Channel ${v}</option>`).join('')}</select></div>${interruptEditor}${calibration}</div></div>`;
 }
 function registryProfileInputTuningEditor(direction, c, index) {
-  if (!pcbProfileActive() || direction !== 'input') return '';
+  if (!pcbProfileActive() || !c.physical_port || direction !== 'input') return '';
   const mode=(pcbProfile.ports||[]).find(port=>port.id===c.physical_port)?.modes?.find(mode=>mode.id===c.physical_mode);
   const externalBias=mode?.external_pullup?registryInputOptionsEditor(direction,c,index):'';
   if(c.role==='temperature'&&Number(c.temp_interface)===3)return `<div class="hw-field"><span class="hw-label">Thermocouple type</span><span class="hw-desc">Select the fitted probe alloy. The MAX31856 chip and SPI wiring are fixed by the PCB.</span><select onchange="updateRegistryChannel('input',${index},'tc_type',this.value)">${['K','J','N','T','E','R','S','B'].map(value=>`<option value="${value}"${String(c.tc_type||'K')===value?' selected':''}>${value}</option>`).join('')}</select></div>`;
-  if(c.role==='temperature'&&Number(c.temp_interface)===5)return `<div class="hw-field"><span class="hw-label">OneWire resolution</span><select onchange="updateRegistryChannel('input',${index},'temp_resolution',+this.value)">${[9,10,11,12].map(value=>`<option value="${value}"${Number(c.temp_resolution??10)===value?' selected':''}>${value} bit</option>`).join('')}</select></div>`;
 
   const purpose = registryDerivedPurpose(direction,c);
   const isSwitch = registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose);
   const isFlame=['flame','ab_flame'].includes(purpose);
-  if (!isSwitch&&!isFlame) return externalBias;
+  if (!isSwitch&&!isFlame) return Number(c.driver)===9 ? registryInputOptionsEditor(direction,c,index) : externalBias;
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
     if(externalBias)return polarity+externalBias;
@@ -1307,7 +1311,7 @@ function registryProfileInputTuningEditor(direction, c, index) {
   const maxHysteresisRaw=Math.min(2047,2*Math.min(Number(c.digital_threshold_raw??2048),4095-Number(c.digital_threshold_raw??2048)));
   const hysteresisV = Math.min(maxHysteresisRaw,Number(c.digital_hysteresis_raw ?? 64)) * referenceMv / 4095 / 1000;
   const maxHysteresisV=maxHysteresisRaw*referenceMv/4095/1000;
-  return `${polarity}
+  return `${polarity}<div class="hw-field"><span class="hw-label">Input bias</span><span class="hw-desc">This ADC connector has no switchable pull-up or pull-down. Add an external resistor if the connected switch needs one.</span></div>
     <div class="hw-field"><span class="hw-label">Switch threshold (V)</span><span class="hw-desc">Defaults to 50% of this connector's ${registryFormatValue(referenceMv/1000,1)} V measurement range.</span><input type="number" min="0" max="${referenceMv/1000}" step="0.01" value="${registryFormatValue(thresholdV,2)}" onchange="updateRegistryChannel('input',${index},'digital_threshold_raw',Math.round(Math.max(0,Math.min(${referenceMv/1000},+this.value))*1000/${referenceMv}*4095))"></div>
     <div class="hw-field"><span class="hw-label">Switch hysteresis (V)</span><span class="hw-desc">Prevents chatter near the threshold; limited by the nearest ADC rail.</span><input type="number" min="0" max="${maxHysteresisV}" step="0.01" value="${registryFormatValue(hysteresisV,2)}" onchange="updateRegistryChannel('input',${index},'digital_hysteresis_raw',Math.round(Math.max(0,Math.min(${maxHysteresisV},+this.value))*1000/${referenceMv}*4095))"></div>`;
 }
@@ -1321,7 +1325,7 @@ function registryDriverOptions(direction, selected) {
     : [[4,'Relay'],[5,'PWM'],[6,'Servo/ESC'],[11,'TCA9554 on/off output']];
   const remotePresent = v => {
     const type = v === 8 || v === 11 ? 'TCA9554' : v === 9 ? 'TLA2528' : v === 10 ? 'NAU7802' : '';
-    return !type || (cfg._i2c_discovery?.devices || []).some(d => d.type === type && d.present);
+    return !type || connectedI2cDevices(type).length>0;
   };
   return drivers
     .filter(([v]) => allowed.has(v))
@@ -1330,7 +1334,7 @@ function registryDriverOptions(direction, selected) {
       const busOff = v >= 8 && !cfg.i2c?.enabled;
       const disconnected = v >= 8 && !remotePresent(v);
       const disabled = !selectedNow && (busOff || disconnected);
-      const suffix = busOff ? ' — enable I2C bus' : disconnected ? ' — not detected' : '';
+      const suffix = busOff ? ' — enable I2C bus' : disconnected ? (cfg._i2c_discovery?.status_unavailable ? ' - status unavailable' : cfg._i2c_discovery?.bus_active===false ? ' - bus unavailable' : ' — not detected') : '';
       return `<option value="${v}"${selectedNow?' selected':''}${disabled?' disabled':''}>${label}${suffix}</option>`;
     })
     .join('');

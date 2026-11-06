@@ -5,7 +5,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101012">
-<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}.controller-pending-list{display:grid;gap:.6rem;margin-top:.8rem}
+<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}.controller-pending-list{display:grid;gap:.6rem;margin-top:.8rem}
 .controller-pending-card{display:flex;align-items:center;gap:.8rem;width:100%;padding:.75rem;text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;cursor:grab;touch-action:none}
 .controller-pending-card strong,.controller-pending-card small{display:block;overflow-wrap:anywhere}
 .controller-pending-card small{font-size:.72rem;font-weight:400;margin-top:.25rem;color:var(--dim)}
@@ -16,7 +16,7 @@
 </style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261104a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261104a');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -86,9 +86,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
   <a href="/tools.html" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
   <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
-  <span id="conn" class="conn-dot disconnected" title="ECU connection"></span><span id="conn-label" class="conn-label">Disconnected</span>
+  <span id="conn" class="conn-dot loading" title="ECU connection"></span><span id="conn-label" class="conn-label" aria-live="polite">Loading…</span>
 </nav>
-<main>
+<main inert>
 <div class="page-heading">
   <div class="page-heading-main">
     <h1 class="page-title">Sequence Editor</h1>
@@ -1893,7 +1893,12 @@ function placeControllerBlock(name,tab,index=(hwCfg[seqKey(tab)]||[]).length){
   renderPendingControllers();
   document.querySelector(`#list-${tab} [data-idx="${index}"] .drag-handle`)?.focus({preventScroll:true});
 }
+let _seqLoading=true;
 async function loadAll() {
+  _seqLoading=true;
+  const editingSurface=document.querySelector('main');
+  if(editingSurface)editingSurface.inert=true;
+  updateSequenceSaveControls();
   setSaveStatus('Loading...');
   try {
     hwCfg = await fetchJsonWithRetry('/api/hardware');
@@ -1925,36 +1930,19 @@ async function loadAll() {
     revealSequenceDeepLink();
     // Keep the post-normalization baseline. Saving can then preserve unrelated
     // settings changed by another browser while this page was open.
+    _seqLoading=false;
     clearSequenceDirty('No unsaved changes');
+    if(editingSurface)editingSurface.inert=false;
   } catch(e) {
-    setSaveStatus('Warning: Load failed: ' + e.message);
+    setSaveStatus('Warning: Load failed: ' + e.message + '. Refresh Sequence to retry.');
   }
 }
 
 async function fetchJsonWithTimeout(url, ms = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!r.ok) throw new Error(url + ' returned HTTP ' + r.status);
-    const text = await r.text();
-    return JSON.parse(text);
-  } finally {
-    clearTimeout(timer);
-  }
+  return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-
-async function fetchJsonWithRetry(url, attempts = 3) {
-  let lastError;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchJsonWithTimeout(url);
-    } catch (e) {
-      lastError = e;
-      await new Promise(resolve => setTimeout(resolve, 200 + i * 300));
-    }
-  }
-  throw lastError;
+async function fetchJsonWithRetry(url, attempts = 5) {
+  return window.OTReadJson(url, {attempts});
 }
 
 // Build paramVals from the settings section using each block's configKey mapping.
@@ -3664,6 +3652,8 @@ function confirmCustomBlock() {
   if (!label) { alert('Enter a block name.'); return; }
   const type = document.getElementById('cblk-type').value;
   const desc = document.getElementById('cblk-desc').value.trim();
+  const bytes=value=>new TextEncoder().encode(value).length;
+  if(bytes(label)>MAX_CUSTOM_LABEL_LEN||bytes(desc)>MAX_CUSTOM_DESC_LEN){alert(`Shorten the block name to ${MAX_CUSTOM_LABEL_LEN} UTF-8 bytes and description to ${MAX_CUSTOM_DESC_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);return;}
   if (!_editingKey && Object.keys(hwCfg.custom_blocks || {}).length >= MAX_CUSTOM_BLOCKS) {
     alert(`Maximum custom blocks reached (${MAX_CUSTOM_BLOCKS}). Edit or remove an existing custom block before adding another.`);
     return;
@@ -3947,6 +3937,7 @@ function validateSequenceHardwareForSave() {
 }
 
 function validateCustomBlockLimits() {
+  const bytes=value=>new TextEncoder().encode(String(value||'')).length;
   const entries = Object.entries(hwCfg.custom_blocks || {});
   const errors = [];
   const sensors = getEnabledSensors();
@@ -3956,9 +3947,9 @@ function validateCustomBlockLimits() {
   entries.forEach(([key, def]) => {
     const label = def?.label || key;
     const steps = Array.isArray(def?.steps) ? def.steps : [];
-    if (key.length > MAX_CUSTOM_KEY_LEN) errors.push(`${key}: key is longer than ${MAX_CUSTOM_KEY_LEN} characters.`);
-    if ((def?.label || '').length > MAX_CUSTOM_LABEL_LEN) errors.push(`${label}: label is longer than ${MAX_CUSTOM_LABEL_LEN} characters.`);
-    if ((def?.desc || '').length > MAX_CUSTOM_DESC_LEN) errors.push(`${label}: description is longer than ${MAX_CUSTOM_DESC_LEN} characters.`);
+    if (bytes(key) > MAX_CUSTOM_KEY_LEN) errors.push(`${key}: key exceeds ${MAX_CUSTOM_KEY_LEN} UTF-8 bytes.`);
+    if (bytes(def?.label) > MAX_CUSTOM_LABEL_LEN) errors.push(`${label}: shorten the name to ${MAX_CUSTOM_LABEL_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);
+    if (bytes(def?.desc) > MAX_CUSTOM_DESC_LEN) errors.push(`${label}: shorten the description to ${MAX_CUSTOM_DESC_LEN} UTF-8 bytes. Accented characters and symbols can use more than one byte.`);
     if (steps.length > MAX_CUSTOM_STEPS) errors.push(`${label}: ${steps.length}/${MAX_CUSTOM_STEPS} steps.`);
     if (def?.type === 'action' && !steps.length) errors.push(`${label}: action block has no steps.`);
     if (def?.type === 'while' && !sensors.some(sensor =>
@@ -3974,7 +3965,16 @@ function validateCustomBlockLimits() {
   return errors;
 }
 
+let _seqSavePending=false;
 async function saveAll() {
+  if(!_seqDirty||_seqSavePending||_seqLoading)return;
+  const editingSurface=document.querySelector('main'),wasInert=editingSurface?.inert;
+  _seqSavePending=true;updateSequenceSaveControls();
+  try{await _saveSequenceChanges();}
+  catch(error){setSaveStatus('Warning: '+error.message);}
+  finally{if(editingSurface)editingSurface.inert=wasInert;_seqSavePending=false;updateSequenceSaveControls();}
+}
+async function _saveSequenceChanges() {
   if (!_seqDirty) return;
   await refreshEngineStatus();
   if (engineMode !== 'STANDBY' && engineMode !== 'FAULT') {
@@ -4003,6 +4003,7 @@ async function saveAll() {
   const warnings = _validateSequence(startup);
   if (warnings.length && !await OTDialog.confirm('Sequence warnings:\n\n' + warnings.map(w => '- ' + w).join('\n') + '\n\nSave anyway?', {title:'Sequence safety warnings', confirmText:'Save anyway', danger:true})) return;
   setSaveStatus('Saving engine file...');
+  const editingSurface=document.querySelector('main');if(editingSurface)editingSurface.inert=true;
   try {
     if (typeof stopSequenceTelemetry === 'function') stopSequenceTelemetry();
     if (typeof window.OTWaitForPageTelemetryIdle === 'function') {
@@ -4028,10 +4029,7 @@ async function saveAll() {
     });
     const hardwareReboot = Object.keys(hardwarePatch).length > 0;
     if (hardwareReboot) {
-      const response = await fetch('/api/hardware?source=sequence', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(hardwarePatch)});
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false)
-        throw new Error(result.error || result.detail || `Hardware HTTP ${response.status}`);
+      await window.OTSavePatch('/api/hardware?source=sequence',hardwarePatch);
     }
     let settingsReboot = false;
     if (Object.keys(settingsPatch).length) {
@@ -4039,10 +4037,8 @@ async function saveAll() {
         setSaveStatus('Sequence hardware saved — reconnecting to save page settings…');
         await window.OTWaitForSaveRestart();
       }
-      const settingsResponse = await fetch('/api/config', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(settingsPatch)});
-      const settingsResult = await settingsResponse.json().catch(() => ({}));
-      if (!settingsResponse.ok || settingsResult.ok === false)
-        throw new Error(settingsResult.error || settingsResult.reason || `Settings HTTP ${settingsResponse.status}`);
+      const {response:settingsResponse,data:settingsResult}=await window.OTSavePatch('/api/config',settingsPatch);
+      if(!settingsResponse.ok)throw new Error(settingsResult.error||settingsResult.reason||`Settings HTTP ${settingsResponse.status}`);
       settingsReboot = settingsResult.reboot === true;
     }
     const rebooting = hardwareReboot || settingsReboot;
@@ -4055,6 +4051,7 @@ async function saveAll() {
     }
   } catch (error) {
     setSaveStatus('Warning: ' + error.message);
+    if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
   }
 }
 
@@ -4094,8 +4091,8 @@ function setSaveStatus(message) {
 function updateSequenceSaveControls() {
   const save = document.getElementById('save-btn');
   const discard = document.getElementById('seq-discard-btn');
-  if (save) save.disabled = !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
-  if (discard) discard.disabled = !_seqDirty;
+  if (save) save.disabled = _seqLoading || _seqSavePending || !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
+  if (discard) discard.disabled = _seqLoading || _seqSavePending || !_seqDirty;
 }
 
 let _sequenceEditSnap = null;
@@ -4135,6 +4132,7 @@ document.addEventListener('click', async event => {
 }, true);
 
 async function discardSequenceChanges() {
+  if(_seqSavePending||_seqLoading)return;
   if (!_seqDirty) return;
   if (!await OTDialog.confirm('Discard every unsaved sequence change?', {title:'Discard changes?', confirmText:'Discard', danger:true})) return;
   await loadAll();

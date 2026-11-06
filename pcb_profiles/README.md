@@ -10,9 +10,9 @@ GPIO workflow.
 
 ## Profile offered by the installer
 
-The only bundled official choice is [OpenTurbine PCB v1.0](official/openturbine-s3-20261102.md), for the supplied ESP32-S3-WROOM-1-N8 routing. It requires the matching new OpenTurbine 2.6.1 implementation and Setup Tool 0.7.9 or newer. Plain development boards still work without a profile; Custom PCB profile remains available.
+The only bundled official choice is [OpenTurbine PCB v1.0](official/openturbine-s3-20261102.md), for the supplied ESP32-S3-WROOM-1-N8 routing. It requires the matching new OpenTurbine 2.7.0 release and Setup Tool 0.7.9 or newer. Plain development boards still work without a profile; Custom PCB profile remains available.
 
-`tools/build_setup_package.py` lists the shipped profile explicitly. The older `openturbine-ecu-s3-v1.otpcb.json` is retained for historical compatibility tests and is not included in the installer. Do not choose a profile from a similar-looking board: connector routing, voltage conditioning and output-enable polarity can differ.
+`tools/build_setup_package.py` lists the shipped profile explicitly. Older profiles live under `archive/` and are retained for historical compatibility tests and are not included in the installer. Do not choose a profile from a similar-looking board: connector routing, voltage conditioning and output-enable polarity can differ.
 
 ## Start a profile
 
@@ -110,7 +110,7 @@ Its ports remain visible for diagnosis but cannot be newly assigned.
 These functions own their physical routing. The web UI exposes only operational
 choices such as colours, baud rate, and update interval where applicable.
 
-### 2.6.1 profile additions
+### 2.7.0 profile additions
 
 The final OpenTurbine PCB v1.0 uses `official/openturbine-s3-20261102.otpcb.json`;
 see its adjacent routing/assembly note. It requires an **ESP32-S3-WROOM-1-N8**,

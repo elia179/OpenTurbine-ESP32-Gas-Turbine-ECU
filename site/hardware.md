@@ -17,6 +17,37 @@ Use the [User Guide]({{ '/user-guide/' | relative_url }}) for controller setting
 
 Use a Classic ESP32 with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatible board with at least 8 MB flash. The universal S3 image runs on 8 MB and 16 MB modules and does not require PSRAM. ESP32-C3 and other unlisted families are not supported by the normal Windows setup path. Select the exact target in Hardware before assigning pins, and never copy a classic-ESP32 pin assignment to an S3 without rechecking it.
 
+## OpenTurbine PCB v1.0
+
+This is the only supported official PCB profile in OpenTurbine 2.7.0. It targets
+**ESP32-S3-WROOM-1-N8 (8 MB flash, no PSRAM)**. Bare development boards use the
+**Development board** installation choice and need no profile. Older PCB
+routings are archived and excluded from the Setup Tool catalogue.
+
+Hardware works through the normal Add input/output workflow. Choose a named
+connector, then its supported signal type and engine purpose. Start/Stop and
+Status/Fault LED are configurable defaults. Unused exposed GPIO/UART connections
+can be reassigned; the interface prevents double assignment of shared pins.
+
+| Connection | What it is for |
+| --- | --- |
+| Thermocouple 1–2 | Fitted MAX31856 converters; select probe alloy, use ungrounded probes |
+| ADC 1–8 | 0–5 V voltage-output sensors or voltage-threshold switches |
+| IN 1–6 | Conditioned speed/flow, RC/PWM or switch inputs with selectable external pull-ups |
+| OUT 1–6 | Buffered 5 V servo/ESC, PWM or on/off **control signals** |
+| PWM 1–6 | Switched VIN-positive load outputs; PWM or on/off, up to 20 kHz |
+| Exposed GPIO / UART | 3.3 V logic only; inspect the profile's fixed-bias notes |
+
+Open **Hardware → board summary → Connector guide & electrical limits** for
+connection details. **Edit buses** shows onboard chips and independent checks
+for the two MOSFET drivers. Known onboard connectors can be configured offline;
+missing-device warnings remain until the hardware responds.
+
+PCB support is prototype support. Maximum load current and switching/thermal
+margins await assembled-board qualification. Driver overcurrent protection is
+not an accurate current measurement or an amp-rating guarantee. See the
+[profile, wiring and recovery notes](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/pcb_profiles/official/openturbine-s3-20261102.md).
+
 ## Installed Channel Inventory
 
 In Hardware, add each fitted input and output once. Give it a readable display name, select its electrical signal type, assign a valid connection and set its range. The interface maintains stable channel IDs for saved controller and sequence references; these are not names to enter in the Add input/output menus.

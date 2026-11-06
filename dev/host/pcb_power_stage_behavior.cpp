@@ -2,6 +2,7 @@
 #define OT_PLATFORM_ESP32S3
 #include "../../src/hal/actuators/PcbPowerStage.cpp"
 #include <iostream>
+#include "../../src/engine/FaultEpisodeLatch.h"
 #include <cstdlib>
 using namespace PcbPowerStage;
 static void reset(){
@@ -9,20 +10,51 @@ static void reset(){
  Mock::regs[0]=255;Mock::regs[1]=255;Mock::regs[2]=0;Mock::regs[3]=255;
  Mock::selected=-1;Mock::bit=0;Mock::spiWrites=Mock::unsafeConfig=0;Mock::writes.clear();
  memset(Mock::driver,0,sizeof(Mock::driver));memset(Mock::gpio,0,sizeof(Mock::gpio));
+ HardwareConfig::channelRegistry.outputCount=6;
+ for(int i=0;i<6;i++){auto& c=HardwareConfig::channelRegistry.outputs[i];c.pin=profile()->powerInh[i];c.driver=ChannelRegistry::Pwm;c.pwmZeroMode=1;}
  EngineData::instance().hardwareReady=true;EngineData::instance().hardwareFault[0]=0;clockMs=1000;
 }
 static void run(unsigned ms){for(unsigned i=0;i<ms;i+=5){clockMs+=5;service(true);}}
 int main(int argc,char** argv){
+ // Two status checks per 400 Hz cycle must record only one persistent fault.
+ FaultEpisodeLatch notification;bool engineLatched=false;unsigned notifications=0;
+ assert(!notification.shouldReport(false,false));
+ for(unsigned cycle=0;cycle<12000;++cycle)for(unsigned check=0;check<2;++check){
+   if(notification.shouldReport(true,engineLatched)){++notifications;engineLatched=true;}
+ }
+ assert(notifications==1);
+ // A new PCB fault during an unrelated fault shutdown is still reported.
+ FaultEpisodeLatch additional;assert(additional.shouldReport(true,true));assert(!additional.shouldReport(true,true));
+ // Recovery, and acknowledgement followed by a reasserted fault, each re-arm it.
+ assert(!notification.shouldReport(false,true));assert(notification.shouldReport(true,true));
+ assert(!notification.shouldReport(true,true));assert(notification.shouldReport(true,false));
+ assert(!notification.shouldReport(true,true));
  const unsigned frequency=argc>1?std::atoi(argv[1]):10000;
+ // Both active-low chip selects must preserve all six INL bits and deselect the other chip.
+ for(unsigned value=0;value<256;value++)for(uint8_t chip=0;chip<2;chip++){
+   const auto selected=Drv8350Protocol::csLatch(value,chip,true),released=Drv8350Protocol::csLatch(selected,chip,false);
+   assert((selected&0xfc)==(value&0xfc));assert(!(selected&(1U<<chip)));assert(selected&(1U<<(chip^1)));
+   assert(released==uint8_t(value|3));
+ }
+
  assert(Drv8350Protocol::gateHS==0x300 && Drv8350Protocol::gateHSLocked==0x600 && Drv8350Protocol::gateLS==0x300);
  assert((Drv8350Protocol::control & 0x400)==0);assert((Drv8350Protocol::ocp & 15)==1);
+ assert(((Drv8350Protocol::ocp>>4)&3)==2); // 4 us hardware overcurrent deglitch
  reset();for(int pin:profile()->powerInh)assert(attach(pin,frequency));
  begin(true);assert(!ready());assert(Mock::writes.size()>=3);
  assert((Mock::writes[0]==std::array<int,2>{1,3}));assert((Mock::writes[2]==std::array<int,2>{3,0}));
  write(37,1);assert(Mock::regs[1]==3);run(200);assert(!ready()&&Mock::spiWrites==0);run(100);
  assert(ready()&&EngineData::instance().hardwareReady&&Mock::spiWrites==10&&Mock::unsafeConfig==0);
+ assert(!strcmp(driverState(0),"Responding")&&!strcmp(driverState(1),"Responding"));
+ Mock::driver[1][0]=0x100;
+ assert(!verifyDriver(1)&&!strcmp(driverState(1),"Fault")&&!strcmp(driverState(0),"Responding"));
+ Mock::driver[1][0]=0;assert(verifyDriver(1));
+ Mock::driver[0][2]^=1;
+ assert(!verifyDriver(0)&&!strcmp(driverState(0),"Not responding")&&!strcmp(driverState(1),"Responding"));
+ Mock::driver[0][2]^=1;assert(verifyDriver(0));
+
  for(int i=0;i<6;i++)assert(waves[i].timer&&waves[i].gen&&waves[i].timer->group==i/3);
- for(int group=0;group<2;group++){assert(sync[group]->software&&sync[group]->owner);assert(!groupSync[group]->software&&groupSync[group]->propagate);}
+ for(int group=0;group<2;group++){assert(PcbPowerStage::sync[group]->software&&PcbPowerStage::sync[group]->owner);assert(!groupSync[group]->software&&groupSync[group]->propagate);}
  assert(!attach(37,99)&&!attach(37,20001));assert(attach(37,frequency));
  for(int i=0;i<6;i++){assert(waves[i].period==5000000UL/frequency);assert(waves[i].timer->phase==(uint64_t(waves[i].period)*((i%3)*2+(i/3?1:0))/6)%waves[i].period);}
  // Each INL control preserves every unrelated phase/CS bit, including SPI polls.
@@ -69,6 +101,20 @@ int main(int argc,char** argv){
  // A disconnected/pulled-high SPI bus is not a recoverable overcurrent.
  reset();begin(true);run(300);for(auto& driver:Mock::driver)for(auto& reg:driver)reg=0x7ff;
  run(1000);assert(faulted()&&!recoverableFault);assert(std::string(faultReason()).find("communication")!=std::string::npos);
+ // Brake defaults keep the low-side enabled at zero; Coast inhibits it.
+ reset();begin(true);run(300);
+ for(int i=0;i<6;i++)HardwareConfig::channelRegistry.outputs[i].pwmZeroMode=0;
+ for(int i=0;i<6;i++)write(profile()->powerInh[i],0);
+ assert(Mock::regs[1]==255);for(auto& w:waves)assert(w.zeroBraking&&w.gen->force==0);
+ write(37,.4f);assert(waves[0].pending&&!(Mock::regs[1]&4));
+ write(37,0);assert(!waves[0].pending&&waves[0].zeroBraking&&(Mock::regs[1]&4));
+ run(30);assert(waves[0].gen->force==0&&waves[0].zeroBraking);
+ HardwareConfig::channelRegistry.outputs[0].pwmZeroMode=1;write(37,0);assert(!(Mock::regs[1]&4));
+ HardwareConfig::channelRegistry.outputs[0].pwmZeroMode=0;write(37,0);assert(Mock::regs[1]&4);
+ write(37,NAN);assert(!(Mock::regs[1]&4)); // invalid demand cannot energize even a brake
+ Mock::driver[0][0]=1;run(1000);assert(faulted()&&Mock::regs[1]==3);
+ assert(acknowledgeFault());run(20);assert(Mock::regs[1]==3); // no implicit rearm at clear
+ write(37,0);assert(Mock::regs[1]&4);clockMs+=76;checkDeadline();assert(faulted()&&Mock::regs[1]==3);
  // A partially allocated timer must not make a repeated attach appear successful.
  waves[0]=Wave{};mcpwmMapped[37]=false;mcpwmFailure=true;assert(!attach(37,frequency));mcpwmFailure=false;assert(!attach(37,frequency));
  // Unsigned deadline arithmetic remains correct across millis rollover.

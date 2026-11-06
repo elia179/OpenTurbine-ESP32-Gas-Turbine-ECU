@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101012">
-<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
+<style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Tools</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261104a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261104a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 .tool-footer-demand{flex-wrap:wrap}
 .tool-footer-demand .tool-desc{flex:1 1 100%}
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <a href="/log.html" title="View fault/event history and per-run CSV session logs.">Log</a>
   <a href="/tools.html" class="active" title="Run standby commissioning, actuator tests, and explicitly enabled developer controls.">Tools</a>
   <a href="/system.html" title="Manage engine identity, Wi-Fi, appearance, communications, runtime diagnostics, backups, updates, and reset.">System</a>
-  <span id="conn" class="conn-dot disconnected"></span><span id="conn-label" class="conn-label">Disconnected</span>
+  <span id="conn" class="conn-dot loading"></span><span id="conn-label" class="conn-label" aria-live="polite">Loading…</span>
 </nav>
 <main>
   <div id="tools-page-head" class="page-heading">
@@ -318,7 +318,7 @@ function renderTools() {
           ${isToggle ? 'Toggle' : 'Run'}
         </button>
       </div>
-      ${t.id === 'GLOW_TEST' && Number(hwCfg?.actuators?.glow_plug?.type) === 2 ? `<details class="tool-component-tests" style="margin-top:.75rem"><summary>Test individual components</summary><p class="tool-desc">Each test runs separately and stops automatically. Duration is shared with the combined test.</p>${TOOLS.filter(child => child.parentTool === t.id && (!child.visibleIf || child.visibleIf(hwCfg))).map(renderCard).join('')}</details>` : ''}
+      ${t.id === 'GLOW_TEST' && Number(hwCfg?.actuators?.glow_plug?.type) === 2 ? `<details class="tool-component-tests" style="margin-top:.75rem"><summary>Test individual components</summary><p class="tool-desc">Each test runs separately and stops automatically. Duration is shared with the combined test.</p><div class="tool-component-grid">${TOOLS.filter(child => child.parentTool === t.id && (!child.visibleIf || child.visibleIf(hwCfg))).map(renderCard).join('')}</div></details>` : ''}
     </div>`;
   };
   TOOLS.forEach(t => {
@@ -598,6 +598,8 @@ function timedToolBlockReason(tool, cooldownActive, forcedOff) {
   if (forcedOff) return 'Another actuator tool is active.';
   const stopReason = stopToolBlockReason();
   if (stopReason) return stopReason;
+  if (tool.registryOutput && liveData?.registry_outputs?.[tool.iParam]?.available===false)
+    return 'Output device is unavailable. Check its connection under Hardware.';
   const effectiveMode = engineMode === 'FAULT' ? 'STANDBY' : engineMode;
   const modeOk = tool.modes ? tool.modes.includes(effectiveMode) : isStandbyLike(engineMode);
   if (!modeOk) return `Actuator tools are available only in STANDBY or FAULT (current mode: ${engineMode || 'unknown'}).`;
@@ -643,13 +645,19 @@ function refreshTimedToolLockStates() {
   const stopReason = stopToolBlockReason();
   const locked = !toolsTelemetryAvailable||!isStandbyLike(engineMode) || cooldownLocked || !!stopReason;
   TOOLS.filter(tool => tool.durationMs > 0).forEach(tool => {
-    if (activeId === tool.id) return;
+    if (activeId === tool.id) {
+      if(tool.registryOutput && liveData?.registry_outputs?.[tool.iParam]?.available===false)
+        setState(tool.id, 'Unavailable - check Hardware', 'off');
+      return;
+    }
     const state = document.getElementById('state-' + tool.id);
     if (!state) return;
     if (locked) {
       setState(tool.id, !toolsTelemetryAvailable?'Locked · connection unavailable':stopReason ? (liveData.stop_switch_active ? 'Locked · STOP active' : 'Locked · STOP unavailable') :
         (cooldownLocked ? 'Locked · cooldown' : `Locked · ${engineMode}`), 'off');
-    } else if (state.textContent.startsWith('Locked ·')) {
+    } else if (tool.registryOutput && liveData?.registry_outputs?.[tool.iParam]?.available===false) {
+      setState(tool.id, 'Unavailable - check Hardware', 'off');
+    } else if (state.textContent.startsWith('Unavailable') || state.textContent.startsWith('Locked ·')) {
       setState(tool.id, 'Ready', '');
     }
   });
@@ -1056,151 +1064,8 @@ window.addEventListener('ot:navigation-prepare', prepareToolsTelemetryNavigation
 window.addEventListener('ot:navigation-start', stopToolsTelemetry);
 
 
-function startOTA(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (!isStandbyLike(engineMode)) {
-    alert('Engine must be in STANDBY (or FAULT) before flashing firmware.\nStop the engine first.');
-    input.value = '';
-    return;
-  }
-  const btn   = document.getElementById('ota-btn');
-  const state = document.getElementById('ota-state');
-  const track = document.getElementById('ota-prog-track');
-  const fill  = document.getElementById('ota-prog-fill');
-  const msg   = document.getElementById('ota-msg');
+// Firmware and web updates live in System > Maintenance.
 
-  btn.disabled = true;
-  track.style.display = '';
-  state.textContent = 'Uploading…'; state.className = 'tool-state active';
-  msg.style.display = 'none';
-
-  const form = new FormData();
-  form.append('firmware', file, file.name);
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/update');
-  xhr.upload.onprogress = e => {
-    if (e.lengthComputable) {
-      const pct = (e.loaded / e.total * 100).toFixed(0);
-      fill.style.width = pct + '%';
-      state.textContent = 'Uploading ' + pct + '%';
-    }
-  };
-  xhr.onload = () => {
-    try {
-      const r = JSON.parse(xhr.responseText);
-      if (r.ok) {
-        fill.style.width = '100%'; fill.classList.remove('running');
-        state.textContent = 'Done — rebooting…'; state.className = 'tool-state done';
-        msg.textContent = 'Firmware flashed successfully. Reconnect in a few seconds.';
-        msg.style.color = 'var(--green)'; msg.style.display = '';
-      } else {
-        throw new Error(r.error || 'Unknown error');
-      }
-    } catch(e) {
-      state.textContent = 'Error'; state.className = 'tool-state fault';
-      msg.textContent = 'Upload failed: ' + e.message;
-      msg.style.color = 'var(--red)'; msg.style.display = '';
-      btn.disabled = false;
-    }
-  };
-  xhr.onerror = () => {
-    state.textContent = 'Error'; state.className = 'tool-state fault';
-    msg.textContent = 'Network error — is the device still connected?';
-    msg.style.color = 'var(--red)'; msg.style.display = '';
-    btn.disabled = false;
-  };
-  xhr.send(form);
-  input.value = '';
-}
-
-function startWebAssetsUpdate(input) {
-  const files = Array.from(input.files || []);
-  if (!files.length) return;
-  if (!isStandbyLike(engineMode)) {
-    alert('Engine must be in STANDBY (or FAULT) before updating web assets.\nStop the engine first.');
-    input.value = '';
-    return;
-  }
-  const required = [
-    'calibration.html.gz', 'controllers.html.gz', 'hardware.html.gz', 'index.html.gz',
-    'log.html.gz', 'sequence.html.gz', 'app.js.gz', 'style.css.gz',
-    'system.html.gz', 'theme.js.gz', 'ui_dialog.js.gz', 'tools.html.gz'
-  ];
-  const names = new Set(files.map(f => f.name));
-  const missing = required.filter(name => !names.has(name));
-  const invalid = files.filter(file => !required.includes(file.name));
-  if (missing.length || invalid.length || files.length !== required.length) {
-    alert('Choose exactly the twelve generated data/*.gz web assets.\n\nMissing: ' +
-      (missing.join(', ') || 'none') + '\nUnexpected: ' +
-      (invalid.map(file => file.name).join(', ') || 'none'));
-    input.value = '';
-    return;
-  }
-
-  const btn = document.getElementById('assets-btn');
-  const state = document.getElementById('assets-state');
-  const track = document.getElementById('assets-prog-track');
-  const fill = document.getElementById('assets-prog-fill');
-  const msg = document.getElementById('assets-msg');
-  btn.disabled = true;
-  track.style.display = '';
-  state.textContent = 'Uploading...'; state.className = 'tool-state active';
-  msg.style.display = 'none';
-
-  const ordered = required.map(name => files.find(file => file.name === name));
-  const totalBytes = ordered.reduce((sum, file) => sum + file.size, 0);
-  let completedBytes = 0;
-  const fail = message => {
-    state.textContent = 'Error'; state.className = 'tool-state fault';
-    msg.textContent = message;
-    msg.style.color = 'var(--red)'; msg.style.display = '';
-    btn.disabled = false;
-  };
-  const sendNext = (index, offset = 0) => {
-    const file = ordered[index];
-    const end = Math.min(offset + 8192, file.size);
-    const chunk = file.slice(offset, end);
-    const fileFinal = end === file.size ? '1' : '0';
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/web_asset_chunk?name=' + encodeURIComponent(file.name) +
-      '&offset=' + offset + '&final=' + fileFinal);
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable) {
-        const pct = ((completedBytes + Math.min(e.loaded, chunk.size)) / totalBytes * 100).toFixed(0);
-        fill.style.width = pct + '%';
-        state.textContent = 'Uploading ' + pct + '%';
-      }
-    };
-    xhr.onload = () => {
-    try {
-      const r = JSON.parse(xhr.responseText);
-      if (!r.ok) throw new Error(r.error || 'Unknown error');
-      completedBytes += chunk.size;
-      if (end < file.size) {
-        sendNext(index, end);
-        return;
-      }
-      if (index + 1 < ordered.length) {
-        sendNext(index + 1);
-        return;
-      }
-      fill.style.width = '100%'; fill.classList.remove('running');
-      state.textContent = 'Done - rebooting...'; state.className = 'tool-state done';
-      msg.textContent = 'Web pages updated; configuration and logs were retained. Reconnect, then refresh the page without cache if styles or scripts look old.';
-      msg.style.color = 'var(--green)'; msg.style.display = '';
-    } catch (e) {
-      fail('Web asset update failed: ' + e.message);
-    }
-    };
-    xhr.onerror = () => fail('Network error - reconnect and select the complete asset set again. START remains safely inhibited until all files are installed.');
-    xhr.send(chunk);
-  };
-  sendNext(0);
-  input.value = '';
-}
 </script>
 
 </body>

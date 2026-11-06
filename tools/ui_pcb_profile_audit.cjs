@@ -20,7 +20,7 @@ function installedBrowser() {
 }
 
 (async () => {
-  const official = JSON.parse(fs.readFileSync(path.join(__dirname,'..','pcb_profiles','official','openturbine-ecu-s3-v1.otpcb.json'),'utf8'));
+  const official = JSON.parse(fs.readFileSync(path.join(__dirname,'..','pcb_profiles','archive','openturbine-ecu-s3-v1.otpcb.json'),'utf8'));
   assert.equal(official.board.id, 'openturbine-ecu-s3-v1');
   assert.equal(official.target.chip, 'esp32-s3');
   assert.equal(official.fixed_functions.servo_output_enable.gpio, 17);
@@ -116,13 +116,14 @@ function installedBrowser() {
     assert.match(await supplyCard.textContent(), /Built in/);
     assert.doesNotMatch(await supplyCard.textContent(), /Choose a compatible PCB connection/);
     await page.getByRole('button',{name:'Edit devices'}).click();
-    assert.match(await page.locator('#hardware-comms-summary').textContent(), /Physical connection/);
+    assert.match(await page.locator('#hardware-comms-summary').textContent(), /Connection and advanced GPIO settings/);
     assert.equal(await page.locator('#hardware-comms-summary').getByText('Cluster TX GPIO',{exact:true}).count(), 0);
     await page.evaluate(async () => {await setProfileSerialEnabled('mavlink',true);});
     assert.equal(await page.evaluate(()=>cfg.mavlink.enabled),true);
     assert.doesNotMatch(await page.locator('#hardware-comms-summary').textContent(),/OT Cluster serial/);
     await page.locator('#btn-edit-comms').click();
-    assert.match(await page.locator('#builtin-inputs').textContent(), /Switch wiring comes from this PCB profile/);
+    assert.match(await page.locator('#builtin-inputs').textContent(), /Configure switches under Inputs/);
+    assert.match(await page.locator('#builtin-inputs').textContent(), /Advanced.*free GPIO/);
     assert.equal(await page.locator('#f-stop-pin').isVisible(), false);
     assert.match(await page.locator('#hardware-comms-summary').textContent(), /built-in PCB indicator/i);
 
@@ -202,8 +203,8 @@ function installedBrowser() {
       confirmRegistryRemoveChannel();
       return {before, opened, after:registryRoot().outputs.length};
     });
-    assert.deepEqual(removal, {before:1, opened:true, after:0},
-      'confirming removal must delete a normal PCB-backed output after dependency cleanup');
+    assert.deepEqual(removal, {before:1, opened:false, after:0},
+      'an unsaved unreferenced PCB output is removed immediately');
 
     console.log('PCB profile UI audit passed: named capability-filtered ports replace raw topology and exclusive multipurpose ports stay reserved.');
   } finally {

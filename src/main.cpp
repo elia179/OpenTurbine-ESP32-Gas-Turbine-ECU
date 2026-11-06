@@ -19,6 +19,7 @@
 #include "system/OutputActivity.h"
 #include "system/pcb/PcbProfileManager.h"
 #include "engine/EngineData.h"
+#include "engine/FaultEpisodeLatch.h"
 #include "hal/RCInput.h"
 #include "hal/sensors/SensorProtocolDecode.h"
 #include <new>
@@ -2945,6 +2946,17 @@ static void enterFaultShutdown() {
     }
 }
 
+static void checkPcbPowerStageFault() {
+    static FaultEpisodeLatch notification;
+    auto& ed = EngineData::instance();
+    const bool report = notification.shouldReport(PcbPowerStage::faulted(), ed.faultLatched);
+    if (!report || ed.mode == SysMode::FAULT) return;
+    g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");
+    enterFaultShutdown();
+    snprintf(ed.faultDescription, sizeof(ed.faultDescription),
+             "PCB output stage: %s", PcbPowerStage::faultReason());
+}
+
 static void enterStandby() {
     auto& ed = EngineData::instance();
     const bool keepDryOilPump = ed.faultLatched && ed.dryOilStopActive &&
@@ -4661,10 +4673,7 @@ void loop() {
     }
 
     PcbPowerStage::checkDeadline();
-    if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
-        g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
-        snprintf(EngineData::instance().faultDescription,sizeof(EngineData::instance().faultDescription),"PCB output stage: %s",PcbPowerStage::faultReason());
-    }
+    checkPcbPowerStageFault();
     checkStopSwitch();
     checkStartSwitch();
 
@@ -4775,10 +4784,7 @@ void loop() {
     if (OutputActivity::anyPhysicalDemand(false)) ResetRecovery::markActive();
     Hardware::updateActuators();
     PcbPowerStage::service(EngineData::instance().watchdogReady);
-    if(PcbPowerStage::faulted() && EngineData::instance().mode!=SysMode::FAULT){
-        g_safety.setExternalFault("PCB_OUTPUT_STAGE_FAULT");enterFaultShutdown();
-        snprintf(EngineData::instance().faultDescription,sizeof(EngineData::instance().faultDescription),"PCB output stage: %s",PcbPowerStage::faultReason());
-    }
+    checkPcbPowerStageFault();
     uint32_t afterActuatorsUs = micros();
 
     // Clear the retained active marker only after two complete ECU loops have

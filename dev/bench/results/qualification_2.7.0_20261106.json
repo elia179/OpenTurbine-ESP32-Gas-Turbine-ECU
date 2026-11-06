@@ -1,0 +1,109 @@
+{
+  "version": "2.7.0",
+  "date": "2026-11-06",
+  "setup_tool_version": "0.7.9",
+  "status": "local_checks_passed_owner_review_approved",
+  "publication": "approved_pending_clean_ci",
+  "code_inputs_sha256": "ba2ce515bea9559f46d1b8918eb0b2f7be5e649d21f6f753060fd5f749457adf",
+  "fixture": "Unloaded Classic ESP32 + ESP32-S3 development boards; no assembled PCB or engine loads",
+  "pcb_profile": {
+    "name": "OpenTurbine PCB v1.0",
+    "id": "openturbine-s3-20261102",
+    "revision": "1.0-20261105",
+    "ports": 34,
+    "s3_stress_inputs": 21,
+    "s3_stress_outputs": 16,
+    "production_flash_mb": 8,
+    "psram_required": false
+  },
+  "local_gate": {
+    "passed": true,
+    "ui_programs": 62,
+    "safety_assertions": 322,
+    "cpp_behavior_programs": 35,
+    "windows_native_executions": 35,
+    "wasi_executions": 0,
+    "earlier_host_policy_block": "WinError 4551; final native rerun passed without security changes",
+    "bench_harness_tests": 39,
+    "firmware_targets": [
+      "esp32dev",
+      "esp32s3dev"
+    ],
+    "filesystem_and_budget_checks": true,
+    "fresh_flasher_window_smoke": true
+  },
+  "classic_browser": {
+    "passed": true,
+    "target": "esp32dev",
+    "version": "2.7.0",
+    "build_id": "409d421bfbaf9534",
+    "duration_s": 1003,
+    "navigations": 57,
+    "saves": 2,
+    "restored": true,
+    "recovered_get_resets": 2,
+    "recovered_config_reads": 7,
+    "recovered_log_reads": 0
+  },
+  "s3_browser": {
+    "passed": true,
+    "target": "esp32s3dev",
+    "version": "2.7.0",
+    "build_id": "b0767a92296e45d1",
+    "duration_s": 970,
+    "navigations": 62,
+    "saves": 2,
+    "restored": true,
+    "recovered_get_resets": 4,
+    "recovered_config_reads": 8,
+    "recovered_log_reads": 0
+  },
+  "live_browser_matrices": {
+    "esp32dev": {
+      "passed": true,
+      "cases": 72,
+      "configurationUnchanged": true,
+      "bootUnchanged": true
+    },
+    "esp32s3dev": {
+      "passed": true,
+      "cases": 72,
+      "configurationUnchanged": true,
+      "bootUnchanged": true
+    }
+  },
+  "classic_session_csv": {
+    "passed": true,
+    "rows": 15,
+    "columns": 8,
+    "bytes": 843,
+    "errors": []
+  },
+  "local_candidate_package": {
+    "passed": true,
+    "version": "2.7.0",
+    "setupTool": "0.7.9",
+    "targets": {
+      "esp32dev": "409d421bfbaf9534",
+      "esp32s3dev": "b0767a92296e45d1"
+    },
+    "soleOfficialProfile": "OpenTurbine PCB v1.0",
+    "webAssetsMatch": true
+  },
+  "physical_pcb_qualification": "not_performed_board_not_available",
+  "remote_release_workflow": "pending_owner_approval_to_push",
+  "owner_review": {
+    "classic": "approved",
+    "s3_pcb_ui": "approved",
+    "condition": "5 V calibration range verified",
+    "date": "2026-11-06"
+  },
+  "five_volt_calibration": {
+    "passed": true,
+    "pcb_adc_reference_mv": 5000,
+    "native_adc_reference_mv": 3300,
+    "operator_endpoints": "Chromium Firefox WebKit, source and compressed assets",
+    "threshold_pressure_battery_torque_oil_scaling": "wizard saves and reload checked",
+    "physical_reference_accuracy": "requires assembled PCB measurements"
+  }
+}

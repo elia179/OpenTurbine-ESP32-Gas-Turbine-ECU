@@ -341,7 +341,12 @@ function placeControllerBlock(name,tab,index=(hwCfg[seqKey(tab)]||[]).length){
   renderPendingControllers();
   document.querySelector(`#list-${tab} [data-idx="${index}"] .drag-handle`)?.focus({preventScroll:true});
 }
+let _seqLoading=true;
 async function loadAll() {
+  _seqLoading=true;
+  const editingSurface=document.querySelector('main');
+  if(editingSurface)editingSurface.inert=true;
+  updateSequenceSaveControls();
   setSaveStatus('Loading...');
   try {
     hwCfg = await fetchJsonWithRetry('/api/hardware');
@@ -373,36 +378,19 @@ async function loadAll() {
     revealSequenceDeepLink();
     // Keep the post-normalization baseline. Saving can then preserve unrelated
     // settings changed by another browser while this page was open.
+    _seqLoading=false;
     clearSequenceDirty('No unsaved changes');
+    if(editingSurface)editingSurface.inert=false;
   } catch(e) {
-    setSaveStatus('Warning: Load failed: ' + e.message);
+    setSaveStatus('Warning: Load failed: ' + e.message + '. Refresh Sequence to retry.');
   }
 }
 
 async function fetchJsonWithTimeout(url, ms = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!r.ok) throw new Error(url + ' returned HTTP ' + r.status);
-    const text = await r.text();
-    return JSON.parse(text);
-  } finally {
-    clearTimeout(timer);
-  }
+  return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-
-async function fetchJsonWithRetry(url, attempts = 3) {
-  let lastError;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchJsonWithTimeout(url);
-    } catch (e) {
-      lastError = e;
-      await new Promise(resolve => setTimeout(resolve, 200 + i * 300));
-    }
-  }
-  throw lastError;
+async function fetchJsonWithRetry(url, attempts = 5) {
+  return window.OTReadJson(url, {attempts});
 }
 
 // Build paramVals from the settings section using each block's configKey mapping.

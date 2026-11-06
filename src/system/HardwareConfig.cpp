@@ -365,7 +365,7 @@ bool outputGpioAllowed(int pin) {
 #if defined(OT_PLATFORM_ESP32)
     return pin < 0 || (pin != 34 && pin != 35 && pin != 36 && pin != 39);
 #else
-    return pin != 46;
+    return true;
 #endif
 }
 
@@ -1853,6 +1853,11 @@ bool validatePlatformPins(const JsonDocument& doc,
                     const int fuelPin = item["fuel_pin"] | -1;
                     const int fuelType = item["fuel_type"] | 0;
                     if (fuelType < 0 || fuelType > 2) return false;
+                    if (PcbProfileManager::isPowerPin(fuelPin)) {
+                        if (fuelType == 2 || !(item["fuel_active_h"] | true)) return false;
+                        const int frequency = item["fuel_freq_hz"] | 1000;
+                        if (fuelType == 1 && (frequency < 100 || frequency > 20000)) return false;
+                    } else if (PcbProfileManager::gpioReserved(fuelPin)) return false;
                     if (fuelPin < 0 || !outputGpioAllowed(fuelPin) ||
                         fuelPin == stopPin || fuelPin == startPin) return false;
                     if (!intRange(item, "fuel_delay_ms", 0, 3600000) ||
@@ -1862,7 +1867,7 @@ bool validatePlatformPins(const JsonDocument& doc,
                         !intRange(item, "fuel_res_bits", 8, 14) ||
                         !pwmPercentRange(item, "fuel_pwm_min_pct", "fuel_pwm_max_pct") ||
                         !numberRange(item, "fuel_demand_pct", 0.0f, 100.0f)) return false;
-                    if (fuelType == 1 &&
+                    if (fuelType == 1 && !PcbProfileManager::isPowerPin(fuelPin) &&
                         !ChannelRegistry::pwmTimingValid(item["fuel_freq_hz"] | 1000,
                                                          item["fuel_res_bits"] | 10)) return false;
                 }
@@ -1919,6 +1924,9 @@ bool validatePlatformPins(const JsonDocument& doc,
     if (enabled(mavlink) && (!requiredPinAllowed(mavlink, "tx_pin", outputGpioAllowed) ||
         !optionalPinAllowed(mavlink,"rx_pin",gpioAllowed) ||
         (jsonPin(mavlink,"tx_pin")>=0&&jsonPin(mavlink,"tx_pin")==jsonPin(mavlink,"rx_pin")))) return false;
+    if (enabled(mavlink) && PcbProfileManager::active() &&
+        (PcbProfileManager::gpioReserved(jsonPin(mavlink, "tx_pin")) ||
+         PcbProfileManager::gpioReserved(jsonPin(mavlink, "rx_pin")))) return false;
     if(!intRange(mavlink,"baud",9600,921600)||!intRange(mavlink,"interval_ms",20,5000))return false;
     for(const auto& field:MavlinkConfigFields::integers)
         if(!intRange(mavlink,field.key,field.minimum,field.maximum))return false;
@@ -2166,7 +2174,7 @@ bool validatePlatformPins(const JsonDocument& doc,
         if (!parsedRegistry) {
             registryScratch.reset(new (std::nothrow) ChannelRegistry());
             if (!registryScratch ||
-                !registryScratch->fromJson(doc["channel_registry"].as<JsonObjectConst>())) return false;
+                !registryScratch->fromJson(doc["channel_registry"].as<JsonObjectConst>(), PcbProfileManager::active()?PcbProfileResolver::resolveChannel:nullptr)) return false;
             parsedRegistry = registryScratch.get();
         }
         const ChannelRegistry& registry = *parsedRegistry;
@@ -2912,7 +2920,7 @@ void HardwareConfig::load() {
         return;
     }
     // Use the exact same complete validation path as POST /api/hardware.
-    reconcileRegistryDigitalInputs(workDoc);
+    reconcileRegistryDigitalInputs(workDoc, PcbProfileManager::active()?PcbProfileResolver::digitalMirrorPin:nullptr);
     if (!validateJson(workDoc)) {
         inhibitStartForHardwareConfigFailure(
             "Cannot start: stored hardware configuration is invalid or unsafe.");
@@ -2920,6 +2928,7 @@ void HardwareConfig::load() {
         return;
     }
     _fromDoc(workDoc);
+    if (bootState.configLocked) return;
     if (PcbProfileManager::active() &&
         !registryHasPurpose(&channelRegistry, ChannelRegistry::Input,
                             "stop_switch")) {
@@ -3648,7 +3657,7 @@ bool HardwareConfig::validateJson(const JsonDocument& doc, ChannelRegistry* regi
             ownedRegistry.reset(new (std::nothrow) ChannelRegistry());
             registry = ownedRegistry.get();
         }
-        if (!registry || !registry->fromJson(doc["channel_registry"].as<JsonObjectConst>())) {
+        if (!registry || !registry->fromJson(doc["channel_registry"].as<JsonObjectConst>(), PcbProfileManager::active()?PcbProfileResolver::resolveChannel:nullptr)) {
             const char* registryError = ChannelRegistry::validationError();
             return reject(registryError && registryError[0]
                 ? registryError : "channel registry contents");
@@ -3723,7 +3732,7 @@ bool HardwareConfig::fromJson(char* json, size_t len,
     // Validate the already-parsed document once; the web path filters its I2C
     // comparison parses to the registry only, leaving room for this complete
     // validation workspace on Classic ESP32.
-    reconcileRegistryDigitalInputs(doc);
+    reconcileRegistryDigitalInputs(doc, PcbProfileManager::active()?PcbProfileResolver::digitalMirrorPin:nullptr);
     if (!validateJson(doc, validationWorkspace)) return false;
     _fromDoc(doc);
     return true;
@@ -3731,7 +3740,11 @@ bool HardwareConfig::fromJson(char* json, size_t len,
 
 // ── _fromDoc ─────────────────────────────────────────────────
 void HardwareConfig::_fromDoc(const JsonDocument& doc) {
-    channelRegistry.fromJson(doc["channel_registry"].as<JsonObjectConst>());
+    if(!channelRegistry.fromJson(doc["channel_registry"].as<JsonObjectConst>(), PcbProfileManager::active()?PcbProfileResolver::resolveChannel:nullptr)){
+        channelRegistry.clear();
+        inhibitStartForHardwareConfigFailure(ChannelRegistry::validationError()[0]?ChannelRegistry::validationError():"Cannot read hardware channel assignments.");
+        return;
+    }
     // Versions through 2.1 represented the built-in bleed valve as a generic
     // valve and recovered its meaning from the ID in several separate paths.
     // Converge that one historical representation at load so ownership,

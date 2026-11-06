@@ -1,3 +1,7 @@
+#include "LargeReadBudget.h"
+#include "StreamedJsonResponse.h"
+#include "JsonSnapshot.h"
+#include "JsonWorkspaceAllocator.h"
 #include "../RecentEventLog.h"
 #include "WebServer.h"
 #include "../../hal/actuators/PcbPowerStage.h"
@@ -160,12 +164,11 @@ static bool _runtimeGovernorAuthorityPreserved(JsonObjectConst patch) {
     return oldUsesPitch == newUsesPitch;
 }
 
-// Bounded transfer buffers. TX is reserved once before Wi-Fi starts so ordinary
-// handlers never depend on a large contiguous allocation. RX is reserved at
-// boot too: allocating it only when Save was pressed made a valid Classic
-// configuration depend on the Wi-Fi heap still containing a contiguous 16 KiB
-// block after page navigation. The fixed reservation leaves a predictable
-// engine/web memory budget and makes every legal save deterministic.
+// TX is reserved before Wi-Fi starts. Classic also reserves its 16 KiB RX
+// workspace so saves do not depend on a large late allocation. On S3, a large
+// registry's JSON tree can otherwise coexist with an idle 24 KiB RX buffer and
+// consume the Wi-Fi reserve. S3 claims RX only for an actual transfer and frees
+// it after that owner's final copy/parse; failed claims remain explicit 503s.
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 // S3 registry capacity is 24 inputs. A legal all-analog layout with six-point
 // calibration tables can exceed 16 KiB on upload. Keep that receive capacity,
@@ -233,6 +236,24 @@ static bool _gateLogRead(AsyncWebServerRequest* req) {
         "{\"error\":\"Another log view or download is in progress; retry shortly\"}");
     return false;
 }
+
+// Use the reserved buffer for CSV generation and detect every short write.
+class BoundedCsvPrint final : public Print {
+public:
+    BoundedCsvPrint(char* data, size_t capacity) : data_(data), capacity_(capacity) {}
+    size_t write(uint8_t value) override {
+        if (size_ >= capacity_) { failed_ = true; return 0; }
+        data_[size_++] = static_cast<char>(value);
+        return 1;
+    }
+    size_t size() const { return size_; }
+    bool failed() const { return failed_; }
+private:
+    char* data_;
+    size_t capacity_;
+    size_t size_ = 0;
+    bool failed_ = false;
+};
 
 static void _printCsvField(Print& out, const char* value) {
     const char* p = value ? value : "";
@@ -333,14 +354,24 @@ static bool _appendWebRx(AsyncWebServerRequest* req, const uint8_t* data,
 }
 
 static void _releaseWebRx(AsyncWebServerRequest* req) {
+#if defined(OT_PLATFORM_ESP32S3)
+    WebRxBuffer* released = nullptr;
+#endif
     portENTER_CRITICAL(&s_webRxMux);
     if (g_webRxOwner == req) {
         g_webRxOwner = nullptr;
         g_webRxResponseLease = false;
         g_webRxLen = 0;
         g_webRxOverflow = false;
+#if defined(OT_PLATFORM_ESP32S3)
+        released = g_webRxStorage;
+        g_webRxStorage = nullptr;
+#endif
     }
     portEXIT_CRITICAL(&s_webRxMux);
+#if defined(OT_PLATFORM_ESP32S3)
+    if (released) heap_caps_free(released);
+#endif
 }
 
 static bool _outputsActiveForOta() {
@@ -1312,7 +1343,7 @@ static AsyncWebServer  _server(80);
 static DNSServer       _dns;                 // captive portal DNS
 
 // ESPAsyncWebServer builds every response header in throwing STL containers.
-// On Classic an allocation failure therefore aborts the process instead of
+// An allocation failure can therefore abort the process instead of
 // becoming a retryable HTTP error. Stop disposable browser traffic before a
 // handler constructs any response during a genuinely low-heap instant. This
 // middleware is static and allocation-free per request; clients naturally
@@ -1320,7 +1351,7 @@ static DNSServer       _dns;                 // captive portal DNS
 class LowHeapRequestGuard final : public AsyncMiddleware {
 public:
     void run(AsyncWebServerRequest* request, ArMiddlewareNext next) override {
-#if defined(OT_PLATFORM_ESP32)
+#if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
         // A staged configuration candidate deliberately owns a large JSON
         // buffer until the core can parse and atomically publish it. Do not
         // admit unrelated browser polls during that short window: even a tiny
@@ -1331,15 +1362,40 @@ public:
         // Never abort that owner request's acknowledgement. Only disposable
         // GET/page polling is rejected here; write routes have their own
         // transaction gates for competing state changes.
+        const bool apiRead = request && request->url().startsWith("/api/");
+        const bool snapshotRead = request &&
+            (request->url() == "/api/data" || request->url() == "/api/config" ||
+             request->url() == "/api/hardware" || request->url() == "/api/ecu_config");
+        const bool largeReplyBusy = snapshotRead && LargeReadBudget::busy();
+        // Even file-backed traffic needs network receive/ACK headroom while
+        // an earlier large response is still draining.
+#if defined(OT_PLATFORM_ESP32S3)
+        const uint32_t minimumHeap = apiRead ? 24576 : 8192;
+        const uint32_t minimumBlock = apiRead ? 8192 : 2048;
+#else
+        const uint32_t minimumHeap = 24576;
+        const uint32_t minimumBlock = 8192;
+#endif
         if (request && request->method() == HTTP_GET &&
             (ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||
              !g_webTxStorage ||
-             ESP.getFreeHeap() < 24576 || ESP.getMaxAllocHeap() < 8192)) {
+             ESP.getFreeHeap() < minimumHeap || ESP.getMaxAllocHeap() < minimumBlock)) {
             // abort() marks the request sent before closing its client. Calling
             // client()->close() directly leaves _sent false; the framework then
             // enters _send() after the middleware returns and dereferences the
             // now-null client while creating its automatic 501 response.
             if (request && request->client()) request->abort();
+            return;
+        }
+        if (request && request->method() == HTTP_GET && largeReplyBusy) {
+            // Contention is not an allocation failure. Preserve the browser's
+            // connection and give its bounded retry an explicit response.
+            // Small live reads and device discovery do not need this budget.
+            auto* response = request->beginResponse(503, "application/json",
+                "{\"error\":\"Another snapshot is being sent; retry shortly\"}");
+            response->addHeader("Retry-After", "1");
+            response->addHeader("Cache-Control", "no-store");
+            request->send(response);
             return;
         }
 #endif
@@ -1554,17 +1610,28 @@ static size_t _serializeJsonBounded(const JsonDocument& doc, char* buf, size_t l
 // Keep the response snapshot in the response object itself. This avoids both
 // AsyncBasicResponse's unchecked String copy and the much larger shared_ptr /
 // std::function machinery on the flash-constrained Classic ESP32 target.
-class OwnedJsonResponse final : public AsyncAbstractResponse {
+class OwnedPayloadResponse final : public AsyncAbstractResponse {
 public:
-    OwnedJsonResponse(const char* json, size_t len, int status = 200)
-        : _data(new (std::nothrow) uint8_t[len]), _index(0), _released(false) {
+    OwnedPayloadResponse(const char* json, size_t len, int status = 200, const char* contentType = "application/json")
+        : _budget(len > 4096), _data(new (std::nothrow) uint8_t[len]), _index(0), _released(false) {
         _code = status;
-        _contentType = "application/json";
+        _contentType = contentType;
         _contentLength = len;
         if (_data && len) memcpy(_data, json, len);
     }
 
-    ~OwnedJsonResponse() override { delete[] _data; }
+    OwnedPayloadResponse(const JsonDocument& doc, size_t len)
+        : _budget(len > 4096), _data(new (std::nothrow) uint8_t[len]), _index(0), _released(false) {
+        _code = 200;
+        _contentType = "application/json";
+        _contentLength = len;
+        if (_data && serializeJson(doc, reinterpret_cast<char*>(_data), len) != len) {
+            delete[] _data;
+            _data = nullptr;
+        }
+    }
+
+    ~OwnedPayloadResponse() override { delete[] _data; }
     bool _sourceValid() const override { return _released || _data != nullptr; }
 
     size_t _fillBuffer(uint8_t* out, size_t maxLen) override {
@@ -1579,11 +1646,13 @@ public:
             delete[] _data;
             _data = nullptr;
             _released = true;
+            _budget.release();
         }
         return count;
     }
 
 private:
+    LargeReadBudget::Lease _budget;
     uint8_t* _data;
     size_t _index;
     bool _released;
@@ -1592,16 +1661,16 @@ private:
 // The hardware document is assembled in the reserved request buffer. Borrow
 // that storage until transmission completes instead of retaining a second
 // 10-16 KB heap allocation on Classic ESP32.
-class BorrowedWebRxJsonResponse final : public AsyncAbstractResponse {
+class BorrowedWebRxPayloadResponse final : public AsyncAbstractResponse {
 public:
-    BorrowedWebRxJsonResponse(AsyncWebServerRequest* owner, size_t len, int status = 200)
-        : _owner(owner), _index(0), _released(false) {
+    BorrowedWebRxPayloadResponse(AsyncWebServerRequest* owner, size_t len, int status, const char* contentType)
+        : _budget(len > 4096), _owner(owner), _index(0), _released(false) {
         _code = status;
-        _contentType = "application/json";
+        _contentType = contentType;
         _contentLength = len;
     }
 
-    ~BorrowedWebRxJsonResponse() override { _releaseWebRx(_owner); }
+    ~BorrowedWebRxPayloadResponse() override { _releaseWebRx(_owner); }
     bool _sourceValid() const override {
         return _released || (_owner && g_webRxStorage && g_webRxOwner == _owner);
     }
@@ -1619,11 +1688,13 @@ public:
             _releaseWebRx(_owner);
             _owner = nullptr;
             _released = true;
+            _budget.release();
         }
         return count;
     }
 
 private:
+    LargeReadBudget::Lease _budget;
     AsyncWebServerRequest* _owner;
     size_t _index;
     bool _released;
@@ -1636,7 +1707,9 @@ private:
 // buffer through WebRxRelease.
 static void _sendBorrowedWebRxJson(AsyncWebServerRequest* req, const char* json,
                                    size_t len, int status = 200,
-                                   bool allowDeferredSnapshot = false) {
+                                   bool allowDeferredSnapshot = false,
+                                   const char* contentType = "application/json",
+                                   const char* filename = nullptr) {
     if (!req || !json || len >= sizeof(g_webRxBuf)) {
         if (req) {
             AsyncWebServerResponse* error = req->beginResponse(
@@ -1661,8 +1734,8 @@ static void _sendBorrowedWebRxJson(AsyncWebServerRequest* req, const char* json,
     portEXIT_CRITICAL(&s_webRxMux);
     memcpy(g_webRxBuf, json, len);
 
-    BorrowedWebRxJsonResponse* resp =
-        new (std::nothrow) BorrowedWebRxJsonResponse(req, len, status);
+    BorrowedWebRxPayloadResponse* resp =
+        new (std::nothrow) BorrowedWebRxPayloadResponse(req, len, status, contentType);
     if (!resp || !resp->_sourceValid()) {
         delete resp;
         _releaseWebRx(req);
@@ -1673,6 +1746,7 @@ static void _sendBorrowedWebRxJson(AsyncWebServerRequest* req, const char* json,
         req->send(error);
         return;
     }
+    if(filename)resp->addHeader("Content-Disposition",String("attachment; filename=\"")+filename+"\"");
     _finalizeJsonResponse(resp);
     req->send(resp);
 }
@@ -1682,7 +1756,7 @@ static void _sendBorrowedWebRxJson(AsyncWebServerRequest* req, const char* json,
 // misleading HTTP 200 with an empty body. Own one checked snapshot per response
 // and stream it with a fixed length so memory pressure becomes a retryable error.
 static void _sendOwnedJson(AsyncWebServerRequest* req, const char* json, size_t len, int status = 200) {
-    OwnedJsonResponse* resp = new (std::nothrow) OwnedJsonResponse(json, len, status);
+    OwnedPayloadResponse* resp = new (std::nothrow) OwnedPayloadResponse(json, len, status);
     if (!resp || !resp->_sourceValid()) {
         delete resp;
         AsyncWebServerResponse* resp = req->beginResponse(
@@ -1700,12 +1774,12 @@ static void _sendOwnedJson(AsyncWebServerRequest* req, const char* json, size_t 
 // workspace is sized for the largest legal import (16-24 KiB); borrowing that
 // whole workspace for an ordinary 5-8 KiB page document made first navigation
 // compete unnecessarily with Wi-Fi and flash-backed asset delivery on Classic.
-// OwnedJsonResponse releases its payload as soon as the final bytes have been
+// OwnedPayloadResponse releases its payload as soon as the final bytes have been
 // copied into TCP, so this remains bounded without retaining page data.
 static void _sendLargeReadJson(AsyncWebServerRequest* req, const char* json,
                                size_t len, int status = 200) {
     if (!req || !json) return;
-    OwnedJsonResponse* resp = new (std::nothrow) OwnedJsonResponse(json, len, status);
+    OwnedPayloadResponse* resp = new (std::nothrow) OwnedPayloadResponse(json, len, status);
     if (!resp || !resp->_sourceValid()) {
         delete resp;
         // A fragmented Classic heap can reject the page snapshot even though
@@ -1812,6 +1886,15 @@ static void _restartCleanly(const char* reason) {
 // ── Telemetry JSON builder ────────────────────────────────────
 // The boot snapshot owns static metadata; compact v2 carries every live value
 // and binary state on each REST response.
+static bool _registryOutputAvailable(const ChannelRegistry::Channel& channel) {
+    if (!channel.installed) return false;
+    if (channel.driver == ChannelRegistry::I2cRelay)
+        return I2CDeviceManager::channelAvailable(channel) &&
+               !I2CDeviceManager::channelRechecking(channel);
+    if (PcbPowerStage::ownsPin(channel.pin)) return PcbPowerStage::ready();
+    return channel.pin >= 0;
+}
+
 static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     alignas(EngineData) uint8_t snapshotStorage[sizeof(EngineData)];
     const uint32_t snapshotVersion = EngineData::readPublishedSnapshot(
@@ -1970,11 +2053,13 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     uint32_t inputOnMask = 0;
     uint32_t inputHealthyMask = 0;
     uint32_t outputOnMask = 0;
+    uint32_t outputAvailableMask = 0;
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount && i < 32; ++i) {
         if (ed.registryInputValue[i] >= 0.5f) inputOnMask |= (1UL << i);
         if (ed.registryInputHealthy[i]) inputHealthyMask |= (1UL << i);
     }
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount && i < 32; ++i) {
+        if (_registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i])) outputAvailableMask |= (1UL << i);
         if (RelayDemand::requested(ed.registryOutputDemand[i])) outputOnMask |= (1UL << i);
     }
     uint32_t diOnMask = 0;
@@ -1985,6 +2070,7 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
         if (ed.registryOutputCurrentHealthy[i]) outputCurrentHealthyMask |= (1UL << i);
     doc["io"] = inputOnMask; doc["ih"] = inputHealthyMask;
     doc["pr"] = (int)lroundf(ed.phaseTorqueRpm);
+    doc["oa"] = outputAvailableMask;
     doc["oo"] = outputOnMask; doc["oh"] = outputCurrentHealthyMask;
     doc["di"] = diOnMask;
 
@@ -2227,6 +2313,9 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["loop_led_ms"]           = ed.loopLedMs;
     doc["session_dropped_rows"]  = SessionLogger::droppedRows();
     doc["session_queued_rows"]   = SessionLogger::queuedRows();
+    doc["session_capacity_rows"] = SessionLogger::capacityRows();
+    doc["session_sample_bytes"] = SessionLogger::sampleBytes();
+    doc["session_capture_interval_ms"] = SessionLogger::captureIntervalMs();
     doc["session_logger_healthy"] = SessionLogger::healthy();
     doc["session_logger_error"]   = SessionLogger::errorCode();
     doc["session_capture_active"] = SessionLogger::captureActive();
@@ -2237,6 +2326,8 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["session_reserve_bytes"]  = SessionLogger::reserveBytes();
     doc["event_dropped_events"]  = FlightRecorder::droppedEvents();
     doc["event_pending_count"]    = FlightRecorder::pendingCount();
+    doc["event_pending_bytes"] = FlightRecorder::pendingBytes();
+    doc["event_capacity_bytes"] = FlightRecorder::capacityBytes();
     doc["event_recorder_healthy"] = FlightRecorder::healthy();
     doc["event_recorder_error"]   = FlightRecorder::errorCode();
     doc["event_last_append_ms"]   = FlightRecorder::lastDurableAppendMs();
@@ -2399,6 +2490,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount; i++) {
             auto ch = outArr.add<JsonObject>();
             ch["id"]     = HardwareConfig::channelRegistry.outputs[i].id;
+            ch["available"] = _registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i]);
             ch["demand"] = (float)(int)(ed.registryOutputDemand[i] * 1000) / 1000.0f;
             ch["current_amps"] = (float)(int)(ed.registryOutputCurrentAmps[i] * 100) / 100.0f;
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
@@ -2682,13 +2774,42 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["current_max_a"] = c.currentMaxAmps;
             ch["has_flow_monitor"] = c.hasFlowMonitor;
             ch["minimum_flow_l_min"] = c.minimumFlow;
+            ch["available"] = _registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i]);
             ch["demand"] = (float)(int)(ed.registryOutputDemand[i] * 1000) / 1000.0f;
             ch["current_amps"] = (float)(int)(ed.registryOutputCurrentAmps[i] * 100) / 100.0f;
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
         }
     }
+    if (measureJson(doc) >= len)
+        _ownLinkedJsonValues(doc.as<JsonVariant>());
     return _serializeJsonBounded(doc, buf, len);
 }
+
+#if defined(OT_PLATFORM_ESP32S3)
+static bool _allowSnapshotAllocation(size_t bytes) {
+    return bytes < ESP.getFreeHeap() &&
+           ESP.getFreeHeap() - bytes >= 8192 && ESP.getMaxAllocHeap() >= bytes;
+}
+
+static void _sendWorkspaceSnapshot(AsyncWebServerRequest* req, JsonDocument& doc) {
+    const size_t len = measureJson(doc);
+    OwnedPayloadResponse* response = !doc.overflowed() && _allowSnapshotAllocation(len)
+        ? new (std::nothrow) OwnedPayloadResponse(doc, len) : nullptr;
+    // The response owns serialized bytes now. Return every fallback JSON pool
+    // allocation before TCP can retain a snapshot for a slow receiver.
+    doc.clear();
+    doc.shrinkToFit();
+    if (!response || !response->_sourceValid()) {
+        delete response;
+        req->send(503, "application/json",
+                  "{\"error\":\"Not enough memory for a complete snapshot; retry shortly\"}");
+        return;
+    }
+    _finalizeJsonResponse(response);
+    req->send(response);
+}
+#endif
+
 
 // ── Route setup ───────────────────────────────────────────────
 void WebServer::_setupRoutes() {
@@ -2805,11 +2926,31 @@ void WebServer::_setupRoutes() {
     // GET /api/data — live snapshot. Uses g_webTxBuf (static) to avoid a 6 KB stack
     // allocation inside the async TCP task callback (task stack is ~8 KB).
     _server.on("/api/data", HTTP_GET, [](AsyncWebServerRequest* req) {
+#if defined(OT_PLATFORM_ESP32S3)
+        JsonWorkspaceAllocator workspace(g_webTxBuf, sizeof(g_webTxBuf), _allowSnapshotAllocation);
+        JsonDocument doc(&workspace);
+        _buildTelemetry(nullptr, 0, doc, true);
+        _sendWorkspaceSnapshot(req, doc);
+        return;
+#else
         static JsonDocument doc;   // static: avoids re-allocating ArduinoJson heap every call
         size_t n = _buildTelemetry(g_webTxBuf, sizeof(g_webTxBuf), doc, true);
+        if (doc.overflowed()) {
+            doc.clear();
+            doc.shrinkToFit();
+            req->send(503, "application/json",
+                      "{\"error\":\"Not enough memory for a complete telemetry snapshot; retry\"}");
+            return;
+        }
         if (n >= sizeof(g_webTxBuf)) {
-            AsyncWebServerResponse* resp = req->beginResponse(
-                500, "application/json", "{\"error\":\"telemetry frame too large\"}");
+            auto* resp = new (std::nothrow) StreamedJsonResponse(std::move(doc));
+            if (!resp) {
+                doc.clear();
+                doc.shrinkToFit();
+                req->send(503, "application/json",
+                          "{\"error\":\"Not enough memory for telemetry response; retry\"}");
+                return;
+            }
             _finalizeJsonResponse(resp);
             req->send(resp);
             return;
@@ -2820,6 +2961,7 @@ void WebServer::_setupRoutes() {
         doc.clear();
         doc.shrinkToFit();
         _sendBorrowedWebRxJson(req, g_webTxBuf, n, 200, true);
+#endif
     });
 
     // GET /api/status
@@ -2869,33 +3011,47 @@ void WebServer::_setupRoutes() {
 
         JsonObject sl = doc["session_log"].to<JsonObject>();
         const uint32_t mask = Config::sessionLogMask;
-        sl["n1"]           = (bool)(mask & Config::SLOG_N1);
-        sl["n2"]           = (bool)(mask & Config::SLOG_N2);
-        sl["tot"]          = (bool)(mask & Config::SLOG_TOT);
-        sl["oil"]          = (bool)(mask & Config::SLOG_OIL);
-        sl["p1"]           = (bool)(mask & Config::SLOG_P1);
-        sl["p2"]           = (bool)(mask & Config::SLOG_P2);
-        sl["throttle"]     = (bool)(mask & Config::SLOG_THR);
-        sl["mode"]         = (bool)(mask & Config::SLOG_MODE);
-        sl["tit"]          = (bool)(mask & Config::SLOG_TIT);
-        sl["batt"]         = (bool)(mask & Config::SLOG_BATT);
-        sl["fuel_press"]   = (bool)(mask & Config::SLOG_FUEL_PRESS);
-        sl["fuel_flow"]    = (bool)(mask & Config::SLOG_FUEL_FLOW);
-        sl["glow"]         = (bool)(mask & Config::SLOG_GLOW);
-        sl["fp2"]          = (bool)(mask & Config::SLOG_FP2);
-        sl["ab"]           = (bool)(mask & Config::SLOG_AB);
-        sl["prop"]         = (bool)(mask & Config::SLOG_PROP);
-        sl["oil_pct"]      = (bool)(mask & Config::SLOG_OIL_PCT);
-        sl["loop"]         = (bool)(mask & Config::SLOG_LOOP);
-        sl["glow_current"] = (bool)(mask & Config::SLOG_GLOW_CURRENT);
-        sl["ign_current"]  = (bool)(mask & Config::SLOG_IGN_CURRENT);
-        sl["ign2_current"] = (bool)(mask & Config::SLOG_IGN2_CURRENT);
-        sl["oil_current"]  = (bool)(mask & Config::SLOG_OIL_CURRENT);
-        sl["wet_glow"]     = (bool)(mask & Config::SLOG_WET_GLOW);
-        sl["oil_temp"]     = (bool)(mask & Config::SLOG_OIL_TEMP);
-        sl["torque"]       = (bool)(mask & Config::SLOG_TORQUE);
-        sl["starter"]      = (bool)(mask & Config::SLOG_STARTER);
-        sl["thrust"]       = (bool)(mask & Config::SLOG_THRUST);
+        static const struct { const char* name; uint32_t flag; } fields[] = {
+            {"n1",Config::SLOG_N1},
+            {"n2",Config::SLOG_N2},
+            {"tot",Config::SLOG_TOT},
+            {"oil",Config::SLOG_OIL},
+            {"p1",Config::SLOG_P1},
+            {"p2",Config::SLOG_P2},
+            {"throttle",Config::SLOG_THR},
+            {"mode",Config::SLOG_MODE},
+            {"tit",Config::SLOG_TIT},
+            {"batt",Config::SLOG_BATT},
+            {"fuel_press",Config::SLOG_FUEL_PRESS},
+            {"fuel_flow",Config::SLOG_FUEL_FLOW},
+            {"glow",Config::SLOG_GLOW},
+            {"fp2",Config::SLOG_FP2},
+            {"ab",Config::SLOG_AB},
+            {"prop",Config::SLOG_PROP},
+            {"oil_pct",Config::SLOG_OIL_PCT},
+            {"loop",Config::SLOG_LOOP},
+            {"glow_current",Config::SLOG_GLOW_CURRENT},
+            {"ign_current",Config::SLOG_IGN_CURRENT},
+            {"ign2_current",Config::SLOG_IGN2_CURRENT},
+            {"oil_current",Config::SLOG_OIL_CURRENT},
+            {"wet_glow",Config::SLOG_WET_GLOW},
+            {"oil_temp",Config::SLOG_OIL_TEMP},
+            {"torque",Config::SLOG_TORQUE},
+            {"starter",Config::SLOG_STARTER},
+            {"thrust",Config::SLOG_THRUST},
+        };
+        JsonObject capture=doc["capture"].to<JsonObject>();
+        capture["budget_bytes"]=SessionLogger::storageBudget();
+        capture["timestamp_bytes"]=sizeof(uint32_t);
+        capture["prefix_bytes"]=2;
+        capture["registry_value_bytes"]=sizeof(float);
+        JsonObject sizes=capture["fields"].to<JsonObject>();
+        for(const auto& field:fields) {
+            sl[field.name]=bool(mask&field.flag);
+            const auto info=SessionLogger::fieldStorage(field.flag);
+            JsonArray size=sizes[field.name].to<JsonArray>();
+            size.add(info.bytes);size.add(info.compact);
+        }
         sl["interval_ms"]  = Config::sessionLogIntervalMs;
         JsonArray selected = sl["registry_inputs"].to<JsonArray>();
         for (uint8_t i = 0; i < Config::sessionRegistryInputCount; ++i)
@@ -2951,10 +3107,27 @@ void WebServer::_setupRoutes() {
             item["name"] = channel.name;
             item["purpose"] = channel.purpose;
         }
+        // Names needed by Log, without a second full hardware response.
+        JsonObject names=doc["channel_registry"].to<JsonObject>();
+        auto addNames=[&](const char* direction,const ChannelRegistry::Channel* rows,uint8_t count){
+            JsonArray list=names[direction].to<JsonArray>();
+            for(uint8_t i=0;i<count;++i) {
+                if(!rows[i].installed || rows[i].mirrorOf[0])continue;
+                JsonObject item=list.add<JsonObject>();
+                item["name"]=rows[i].name;item["purpose"]=rows[i].purpose;
+            }
+        };
+        addNames("inputs",HardwareConfig::channelRegistry.inputs,HardwareConfig::channelRegistry.inputCount);
+        addNames("outputs",HardwareConfig::channelRegistry.outputs,HardwareConfig::channelRegistry.outputCount);
         JsonObject labels = doc["labels"].to<JsonObject>();
         labels["p1"] = p1Name;
         labels["p2"] = p2Name;
 
+        doc["session_capacity_rows"]=SessionLogger::capacityRows();
+        doc["session_queued_rows"]=SessionLogger::queuedRows();
+        doc["session_capture_interval_ms"]=SessionLogger::captureIntervalMs();
+        doc["session_capture_active"]=SessionLogger::captureActive();
+        doc["session_dropped_rows"]=SessionLogger::droppedRows();
         doc["session_logger_healthy"] = SessionLogger::healthy();
         doc["session_logger_error"] = SessionLogger::errorCode();
         doc["session_log_path"] = SessionLogger::currentPath();
@@ -2979,7 +3152,7 @@ void WebServer::_setupRoutes() {
         const size_t n = serializeJson(doc, g_webTxBuf, sizeof(g_webTxBuf));
         doc.clear();
         doc.shrinkToFit();
-        _sendOwnedJson(req, g_webTxBuf, n);
+        _sendLargeReadJson(req, g_webTxBuf, n);
     });
 
     // GET /api/device_info - updater-friendly board identity and maintenance state.
@@ -3465,7 +3638,7 @@ void WebServer::_setupRoutes() {
     });
 
     // GET /api/log/csv — spreadsheet-friendly recent event export.
-    // AsyncResponseStream is heap-buffered, so keep this bounded like /api/log.
+    // Keep complete recent records within the same fixed budget as /api/log.
     // Use /api/log/raw for the complete zero-copy NDJSON download.
     _server.on("/api/log/csv", HTTP_GET, [](AsyncWebServerRequest* req) {
         if (!_isStandbyLike(EngineData::instance().mode) || Config::logStandby) {
@@ -3474,14 +3647,11 @@ void WebServer::_setupRoutes() {
             return;
         }
         if (!_gateLogRead(req)) return;
-        // Keep the heap-backed CSV response below the ESP async-stream ceiling.
-        // Full history remains available from the zero-copy /api/log/raw route.
-        AsyncResponseStream* resp = req->beginResponseStream("text/csv");
-        resp->addHeader("Content-Disposition", "attachment; filename=\"event_log.csv\"");
-        resp->print("t,ev,details\r\n");
+        BoundedCsvPrint output(g_webTxBuf, sizeof(g_webTxBuf));
+        output.print("t,ev,details\r\n");
         FlightRecorder::lockLog();
         File f = LittleFS.open(FlightRecorder::PATH, "r");
-        if(f)RecentEventLog::seekTail(f);
+        if(f)RecentEventLog::seekTail(f, sizeof(g_webTxBuf) - 64);
         if (f) {
             JsonDocument doc;   // declared once outside the loop — avoids 2200× heap alloc/free
             char lineBuf[640];
@@ -3502,22 +3672,27 @@ void WebServer::_setupRoutes() {
                                                                    : kv.value().as<String>().c_str());
                     if (dpos >= (int)sizeof(detail) - 1) break;
                 }
-                resp->print(t);
-                resp->print(',');
-                _printCsvField(*resp, ev);
-                resp->print(',');
-                _printCsvField(*resp, detail);
-                resp->print("\r\n");
+                output.print(t);
+                output.print(',');
+                _printCsvField(output, ev);
+                output.print(',');
+                _printCsvField(output, detail);
+                output.print("\r\n");
             }
             f.close();
         }
         FlightRecorder::unlockLog();
-        resp->addHeader("Cache-Control", "no-store");
-        resp->addHeader("Connection", "close");
-        req->send(resp);
-        // The file has been closed and the complete bounded CSV now belongs to
-        // the response. Release the flash-read gate immediately; TCP teardown
-        // is unrelated and may finish later.
+        OwnedPayloadResponse* resp = output.failed() ? nullptr :
+            new (std::nothrow) OwnedPayloadResponse(g_webTxBuf, output.size(), 200, "text/csv");
+        if (!resp || !resp->_sourceValid()) {
+            delete resp;
+            if(output.failed())req->send(500,"application/json","{\"error\":\"Event CSV exceeds the export buffer; use Event NDJSON\"}");
+            else _sendBorrowedWebRxJson(req,g_webTxBuf,output.size(),200,false,"text/csv","event_log.csv");
+        } else {
+            resp->addHeader("Content-Disposition", "attachment; filename=\"event_log.csv\"");
+            _finalizeJsonResponse(resp);
+            req->send(resp);
+        }
         _releaseLogRead(req);
     });
 
@@ -3585,32 +3760,33 @@ void WebServer::_setupRoutes() {
             return;
         }
         if (!_gateLogRead(req)) return;
-        // Typical 120-record payloads stay comfortably below the async response
-        // stream's practical ~16 KB ceiling even with several connected clients.
-        AsyncResponseStream* resp = req->beginResponseStream("application/json");
+        // Keep the newest complete records that fit. Stream short writes can
+        // silently drop the closing bracket under AP heap pressure.
         FlightRecorder::lockLog();
         File f = LittleFS.open(FlightRecorder::PATH, "r");
-        if(f)RecentEventLog::seekTail(f);
-        resp->print('[');
+        if (f) RecentEventLog::seekTail(f, sizeof(g_webTxBuf) - 3);
+        size_t used = 0;
+        g_webTxBuf[used++] = '[';
         bool first = true;
         if (f) {
             JsonDocument doc;
             char lineBuf[640];
-            while (RecentEventLog::next(f,lineBuf,sizeof(lineBuf))) {
-                doc.clear();if(deserializeJson(doc,lineBuf)||!doc["ev"].is<const char*>())continue;
-                if (!first) resp->print(',');
+            while (RecentEventLog::next(f, lineBuf, sizeof(lineBuf))) {
+                doc.clear();
+                if (deserializeJson(doc, lineBuf) || !doc["ev"].is<const char*>()) continue;
+                const size_t length = strlen(lineBuf);
+                if (used + length + (first ? 0 : 1) + 2 > sizeof(g_webTxBuf)) break;
+                if (!first) g_webTxBuf[used++] = ',';
+                memcpy(g_webTxBuf + used, lineBuf, length);
+                used += length;
                 first = false;
-                resp->print(lineBuf);
             }
             f.close();
         }
-        resp->print(']');
+        g_webTxBuf[used++] = ']';
+        g_webTxBuf[used] = '\0';
         FlightRecorder::unlockLog();
-        _finalizeJsonResponse(resp);
-        resp->addHeader("Connection", "close");
-        req->send(resp);
-        // The LittleFS read and response construction are complete. The gate
-        // protects those operations, not the lifetime of the TCP transport.
+        _sendLargeReadJson(req, g_webTxBuf, used);
         _releaseLogRead(req);
     });
 
@@ -4040,6 +4216,13 @@ void WebServer::_setupRoutes() {
     // hardware document must not be constrained by the small general-purpose
     // web scratch buffers.
     _server.on("/api/hardware", HTTP_GET, [](AsyncWebServerRequest* req) {
+#if defined(OT_PLATFORM_ESP32S3)
+        JsonWorkspaceAllocator workspace(g_webTxBuf, sizeof(g_webTxBuf), _allowSnapshotAllocation);
+        JsonDocument doc(&workspace);
+        HardwareConfig::toJson(doc, true);
+        _sendWorkspaceSnapshot(req, doc);
+        return;
+#else
         // Normal configurations fit the static buffers. Finish and destroy
         // ArduinoJson's temporary pool before AsyncTCP starts transmitting;
         // retaining that pool for the response lifetime fragments heap across
@@ -4050,7 +4233,7 @@ void WebServer::_setupRoutes() {
             _sendLargeReadJson(req, g_webTxBuf, n);
             return;
         }
-        AsyncJsonResponse* resp = new (std::nothrow) AsyncJsonResponse(false);
+        AsyncJsonResponse* resp = new (std::nothrow) StreamedJsonResponse();
         if (!resp) {
             req->send(503, "application/json", "{\"error\":\"insufficient memory for hardware response\"}");
             return;
@@ -4066,6 +4249,7 @@ void WebServer::_setupRoutes() {
         }
         _finalizeJsonResponse(resp);
         req->send(resp);
+#endif
     });
 
     // Lightweight live view for the Hardware page. Discovery changes at
@@ -4088,6 +4272,72 @@ void WebServer::_setupRoutes() {
                             device.lossActive ? "UNAVAILABLE_RECHECKING" : "AVAILABLE";
             item["last_seen_ms"] = device.lastSeenMs;
             item["errors"] = device.errors;
+        }
+        const auto* board = PcbProfileManager::active() ? PcbProfileManager::catalog() : nullptr;
+        if (board) {
+            JsonArray fitted = discovery["pcb_devices"].to<JsonArray>();
+            for (uint8_t i = 0; i < board->deviceCount; ++i) {
+                const auto& device = board->devices[i];
+                const auto* bus = PcbProfileManager::findBus(device.busId);
+                if (!bus) continue;
+                JsonObject item = fitted.add<JsonObject>();
+                item["id"] = device.id;
+                item["type"] = device.driver;
+                item["bus"] = bus->kind;
+                item["address"] = device.address;
+                item["cs_gpio"] = device.selectGpio;
+                item["state"] = "Not checked";
+                item["description"] = "Built into the PCB. Bus wiring is defined by the profile.";
+                if (!strcmp(device.driver, "tla2528"))
+                    item["description"] = "Built-in ADC for the analogue input connectors. Assign its channels on input cards; bus wiring and address are fixed.";
+#if defined(OT_PLATFORM_ESP32S3)
+                if (board->hasPowerStage && i == board->powerControlDevice)
+                    item["description"] = "Built-in MOSFET driver control: output enables and chip selects. Managed automatically by the ECU.";
+                else {
+                    bool controlsPullups = false;
+                    for (uint8_t port = 0; port < board->portCount; ++port)
+                        for (uint8_t mode = 0; mode < board->ports[port].modeCount; ++mode)
+                            controlsPullups |= board->ports[port].modes[mode].pullDeviceIndex == i;
+                    if (controlsPullups)
+                        item["description"] = "Built-in input pull-up and LED driver. Use each input's pull-up setting and the Status/Fault LED cards; chip wiring and address are fixed.";
+                }
+#endif
+                if (!strcmp(bus->kind, "spi") && device.selectGpio >= 0) {
+                    const auto& registry = HardwareConfig::channelRegistry;
+                    for (uint8_t j = 0; j < registry.inputCount; ++j) {
+                        const auto& input = registry.inputs[j];
+                        if (!input.installed || !input.temperatureInterface ||
+                            input.spiCs != device.selectGpio) continue;
+                        item["state"] = EngineData::instance().registryInputHealthy[j] ?
+                            "Input healthy" : "Input fault";
+                    }
+                }
+                if (!strcmp(bus->kind, "i2c")) {
+                    item["state"] = "Not responding";
+                    for (uint8_t j = 0; j < I2CDeviceManager::deviceCount(); ++j) {
+                        const auto& live = I2CDeviceManager::device(j);
+                        if (live.address != device.address) continue;
+                        item["state"] = !live.present ? "Not responding" :
+                            live.lossActive ? "Rechecking" : "Connected";
+                    }
+                }
+            }
+#if defined(OT_PLATFORM_ESP32S3)
+            if (board->hasPowerStage) {
+                for (uint8_t chip = 0; chip < 2; ++chip) {
+                    JsonObject power = fitted.add<JsonObject>();
+                    power["id"] = chip == 0 ? "power_stage_1" : "power_stage_2";
+                    power["kind"] = "power_stage";
+                    power["type"] = "DRV8350S";
+                    power["bus"] = "spi";
+                    power["output_first"] = chip * 3 + 1;
+                    power["output_last"] = chip * 3 + 3;
+                    power["state"] = PcbPowerStage::driverState(chip);
+                    power["description"] = "Built-in MOSFET driver. Configuration and faults are checked automatically once per second.";
+                    power["detail"] = PcbPowerStage::ready() ? "" : PcbPowerStage::faultReason();
+                }
+            }
+#endif
         }
         if (measureJson(doc) + 1 > sizeof(g_webTxBuf)) {
             req->send(500, "application/json", "{\"error\":\"I2C discovery response too large\"}");
@@ -4242,7 +4492,7 @@ void WebServer::_setupRoutes() {
                         JsonArrayConst previousList =
                             previous["channel_registry"][listName].as<JsonArrayConst>();
                         for (JsonObjectConst row : proposedList) {
-                            if (!(row["installed"] | true)) continue;
+                            // Registry presence means installed; its parser does not honor an installed:false bypass.
                             uint8_t driver = row["driver"] | 255;
                             uint8_t address = row["i2c_address"] | 0;
                             uint8_t channel = row["device_channel"] | 255;
@@ -4923,16 +5173,16 @@ void WebServer::_setupRoutes() {
             };
 
             // Parse and apply settings before rebuilding the uploaded hardware
-            // registry. Classic cannot allocate this document after that larger
+            // registry. Low-memory boards cannot allocate this document after that larger
             // registry is resident. Temporarily align only the profile string;
             // dependency cleanup still runs after the validated hardware apply.
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
             // ArduinoJson 7 owns its strings even when parsing a mutable input.
             // A complete legal settings tree can therefore need more than the
-            // Classic's largest free block after normal page navigation. The
+            // largest free block after normal page navigation, including S3 without
+            // PSRAM when many PCB connectors are configured. The
             // transmit workspace is idle while this body callback runs and all
             // unrelated GETs are blocked by the maintenance middleware, so lend
-            // those 12 KiB to both section parsers and restore them before any
+            // the response buffer to both section parsers and restore it before any
             // response.
             if (g_webTxStorage) {
                 heap_caps_free(g_webTxStorage);
@@ -4945,14 +5195,12 @@ void WebServer::_setupRoutes() {
                 }
                 return g_webTxStorage != nullptr;
             };
-#endif
             std::unique_ptr<JsonDocument> uploadedSettings(
                 new (std::nothrow) JsonDocument());
             File stagedSettings = LittleFS.open(SETTINGS_STAGE, "r");
             const size_t uploadedSettingsLen = stagedSettings ? stagedSettings.size() : 0;
             const bool settingsRead = stagedSettings && uploadedSettingsLen > 0 &&
                 uploadedSettingsLen < sizeof(g_webRxBuf);
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
             // Parse directly from the staged file so the idle 16 KiB receive
             // workspace can be released before ArduinoJson allocates its tree.
             // Reading into that workspace first left too little contiguous heap
@@ -4964,14 +5212,6 @@ void WebServer::_setupRoutes() {
             DeserializationError settingsError = settingsRead && uploadedSettings
                 ? deserializeJson(*uploadedSettings, stagedSettings)
                 : DeserializationError::NoMemory;
-#else
-            const bool settingsBufferRead = settingsRead &&
-                stagedSettings.read(reinterpret_cast<uint8_t*>(g_webRxBuf), uploadedSettingsLen) == uploadedSettingsLen;
-            if (settingsBufferRead) g_webRxBuf[uploadedSettingsLen] = '\0';
-            DeserializationError settingsError = settingsBufferRead && uploadedSettings
-                ? deserializeJson(*uploadedSettings, g_webRxBuf, uploadedSettingsLen)
-                : DeserializationError::NoMemory;
-#endif
             if (stagedSettings) stagedSettings.close();
             const bool settingsOverflowed = !uploadedSettings || uploadedSettings->overflowed();
             const bool settingsValuesValid = settingsError == DeserializationError::Ok &&
@@ -4983,7 +5223,6 @@ void WebServer::_setupRoutes() {
                               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
                               uploadedSettings ? (unsigned)measureJson(*uploadedSettings) : 0U);
                 uploadedSettings.reset();
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
                 if (!restoreTxWorkspace()) {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
@@ -4991,7 +5230,6 @@ void WebServer::_setupRoutes() {
                     _finishConfigRestore();
                     return;
                 }
-#endif
                 JsonDocument errorDoc;
                 errorDoc["error"] = "settings section rejected";
                 if (!settingsRead) errorDoc["detail"] = "staged settings could not be read";
@@ -5017,7 +5255,6 @@ void WebServer::_setupRoutes() {
                     sizeof(HardwareConfig::profileId));
             uploadedSettings.reset();
             if (!settingsApplied) {
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
                 if (!restoreTxWorkspace()) {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
@@ -5025,7 +5262,6 @@ void WebServer::_setupRoutes() {
                     _finishConfigRestore();
                     return;
                 }
-#endif
                 restoreRuntime();
                 req->send(400, "application/json",
                     "{\"error\":\"uploaded settings cleanup failed\"}");
@@ -5041,8 +5277,12 @@ void WebServer::_setupRoutes() {
                 : DeserializationError::NoMemory;
             if (stagedHardware) stagedHardware.close();
             if (!hwDoc || hardwareError != DeserializationError::Ok || hwDoc->overflowed()) {
+                const bool hardwareNoMemory = !hwDoc ||
+                    hardwareError == DeserializationError::NoMemory || hwDoc->overflowed();
+                Serial.printf("[Web] Hardware restore rejected: parse=%s heap=%u max=%u\n",
+                              hardwareError.c_str(), (unsigned)ESP.getFreeHeap(),
+                              (unsigned)ESP.getMaxAllocHeap());
                 hwDoc.reset();
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
                 if (!restoreTxWorkspace()) {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
@@ -5050,10 +5290,11 @@ void WebServer::_setupRoutes() {
                     _finishConfigRestore();
                     return;
                 }
-#endif
                 restoreRuntime();
-                req->send(400, "application/json",
-                    "{\"error\":\"bad json or missing hardware section\"}");
+                req->send(hardwareNoMemory ? 503 : 400, "application/json",
+                    hardwareNoMemory
+                        ? "{\"error\":\"Not enough free memory to restore this engine file; reboot and retry\"}"
+                        : "{\"error\":\"invalid hardware section JSON\"}");
                 _scheduleRestart("web workspace recovery", 1000);
                 _finishConfigRestore();
                 return;
@@ -5078,7 +5319,6 @@ void WebServer::_setupRoutes() {
                 char rejection[160];
                 strlcpy(rejection, HardwareConfig::lastValidationError(), sizeof(rejection));
                 hwDoc.reset();
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
                 if (!restoreTxWorkspace()) {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
@@ -5086,7 +5326,6 @@ void WebServer::_setupRoutes() {
                     _finishConfigRestore();
                     return;
                 }
-#endif
                 restoreRuntime();
                 JsonDocument errorDoc;
                 errorDoc["error"] = "hardware section rejected";
@@ -5102,7 +5341,6 @@ void WebServer::_setupRoutes() {
             strlcpy(uploadedProfile, (*hwDoc)["profile_id"] | "", sizeof(uploadedProfile));
             if (strcmp(uploadedProfile, uploadedSettingsProfile) != 0) {
                 hwDoc.reset();
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
                 if (!restoreTxWorkspace()) {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
@@ -5110,7 +5348,6 @@ void WebServer::_setupRoutes() {
                     _finishConfigRestore();
                     return;
                 }
-#endif
                 restoreRuntime();
                 req->send(400, "application/json",
                     "{\"error\":\"hardware and settings profile_id must identify the same engine\"}");
@@ -5118,7 +5355,6 @@ void WebServer::_setupRoutes() {
                 _finishConfigRestore();
                 return;
             }
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
             // Reclaim the permanent response workspace before replacing the
             // live registry. This is the same steady-state allocation order as
             // boot and avoids trying to find 12 contiguous KiB after registry
@@ -5138,7 +5374,6 @@ void WebServer::_setupRoutes() {
                 _finishConfigRestore();
                 return;
             }
-#endif
             HardwareConfig::applyValidatedJsonRuntimeOnly(*hwDoc);
             hwDoc.reset();
             if (!Config::resolveRuleHandlesForHardware() ||
@@ -5198,10 +5433,16 @@ void WebServer::_setupRoutes() {
 
 // ── Public API ────────────────────────────────────────────────
 bool WebServer::begin() {
+#if !defined(OT_PLATFORM_ESP32S3)
     g_webRxStorage = _allocateWebRxStorage();
+#endif
     g_webTxStorage = static_cast<WebTxBuffer*>(
         heap_caps_malloc(sizeof(WebTxBuffer), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-    if (!g_webRxStorage || !g_webTxStorage) {
+    if (!g_webTxStorage
+#if !defined(OT_PLATFORM_ESP32S3)
+        || !g_webRxStorage
+#endif
+    ) {
         if (g_webRxStorage) heap_caps_free(g_webRxStorage);
         if (g_webTxStorage) heap_caps_free(g_webTxStorage);
         g_webRxStorage = nullptr;

@@ -82,6 +82,13 @@ function updateRegistryTorqueSensorType(index, type) {
   const c = registryRoot().inputs[index];
   if (!c || !['torque','general_torque'].includes(registryDerivedPurpose('input',c))) return;
   const i2cDriver = type === 'tla2528' ? 9 : type === 'nau7802' ? 10 : 0;
+  if(type==='tla2528'&&pcbProfileActive()) {
+    const choice=pcbCompatibleChoices('input',registryDerivedPurpose('input',c),c.role,c.physical_port||'',c)
+      .find(x=>x.mode.adapter==='i2c_adc_input'&&pcbModeSelectable(x.mode));
+    if(!choice){alert('All compatible PCB ADC connectors are assigned. Free one or choose another source.');return;}
+    if(Number(c.torque_interface||0)===2)updateRegistryChannel('input',index,'torque_interface',0);
+    updateRegistryProfilePort('input',index,choice.port.id+'|'+choice.mode.id);return;
+  }
   if (i2cDriver) {
     const expected = i2cDriver === 9 ? 'TLA2528' : 'NAU7802';
     if (!cfg.i2c?.enabled || !(cfg._i2c_discovery?.devices || []).some(d => d.type === expected && d.present)) {
@@ -160,7 +167,7 @@ function updateRegistryChannel(direction, index, key, value) {
        c.torque_interface = 0;
        c.device_channel = Number(c.device_channel || 0);
        const expected = value === 8 || value === 11 ? 'TCA9554' : value === 9 ? 'TLA2528' : 'NAU7802';
-       const detected = (cfg._i2c_discovery?.devices || []).find(d=>d.type===expected && d.present);
+       const detected = connectedI2cDevices(expected)[0];
        c.i2c_address = Number(detected?.address || 0);
        if (value === 9) {
          c.i2c_reference_mv = Number(c.i2c_reference_mv || 3300);
@@ -172,7 +179,8 @@ function updateRegistryChannel(direction, index, key, value) {
          c.lever_arm_m = Number(c.lever_arm_m || 1); c.filter_alpha = Number(c.filter_alpha || 0.25);
        }
      }
-      if (direction === 'output' && value === 5) {
+      if (direction === 'output' && value !== 5) delete c.pwm_zero_mode;
+    if (direction === 'output' && value === 5) {
        c.pwm_freq_hz = Number(c.pwm_freq_hz ?? 5000) || 5000;
        c.pwm_res_bits = Number(c.pwm_res_bits ?? 10) || 10;
      }
@@ -201,7 +209,7 @@ function updateRegistryChannel(direction, index, key, value) {
     const currentMode=physicalPort?.modes?.find(mode=>mode.id===c.physical_mode);
     const nextMode=physicalPort?(pcbModeCompatible(direction,def.value,def.role,currentMode)?currentMode:physicalPort.modes.find(mode=>pcbModeCompatible(direction,def.value,def.role,mode))):null;
     if(physicalPort&&!nextMode){alert('This connector cannot provide that function. Choose another connector first.');return;}
-    if(nextMode&&nextMode.id!==c.physical_mode&&nextMode.available===false){alert(nextMode.status||'That fitted device is not responding. Choose another connection.');return;}
+    if(nextMode&&nextMode.id!==c.physical_mode&&!pcbModeSelectable(pcbModeLiveStatus(nextMode))){alert(nextMode.status||'That fitted device is not responding. Choose another connection.');return;}
     const oldPurpose = registryDerivedPurpose(direction,c);
     const oldCoreKey = direction === 'input' ? registryCoreSensorKey(c) : registryCoreActuatorKey(c);
     c.purpose = def.value;
@@ -265,7 +273,7 @@ function updateRegistryChannel(direction, index, key, value) {
     }
     if(direction==='input'&&oldRole!==c.role&&[1,9].includes(Number(c.driver)))Object.assign(c,registryDefaultAnalogCalibration(c.role));
     if(nextMode&&nextMode.id!==c.physical_mode)updateRegistryProfilePort(direction,index,physicalPort.id+'|'+nextMode.id);
-    if ((!c.name || !String(c.name).trim()) && oldPurpose !== def.value) c.name = def.label.slice(0,23);
+    if ((!c.name || !String(c.name).trim()) && oldPurpose !== def.value) c.name = OTTruncateUtf8(def.label,23);
     dirty(); updateSaveButton(); renderRegistryInventory(); return;
   }
   if (key === 'role') {
@@ -312,6 +320,9 @@ function updateRegistryChannel(direction, index, key, value) {
   }
   if (key === 'current_pin') value = Number.isFinite(value) ? value : -1;
   if (key === 'torque_interface') {
+    if(c.physical_port && Number(value)!==Number(c.torque_interface||0)) {
+      c.physical_port='';c.physical_mode='';c.pin=-1;
+    }
     if (Number(c.torque_interface || 0) === 2) clearRegistryPhaseSpeedAdapter(c);
     value = Math.max(0, Math.min(2, Number(value) || 0));
     c.driver = value === 2 ? 2 : 1; c.min = 0; c.max = value === 2 ? 1 : 4095; c.torque_interface = value;
@@ -344,6 +355,9 @@ function updateRegistryChannel(direction, index, key, value) {
   }
   if (key === 'temp_interface') {
     value = Math.max(0, Math.min(5, Number(value) || 0));
+    if(c.physical_port && value!==Number(c.temp_interface||0)) {
+      c.physical_port='';c.physical_mode='';c.driver=1;c.pin=-1;c.spi_cs=-1;
+    }
     if (value >= 1 && value <= 3 && !pcbProfileActive() && !cfg.spi?.enabled) {
       alert('Enable the shared SPI bus near the top of Hardware before choosing an SPI thermocouple amplifier.');
       document.getElementById('hardware-buses-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -387,6 +401,7 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'ignition_on_demand') value = Math.max(.01, Math.min(1, Number(value) || 1));
   if (key === 'ignition_ramp_ms') value = Math.max(0, Math.min(3600000, Math.round(Number(value) || 0)));
   if (key === 'minimum_flow_l_min') value = Math.max(0.001, Number(value) || 0.1);
+  if (key === 'pwm_zero_mode') value = Number(value) === 1 ? 1 : 0;
   if (key === 'safe_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
   if (key === 'min_run_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
   if (key === 'min' || key === 'max') value = Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -715,31 +730,69 @@ function selectRegistryAddPreset(index) {
   if (pcbProfileActive()) {
     const choices = pcbConnectorChoices(pcbCompatibleChoices(_registryAddDirection, purpose, preset.role), null, preset.driver);
     const box = document.getElementById('registry-add-catalog');
+    box.dataset.connectionPurpose=purpose;box.dataset.connectionRole=preset.role;
     document.getElementById('registry-add-title').textContent = `Connect ${preset.label}`;
     const search = document.getElementById('registry-add-search');
     if (search) search.style.display = 'none';
     box.innerHTML = `<div class="hw-desc" style="margin-bottom:.65rem">Choose a labelled PCB connection when available. Advanced builders may instead use a genuinely spare ESP32 GPIO; reserved PCB pins remain blocked.</div>
       <div class="registry-add-group"><div class="registry-add-group-title">Compatible connections</div><div class="registry-add-group-grid">
-      ${choices.map(choice=>`<button type="button" class="registry-add-option" ${choice.mode.available===false?'disabled aria-disabled="true"':''} onclick="selectRegistryProfilePort(${index},'${choice.port.id}','${choice.mode.id}')">${escapeHtmlText(pcbChoiceLabel(choice))}<small>${escapeHtmlText(choice.mode.available===false?(choice.mode.status||'Fitted device is not responding'):(choice.port.description || choice.mode.adapter.replaceAll('_',' ')))}</small></button>`).join('')}
-      </div></div><details><summary>Advanced: direct wiring to a spare GPIO</summary><div class="registry-add-group-grid"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">Spare ESP32 GPIO<small>Only pins left electrically free by this PCB are available.</small></button>
-      </div></details>`;
+      ${choices.map(choice=>`<button type="button" class="registry-add-option" data-pcb-port="${choice.port.id}" data-pcb-mode="${choice.mode.id}" data-connection-detail="${escapeHtmlText(choice.port.description||choice.mode.adapter.replaceAll('_',' '))}" title="${escapeHtmlText(choice.mode.available===false ? `${choice.mode.device_driver?.toUpperCase()||'Connection'} unavailable: ${choice.mode.status||'not responding'}. Check Shared sensor buses.` : (choice.port.description||'Choose this connection'))}" ${!pcbModeSelectable(choice.mode)?'disabled aria-disabled="true"':''} onclick="selectRegistryProfilePort(${index},'${choice.port.id}','${choice.mode.id}')">${escapeHtmlText(pcbChoiceLabel(choice))}<small>${escapeHtmlText(choice.mode.available===false?(choice.mode.status||'Fitted device is not responding'):(choice.port.description || choice.mode.adapter.replaceAll('_',' ')))}</small></button>`).join('')}
+      ${(pcbGpioHeaderChoices(_registryAddDirection,preset.driver)).map(g=>`<button type="button" class="registry-add-option" title="${escapeHtmlText(g.status)}" ${g.available?'':'disabled aria-disabled="true"'} onclick="selectRegistryGpioHeader(${index},${g.pin})">${escapeHtmlText(g.label)}<small>${escapeHtmlText(g.status)}</small></button>`).join('')}
+      </div></div><details><summary>Advanced: direct wiring to a spare GPIO</summary><div class="registry-add-group-grid"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">${preset.role==='temperature'?'External temperature sensor':preset.role==='torque'?'External torque sensor':'Spare ESP32 GPIO'}<small>${preset.role==='temperature'?'Choose MAX6675, MAX31855 or MAX31856 and an unused CS GPIO on the shared SPI bus.':preset.role==='torque'?'Choose HX711, phase pickups or an external transmitter. I2C sensor options become available when their device is detected.':'Only pins left electrically free by this PCB are available.'}</small></button>
+      </div></details>
+      ${registryExternalSourceChoices(preset,index)}`;
     const panel = document.querySelector('#registry-add-modal .registry-add-panel');
     if (panel) panel.scrollTop = 0;
     return;
   }
   createRegistryChannelFromPreset(index, null);
 }
+function selectRegistryGpioHeader(presetIndex,pin) {
+  const preset=(_registryAddDirection==='input'?REGISTRY_INPUT_PRESETS:REGISTRY_OUTPUT_PRESETS)[presetIndex];
+  if(!preset||!pcbGpioHeaderChoices(_registryAddDirection,preset.driver).some(g=>g.pin===Number(pin)&&g.available))return registryAddError('That GPIO is already assigned or does not support this function.');
+  const rows=registryRoot()[_registryAddDirection+'s'],before=rows.length;
+  createRegistryChannelFromPreset(presetIndex,null,true);
+  if(rows.length===before+1){rows.at(-1).pin=Number(pin);dirty();renderRegistryInventory();updateSaveButton();}
+}
+function registryExternalSourceChoices(preset,index) {
+  if(_registryAddDirection!=='input')return '';
+  const purpose=preset.purpose||registryDerivedPurpose('input',preset),items=[];
+  const add=(type,label,detail,enabled=true)=>items.push(`<button type="button" class="registry-add-option" ${enabled?'':'disabled'} title="${escapeHtmlText(detail)}" onclick="selectRegistryExternalSource(${index},'${type}')">${label}<small>${detail}</small></button>`);
+  if(preset.role==='temperature') {
+    if(['oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose))add('onewire','DS18B20 / OneWire','Digital temperature sensor on an exposed GPIO.');
+    if(['tot','tit','oil_temperature','coolant_temp','intake_temperature','general_temperature'].includes(purpose))add('spi','External SPI thermocouple','MAX6675, MAX31855 or MAX31856 on the shared SPI bus, with a spare CS GPIO.');
+  }
+  if(['torque','general_torque','thrust','general_thrust'].includes(purpose)) {
+    add('hx711','HX711 load cell','Separate data input and clock output.');
+    if(purpose==='torque')add('phase','Shaft torsion / two pickups','Two input connectors or exposed GPIOs.');
+    const found=connectedI2cDevices('NAU7802').length>0;
+    add('nau7802','NAU7802 / I2C load cell',found?'Choose its I2C address and channel.':'Not detected. Connect the device and check Shared sensor buses.',found);
+  }
+  return items.length?`<div class="registry-add-group"><div class="registry-add-group-title">External sensor interfaces</div><div class="registry-add-group-grid">${items.join('')}</div></div>`:'';
+}
+function selectRegistryExternalSource(index,type) {
+  if(type==='nau7802'&&!connectedI2cDevices('NAU7802').length)return registryAddError('The NAU7802 device is not responding. Check Shared sensor buses.');
+  const count=registryRoot().inputs.length;
+  createRegistryChannelFromPreset(index,null,true);
+  if(registryRoot().inputs.length!==count+1)return;
+  const i=count;
+  if(type==='onewire')updateRegistryChannel('input',i,'temp_interface',5);
+  if(type==='spi')updateRegistryChannel('input',i,'temp_interface',2);
+  if(type==='hx711')updateRegistryChannel('input',i,'torque_interface',1);
+  if(type==='phase')updateRegistryChannel('input',i,'torque_interface',2);
+  if(type==='nau7802')updateRegistryChannel('input',i,'driver',10);
+}
 function selectRegistryBareGpio(presetIndex) {
   createRegistryChannelFromPreset(presetIndex, null, true);
 }
 function selectRegistryProfilePort(presetIndex, portId, modeId) {
   const port = (pcbProfile.ports || []).find(row=>row.id===portId);
-  const mode = port?.modes?.find(row=>row.id===modeId);
+  const mode = pcbModeLiveStatus(port?.modes?.find(row=>row.id===modeId));
   if (!port || !mode) return registryAddError('That PCB connection is no longer available. Close this window and try again.');
-  if (mode.available === false) return registryAddError(mode.status || 'That fitted PCB device is not responding.');
+  if (!pcbModeSelectable(mode)) return registryAddError(mode.status || 'That fitted PCB device is not responding.');
   const presets=_registryAddDirection==='input'?REGISTRY_INPUT_PRESETS:REGISTRY_OUTPUT_PRESETS;
   const preset=presets[presetIndex];
-  if(!preset||!pcbCompatibleChoices(_registryAddDirection,preset.purpose||registryDerivedPurpose(_registryAddDirection,preset),preset.role).some(choice=>choice.port.id===portId&&choice.mode.id===modeId))
+  if(!preset||!pcbCompatibleChoices(_registryAddDirection,preset.purpose||registryDerivedPurpose(_registryAddDirection,preset),preset.role).some(choice=>choice.port.id===portId&&choice.mode.id===modeId&&pcbModeSelectable(choice.mode)))
     return registryAddError('That PCB connection is already assigned or does not support this function. Choose another connection.');
   createRegistryChannelFromPreset(presetIndex, {port,mode});
 }
@@ -760,12 +813,12 @@ function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {
   const id = registryUniqueId(preset.role === 'generic' ? registrySlug(name) : preset.id);
   if (!id) return registryAddError('Could not create an internal device reference. Close this window and try again.');
   const safe = _registryAddDirection === 'output'
-    ? (purpose === 'prop_pitch' ? 1 : 0) : undefined;
-  const channel = {id, name:name.slice(0, 23), purpose, role:preset.role, driver:selectedDriver, pin:-1, min:range.min, max:range.max, invert:false};
+    ? (pcbChoice ? Number(pcbChoice.mode.safe_demand??0) : (purpose === 'prop_pitch' ? 1 : 0)) : undefined;
+  const channel = {id, name:OTTruncateUtf8(name,23), purpose, role:preset.role, driver:selectedDriver, pin:-1, min:range.min, max:range.max, invert:false};
   if (selectedDriver >= 8) {
     const expected = selectedDriver === 8 || selectedDriver === 11 ? 'TCA9554'
       : selectedDriver === 9 ? 'TLA2528' : 'NAU7802';
-    const detected = (cfg._i2c_discovery?.devices || []).find(d => d.type === expected && d.present);
+    const detected = connectedI2cDevices(expected)[0];
     channel.i2c_address = Number(detected?.address ?? preset.i2c_address ?? 0);
     channel.device_channel = Number(preset.device_channel ?? 0);
     if (selectedDriver === 9) {
@@ -787,6 +840,8 @@ function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {
   if (pcbChoice) {
     channel.physical_port = pcbChoice.port.id;
     channel.physical_mode = pcbChoice.mode.id;
+    channel.pin = Number(pcbChoice.mode.gpio ?? pcbChoice.mode.endpoint?.gpio ?? -1);
+    if(selectedDriver>=8){channel.pin=-1;channel.i2c_address=Number(pcbChoice.mode.i2c_address??channel.i2c_address??0);channel.device_channel=Number(pcbChoice.mode.device_channel??pcbChoice.mode.channel??0);}
     if (pcbChoice.mode.reference_mv) channel.i2c_reference_mv = Number(pcbChoice.mode.reference_mv);
     if (pcbChoice.mode.adapter === 'i2c_adc_digital_input') {
       channel.digital_threshold_raw = 2048;
@@ -798,21 +853,22 @@ function createRegistryChannelFromPreset(index, pcbChoice, bareGpio = false) {
   if (_registryAddDirection === 'input' && preset.role === 'temperature' && (preset.temp_interface || pcbChoice?.mode.adapter === 'spi_thermocouple' || pcbChoice?.mode.adapter === 'onewire_temperature')) {
     const profileThermocouple = ({max6675:1,max31855:2,max31856:3})[pcbChoice?.mode.device_driver] || 1;
     const tempInterface = pcbChoice?.mode.adapter === 'onewire_temperature' ? 5 :
-      (pcbChoice?.mode.adapter === 'spi_thermocouple' ? profileThermocouple : (preset.temp_interface || 1));
+      (pcbChoice?.mode.adapter === 'spi_thermocouple' ? profileThermocouple : pcbChoice?.mode.adapter==='i2c_adc_input'?0:(preset.temp_interface || 1));
     Object.assign(channel, {
       temp_interface:tempInterface,
-      spi_clk:pcbChoice ? -1 : Number(cfg.spi?.sck_pin ?? -1),
-      spi_cs:-1,
-      spi_miso:pcbChoice ? -1 : Number(cfg.spi?.miso_pin ?? -1),
-      spi_mosi:pcbChoice || tempInterface !== 3 ? -1 : Number(cfg.spi?.mosi_pin ?? -1),
+      spi_clk:Number(pcbChoice?.mode.spi_clk ?? cfg.spi?.sck_pin ?? -1),
+      spi_cs:Number(pcbChoice?.mode.spi_cs ?? -1),
+      spi_miso:Number(pcbChoice?.mode.spi_miso ?? cfg.spi?.miso_pin ?? -1),
+      spi_mosi:tempInterface !== 3 ? -1 : Number(pcbChoice?.mode.spi_mosi ?? cfg.spi?.mosi_pin ?? -1),
       tc_type:'K'
     });
+    if(tempInterface===0)Object.assign(channel,registryDefaultAnalogCalibration(preset.role));
   }
   if (_registryAddDirection === 'output') { channel.safe_demand = safe; channel.force_safe_on_fault = false; channel.invert = false; channel.has_flow_monitor = false; channel.minimum_flow_l_min = 0; if (preset.driver === 5) { channel.pwm_freq_hz = 5000; channel.pwm_res_bits = 10; } }
   if (_registryAddDirection === 'input') {
     channel.active_high = pcbChoice?.mode.adapter === 'i2c_adc_digital_input'
       ? true : !registryIsSwitchRole(preset.role);
-    channel.pullup = registryIsSwitchRole(preset.role);
+    channel.pullup = pcbChoice ? pcbChoice.mode.pull === 'up' : registryIsSwitchRole(preset.role);
     channel.pulldown = false;
   }
   if (existing === 0) resetRegistryPurposeDefaults(_registryAddDirection, purpose);
@@ -834,9 +890,51 @@ function setRegistryGlowType(type) {
   }
   dirty(); updateSaveButton(); refreshAllPins(); renderRegistryInventory();
 }
+function pcbWetGlowPowerPin(pin) {
+  return (pcbProfile?.ports||[]).some(port=>port.id.startsWith('power_out_') &&
+    port.modes.some(mode=>Number(mode.gpio)===Number(pin)));
+}
+function registryWetGlowFuelPinOptions(act) {
+  const current=Number(act.fuel_pin??-1);
+  if(!pcbProfileActive())return buildPinOptions(current,'out');
+  const choices=pcbWetGlowFuelChoices(Number(act.fuel_type||0),current);
+  const placeholder='<option value="-1">— Not assigned —</option>';
+  const old= current>=0 && !choices.some(choice=>choice.pin===current)
+    ? `<option value="${current}" selected disabled>GPIO ${current} — incompatible with this signal</option>` : '';
+  return placeholder+old+choices.map(choice=>`<option value="${choice.pin}" ${choice.pin===current?'selected':''} ${choice.available?'':'disabled'}>${escapeHtmlText(choice.label+(choice.available?'':' — '+choice.status))}</option>`).join('');
+}
+function pcbWetGlowFuelChoices(type,current) {
+  const adapter=['relay_output','pwm_output','servo_output'][type];
+  const usage=collectPinUsage();
+  const choices=new Map();
+  for(const port of pcbProfile.ports||[]) {
+    const mode=port.modes.find(mode=>(mode.adapter===adapter ||
+      (type===0&&mode.adapter==='digital_output'))&&mode.gpio!=null&&Number(mode.gpio)>=0);
+    if(mode)choices.set(Number(mode.gpio),port.label);
+  }
+  for(const [pin,label] of pcbRawPinLabels('out'))if(!choices.has(pin))choices.set(pin,label);
+  return [...choices].filter(([pin])=>GPIO_DB[pin]&&!GPIO_DB[pin].r&&!GPIO_DB[pin].i).map(([pin,label])=>{
+    const owners=(usage.get(pin)||[]).filter(owner=>
+      !(pin===current&&owner.label==='Wet-glow pilot fuel') &&
+      !(owner.group==='pcb-reserved'&&pcbWetGlowPowerPin(pin)));
+    return {pin,label,available:!owners.length,status:owners.map(owner=>owner.label).join(', ')};
+  });
+}
+async function setRegistryWetGlowFuelPin(pin) {
+  const act=ensureActuatorObject('glow_plug');
+  if(pcbProfileActive()&&pin>=0&&!pcbWetGlowFuelChoices(Number(act.fuel_type||0),Number(act.fuel_pin??-1)).some(choice=>choice.pin===pin&&choice.available))return;
+  await setAct('glow_plug','fuel_pin',pin);
+  if(pcbProfileActive()&&pcbWetGlowPowerPin(act.fuel_pin)) {
+    act.fuel_active_h=true;
+    if(Number(act.fuel_freq_hz)<100||Number(act.fuel_freq_hz)>20000)act.fuel_freq_hz=1000;
+  }
+  renderRegistryInventory();updateSaveButton();
+}
 function setRegistryWetGlowFuelType(type) {
   const act = ensureActuatorObject('glow_plug');
   act.fuel_type = Math.max(0, Math.min(2, Math.round(Number(type) || 0)));
+  if(pcbProfileActive()&&Number(act.fuel_pin)>=0&&!pcbWetGlowFuelChoices(act.fuel_type,Number(act.fuel_pin)).some(choice=>choice.pin===Number(act.fuel_pin)&&choice.available))
+    act.fuel_pin=-1;
   dirty(); updateSaveButton(); renderRegistryInventory();
 }
 function setRegistryWetGlowDelaySeconds(seconds) {
@@ -1046,10 +1144,12 @@ function duplicateRegistryChannel(index) {
   const baseName = registryDisplayName('output', src, 'Output').replace(/\s+\d+$/, '');
   const copy = {...src};
   copy.id = registryUniqueId(src.id || role || 'output');
-  copy.name = `${baseName} ${n}`.slice(0, 23);
+  const suffix=` ${n}`;
+  copy.name = OTTruncateUtf8(baseName,23-new TextEncoder().encode(suffix).length).trimEnd()+suffix;
   copy.pin = -1;
   copy.physical_port = '';
   copy.physical_mode = '';
+  delete copy.pwm_zero_mode;
   copy.mirror_of = src.mirror_of || src.id;
   copy.force_safe_on_fault = false;
   copy.has_current = false;
@@ -1084,6 +1184,8 @@ function removeRegistryChannel(direction, index) {
   if (!channel) return;
   const users = registryCurrentUsers(direction, channel.id);
   _pendingRegistryRemove = {direction, index, id: channel.id};
+  const saved=(_registrySnap?.[direction+'s']||[]).some(row=>row.id===channel.id);
+  if(!saved&&!users.length){confirmRegistryRemoveChannel();return;}
   const title = document.getElementById('registry-remove-title');
   if (title) title.textContent = `Remove ${registryDisplayName(direction, channel, channel.id || 'device')}?`;
   const body = document.getElementById('registry-remove-body');

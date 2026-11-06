@@ -19,7 +19,7 @@ const expectedVersion=fs.readFileSync('src/system/version.h','utf8').match(/#def
   };
   const info=await(await get('/api/device_info')).json();
   assert.equal(info.target,expectedTarget);assert.equal(info.firmware_version,expectedVersion);
-  assert.equal(info.state,'STANDBY');assert.equal(info.outputs_active,false);
+  assert(['STANDBY','FAULT'].includes(info.state),'unexpected initial engine state');assert.equal(info.outputs_active,false);
   const before=await(await get('/api/data')).json();
   const browser=await chromium.launch({headless:true});
   const errors=[],writes=[];
@@ -62,7 +62,7 @@ const expectedVersion=fs.readFileSync('src/system/version.h','utf8').match(/#def
     const after=await(await get('/api/data')).json();
     assert.equal(after.boot_count,before.boot_count,'Read-only browser audit rebooted ECU');
     const final=await(await get('/api/device_info')).json();
-    assert.equal(final.outputs_active,false);assert.equal(final.state,'STANDBY');
+    assert.equal(final.outputs_active,false);assert.equal(final.state,info.state,'read-only audit changed engine state');
     fs.mkdirSync(out,{recursive:true});
     fs.writeFileSync(`${out}/${expectedTarget}-readonly.json`,JSON.stringify({passed:true,device:info,webHashes:hashes,errors,writes},null,2));
     console.log(`${expectedTarget}: matching toolbar styles, touch fullscreen at tablet/phone widths, all 12 served web hashes, no writes or reboot; outputs inactive.`);

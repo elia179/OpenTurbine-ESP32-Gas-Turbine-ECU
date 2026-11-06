@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
+const {clickSaveControls}=require('./save_controls_helper.cjs');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const {joinFixtureWifi}=require('./fixture_wifi_helper.cjs');
 const wifiProfile = process.env.OT_WIFI_PROFILE || 'OpenTurbine';
 const { chromium, request } = require('playwright');
 
@@ -57,7 +58,9 @@ async function json(response, label) {
   const httpErrors = [];
   const conflictResponses = [];
   const recoveredConfigReadBackpressure = [];
+  const recoveredLogReadBackpressure = [];
   const recoveredGetResets = [];
+  const heapSamples = [];
   let originalRamp;
   let editedRamp;
   let restored = false;
@@ -98,16 +101,21 @@ async function json(response, label) {
     if (response.ok()) successfulResponseRequests.add(response.request());
     const responsePath = new URL(response.url()).pathname;
     const expectedEmptySession = response.status() === 404 && responsePath === '/api/session/log';
-    // Config pages deliberately retry the two large, bounded-workspace reads.
+    // Pages deliberately retry their large, bounded-workspace reads.
     // A 409/503 attempt is recovered only when the resulting navigation later
     // satisfies the page's CONNECTED/content assertions. Keep writes and every
     // other endpoint strict.
     const retryableConfigRead = response.request().method() === 'GET' &&
-      ['/api/config', '/api/hardware'].includes(responsePath) &&
+      ['/api/config', '/api/hardware', '/api/data'].includes(responsePath) &&
       [409, 503].includes(response.status());
     if (retryableConfigRead) {
       recoveredConfigReadBackpressure.push(
         `${response.request().method()} ${response.url()} -> HTTP ${response.status()}`);
+    } else if (response.request().method() === 'GET' && responsePath === '/api/log' &&
+               [429, 503].includes(response.status())) {
+      // loadLog() retries contention explicitly. navigate() below must prove
+      // the log actually rendered, rather than accepting CONNECTED alone.
+      recoveredLogReadBackpressure.push(`GET ${response.url()} -> HTTP ${response.status()}`);
     } else if (response.status() >= 400 && !expectedEmptySession) {
       httpErrors.push(`${response.request().method()} ${response.url()} -> HTTP ${response.status()}`);
     }
@@ -273,10 +281,33 @@ async function json(response, label) {
     await page.waitForTimeout(1500);
     const conn = page.locator('#conn-label');
     if (await conn.count()) {
+      try {
+        await page.waitForFunction(() => {
+          const value = document.getElementById('conn-label')?.textContent || '';
+          return /CONNECTED/i.test(value) && !/DISCONNECTED/i.test(value);
+        }, null, { timeout: 12000 });
+      } catch (error) {
+        const state=await page.evaluate(()=>({url:location.href,ready:document.readyState,connection:document.getElementById('conn-label')?.textContent,applyData:typeof applyData,config:typeof cfg,hardwareLoading:typeof _hwLoading==='undefined'?null:_hwLoading,mode:typeof runtimeMode==='undefined'?null:runtimeMode,body:document.body.innerText.slice(0,2000),scripts:[...document.scripts].map(s=>({src:s.src,length:s.textContent.length}))})).catch(e=>({error:e.message}));
+        console.error('FAILED PAGE STATE '+JSON.stringify({state,consoleErrors:consoleErrors.slice(-20),failures:failures.slice(-20),resets:recoveredGetResets.slice(-20)}));
+        await page.screenshot({path:path.join(outDir,'failed-navigation.png')}).catch(()=>{});
+        throw error;
+      }
+    }
+    const loadedPath = new URL(base + route).pathname;
+    if (loadedPath === '/' || loadedPath === '/index.html') {
+      // A retried full snapshot is recovered only after fitted channels and
+      // scales actually load, rather than accepting a compact connection tick.
+      await page.waitForFunction(() => typeof _dashboardSnapshotReady !== 'undefined' && _dashboardSnapshotReady,
+        null, {timeout:20000});
+    }
+    if (loadedPath === '/log.html') {
       await page.waitForFunction(() => {
-        const value = document.getElementById('conn-label')?.textContent || '';
-        return /CONNECTED/i.test(value) && !/DISCONNECTED/i.test(value);
-      }, null, { timeout: 12000 });
+        const body = document.getElementById('log-body');
+        if (!body) return false;
+        const empty = body.querySelector('.empty-msg');
+        if (empty && !/^No events/i.test(empty.textContent)) return false;
+        return body.querySelectorAll('tr').length > 0;
+      }, null, {timeout:15000});
     }
     let heapNote = '';
     try {
@@ -284,6 +315,7 @@ async function json(response, label) {
       if (statusResponse.ok()) {
         const status = await statusResponse.json();
         heapNote = ` heap=${status.free_heap}/${status.max_alloc_heap} tw=${status.http_time_wait}`;
+        heapSamples.push({navigation:navigations,page:route,free_heap:status.free_heap,max_alloc_heap:status.max_alloc_heap,http_time_wait:status.http_time_wait});
       }
     } catch (_) {}
     console.log(`${label} navigation ${navigations}: ${route} connected${heapNote}`);
@@ -336,7 +368,7 @@ async function json(response, label) {
       }));
       throw new Error(`${purpose}: field edit did not enable Save; state=${JSON.stringify(state)}; ${error.message}`);
     }
-    await page.locator('#btn-save').click();
+    await clickSaveControls(page);
     await acknowledgeDialogsUntil('#save-recap-confirm-btn');
     await page.locator('#save-recap-confirm-btn').click();
     try {
@@ -355,6 +387,7 @@ async function json(response, label) {
     const warnings = page.locator('#dashboard-warnings-card');
     if (await warnings.count()) {
       await page.locator('#dashboard-card-edit-btn').click();
+      await warnings.waitFor({state:'visible',timeout:5000});
       assert.ok(await warnings.isVisible(), 'Edit mode lost the warnings slot');
       assert.equal(await warnings.locator('.dashboard-hide-card,[data-dashboard-setting]').count(), 0);
       const arrange = page.locator('#dashboard-arrange-btn');
@@ -398,7 +431,8 @@ async function json(response, label) {
 
   async function exerciseSequence() {
     await navigate('/sequence.html');
-    await page.waitForSelector('.block-card .drag-handle', { timeout: 10000 });
+    await page.waitForFunction(()=>typeof _seqLoading!=='undefined'&&!_seqLoading);
+    assert(await page.getByRole('button',{name:'+ Add block',exact:true}).count()>0,'Sequence editor has no Add block control');
     const before = await page.locator('.block-card').evaluateAll(cards => cards.map(card => card.textContent.trim()));
     if (before.length > 1) {
       await page.locator('.block-card .drag-handle').first().focus();
@@ -503,7 +537,7 @@ async function json(response, label) {
     try {
       for (let attempt = 0; attempt < 60; attempt++) {
         if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-          try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
+          try { joinFixtureWifi(wifiProfile); }
           catch (_) {}
         }
         await page.waitForTimeout(500);
@@ -539,7 +573,7 @@ async function json(response, label) {
         if (reconnectAttempt++ % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
           // Rejoining the fixture AP is part of the expected reboot workflow.
           // Ordinary browsing still must preserve the exact boot counter.
-          try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
+          try { joinFixtureWifi(wifiProfile); }
           catch (_) {}
         }
         let telemetry;
@@ -656,7 +690,7 @@ async function json(response, label) {
     assert.deepEqual(httpErrors, [], `ordinary browsing received HTTP errors:\n${httpErrors.join('\n')}`);
     const recoveredDocumentRetries = consoleErrors.filter(message =>
       /https?:\/\/[^ ]+\/(?:[^ :?]+\.html)(?:\?[^ :]*)?: Failed to load resource: net::ERR_(?:CONNECTION_RESET|NETWORK_CHANGED|CONTENT_LENGTH_MISMATCH)/.test(message));
-    let configRead503ConsoleBudget = recoveredConfigReadBackpressure.filter(item =>
+    let configRead503ConsoleBudget = [...recoveredConfigReadBackpressure, ...recoveredLogReadBackpressure].filter(item =>
       /HTTP 503$/.test(item)).length;
     const recoveredConfigReadConsoleErrors = [];
     const relevantConsoleErrors = consoleErrors.filter(message => {
@@ -687,8 +721,9 @@ async function json(response, label) {
       build_id: info.build_id, duration_s: Math.round((Date.now() - started) / 1000),
       navigations, saves, dashboard_warning_checks: dashboardWarningChecks, original_ramp_ms: originalRamp, restored,
       soak_boot_count: soakBootCount, final_boot_count: finalTelemetry.boot_count,
-      failures, httpErrors, recovered_get_resets: recoveredGetResets.length,
-      recovered_config_reads: recoveredConfigReadBackpressure.length
+      heap_samples: heapSamples, failures, httpErrors, recovered_get_resets: recoveredGetResets.length,
+      recovered_config_reads: recoveredConfigReadBackpressure.length,
+      recovered_log_reads: recoveredLogReadBackpressure.length
     }, null, 2));
     console.log(`${label} realistic session PASSED: ${Math.round((Date.now() - started) / 1000)}s, ${navigations} navigations, ${saves} persisted config saves, original config restored.`);
   } finally {
@@ -741,7 +776,7 @@ async function json(response, label) {
             throw new Error(`HTTP ${response?.status()}`);
           for (let attempt = 0; attempt < 40; attempt++) {
             if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-              try { execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'}); }
+              try { joinFixtureWifi(wifiProfile); }
               catch (_) {}
             }
             await page.waitForTimeout(750);

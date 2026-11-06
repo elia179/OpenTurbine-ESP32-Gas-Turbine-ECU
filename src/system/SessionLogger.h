@@ -7,7 +7,7 @@
 //  SessionLogger — per-run CSV sensor log
 //
 //  Core 1 (ECU loop) calls tick() which snapshots EngineData
-//  into a FreeRTOS queue — no file I/O on Core 1.
+//  into a bounded byte ring — no file I/O on Core 1.
 //  Core 0 (web task) calls drainQueue() only in STANDBY/FAULT.
 //  ESP32 flash operations suspend both cores, so active-engine samples stay
 //  in a bounded RAM queue and are persisted only after outputs are safe.
@@ -25,13 +25,19 @@ public:
     // currentPath() becomes valid after the completed run is persisted.
     static const char* currentPath();
 
-    static bool begin();         // init /logs; capture queue is allocated per run
+    static bool begin();         // init /logs; capture buffer is allocated per run
     static void startSession();  // begin bounded RAM capture; call at STARTUP
     static void endSession();    // request persist + close; call at STANDBY
-    static void tick();          // Core 1: snapshot → queue push (no file I/O)
+    static void tick();          // Core 1: snapshot → byte-ring push (no file I/O)
     static void drainQueue();    // Core 0: persist only in STANDBY/FAULT
     static uint32_t droppedRows();
     static uint32_t queuedRows();
+    static uint32_t capacityRows();
+    static uint32_t captureIntervalMs();
+    static uint32_t sampleBytes();
+    struct FieldStorage { uint16_t bytes; bool compact; };
+    static FieldStorage fieldStorage(uint32_t mask);
+    static size_t storageBudget();
     static uint32_t evictionCount();
     static uint32_t lastEvictedSession();
     static size_t freeBytes();

@@ -17,9 +17,33 @@ class PcbProfileValidationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.official = json.loads(
-            (ROOT / "pcb_profiles" / "official" /
+            (ROOT / "pcb_profiles" / "archive" /
              "openturbine-ecu-s3-v1.otpcb.json").read_text(encoding="utf-8")
         )
+
+    def test_profile_text_limits_count_utf8_bytes(self):
+        source = json.loads((ROOT / "pcb_profiles/official/openturbine-s3-20261102.otpcb.json").read_text(encoding="utf-8"))
+        for field, count in [("name", 24), ("manufacturer", 16), ("description", 48)]:
+            with self.subTest(field=field):
+                profile = copy.deepcopy(source)
+                profile["board"][field] = "ä" * count
+                with self.assertRaises(pcb_profile.ProfileError):
+                    pcb_profile.validate_profile(profile)
+        for field, count in [("label",16),("description",40),("connector",12)]:
+            with self.subTest(port_field=field):
+                profile = copy.deepcopy(source)
+                profile["ports"][0][field] = "ä" * count
+                with self.assertRaises(pcb_profile.ProfileError):
+                    pcb_profile.validate_profile(profile)
+        source["board"]["name"] = "ä" * 23 + "A"  # Exactly 47 UTF-8 bytes.
+        pcb_profile.validate_profile(source)
+
+    def test_profile_text_rejects_embedded_nul_and_invalid_unicode(self):
+        for value in ["PCB\0hidden", "\ud800"]:
+            profile = copy.deepcopy(self.official)
+            profile["board"]["name"] = value
+            with self.assertRaises(pcb_profile.ProfileError):
+                pcb_profile.validate_profile(profile)
 
     def test_classic_rejects_s3_profile_format(self):
         profile = copy.deepcopy(self.official)
@@ -146,11 +170,17 @@ class CurrentBoardTests(unittest.TestCase):
     def test_signal_outputs_offer_all_supported_waveforms(self):
         ports = {p["id"]: p for p in self.profile["ports"]}
         for n in range(1, 7):
-            self.assertEqual(ports[f"pulse_out_{n}"]["label"], f"OUT {n}")
-            self.assertEqual(ports[f"power_out_{n}"]["label"], f"PWM {n}")
+            self.assertEqual(ports[f"pulse_out_{n}"]["label"], f"OUT {n} Connector")
+            self.assertEqual(ports[f"power_out_{n}"]["label"], f"PWM {n} Connector")
             self.assertEqual({m["adapter"] for m in ports[f"pulse_out_{n}"]["modes"]}, {"servo_output", "pwm_output", "relay_output"})
             self.assertEqual(len({m["endpoint"]["gpio"] for m in ports[f"pulse_out_{n}"]["modes"]}), 1)
             self.assertEqual({m["adapter"] for m in ports[f"analog_{n}"]["modes"]}, {"i2c_adc_input", "i2c_adc_digital_input"})
+
+    def test_header_gpio_contract(self):
+        self.assertEqual(self.profile['gpio_headers'],[17,48,46,47])
+        for pins in ([17,17],[4],[37],[49],[True]):
+            bad=copy.deepcopy(self.profile);bad['gpio_headers']=pins
+            with self.assertRaises(pcb_profile.ProfileError):pcb_profile.validate_profile(bad)
 
     def test_shared_indicator_rejected(self):
         next(p for p in self.profile['ports'] if p['id']=='fault_led')['modes'][0]['channel']=6

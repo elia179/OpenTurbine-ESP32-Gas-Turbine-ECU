@@ -1,6 +1,6 @@
 # OpenTurbine PCB 1.0 — 28 October 2026 routing
 
-**Archived, not bundled. Do not use for the current OpenTurbine PCB v1.0 routing; see [the current profile](openturbine-s3-20261102.md).**
+**Archived, not bundled. Do not use for the current OpenTurbine PCB v1.0 routing; see [the current profile](../official/openturbine-s3-20261102.md).**
 
 Profile: `openturbine-s3-20261028.otpcb.json`. Requires the **2.6.1 implementation**; do not install this profile with 2.6.0. This was the supplied PCB on 28 October, not the older `openturbine-ecu-s3-v1` routing. Bench validation on an assembled board remains required.
 
@@ -23,7 +23,7 @@ Plain development boards continue to work without any PCB profile. On this PCB, 
 | PWM 1–6 (VIN load switching) / J3, J5, J7, J9, J11, J13 | GPIO37, 38, 41, 42, 2, 1 respectively |
 | Start / J_START | GPIO17, active-low, pull-up |
 | Stop / J_STOP | GPIO48, active-low, pull-up |
-| J18 additional inputs | GPIO46 (input-only), GPIO47 |
+| J18 additional inputs | GPIO46 (strapping pin), GPIO47 |
 | Shared output enable | GPIO45, active-high; held low before output initialization |
 | Battery measurement | GPIO10; divider 37:1 with all listed resistors fitted |
 | Status LED / J_STATUS_LED | U17 TCA9534 address 0x20, P6, active-low |
