@@ -4,6 +4,22 @@ const {gunzipSync}=require('node:zlib');
 const packed=process.env.OT_UI_PACKAGED==='1';
 const {guidedFixture}=require('./guided_build_fixture.cjs');
 const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
+// WebKit delivers wheel scrolling asynchronously. A class can change on the
+// first frame while the rest of the same gesture is still in flight. Finish
+// that gesture before testing a reversal; otherwise the two wheel inputs can
+// coalesce and the test never actually scrolls upward.
+async function wheelAndSettle(page, delta) {
+ await page.mouse.wheel(0,delta);
+ await page.evaluate(()=>new Promise(resolve=>{
+  const started=performance.now();let previous=scrollY,changed=started;
+  function frame(now){
+   if(scrollY!==previous){previous=scrollY;changed=now;}
+   if((now-started>=200&&now-changed>=150)||now-started>=2000)return resolve();
+   requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+ }));
+}
 (async()=>{
  globalThis.OT_UI_SIM_PORT=Number(process.env.OT_SCROLL_PORT||14822);await import('./ui_mock_server.mjs');
  const base='http://127.0.0.1:'+globalThis.OT_UI_SIM_PORT;
@@ -48,7 +64,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
       if(status)status.textContent='1 unsaved field change — review before saving';
       bar.classList.remove('is-dirty'); // Singular messages still need the save handle.
      });
-     await p.waitForTimeout(850);await p.mouse.wheel(0,250);
+     await p.waitForTimeout(850);await wheelAndSettle(p,250);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'),null,{timeout:5000});
      assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-save-attention')),false,'review before saving is not busy');
      await p.evaluate(()=>{
@@ -58,7 +74,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      await p.evaluate(()=>{
       document.querySelector('.ot-managed-save .save-msg,.ot-managed-save .save-status,.ot-managed-save #save-status').textContent='1 unsaved field change — review before saving';
      });
-     await p.mouse.wheel(0,80);
+     await wheelAndSettle(p,80);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      const handle=p.getByRole('button',{name:/Unsaved changes.*Show save controls/});
      await handle.waitFor({state:'visible'});
@@ -77,17 +93,17 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      });
      await p.locator('#scroll-focus-probe').click();
      // Once focus leaves the controls, downward scrolling can compact them again.
-     await p.waitForTimeout(850);await p.mouse.wheel(0,100);
+     await p.waitForTimeout(850);await wheelAndSettle(p,100);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      await handle.click();
      await p.keyboard.press('Tab');
-     await p.waitForTimeout(850);await p.mouse.wheel(0,80);
+     await p.waitForTimeout(850);await wheelAndSettle(p,80);
      assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'keyboard focus keeps save controls visible');
      await p.evaluate(()=>{document.activeElement.blur();document.getElementById('scroll-focus-probe').remove();});
-     await p.mouse.wheel(0,100);
+     await wheelAndSettle(p,100);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
      if(route==='controllers'||route==='system'){
-      await p.mouse.wheel(0,-120);
+      await wheelAndSettle(p,-120);
       await p.waitForFunction(()=>!document.body.classList.contains('ot-controls-collapsed'));
       if(viewport.width===390)await p.evaluate(()=>scrollTo(0,0));
       await p.waitForTimeout(280);
@@ -97,7 +113,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
       if(route==='controllers')await search.click();
       else await search.focus(); // WebKit mouse-clicks do not focus buttons; test keyboard focus explicitly.
       assert.equal(await search.evaluate(el=>el===document.activeElement),true);
-      await p.mouse.wheel(0,150);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'typing keeps search visible');
+      await wheelAndSettle(p,150);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'typing keeps search visible');
      }
      await p.evaluate(route=>{
       if(route==='hardware'){cfg.profile_desc=window.__scrollOriginal;dirty();}
@@ -111,7 +127,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      },route);
      await p.waitForFunction(()=>document.body.classList.contains('ot-save-attention'));
      await p.waitForTimeout(280);
-     await p.mouse.wheel(0,250);
+     await wheelAndSettle(p,250);
      assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'save errors remain visible');
      const error=p.locator('.ot-managed-save #save-msg,.ot-managed-save #save-status').first();
      assert.ok(await error.isVisible(),'save error text survives narrow layout');
@@ -122,7 +138,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
       const status=bar.querySelector('#save-msg,#save-status');if(status)status.textContent='No unsaved changes';
       scrollTo(0,0);
      });
-     await p.waitForTimeout(850);await p.mouse.wheel(0,250);
+     await p.waitForTimeout(850);await wheelAndSettle(p,250);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'),null,{timeout:5000}).catch(async e=>{
       console.log('clean diagnostics',await p.evaluate(()=>({y:scrollY,height:innerHeight,total:document.documentElement.scrollHeight,classes:document.body.className,active:document.activeElement.outerHTML.slice(0,180),bar:document.querySelector('.ot-managed-save').textContent,modals:Array.from(document.querySelectorAll('.ot-dialog-overlay,.save-recap-backdrop,[role="dialog"][aria-modal="true"]')).map(el=>({name:el.className,rects:el.getClientRects().length}))})));throw e;
      });
@@ -130,7 +146,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
      // Real recap backdrops use display:flex rather than a .show class.
      if(await p.locator('.save-recap-backdrop,#custom-dlg').count()){
       await p.evaluate(()=>{const modal=document.querySelector('.save-recap-backdrop,#custom-dlg');modal.style.display='flex';});
-      await p.mouse.wheel(0,100);
+      await wheelAndSettle(p,100);
       assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),false,'visible recap pins controls');
       await p.evaluate(()=>document.querySelector('.save-recap-backdrop,#custom-dlg').style.display='none');
       await p.waitForTimeout(100); // WebKit updates root overflow after the closing-dialog paint.
@@ -148,7 +164,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
    await p.setViewportSize({width:1280,height:1000});
    await p.goto(base+'/system.html');await p.locator('#system-maintenance').waitFor();
    await p.evaluate(()=>{document.querySelectorAll('details').forEach(d=>d.open=true);document.activeElement.blur();});
-   await p.mouse.move(150,200);await p.waitForTimeout(850);await p.mouse.wheel(0,250);
+   await p.mouse.move(150,200);await p.waitForTimeout(850);await wheelAndSettle(p,250);
    await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'));
    assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-short-controls')),true,'1000px viewport compacts controls');
    await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
@@ -156,7 +172,7 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
    assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-controls-collapsed')),true,'reaching the final cards does not force the full bar open');
    await p.setViewportSize({width:1024,height:1100});
    await p.goto(base+'/system.html');await p.locator('#system-maintenance').waitFor();
-   await p.mouse.wheel(0,250);
+   await wheelAndSettle(p,250);
    assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('ot-short-controls')),false,'tall desktop retains normal controls');
    assert.deepEqual(errors,[]);
    if(engine===chromium){await fs.promises.mkdir('artifacts/261-ui',{recursive:true});await p.screenshot({path:'artifacts/261-ui/scroll-controls-desktop.png'});}
