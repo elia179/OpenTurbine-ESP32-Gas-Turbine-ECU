@@ -1,8 +1,36 @@
-# Documentation review — 30 September 2026
+# Documentation review
+
+## 8 November 2026 — learning order and cumulative builds
+
+This pass covers the three guided builds, preparation and optional workshops, installation handoff, single-shaft overview, full public User Guide, repository setup/migration instructions and the relevant hardware reference. It changes documentation, one teaching screenshot and documentation audits; physical ECU firmware/configuration was not changed.
+
+### Changes
+
+- One task order across entry points: Hardware, checked/calibrated measurements, individual output tests, normal control/protection, sequences, dry checks and backup. Installation now precedes wiring in the full guide; calibration precedes controller configuration.
+- Each build states its starting point, changed work and observable completion. Fuel/oil ownership remains cumulative; Build 2 identifies its oil section as a review and its second-switch/activation exercises as optional.
+- Device-level substeps separate speed, thermocouple, throttle and output work. Wiring and saved Hardware views precede calibration. Preparation and optional-workshop links are available throughout the learning path.
+- Shorter opening material, a first-step link and less repeated mobile navigation leave more room for the task. Screenshots remain available, enlarge by keyboard/touch and can be hidden for compact reading.
+- The teaching pressure-limiting band is 4.1–4.3 bar below a separate 4.5 bar trip, above the stated 3–4 bar normal range. The screenshot and fixture use the same numbers. All remain unverified teaching assumptions.
+- Clarified voltage validity versus calibration/shutdown limits, configurable P1/P2 tap names, oil-switch naming, onboard/external I²C availability and the exact backup action. Existing reference bookmarks were preserved with aliases; numbered substeps now have explicit stable IDs.
+
+### Verification
+
+The non-deploying [production Pages preview](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/42461180042) passed on site-source commit `87d6d4a`:
+
+- Real Jekyll build; source and built metadata, sitemap, internal links, fragments, images and search-index validation.
+- All 17 public routes at six widths (320–1440 px), light/dark appearance; keyboard image opening/closing and focus return, search, direct field links, compact-reading persistence, reduced motion and JavaScript-free reading/navigation.
+- Reproduced fuel and oil controller creation, saved fields and reload; the ten-block startup and matching shutdown; independently enabled pressure shutdown/limiting and saved band values; automatic idle and N2-governor conversion without a duplicate fuel owner.
+- Visual review of opening views, reordered tasks, the updated protection image and the relevant diagrams. Basic prose remains below the existing 3300-word audit budget.
+
+An earlier production preview caught a difference between Jekyll's automatic numbered-heading IDs and the local renderer. Explicit IDs fixed the source; the corrected production link/search checks passed. Local reading previews alone are not production-build evidence. The preview deployment job was skipped, so this review did not change the live website.
+
+This is a maintainer walkthrough and browser/recipe review, not a measured study with new users or evidence that any example engine values are safe. Actual wiring, load interfaces and engine commissioning still require their own verification.
+
+## Documentation review — 30 September 2026
 
 This revision reviews the complete public GitHub Pages documentation: installation, guided builds and parts, hardware, User Guide, example system, troubleshooting, FAQ, safety, developer information, and About. The current editable interface sources were checked for controller creation, operating states, calibration, sequence blocks, manual tests, and backup locations. Linked setup and migration references were checked where they affect these workflows.
 
-## Improvements
+### Improvements
 
 - Shared documentation layout with a desktop outline and a collapsible phone outline, consistent spacing and headings, direct learning/reference/troubleshooting paths, and a return-to-top link.
 - A local topic and setting finder, containing 160 page/section entries plus 158 configuration fields. Common-task links remain usable without JavaScript. The field reference also has its own filter and stable per-field anchors.
@@ -14,7 +42,7 @@ This revision reviews the complete public GitHub Pages documentation: installati
 
 The guide retains progressive learning detail and captioned UI screenshots. Longer explanatory material is reached through sections, hints and reference groups rather than added to the entry page. The follow-up below changes browser-interface presentation only; no commissioned engine configuration, physical wiring qualification or deployment is supplied.
 
-## Verification
+### Verification
 
 Completed for this revision:
 
@@ -26,7 +54,7 @@ Completed for this revision:
 
 The revised browser audit passed locally using installed Google Chrome: 16 public routes at six widths (320–1440 pixels), in light and dark appearance. It also passed topic lookup, the Maximum N1 Speed deep setting link, field filtering, reading-preference persistence, lightbox opening/closing and focus restoration, menu Escape, and JavaScript-free navigation. Every page image loaded and no page-level horizontal overflow or JavaScript errors were found. All generated wiring SVG text bounds were checked. Verification screenshots are included in the local review package.
 
-## Local UX follow-up
+### Local UX follow-up
 
 - Full setup order now renders as 16 clickable list entries rather than raw Markdown.
 - Guided builds use displayed device names, not internal channel identifiers. The reference no longer asks users to enter an internal ID.
@@ -36,7 +64,7 @@ The revised browser audit passed locally using installed Google Chrome: 16 publi
 - Improved DS18B20 resistor spacing and added terminal-labelled torque and thrust diagrams and separate cumulative example GPIO allocations.
 - Built locally with portable Ruby 3.3.12 and the Jekyll 4.4.1 build API, SEO and sitemap plugins. No system Ruby installation, firmware changes or GitHub deployment were made.
 
-## Configured examples and newcomer review
+### Configured examples and newcomer review
 
 - Each of the 20 introduced Hardware channels has a focused configured-card screenshot, including Start/Stop bias, output electrical ranges and advanced safe-state settings. SPI, I²C and current feedback have their own configured views.
 - Level 1 now explains web Dashboard references, its fixed 85% approach advisory, independent hard-protection switches and the separate external-display settings. Benign simulated values are explicitly not turbine limits.
@@ -46,7 +74,7 @@ The revised browser audit passed locally using installed Google Chrome: 16 publi
 - A newcomer browser walkthrough checked the learning path, configured cards and image enlargement. Findings prompted clearer Dashboard-warning navigation, a direct complete-sequence jump, concrete level-selection descriptions, and one shared image/simulator note instead of repeated caption boilerplate. Focused screenshots preserve actual UI fields; none are fabricated mockups.
 - Phase-torque optional shaft-speed exports remain unselected in this cumulative example because separate N1/N2 inputs already exist. Physical torque calibration and all engine limits remain pending; illustrative Ready cards do not certify these values.
 
-## Clean presentation and dashboard-value follow-up
+### Clean presentation and dashboard-value follow-up
 
 - Numeric readings are normal text colour (white in dark themes) or red at the existing critical boundary. Removed the low-limit green/yellow gradient and its transitional tints; cooldown remaining also uses normal text. Status dots and bars keep their distinct meanings. No threshold, controller, telemetry or hard-protection logic was changed.
 - Regenerated the compressed ECU web assets and recaptured public interface screenshots. The homepage shows the corrected oil-pressure and battery readings; its preview focuses on the main measurements and controls.
@@ -58,7 +86,7 @@ The revised browser audit passed locally using installed Google Chrome: 16 publi
 
 At the end of the initial cosmetic review, no physical ECU or turbine test had been performed. The following follow-up supersedes that initial verification scope.
 
-## Sensor displays and explicit Running idle follow-up
+### Sensor displays and explicit Running idle follow-up
 
 - Added green bars and 30-sample, 1 Hz histories to suitable continuous sensor cards. Browser-only auto/fixed ranges include unit conversion, persistence, signed values, unhealthy-input clearing and keyboard/mobile checks. Output bars remain blue; reading values retain white/red semantics. No protection threshold was changed.
 - Clarified internal RPM pull-ups and their GPIO/electrical limitations, separated SPI setup from temperature-card setup, corrected calibration ordering, and recaptured pump calibration without theme-transition ghosting. The saved 0% bench minimum is consistent with the caption; Stop is disabled only before a sweep starts.
@@ -74,7 +102,7 @@ At the end of the initial cosmetic review, no physical ECU or turbine test had b
 
 These are no-load bench and browser checks, not fuel-pump calibration, turbine testing or full release qualification. No GitHub push or deployment was performed.
 
-## Additional newcomer audit — 1 October 2026
+### Additional newcomer audit — 1 October 2026
 
 - Found that the new idle controls were absent from the generated field reference/search despite appearing in the illustrated guide. Regenerated from the editable schema: 160 fields plus 165 page/section entries. Generators now have read-only freshness checks, enforced by public validation, to catch this drift.
 - An existing browser initially reused old script/search data. Script/style URLs now change with each Jekyll build, and search fetches a fresh index. Verified Running Idle Source and Fixed Running Idle Fuel searches and their expanded reference destinations; the browser audit also tests index reload under long cache headers.
@@ -86,7 +114,7 @@ These are no-load bench and browser checks, not fuel-pump calibration, turbine t
 
 This pass changed documentation, its search/navigation assets and audit tooling only. Firmware/device configuration was not changed, and no push or deployment was performed.
 
-## Final 2.5.0 pre-push checks — 1 October 2026
+### Final 2.5.0 pre-push checks — 1 October 2026
 
 - Verified the latest published release is 2.4.3 and current remote main remains the original source baseline, `aec379d1e557521e3f168ca4d9868ef61a31366b`. Bumped firmware, site metadata and README to 2.5.0, added release notes, and refreshed all ECU shared-asset cache keys to `20261001a`.
 - The complete local release gate passed: all 16 UI audit programs, 315 safety assertions, the turbine setup matrix, I2C/load-cell support, all eight real native behavior groups, extended sensor protocol vectors, 15 Python release-tool tests, 33 HIL harness tests, Windows Setup Tool Go tests, and Classic/S3 firmware plus LittleFS builds and partition/linker budgets. Native tooling now supports the installed MSVC developer environment with tested flag conversion. A stale unit-label assertion and a fixed-delay calibration-save race in tests were corrected without relaxing their expected values.
@@ -100,7 +128,7 @@ This pass changed documentation, its search/navigation assets and audit tooling 
 
 These results qualify this local software revision's checks, not an actual engine installation, fuel-pump calibration or fueled operation.
 
-## Selectable idle input and colour review — 1 October 2026
+### Selectable idle input and colour review — 1 October 2026
 
 - Separated Running Idle Source from Idle Input Channel. Input channel defaults to Automatic: configured Idle Input; any other fitted input can be explicitly selected. Its low/high endpoints use the source's displayed units, allow reversal and clamp out-of-range readings. Stable IDs preserve the choice after Hardware reordering. Missing sources and equal endpoints block saving; an unhealthy source uses the bounded retained-startup fallback. Startup Idle actions still use the Hardware Idle Input. Source/range changes remain Standby-only, not Developer Mode live tuning.
 - Replaced yellow whole-section unsaved glows with local theme-accent field outlines and a small Unsaved label. Actual warning/error colours are unchanged. Added configured automatic/explicit input screenshots, refreshed all setup captures, and updated both User Guides and generated reference/search (163 fields plus 165 section entries).
@@ -112,7 +140,7 @@ These results qualify this local software revision's checks, not an actual engin
 
 These remain no-load software and signal-path checks, not engine commissioning or sensor/pump calibration.
 
-## Clear Idle modes and colocated Automatic settings — 1 October 2026
+### Clear Idle modes and colocated Automatic settings — 1 October 2026
 
 - Running Idle Mode now has four choices: Off, Fixed fuel percentage, Input channel and Automatic Idle. Removed the user-facing legacy choice and duplicate Automatic Idle checkbox. Automatic source, target, band, cutoff and method are immediately below the mode; response tuning and method-specific predictive settings have their own collapsible groups.
 - Older files are interpreted for display without rewriting their saved mode or dormant input fields. Existing automatic/input configurations show the corresponding mode. A Startup-retained configuration asks for an explicit mode before Idle edits; unrelated saves preserve its behavior and no fixed percentage is guessed from Startup.
@@ -124,7 +152,7 @@ These remain no-load software and signal-path checks, not engine commissioning o
 
 No commit, tag, push or deployment was performed. These checks do not commission a turbine or validate real fuel-pump/sensor calibration.
 
-## Idle layout polish — 1 October 2026
+### Idle layout polish — 1 October 2026
 
 - Put mode and the applicable fuel ceiling/percentage in one row, replaced the boxed effective-range card with a compact summary, and grouped Automatic fields under Feedback control. The method spans the group rather than leaving an orphaned half-row. Removed inherited divider/padding strips from the nested grids; narrow screens stack fields in reading order.
 - Source and packaged UI audits include Automatic pressure feedback across six themes and 320/390/768/1200 px, aligned desktop mode/ceiling, full-width method, no grid divider strips and no overflow. Existing mode, mapping, preservation, validation and save/reopen cases continue to pass.
@@ -133,7 +161,7 @@ No commit, tag, push or deployment was performed. These checks do not commission
 
 No further release-blocking UX issue was found in the reviewed Idle and adjacent controls. No commit, tag, push or deployment was made. Previously documented Firefox and engine-commissioning limitations remain.
 
-## Whole-interface clarity review — 1 October 2026
+### Whole-interface clarity review — 1 October 2026
 
 - Hardware usage summaries show named custom controllers rather than internal binding/reference counts. Removal confirmations retain detailed dependency information.
 - Calibration labels the idle-input mapping as Mapped fuel demand (%). Sequence help distinguishes startup demand from the Running floor selected in Controllers. Tools identifies Automatic Idle as a temporary runtime override and links to its saved settings.
@@ -144,7 +172,7 @@ No further release-blocking UX issue was found in the reviewed Idle and adjacent
 
 Final two-board and release verification results are recorded with the local verification artifacts. The owner subsequently authorized publication after final checks.
 
-### Final cache-h bench verification
+#### Final cache-h bench verification
 
 - The full release gate passed for Classic and S3 firmware/LittleFS builds, UI checks, native behavior and safety tests. The refreshed static preview passed the responsive documentation/browser audit.
 - Both boards passed actual browser engine-file download/upload/restore, 16 page loads with mobile checks, and the twelve-file web-asset upload (53 bounded chunks). Asset uploads preserved the complete engine file exactly. Both passed the real invalid-description restore check, retaining the visible error and unchanged Hardware.
@@ -153,13 +181,13 @@ Final two-board and release verification results are recorded with the local ver
 - Classic is intentionally left with the no-load complex review example, not its previous baseline: ten registry inputs, six outputs, dual RPM, SPI/OneWire temperatures, battery measurement, Automatic idle, oil feedback and separate fan/scavenge controllers. It remains in Standby with outputs inactive. Most configured devices are not physically fitted. The original backup is retained. Starter GPIO15 is an unwired bench example, not a real-board wiring recommendation.
 - S3 is restored as the OTBench tester and reset after its DUT checks. No commit, tag, push or deployment was made. Firefox was unavailable locally; these bench checks do not commission an engine or establish real sensor/fuel-pump calibration.
 
-### Long output-binding follow-up
+#### Long output-binding follow-up
 
 The expanded review example exposed a pre-existing 20-byte binding-key buffer, too short for several built-in names. Binding keys now have a separate 32-byte capacity; channel IDs retain their 20-byte capacity. Loading repairs only the four unambiguous old 19-character prefixes. Overlong keys/channel IDs are rejected rather than silently truncated. Native vectors cover complete JSON round-trips, old-prefix migration, typed compatibility and length rejection. The complex example's complete scavenge binding now survives actual browser restore and reboot on Classic.
 
 The complete release gate passed again (`release-gate-binding-fix-2.5.0.log`). On the final firmware, both Classic and S3 passed engine-file download/upload/restore, the real rejected-description/border checks, 16 page loads with mobile checks, and all twelve web assets uploaded through the browser with the complete engine file retained exactly. S3 CSV/NDJSON downloads also passed. Final board evidence is in `final-classic-binding-browser.log` and `final-s3-binding-browser.log`; the rebuilt documentation audit is `final-documentation-audit-2.5.0.log`.
 
-### Final reconnect, snapshot and electrical checks
+#### Final reconnect, snapshot and electrical checks
 
 - Cache `20261001j` prevents compact telemetry from replacing a dashboard's fitted-channel metadata after reboot. Full metadata is retried after failed or deferred responses; START remains locked while loading and STOP stays available. Source and compressed-asset regression tests exercise startup and reboot failures. The Classic live test recovered without reload after one deliberately failed response and retained complete Hardware and Settings.
 - JSON snapshots now own runtime registry strings and oil-loop IDs. Native tests clear the original runtime arrays after serialization and verify that the snapshot remains intact. Actual Classic and S3 System page-only and combined saves preserve the complex configuration across reboot.
