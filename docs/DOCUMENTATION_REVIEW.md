@@ -7,7 +7,8 @@ This pass covers the three guided builds, preparation and optional workshops, in
 ### Changes
 
 - One task order across entry points: Hardware, checked/calibrated measurements, individual output tests, normal control/protection, sequences, dry checks and backup. Installation now precedes wiring in the full guide; calibration precedes controller configuration.
-- Each build states its starting point, changed work and observable completion. Fuel/oil ownership remains cumulative; Build 2 identifies its oil section as a review and its second-switch/activation exercises as optional.
+- Each build states its starting point, changed work and observable completion. Fuel/oil ownership remains cumulative; Build 2 puts the new pressure measurement next to its protection settings and makes oil-loop review optional. The second-switch/activation exercises remain optional.
+- Build 3 turns off the earlier idle support before the governor conversion and tests lost N2 feedback after configuring that response. BEC supply options, oil-loop tuning and later governor variations use expandable reference sections. The Hall example describes a suitable pickup/target/mounting rather than banning magnets.
 - Device-level substeps separate speed, thermocouple, throttle and output work. Wiring and saved Hardware views precede calibration. Preparation and optional-workshop links are available throughout the learning path.
 - Shorter opening material, a first-step link and less repeated mobile navigation leave more room for the task. Screenshots remain available, enlarge by keyboard/touch and can be hidden for compact reading.
 - The teaching pressure-limiting band is 4.1–4.3 bar below a separate 4.5 bar trip, above the stated 3–4 bar normal range. The screenshot and fixture use the same numbers. All remain unverified teaching assumptions.
@@ -15,7 +16,7 @@ This pass covers the three guided builds, preparation and optional workshops, in
 
 ### Verification
 
-The non-deploying [production Pages preview](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/42461180042) passed on site-source commit `87d6d4a`:
+The non-deploying [production Pages preview](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/actions/runs/42469168588) passed on site-source commit `1c309659`:
 
 - Real Jekyll build; source and built metadata, sitemap, internal links, fragments, images and search-index validation.
 - All 17 public routes at six widths (320–1440 px), light/dark appearance; keyboard image opening/closing and focus return, search, direct field links, compact-reading persistence, reduced motion and JavaScript-free reading/navigation.
