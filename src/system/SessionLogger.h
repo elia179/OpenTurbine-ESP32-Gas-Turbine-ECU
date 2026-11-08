@@ -38,6 +38,7 @@ public:
     struct FieldStorage { uint16_t bytes; bool compact; };
     static FieldStorage fieldStorage(uint32_t mask);
     static size_t storageBudget();
+    static bool externalStorage(); // active allocation, or available PSRAM estimate when idle
     static uint32_t evictionCount();
     static uint32_t lastEvictedSession();
     static size_t freeBytes();

@@ -66,7 +66,7 @@ def make_profile(parts):
     for pin,net in [(1,'+3V3'),(2,'GND'),(3,'GND')]:check('U2001',pin,net)
     profile = {
         'format':'openturbine-pcb-profile', 'format_version':{'major':2,'minor':0},
-        'board':{'id':'openturbine-s3-20261102','name':'OpenTurbine PCB v1.0','revision':'1.0-20261105','manufacturer':'OpenTurbine','description':'4 Nov 2026 PCB; ESP32-S3-WROOM-1-N8; OpenTurbine 2.7.0 required'},
+        'board':{'id':'openturbine-s3-20261102','name':'OpenTurbine PCB v1.0','revision':'1.0-20261108','manufacturer':'OpenTurbine','description':'4 Nov 2026 PCB; ESP32-S3-WROOM-1-N8R2; OpenTurbine 2.7.1 required'},
         'target':{'chip':'esp32-s3','minimum_flash_mb':8,'reviewed_strapping_gpio':[3,45,46]},
         'buses':[
             {'id':'sensor_i2c','kind':'i2c','pins':{'sda':gpio('I2C_SDA'),'scl':gpio('I2C_SCL')},'frequency_hz':100000},

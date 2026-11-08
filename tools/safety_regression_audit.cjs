@@ -856,7 +856,7 @@ expect('compact telemetry keeps live session-recorder state current',
   web.includes('setFlag(f2,30, SessionLogger::captureActive())') &&
   web.includes('doc["session_log_path"] = SessionLogger::currentPath();'));
 expect('session logger reports an unavailable queue instead of pretending to record',
-  sessionLogger.includes('std::malloc(SESSION_QUEUE_BYTES)') &&
+  sessionLogger.includes('heap_caps_malloc(SESSION_QUEUE_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)') &&
   /if \(!_rowStorage\) \{[\s\S]{0,180}_healthy = false;[\s\S]{0,100}_errorCode = 1;/.test(sessionLogger));
 expect('flight recorder overflow preserves newest fault and shutdown evidence',
   flightRecorder.includes('s_drainActive') &&
@@ -895,11 +895,13 @@ expect('every enabled oil loop makes its pressure feedback operationally require
 expect('start fuel and registry starter channels join the immediate shutdown cut',
   hardware.includes('!strcmp(purpose, "pilot_fuel")') &&
   hardware.includes('registryStarterPurpose') && main.includes('cutRegistryHazardousDemands'));
-expect('fuel and ignition safety descriptions cover every firmware immediate-cut purpose',
+expect('hardware fault-safe descriptions cover every firmware immediate-cut purpose',
   ['main_fuel','fuel_shutoff','fuel_pump','pilot_fuel','igniter','ab_igniter',
    'ab_valve','ab_pump','glow_plug'].every(purpose =>
-    registryFaultSafeEditor.includes(`'${purpose}'`) &&
-    customControllerRenderer.includes(`'${purpose}'`)));
+    registryFaultSafeEditor.includes(`'${purpose}'`)));
+expect('controller warnings describe a concrete fault action rather than a generic caution',
+  !customControllerRenderer.includes('This output can affect starting, combustion, or shutdown') &&
+  customControllerRenderer.includes('Fault shutdown cuts fuel, ignition and starter immediately'));
 expect('generic output overcurrent shutdown preserves the configured actuator name',
   safety.includes('_trigger("OUTPUT_OVERCURRENT", c.name[0] ? c.name : c.id);') &&
   safety.includes('"%s%s%s",code,') &&
@@ -927,11 +929,11 @@ expect('cooldown defaults agree at sixty seconds',
   sequenceHtml.includes("def:60000, configKey:'cooldown_timeout_ms'"));
 expect('configuration warnings describe actual startup and cooldown ordering',
   configHtml.includes('later spool stage may already be satisfied') &&
-  configHtml.includes('Startup may pass and then immediately fault') &&
+  configHtml.includes('Validate the actual named oil loops, not obsolete global mapping fields') &&
   sequenceHtml.includes('Cooldown may complete immediately while the turbine is still hot'));
 expect('custom controllers disclose single ownership and safety authority',
   configHtml.includes('Only one active controller per output') &&
-  configHtml.includes('STOP, FAULT, and hardware safety remain authoritative'));
+  configHtml.includes('It is always released in FAULT, and STOP/shutdown safety remains authoritative'));
 expect('custom feedback control has target-source choices, bumpless handover, and bounded PI state',
   configHtml.includes('Hold a feedback target') &&
   configHtml.includes('Two-state switch') && configHtml.includes('Variable input mapping') &&
@@ -1448,7 +1450,7 @@ expect('session rollover preserves the previous RAM backlog and rejects malforme
 expect('disabled session capture does not reserve the Classic capture storage',
   !/SessionLogger::begin\(\)[\s\S]{0,300}std\.malloc/.test(sessionLogger) &&
   sessionLogger.indexOf('Config::sessionLogMask == 0 && _registryCaptureMask == 0') <
-    sessionLogger.indexOf('std::malloc(SESSION_QUEUE_BYTES)'));
+    sessionLogger.indexOf('heap_caps_malloc(SESSION_QUEUE_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)'));
 expect('completed session capture returns its row queue memory',
   sessionLogger.includes('std::free(storage);') &&
   (sessionLogger.match(/_releaseCaptureStorage\(\);/g) || []).length >= 2);

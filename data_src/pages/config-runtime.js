@@ -591,7 +591,7 @@ function applyRcPwmVisibility() {
 // ── AB sections — show only when hasAfterburner ───────────────
 let hasAfterburnerCfg = false;
 function applyAbCfgVisibility() {
-  const ids = ['ab-ign-section','ab-flame-section','ab-run-section'];
+  const ids = ['ab-ign-section','ab-flame-section','ab-run-section','ab-protection-section'];
   ids.forEach(id => {
     const sec = document.getElementById(id);
     if (sec) {

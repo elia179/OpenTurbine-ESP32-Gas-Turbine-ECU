@@ -9,6 +9,9 @@
 void HardwareConfig::_toDoc(JsonObject doc) {
 #ifdef OT_PLATFORM_ESP32S3
     doc["platform"]         = "esp32s3";
+#if defined(OT_QUAD_PSRAM)
+    doc["firmware_target"]  = "esp32s3n8r2";
+#endif
 #else
     doc["platform"]         = "esp32";
 #endif

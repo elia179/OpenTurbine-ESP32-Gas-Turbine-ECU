@@ -1,5 +1,5 @@
 <!-- Generated from the shared Controllers/System schema by tools/generate_site_config_reference.cjs. Do not edit by hand. -->
-<p class="source-note"><strong>172 fields in 20 sections.</strong> This reference is generated from the same schema that renders the ECU Controllers and System pages, so names and explanations match the current code.</p>
+<p class="source-note"><strong>172 fields in 21 sections.</strong> This reference is generated from the same schema that renders the ECU Controllers and System pages, so names and explanations match the current code.</p>
 
 <details class="reference-section" id="settings-engine-protection-limits">
   <summary>Engine Protection Limits <span>23 fields</span></summary>
@@ -114,10 +114,10 @@
 </details>
 
 <details class="reference-section" id="settings-afterburner-ignition-method">
-  <summary>Afterburner — Ignition Method <span>7 fields</span></summary>
+  <summary>Afterburner — Ignition Method <span>5 fields</span></summary>
   <div class="table-wrap"><table>
     <thead><tr><th>Dashboard field</th><th>What it controls</th></tr></thead>
-    <tbody><tr id="field-ab_ut"><td><strong>Use Torch</strong></td><td>Spike main fuel demand through the turbine section to push burning exhaust into the AB duct. Configure torch timing in the fields below.</td></tr><tr id="field-ab_ui"><td><strong>Use AB Igniter</strong></td><td>Fire the dedicated afterburner igniter installed in Hardware during the ignition window. Can be used alone or with torch.</td></tr><tr id="field-ab_tpct"><td><strong>Torch Spike %</strong></td><td>Extra main-fuel-metering demand during the torch window. Higher values introduce more fuel. Typical: 20–40%.</td></tr><tr id="field-ab_tms"><td><strong>Torch Duration (ms)</strong></td><td>How long to hold the fuel spike before cutting back. Typical: 300–600 ms.</td></tr><tr id="field-ab_tgm"><td><strong>Torch Temperature Guard</strong></td><td>Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.</td></tr><tr id="field-ab_ttl"><td><strong>Custom Torch EGT Cut</strong></td><td>Used only in Custom mode. It should be below the configured main-engine temperature shutdown.</td></tr><tr id="field-ab_lpp"><td><strong>Light-Up Pump %</strong></td><td>AB fuel pump demand used while the light-up sequence is trying to establish a confirmed flame.</td></tr></tbody>
+    <tbody><tr id="field-ab_ut"><td><strong>Use Torch</strong></td><td>Spike main fuel demand through the turbine section to push burning exhaust into the AB duct. Configure torch timing in the fields below.</td></tr><tr id="field-ab_ui"><td><strong>Use AB Igniter</strong></td><td>Fire the dedicated afterburner igniter installed in Hardware during the ignition window. Can be used alone or with torch.</td></tr><tr id="field-ab_tpct"><td><strong>Torch Spike %</strong></td><td>Extra main-fuel-metering demand during the torch window. Higher values introduce more fuel. Typical: 20–40%.</td></tr><tr id="field-ab_tms"><td><strong>Torch Duration (ms)</strong></td><td>How long to hold the fuel spike before cutting back. Typical: 300–600 ms.</td></tr><tr id="field-ab_lpp"><td><strong>Light-Up Pump %</strong></td><td>AB fuel pump demand used while the light-up sequence is trying to establish a confirmed flame.</td></tr></tbody>
   </table></div>
 </details>
 
@@ -130,10 +130,18 @@
 </details>
 
 <details class="reference-section" id="settings-afterburner-running">
-  <summary>Afterburner — Running <span>7 fields</span></summary>
+  <summary>Afterburner — Running <span>5 fields</span></summary>
   <div class="table-wrap"><table>
     <thead><tr><th>Dashboard field</th><th>What it controls</th></tr></thead>
-    <tbody><tr id="field-ab_pcm"><td><strong>Pump Command Source</strong></td><td>Choose how AB pump flow is commanded while lit. Dedicated AB Input uses the analog, RC, PWM-duty, or registry/I2C AB command configured in Hardware.</td></tr><tr id="field-ab_pmn"><td><strong>Afterburner Fuel Pump Min %</strong></td><td>Minimum afterburner fuel-pump demand for a variable command source. With a missing servo-PWM afterburner input, demand fails to this minimum.</td></tr><tr id="field-ab_pmx"><td><strong>Afterburner Fuel Pump Max %</strong></td><td>Maximum afterburner fuel-pump demand. Fixed Max Output holds this value while the afterburner is running.</td></tr><tr id="field-ab_mo"><td><strong>Main Fuel Offset %</strong></td><td>Adds to main fuel while AB is running. A negative value may reduce fuel, but a running pump is held at its calibrated reliable minimum; an Off command remains Off. 0 = none.</td></tr><tr id="field-ab_sms"><td><strong>Stabilize Hold (ms)</strong></td><td>Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms.</td></tr><tr id="field-ab_smt"><td><strong>Stabilize Max EGT</strong></td><td>AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled.</td></tr><tr id="field-ab_fld"><td><strong>Running Flame-Loss Delay (ms)</strong></td><td>When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running.</td></tr></tbody>
+    <tbody><tr id="field-ab_pcm"><td><strong>Pump Command Source</strong></td><td>Choose how AB pump flow is commanded while lit. Dedicated AB Input uses the analog, RC, PWM-duty, or registry/I2C AB command configured in Hardware.</td></tr><tr id="field-ab_pmn"><td><strong>Afterburner Fuel Pump Min %</strong></td><td>Minimum afterburner fuel-pump demand for a variable command source. With a missing servo-PWM afterburner input, demand fails to this minimum.</td></tr><tr id="field-ab_pmx"><td><strong>Afterburner Fuel Pump Max %</strong></td><td>Maximum afterburner fuel-pump demand. Fixed Max Output holds this value while the afterburner is running.</td></tr><tr id="field-ab_mo"><td><strong>Main Fuel Offset %</strong></td><td>Adds to main fuel while AB is running. A negative value may reduce fuel, but a running pump is held at its calibrated reliable minimum; an Off command remains Off. 0 = none.</td></tr><tr id="field-ab_sms"><td><strong>Stabilize Hold (ms)</strong></td><td>Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms.</td></tr></tbody>
+  </table></div>
+</details>
+
+<details class="reference-section" id="settings-afterburner-protection">
+  <summary>Afterburner Protection <span>4 fields</span></summary>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Dashboard field</th><th>What it controls</th></tr></thead>
+    <tbody><tr id="field-ab_tgm"><td><strong>Torch Temperature Guard</strong></td><td>Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.</td></tr><tr id="field-ab_ttl"><td><strong>Custom Torch EGT Cut</strong></td><td>Used only in Custom mode. It should be below the configured main-engine temperature shutdown.</td></tr><tr id="field-ab_smt"><td><strong>Stabilize Max EGT</strong></td><td>AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled.</td></tr><tr id="field-ab_fld"><td><strong>Running Flame-Loss Delay (ms)</strong></td><td>When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running.</td></tr></tbody>
   </table></div>
 </details>
 

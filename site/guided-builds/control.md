@@ -53,7 +53,7 @@ N1 and engine temperature also use retained reference limits for colours; their 
 
 The illustrative limiting band starts above the example's {{ e.p1_normal_min_bar }}–{{ e.p1_normal_max_bar }} bar normal range. On your engine, establish the actual permissible operating range and margin before choosing a band; a limiter set inside normal operation will deliberately reduce normal fuel demand.
 
-{% include build-screen.html file="dashboard-pressure-limit" step="Recognize the Dashboard reference" alt="Combustor-pressure instrument approaching its retained 4.5 bar reference, with an approach colour and limit marker." caption="A simulated 4 bar reading illustrates the approach. The configured fault shutdown and fuel limiter are separate decisions." %}
+{% include build-screen.html file="dashboard-pressure-limit" step="Recognize the Dashboard reference" alt="Combustor-pressure instrument approaching its retained 4.5 bar reference, with an approach colour and limit marker." caption="An example 4 bar reading illustrates the approach. The configured fault shutdown and fuel limiter are separate decisions." %}
 
 For temperature limiting, the teaching band is {{ e.tot_soft_c }}–{{ e.tot_full_reduction_c }} °C below the {{ e.tot_trip_c }} °C running trip. For each real limit, verify an approach, a confirmed trip and the disabled/advisory state using safe test inputs.
 
@@ -75,7 +75,7 @@ Build 1 maps the lowest throttle position to a fixed {{ e.fuel_idle_pct }}% fuel
 
 {% include build-screen.html file="automatic-idle-configured" step="Automatic idle uses engine-scale values" alt="Automatic Idle selected with N1 feedback, 25000 RPM target, 500 RPM band and 30000 RPM cutoff." caption="The example idle range is 12–25% fuel with multiplier 1. Full-power operator demand is configured separately." %}
 
-Open **Response tuning**, review Fuel Increase/Decrease Time and save. Their correct values depend on engine response; slower changes give more time to observe a controlled test. A simulator can prove field selection and limits, not tune a real rotor. Test correction direction, settling and fuel bounds with an appropriate test setup before relying on the loop.
+Open **Response tuning**, review Fuel Increase/Decrease Time and save. Their correct values depend on engine response; slower changes give more time to observe a controlled test. Test correction direction, settling and fuel bounds with an appropriate test setup before relying on the loop.
 
 **Check:** below the target, idle may add fuel within its authority. It must not demand beyond the ceiling; above the cutoff it releases its added floor. Verify feedback-loss response, STOP and handover. An unhealthy input does not supply valid closed-loop control.
 
@@ -107,7 +107,7 @@ Your Build 1 oil controller can stay as it is. Open this reference when you want
 
 Open **Controllers → Oil Pump → Oil Pressure Control**, the controller already created in Build 1. Keep **Pressure feedback = Oil Pressure**, **Controlled pump = Oil Pump**, **Pressure target set by = Fixed pressure**, **Pressure target = {{ e.oil_target_bar }} bar**. Variable targets based on fuel demand or shaft speed are optional; the basic engine does not need them to explain a pressure loop.
 
-{% include build-screen.html file="oil-feedback-settings" step="Read the oil controller in groups" alt="Oil pressure controller with fixed 4.5 bar target, pump bounds, response settings and low-pressure/feedback-loss responses." caption="Target pressure, usable pump range and failure response solve different problems. Verify each on the actual oil circuit." %}
+{% include build-screen.html file="oil-feedback-settings" step="Read the oil controller in groups" alt="Oil pressure controller with fixed 4.5 bar target, pump bounds, response settings and feedback-loss fallback." caption="Set pressure regulation here. The link opens this oil circuit’s low-pressure protection under Shutdown & Protection." %}
 
 | Group | What to establish |
 | --- | --- |
@@ -115,12 +115,14 @@ Open **Controllers → Oil Pump → Oil Pressure Control**, the controller alrea
 | Minimum / maximum pump command | Repeatable pump operation and permitted driver authority, measured on the rig |
 | Response gain | How strongly demand changes with pressure error; tune without excessive overshoot or cycling |
 | Feedback-loss delay / command | How long loss must persist and what bounded pump command is used afterward |
-| Low-pressure threshold / confirmation | Separate from target; example {{ e.oil_min_bar }} bar for {{ e.oil_confirm_ms }} ms |
-| Failure responses | Warning, normal fault shutdown or immediate dry-oil stop, selected deliberately |
+| Low-pressure threshold / confirmation | Under **Shutdown & Protection → Oil circuit pressure protection → Oil Pump · low pressure**; example {{ e.oil_min_bar }} bar for {{ e.oil_confirm_ms }} ms |
+| Feedback-loss response | Stays with the controller because it handles an unavailable pressure input |
+
+{% include build-screen.html file="oil-circuit-protection" step="Set the separate low-pressure response" alt="Named Oil Pump low-pressure protection under Shutdown and Protection, with pressure threshold, confirmation time and response." caption="This monitor checks for low pressure during Running while this pump’s pressure controller is enabled. Its threshold is separate from the pressure target." %}
 
 **Normal fault shutdown** cuts combustion and follows the configured shutdown handling. **Immediate dry-oil stop** has a different output policy, including a bounded selected-pump run; read its displayed explanation before choosing it.
 
-There are two possible sources of a low-oil response: this loop's own low-pressure monitoring, and **Shutdown & Protection → Oil pressure protection**. Review both and align their thresholds/times deliberately. The teaching loop and general protection use the same {{ e.oil_min_bar }} bar/{{ e.oil_confirm_ms }} ms example; keep those thresholds visible in your test notes. The general protection's selected phases do not change the loop's independent failure behavior.
+Under **Shutdown & Protection**, the named oil-circuit card monitors this controller’s pressure during Running. The general **Oil pressure protection** card is a separate monitor with its own phase selection. Review both and align their thresholds/times deliberately. The teaching loop and general protection use the same {{ e.oil_min_bar }} bar/{{ e.oil_confirm_ms }} ms example; keep those thresholds visible in your test notes. The general protection’s selected phases do not change the named oil-circuit monitor or the controller’s feedback-loss fallback.
 
 **Check:** confirm input/output direction separately, then a small target change on a suitable nonhazardous oil rig. Observe settling, bounds, low pressure, lost feedback and recovery. Repeat the startup prime and shutdown lubrication checks after tuning. Save and reload.
 
@@ -167,7 +169,7 @@ Keep hazardous load energy isolated. Check the new relationships in this order:
 - **Optional switch:** if added, check confirmation and its chosen phase or placed activation block.
 - **Whole system:** repeat normal start, STOP and failed-start timeout after the changes.
 
-Save/reload and download **Build 2 — controlled turbojet**. Retain the Build 1 backup; record which tests were simulated and which used the physical installation.
+Save/reload and download **Build 2 — controlled turbojet**. Retain the Build 1 backup; record the checks completed and any commissioning work still needed.
 
 {% include build-screen.html file="engine-backup-restore" step="Save the Build 2 milestone" alt="System maintenance card with engine-file backup and restore controls." caption="Download a fresh engine file after saving and reopening the updated settings; keep your Build 1 backup too." %}
 

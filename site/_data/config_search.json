@@ -858,18 +858,6 @@
     "text": "How long to hold the fuel spike before cutting back. Typical: 300–600 ms."
   },
   {
-    "title": "Torch Temperature Guard",
-    "context": "Setting · Afterburner — Ignition Method",
-    "url": "/user-guide/#field-ab_tgm",
-    "text": "Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown."
-  },
-  {
-    "title": "Custom Torch EGT Cut",
-    "context": "Setting · Afterburner — Ignition Method",
-    "url": "/user-guide/#field-ab_ttl",
-    "text": "Used only in Custom mode. It should be below the configured main-engine temperature shutdown."
-  },
-  {
     "title": "Light-Up Pump %",
     "context": "Setting · Afterburner — Ignition Method",
     "url": "/user-guide/#field-ab_lpp",
@@ -936,14 +924,26 @@
     "text": "Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms."
   },
   {
+    "title": "Torch Temperature Guard",
+    "context": "Setting · Afterburner Protection",
+    "url": "/user-guide/#field-ab_tgm",
+    "text": "Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown."
+  },
+  {
+    "title": "Custom Torch EGT Cut",
+    "context": "Setting · Afterburner Protection",
+    "url": "/user-guide/#field-ab_ttl",
+    "text": "Used only in Custom mode. It should be below the configured main-engine temperature shutdown."
+  },
+  {
     "title": "Stabilize Max EGT",
-    "context": "Setting · Afterburner — Running",
+    "context": "Setting · Afterburner Protection",
     "url": "/user-guide/#field-ab_smt",
     "text": "AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled."
   },
   {
     "title": "Running Flame-Loss Delay (ms)",
-    "context": "Setting · Afterburner — Running",
+    "context": "Setting · Afterburner Protection",
     "url": "/user-guide/#field-ab_fld",
     "text": "When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running."
   },

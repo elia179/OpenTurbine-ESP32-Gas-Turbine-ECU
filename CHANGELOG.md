@@ -8,6 +8,16 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ---
 
+## [Unreleased]
+
+### 2.7.1 in development
+
+- Add a separate ESP32-S3 N8R2 build with Quad PSRAM for OpenTurbine PCB v1.0 and compatible development boards. Exact-module boot/update qualification is pending.
+- Use up to 1 MiB of available PSRAM for selected-field session capture, retaining external-memory headroom and the existing internal-RAM fallback. Keep ordinary allocations internal and preserve bounded post-run flash writes.
+- Report recording capacity from the allocated run buffer and retain counters above 65,535 samples. Extra recording RAM does not increase permanent flash-log storage.
+- Separate oil-circuit low-pressure trips and afterburner temperature/flame-loss guards from normal controller settings. Keep feedback-loss fallback beside its controller and preserve saved protection policies.
+- Remove generic controller caution banners and replace obsolete oil/idle validation with checks against the actual enabled settings. Update setup guidance and oil-control screenshots.
+
 ## [2.7.0] — 2026-11-06
 
 - Share bounded configuration-read recovery across Hardware, Controllers, System, Calibration, Sequence and Log settings. Honour retry delays for temporary snapshot contention and reject permanent errors without replaying them.

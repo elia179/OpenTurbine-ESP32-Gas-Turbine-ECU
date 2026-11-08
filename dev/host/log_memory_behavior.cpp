@@ -5,12 +5,74 @@
 #include <cstdio>
 #include <cmath>
 #include <limits>
+#include <vector>
 class Print;
 #include "../../src/system/Config.h"
 #include "../../src/system/SessionCapture.h"
 #include "../../src/system/ByteRecordRing.h"
+#include "../../src/system/SessionMemory.h"
+#include "../../src/system/SessionArchivePlan.h"
 
 int main() {
+    const size_t minimum = 16 * 1024;
+    assert(SessionMemory::externalBudget(0,0,minimum)==0);
+    assert(SessionMemory::externalBudget(SessionMemory::EXTERNAL_RESERVE,1024*1024,minimum)==0);
+    assert(SessionMemory::externalBudget(SessionMemory::EXTERNAL_RESERVE+minimum-1,1024*1024,minimum)==0);
+    assert(SessionMemory::externalBudget(2*1024*1024,minimum-1,minimum)==0);
+    assert(SessionMemory::externalBudget(2*1024*1024,minimum,minimum)==minimum);
+    assert(SessionMemory::externalBudget(2*1024*1024,2*1024*1024,minimum)==1024*1024);
+    assert(SessionMemory::externalBudget(300*1024,100*1024,minimum)==44*1024);
+    // More than 65535 short records: fill, overwrite, and read back the exact
+    // newest tail across wraps. This exercises the expanded budget, not merely
+    // the old small-ring path with a larger capacity estimate.
+    std::vector<uint8_t> largeStorage(SessionMemory::EXTERNAL_LIMIT);
+    ByteRecordRing large(largeStorage.data(),largeStorage.size(),sizeof(uint32_t));
+    const uint32_t largeCapacity = largeStorage.size()/sizeof(uint32_t);
+    static_assert(SessionMemory::EXTERNAL_LIMIT/sizeof(uint32_t)>UINT16_MAX);
+    for(uint32_t i=0;i<largeCapacity+1000;++i) {
+        uint32_t dropped=0;
+        assert(large.push(reinterpret_cast<const char*>(&i),sizeof(i),true,dropped));
+        assert(dropped==(i>=largeCapacity?1U:0U));
+    }
+    assert(large.count()==largeCapacity);
+    SessionArchivePlan plan;
+    plan.begin(large);
+    char plannedRecord[sizeof(uint32_t)+1];
+    const auto csvSize=[](const char* data,size_t bytes)->size_t {
+        assert(bytes==sizeof(uint32_t));uint32_t value;std::memcpy(&value,data,bytes);
+        return 8+value%17; // Variable rendered lengths, including newline.
+    };
+    size_t expectedBytes=0;
+    for(uint32_t value=1000;value<largeCapacity+1000;++value)expectedBytes+=8+value%17;
+    while(!plan.ready())plan.scanOne(plannedRecord,sizeof(plannedRecord),csvSize);
+    assert(plan.bytes()==expectedBytes && large.count()==largeCapacity);
+    for(uint32_t expected=1000;expected<largeCapacity+1000;++expected) {
+        char record[sizeof(uint32_t)+1];
+        assert(large.peek(record,sizeof(record)));
+        uint32_t actual;std::memcpy(&actual,record,sizeof(actual));
+        assert(actual==expected);large.pop();
+    }
+    assert(large.count()==0);
+    // A changing flash budget discards oldest rows, retaining the newest tail.
+    uint32_t dropped=0;
+    for(uint32_t value=0;value<1000;++value)assert(large.push(reinterpret_cast<const char*>(&value),sizeof(value),false,dropped));
+    plan.begin(large);
+    while(!plan.ready())plan.scanOne(plannedRecord,sizeof(plannedRecord),csvSize);
+    uint32_t firstKept=0;
+    for(size_t available:{size_t(4096),size_t(2048)}) {
+        while(plan.bytes()>available) {
+            assert(large.peek(plannedRecord,sizeof(plannedRecord)));
+            plan.consumed(csvSize(plannedRecord,sizeof(uint32_t)));large.pop();++firstKept;
+        }
+        assert(large.count()==1000-firstKept);
+    }
+    assert(firstKept>0&&large.count()>0);
+    for(uint32_t value=firstKept;value<1000;++value) {
+        assert(large.peek(plannedRecord,sizeof(plannedRecord)));
+        uint32_t actual;std::memcpy(&actual,plannedRecord,sizeof(actual));assert(actual==value);
+        plan.consumed(csvSize(plannedRecord,sizeof(actual)));large.pop();
+    }
+    assert(plan.bytes()==0);
     using Row = SessionCapture::Row<24>;
     SessionCapture::Layout layout;
     assert((SessionCapture::configure<Config,24>(layout,Config::SLOG_DEFAULT,0)));
@@ -119,7 +181,7 @@ int main() {
         if(i%137==0){ring.clear();model.clear();used=0;}
     }
     assert(totalDropped>1000);
-    uint32_t dropped;const auto count=ring.count();
+    const auto count=ring.count();
     assert(!ring.push("",0,true,dropped));
     assert(!ring.push("x",70000,true,dropped));assert(ring.count()==count);
     ring.clear();char out[8];assert(!ring.peek(out,sizeof(out)));

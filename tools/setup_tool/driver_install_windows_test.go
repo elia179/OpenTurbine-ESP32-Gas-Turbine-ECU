@@ -100,7 +100,7 @@ func TestLoadPackageRejectsSchemaMismatch(t *testing.T) {
 
 func TestLoadPackageRejectsMissingMinimumToolVersion(t *testing.T) {
 	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "manifest.json"), `{"project":"OpenTurbine","version":"2.0.0","package_schema":4,"setup_tool_version":"0.7.0"}`)
+	writeTestFile(t, filepath.Join(root, "manifest.json"), `{"project":"OpenTurbine","version":"2.0.0","package_schema":5,"setup_tool_version":"0.7.0"}`)
 	if _, err := loadPackageFromDir(root); err == nil || !strings.Contains(err.Error(), "minimum compatible") {
 		t.Fatalf("expected missing minimum-tool-version error, got %v", err)
 	}

@@ -4,7 +4,7 @@ const {joinFixtureWifi}=require('./fixture_wifi_helper.cjs');
 const {chromium}=require('playwright');
 if(!process.argv.includes('--allow-write'))throw Error('Requires --allow-write on the confirmed unloaded fixture');
 const target=process.argv[2],out=process.argv[3],base='http://192.168.4.1';
-assert(['esp32dev','esp32s3dev'].includes(target));assert(out);
+assert(['esp32dev','esp32s3dev','esp32s3n8r2'].includes(target));assert(out);
 let recoveredReadRetries=0;
 const read=async path=>{for(let n=0;n<5;n++){try{const r=await fetch(base+path,{headers:{Connection:'close'},signal:AbortSignal.timeout(15000)});if(r.status===503&&n<4){recoveredReadRetries++;await new Promise(r=>setTimeout(r,500));continue;}assert(r.ok,`${path}: ${r.status}`);return await r.json();}catch(error){if(error instanceof assert.AssertionError||error instanceof SyntaxError||n===4)throw error;recoveredReadRetries++;await new Promise(r=>setTimeout(r,500));}}};
 (async()=>{

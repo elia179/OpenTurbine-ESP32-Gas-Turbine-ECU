@@ -1,5 +1,12 @@
 # OpenTurbine Setup Tool
 
+In development for OpenTurbine 2.7.1: Setup Tool 0.8.0 uses package schema 5,
+including a separate Quad-PSRAM N8R2 image. Selecting OpenTurbine PCB v1.0
+selects that image automatically. A plain N8R2 development-board choice is
+also available; N8 and existing no-PSRAM boards retain the generic S3 image.
+Wi-Fi updates preserve the reported memory variant and reject a package that
+lacks its image. Exact-module boot/update qualification is still pending.
+
 OpenTurbine 2.7.0 with Setup Tool 0.7.9 shows final reconnect/identity/file-verification progress, retries transient reads and offers verification-only retry after uploads finish. The real Classic keep-setup Wi-Fi update has passed with preserved configuration and byte-matched web assets. Both Classic and S3 have also passed the one-confirmation automatic reconnect flow. The assembled PCB remains a separate qualification item; see the [iteration record](../../docs/internal/MAVLINK_REPLACEMENT_PLAN.md).
 
 Windows setup/update helper for OpenTurbine boards.

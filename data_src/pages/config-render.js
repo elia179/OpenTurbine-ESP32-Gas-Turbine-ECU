@@ -50,7 +50,8 @@ function refreshProtectionCount(){
   const count=Array.from(group.querySelectorAll('.protection-enable input[type="checkbox"]')).filter(input=>
     input.checked&&!['cf-sf_st_en','cf-sf_sd_en'].includes(input.id)&&(input.id!=='cf-sf_sg_en'||startupGuardHasTrip())&&
     input.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1'&&
-    !input.closest('[data-safety-available="false"]')).length;
+    !input.closest('[data-safety-available="false"]')).length +
+    group.querySelectorAll('[data-oil-loop-protection-active="true"]').length;
   badge.textContent=count+' active';badge.dataset.active=String(count>0);
   badge.title='Enabled protection functions with fitted prerequisites, including fuel limiting. Incomplete startup setup is excluded; a valid startup guard counts once. Operation also depends on engine state and each protection’s conditions.';
 }
@@ -361,6 +362,7 @@ function renderControllerOverview() {
 }
 
 function _mountControllerLocalSettings(outputs) {
+  document.getElementById('oil-circuit-protections')?.remove();
   const sectionMap = {
     'fuel-support':['throttle','idle-control-cfg-section','reduced-power-section'],
     relight:['relight-section','manual-relight-section'],
@@ -398,13 +400,14 @@ function _mountControllerLocalSettings(outputs) {
     const source = Number(loop.target_source || 0);
     const lowResponse = Number(loop.low_pressure_response ?? 2);
     const feedbackResponse = Number(loop.feedback_loss_response ?? 2);
-    const responseOptions = selected => `<option value="0"${selected===0?' selected':''}>Disabled</option><option value="1"${selected===1?' selected':''}>Warning only</option><option value="2"${selected===2?' selected':''}>Normal fault shutdown</option><option value="3"${selected===3?' selected':''}>Immediate dry-oil stop</option>`;
+    const responseOptions = (selected,feedback=false) => `<option value="0"${selected===0?' selected':''}>${feedback?'Fallback only':'Disabled'}</option><option value="1"${selected===1?' selected':''}>Warning only</option><option value="2"${selected===2?' selected':''}>Normal fault shutdown</option><option value="3"${selected===3?' selected':''}>Immediate dry-oil stop</option>`;
     const options = (rows, selected) => rows.map(row => `<option value="${_escHtml(row.id)}"${String(row.id)===String(selected)?' selected':''}>${_escHtml(controllerChannelName(row))}</option>`).join('');
     const number = (key,label,value,step,min=0,max='',percent=false) => `<label class="cfg-field"><span class="cfg-label">${_escHtml(label)}${percent?' (%)':''}</span><input type="number" min="${min}"${max!==''?` max="${max}"`:''} step="${step}" value="${Number(value)}" onchange="updateControllerOilLoop(${loopIndex},'${key}',+this.value${percent?'/100':''})"></label>`;
     const pressure = (key,label,value,step,max=20) => `<label class="cfg-field"><span class="cfg-label">${_escHtml(label)} (${dispPressUnit()})</span><input type="number" min="0" max="${toDispPress(max)}" step="${toDispPress(step)}" value="${Math.round(toDispPress(Number(value))*1000)/1000}" onchange="updateControllerOilLoop(${loopIndex},'${key}',fromDispPress(+this.value))"></label>`;
     const card = document.createElement('details');
     card.className = 'protection-card controller-subcard';
     card.dataset.subcard = 'Oil Pressure Control';
+    card.id = `oil-loop-controller-${loopIndex}`;
     card.innerHTML = `<summary><span><span class="protection-card-title">Oil Pressure Control</span><span class="protection-card-desc">${binary?'On/off pressure regulation':'Variable pressure regulation'}</span></span><span class="protection-card-chevron">›</span></summary><div class="controller-subcard-content"><div class="controller-card-actions"><label class="controller-enabled"><input aria-label="Oil pressure controller enabled" type="checkbox" ${hwCfg.controllers?.oil_loop !== false && loop.enabled !== false?'checked':''} onchange="updateControllerOilLoop(${loopIndex},'enabled',this.checked)"> Enabled</label></div><div class="cfg-grid">
       <label class="cfg-field"><span class="cfg-label">Pressure feedback</span><select onchange="updateControllerOilLoop(${loopIndex},'pressure_input',this.value)">${options(pressures,loop.pressure_input)}</select></label>
       <label class="cfg-field"><span class="cfg-label">Controlled pump</span><select onchange="updateControllerOilLoop(${loopIndex},'pump_output',this.value)">${options(pumps,loop.pump_output)}</select></label>
@@ -419,15 +422,44 @@ function _mountControllerLocalSettings(outputs) {
       ${binary?'':number('max_demand','Maximum pump command',Math.round(Number(loop.max_demand??1)*100),1,0,100,true)}
       ${number('failsafe_delay_ms','Feedback-loss delay (ms)',loop.failsafe_delay_ms??1500,100,0,60000)}
       ${number('failsafe_demand','Feedback-loss pump command',Math.round(Number(loop.failsafe_demand??.6)*100),1,0,100,true)}
-      <label class="cfg-field"><span class="cfg-label">If pressure feedback is lost</span><select onchange="updateControllerOilLoop(${loopIndex},'feedback_loss_response',+this.value)">${responseOptions(feedbackResponse)}</select><span class="cfg-desc">The fixed feedback-loss pump command above remains active for Warning or Normal shutdown. Immediate mode cuts every hazardous output first.</span></label>
-      ${pressure('low_pressure_bar','Low-pressure threshold',loop.low_pressure_bar??1,.01)}
-      ${number('low_pressure_confirm_ms','Low-pressure confirmation (ms)',loop.low_pressure_confirm_ms??500,50,0,60000)}
-      <label class="cfg-field"><span class="cfg-label">If running pressure stays low</span><select onchange="updateControllerOilLoop(${loopIndex},'low_pressure_response',+this.value)">${responseOptions(lowResponse)}</select><span class="cfg-desc">Warning reports only. Normal shutdown cuts combustion and runs the configured shutdown sequence. Immediate mode skips that sequence to protect dry bearings.</span></label>
-      ${lowResponse===3||feedbackResponse===3?number('immediate_pump_run_s','Pump-only time after immediate stop (s)',loop.immediate_pump_run_s??10,.5,0,120):''}
-      ${lowResponse===3||feedbackResponse===3?'<div class="cfg-field"><span class="cfg-label">Immediate dry-oil behavior</span><span class="cfg-desc">Fuel, ignition, starter, afterburner, cooling and scavenge outputs turn off immediately. Only this selected oil pump keeps its feedback-loss command for the bounded time above. Restart stays locked until the fault is cleared; reboot also clears faults.</span></div>':''}
+      <label class="cfg-field"><span class="cfg-label">If pressure feedback is lost</span><select onchange="updateControllerOilLoop(${loopIndex},'feedback_loss_response',+this.value)">${responseOptions(feedbackResponse,true)}</select><span class="cfg-desc">${feedbackResponse===3?'Stops all other outputs and holds this pump at its feedback-loss command for the pump-only time.':feedbackResponse===2?'Uses the feedback-loss pump command and requests fault shutdown.':feedbackResponse===1?'Uses the feedback-loss pump command and reports a warning.':'Uses the feedback-loss pump command without requesting a warning or shutdown.'}</span></label>
+      ${feedbackResponse===3?number('immediate_pump_run_s','Pump-only time after immediate stop (s)',loop.immediate_pump_run_s??10,.5,0,120):''}
+      ${feedbackResponse===3?'<div class="cfg-field"><span class="cfg-label">Immediate dry-oil behavior</span><span class="cfg-desc">All other outputs stop. This pump holds its feedback-loss command for the time above. Clear the fault before restarting.</span></div>':''}
+      <div class="cfg-field"><a href="#oil-loop-protection-${loopIndex}">Low-pressure protection → Shutdown &amp; Protection</a></div>
       <div class="cfg-field"><button type="button" class="danger" onclick="removeControllerOilLoop(${loopIndex})">Remove pressure controller</button></div>
     </div></div>`;
     host.appendChild(card);
+    const safetyHost = document.querySelector('[data-group="safety"] .group-content');
+    if (safetyHost) {
+      let section = document.getElementById('oil-circuit-protections');
+      if (!section) {
+        section = document.createElement('section');
+        section.id = 'oil-circuit-protections';
+        section.className = 'cfg-section';
+        section.dataset.section = 'Oil circuit pressure protection';
+        section.dataset.alwaysVisible = '1';
+        section.innerHTML = '<div class="cfg-title">Oil circuit pressure protection</div>';
+        safetyHost.appendChild(section);
+      }
+      const protection = document.createElement('details');
+      protection.id = `oil-loop-protection-${loopIndex}`;
+      protection.className = 'protection-card';
+      const feedbackReady = pressures.some(input=>String(input.id)===String(loop.pressure_input));
+      const pressureDescription = feedbackReady
+        ? `Monitors ${controllerChannelName(pressures.find(input=>String(input.id)===String(loop.pressure_input)))} during Running while this pump’s pressure controller is enabled.`
+        : 'Choose a fitted pressure input in this pump’s Oil Pressure Control card.';
+      const active = feedbackReady && hwCfg.controllers?.oil_loop !== false && loop.enabled !== false && lowResponse > 0;
+      protection.dataset.oilLoopProtectionActive = String(active);
+      protection.innerHTML = `<summary><span><span class="protection-card-title">${_escHtml(controllerChannelName(channel))} · low pressure</span><span class="protection-modes"><span data-enabled="${active}">${lowResponse===0?'OFF':!feedbackReady?'Pressure input unavailable':!active?'Controller disabled':lowResponse===1?'Warning: ON':'Fault shutdown: ON'}</span></span></span><span class="protection-card-chevron">›</span></summary><div class="protection-local-body"><p class="cfg-desc">${_escHtml(pressureDescription)}</p><div class="cfg-grid">
+        ${pressure('low_pressure_bar','Low-pressure threshold',loop.low_pressure_bar??1,.01)}
+        ${number('low_pressure_confirm_ms','Low-pressure confirmation (ms)',loop.low_pressure_confirm_ms??500,50,0,60000)}
+        <label class="cfg-field"><span class="cfg-label">If running pressure stays low</span><select onchange="updateControllerOilLoop(${loopIndex},'low_pressure_response',+this.value)">${responseOptions(lowResponse)}</select><span class="cfg-desc">${lowResponse===3?'Stops all other outputs and holds this pump at its feedback-loss command for the pump-only time.':lowResponse===2?'Cuts combustion and follows the configured shutdown sequence.':lowResponse===1?'Reports low pressure while the pump remains under normal control.':'Low-pressure monitoring is off; the threshold is retained.'}</span></label>
+        ${lowResponse===3&&feedbackResponse!==3?number('immediate_pump_run_s','Pump-only time after immediate stop (s)',loop.immediate_pump_run_s??10,.5,0,120):''}
+        <div class="cfg-field"><a href="#oil-loop-controller-${loopIndex}">Pump target and feedback-loss fallback → Oil Pressure Control</a></div>
+      </div></div>`;
+      for (const field of protection.querySelectorAll('.cfg-field')) field.dataset.search = `${controllerChannelName(channel)} oil pressure protection shutdown ${field.textContent}`.toLowerCase();
+      section.appendChild(protection);
+    }
   };
   outputs.filter(channel => String(channel.purpose) === 'oil_pump').forEach(channel => {
     const host = document.querySelector(`[data-oil-loop-settings="${CSS.escape(String(channel.id))}"]`);
@@ -442,6 +474,7 @@ function _mountControllerLocalSettings(outputs) {
       wrapSection(host, document.getElementById('reduced-power-section'), 'Reduced-Power Mode', 'Fuel cap used after selected feedback is lost or when requested manually');
       return;
     }
+    if (subsystem === 'afterburner') host.insertAdjacentHTML('beforeend','<p class="cfg-desc"><a href="#ab-protection-section">Temperature and flame-loss limits → Shutdown &amp; Protection</a></p>');
     ids.forEach(id => {
       if (mounted.has(id)) return;
       const section = document.getElementById(id);
@@ -1026,9 +1059,7 @@ function renderSimpleControls() {
     const kind = Number(rule.kind || 0);
     const switchInput=controllerSwitchInput(rule.source);
     const relay = target && [4,11].includes(Number(target.driver));
-    const dangerous = ['main_fuel','fuel_shutoff','fuel_pump','pilot_fuel','igniter',
-      'ab_igniter','ab_valve','ab_pump','glow_plug',
-      'starter','starter_enable','air_starter','request_shutdown','request_fault'].includes(String(target?.purpose || ''));
+
     const targetSourceType = Number(rule.target_source_type || 0);
     const modeMask = Number(rule.mode_mask ?? 4) & 0x0f;
     const operatingStates = actionTarget
@@ -1066,7 +1097,7 @@ function renderSimpleControls() {
     return `<details class="control-definition-card config-group" data-group="controller-${index}" data-purpose="${esc(target?.purpose || '')}" data-always-visible="1" data-controller-card data-controller-rule="${index}" data-controller-id="${rule.controller_id||index}" data-controller-output="${esc(rule.target || '')}">
       <summary><span class="group-heading"><span class="group-title">${esc(rule.name || outputName)}</span><span class="control-path">${esc(summaryLine)}</span><span class="group-desc">${esc(targetSummary)}</span></span><span class="controller-summary-status ${rule.enabled!==false?'enabled':'disabled'}">${rule.enabled!==false?'Enabled':'Disabled'}</span></summary>
       <div class="controller-card-body"><div class="controller-card-actions"><label class="controller-enabled"><input aria-label="Controller enabled" type="checkbox" ${rule.enabled!==false?'checked':''} onchange="updateSimpleControl(${index},'enabled',this.checked)"> Enabled</label><button type="button" class="danger" onclick="removeSimpleControl(${index})">Delete controller</button></div>
-      <section class="controller-form-section"><div class="cfg-grid controller-function-list">${flowBlock('01','Definition',kind===2?'Name the controller and choose the output.':'Name the controller, choose its output, and select how it works.',`<label class="cfg-field"><span class="cfg-label">Controller name</span><input aria-label="Controller name" value="${esc(rule.name || '')}" maxlength="23" onchange="updateSimpleControl(${index},'name',this.value)"></label><label class="cfg-field"><span class="cfg-label">Controlled output</span><select onchange="updateSimpleControl(${index},'target',this.value)">${optionRows(outputs,rule.target,window.OTControllerTiming?.scheduled(rule)?new Set():new Set([...usedByOthers].filter(id=>!outputs.find(o=>o.id===id)?.virtual)))}</select></label>${kind===2||actionTarget?'':methodChoice}`)}</div></section><section class="controller-form-section controller-behavior-section"><div class="cfg-grid controller-function-list">${topology}</div></section>${actionTarget?`<p>${rule.target==='request_fault'?'Fault shutdown cuts fuel, ignition and starter immediately and records the controller name as the fault. Protective cooling and oil handling remain active.':'The normal shutdown sequence is requested once the condition becomes true. This does not create a latched FAULT.'}</p>`:''}${controllerTimingHtml(rule,index)}${window.OTControllerTiming?.scheduled(rule)?'':`<section class="controller-form-section" style="margin-top:.65rem"><b>When this controller is active</b><div class="cfg-grid"><label class="cfg-field"><span class="cfg-label">Operating states</span><span class="automation-states">${operatingStates}</span><span class="cfg-desc">${actionTarget?(rule.target==='request_fault'?'Fault shutdown is requested when the input condition is met while monitoring.':'Normal shutdown is requested when the input condition is met while monitoring.'):'The controller owns this output only in checked states. It is always released in FAULT, and STOP/shutdown safety remains authoritative.'}</span></label></div></section>`}${dangerous?'<div class="controller-warning"><b>Warning</b><span>This output can affect starting, combustion, or shutdown. Check its operating states carefully; STOP, FAULT, and hardware safety remain authoritative.</span></div>':''}<div class="controller-local-settings" data-controller-settings="${esc(rule.target || '')}"></div></div>
+      <section class="controller-form-section"><div class="cfg-grid controller-function-list">${flowBlock('01','Definition',kind===2?'Name the controller and choose the output.':'Name the controller, choose its output, and select how it works.',`<label class="cfg-field"><span class="cfg-label">Controller name</span><input aria-label="Controller name" value="${esc(rule.name || '')}" maxlength="23" onchange="updateSimpleControl(${index},'name',this.value)"></label><label class="cfg-field"><span class="cfg-label">Controlled output</span><select onchange="updateSimpleControl(${index},'target',this.value)">${optionRows(outputs,rule.target,window.OTControllerTiming?.scheduled(rule)?new Set():new Set([...usedByOthers].filter(id=>!outputs.find(o=>o.id===id)?.virtual)))}</select></label>${kind===2||actionTarget?'':methodChoice}`)}</div></section><section class="controller-form-section controller-behavior-section"><div class="cfg-grid controller-function-list">${topology}</div></section>${actionTarget?`<p>${rule.target==='request_fault'?'Fault shutdown cuts fuel, ignition and starter immediately and records the controller name as the fault. Protective cooling and oil handling remain active.':'The normal shutdown sequence is requested once the condition becomes true. This does not create a latched FAULT.'}</p>`:''}${controllerTimingHtml(rule,index)}${window.OTControllerTiming?.scheduled(rule)?'':`<section class="controller-form-section" style="margin-top:.65rem"><b>When this controller is active</b><div class="cfg-grid"><label class="cfg-field"><span class="cfg-label">Operating states</span><span class="automation-states">${operatingStates}</span><span class="cfg-desc">${actionTarget?(rule.target==='request_fault'?'Fault shutdown is requested when the input condition is met while monitoring.':'Normal shutdown is requested when the input condition is met while monitoring.'):'The controller owns this output only in checked states. It is always released in FAULT, and STOP/shutdown safety remains authoritative.'}</span></label></div></section>`}<div class="controller-local-settings" data-controller-settings="${esc(rule.target || '')}"></div></div>
     </details>`;
   }).join('');
   const used = new Set(rules.map(rule => String(rule.target || '')));
@@ -1083,7 +1114,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'power', title:'Power Turbine & Afterburner', desc:'N2 control and afterburner ignition/running behavior', sections:['Afterburner — Ignition Method','Afterburner — Flame Confirmation','Afterburner — Running'] },
   { id:'oil', title:'Oil & Lubrication Controllers', desc:'Normal pressure response and windmilling oil behavior', sections:['Oil Pressure Control','Windmilling Oil Protection'] },
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
-  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
+  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
   { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];

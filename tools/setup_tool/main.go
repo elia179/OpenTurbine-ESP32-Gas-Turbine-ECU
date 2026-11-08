@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	appVersion                  = "0.7.9"
-	packageCompatibilityVersion = "0.7.9"
-	requiredPackageSchema       = 4
+	appVersion                  = "0.8.0"
+	packageCompatibilityVersion = "0.8.0"
+	requiredPackageSchema       = 5
 	appTitle                    = "OpenTurbine Setup Tool"
 	ecuBaseURL                  = "http://192.168.4.1"
 	defaultPackageURL           = "https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbine_Recommended.zip"
@@ -117,11 +117,12 @@ type PCBProfilePartition struct {
 }
 
 type ManifestPCBProfile struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Revision string `json:"revision"`
-	File     string `json:"file"`
-	SHA256   string `json:"sha256"`
+	FirmwareTarget string `json:"firmware_target"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Revision       string `json:"revision"`
+	File           string `json:"file"`
+	SHA256         string `json:"sha256"`
 }
 
 type FlashEntry struct {
@@ -2252,23 +2253,32 @@ func (j *Job) runNewBoard() {
 		Detail: "For a plain ESP32/ESP32-S3 development board. Choose pins and connected devices in Hardware after installation.",
 		Action: "pcbProfile:dev", Enabled: true,
 	}}
+	if target == "esp32s3dev" {
+		if _, ok := pkg.Manifest.Targets["esp32s3n8r2"]; ok {
+			choices = append(choices, pcbProfileChoice{
+				Label:  "2. ESP32-S3 N8R2 development board",
+				Detail: "For a module marked N8R2: 8 MB flash and 2 MB Quad PSRAM. No PCB profile; choose connections in Hardware.",
+				Action: "pcbProfile:dev-n8r2", Enabled: true,
+			})
+		}
+	}
 	if len(targetPackage.PCBProfile.OfficialProfiles) == 0 {
 		choices = append(choices, pcbProfileChoice{
-			Label:   "2. Official OpenTurbine PCB",
+			Label:   fmt.Sprintf("%d. Official OpenTurbine PCB", len(choices)+1),
 			Detail:  "No official profile for this ESP chip is included in this setup package.",
 			Enabled: false,
 		})
 	} else {
 		for i, profile := range targetPackage.PCBProfile.OfficialProfiles {
 			choices = append(choices, pcbProfileChoice{
-				Label:  fmt.Sprintf("%d. %s — revision %s", i+2, profile.Name, profile.Revision),
+				Label:  fmt.Sprintf("%d. %s — revision %s", len(choices)+1, profile.Name, profile.Revision),
 				Detail: "Use only with this PCB revision. Its profile supplies the board connections and electrical settings.",
 				Action: fmt.Sprintf("pcbProfile:official:%d", i), Enabled: true,
 			})
 		}
 	}
 	choices = append(choices, pcbProfileChoice{
-		Label:  fmt.Sprintf("%d. Custom PCB profile…", len(targetPackage.PCBProfile.OfficialProfiles)+2),
+		Label:  fmt.Sprintf("%d. Custom PCB profile…", len(choices)+1),
 		Detail: "Choose the .otpcb.json file supplied with a third-party or self-designed PCB. The file must match the detected ESP chip.",
 		Action: "pcbProfileCustom", Enabled: true,
 	})
@@ -2290,6 +2300,14 @@ func (j *Job) runNewBoard() {
 			pcbProfileLabel = "ESP32 development board (no PCB profile)"
 			break
 		}
+		if action == "pcbProfile:dev-n8r2" && target == "esp32s3dev" {
+			if _, ok := pkg.Manifest.Targets["esp32s3n8r2"]; !ok {
+				continue
+			}
+			target = "esp32s3n8r2"
+			pcbProfileLabel = "ESP32-S3 N8R2 development board (no PCB profile)"
+			break
+		}
 		if strings.HasPrefix(action, "pcbProfile:official:") {
 			var selected int
 			if _, err := fmt.Sscanf(action, "pcbProfile:official:%d", &selected); err != nil ||
@@ -2297,6 +2315,12 @@ func (j *Job) runNewBoard() {
 				continue
 			}
 			profile := targetPackage.PCBProfile.OfficialProfiles[selected]
+			selectedTarget, err := officialProfileTarget(pkg, target, profile)
+			if err != nil {
+				j.fail(err)
+				return
+			}
+			target = selectedTarget
 			path, err := packageFile(pkg, target, profile.File)
 			if err != nil || verifySHA256(path, profile.SHA256) != nil {
 				j.fail(errors.New("the selected official PCB profile is missing or corrupt; no board was erased"))
@@ -2674,7 +2698,33 @@ func friendlyError(s string) string {
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// PCB selection can choose a more specific image of the detected chip.
+// Validate before erase rather than silently falling back to a generic image.
+func officialProfileTarget(pkg *Package, detected string, profile ManifestPCBProfile) (string, error) {
+	selected := profile.FirmwareTarget
+	if selected == "" {
+		selected = detected
+	}
+	if selected != detected && !(detected == "esp32s3dev" && selected == "esp32s3n8r2") {
+		return "", errors.New("the PCB firmware does not match the detected ESP chip; no board was erased")
+	}
+	image, ok := pkg.Manifest.Targets[selected]
+	if !ok {
+		return "", errors.New("the matching PCB firmware is missing from this package; no board was erased")
+	}
+	for _, candidate := range image.PCBProfile.OfficialProfiles {
+		if candidate.ID == profile.ID && candidate.Revision == profile.Revision && candidate.File == profile.File && candidate.SHA256 == profile.SHA256 {
+			return selected, nil
+		}
+	}
+	return "", errors.New("the PCB profile does not match its firmware package; no board was erased")
+}
+
 func friendlyTarget(t string) string {
+	if t == "esp32s3n8r2" {
+		return "ESP32-S3 N8R2"
+	}
 	if t == "esp32s3dev" {
 		return "ESP32-S3"
 	}
@@ -3614,14 +3664,16 @@ func buildCustomPCBProfile(pkg *Package, target, sourcePath string) (string, []s
 		return "", nil, errors.New("this PCB profile uses extended capabilities and must declare format 1.1 or 2.0")
 	}
 	if profile.FormatVersion.Major == 2 || profile.FormatVersion.Minor >= 1 {
-		compatible, err := versionAtLeast(pkg.Manifest.Version, "2.7.0")
+		// Local development packages carry the same explicit profile-capability
+		// declaration, but use the firmware's -dev suffix until release.
+		compatible, err := versionAtLeast(strings.TrimSuffix(pkg.Manifest.Version, "-dev"), "2.7.0")
 		if err != nil || !compatible {
 			return "", nil, errors.New("this PCB profile requires OpenTurbine 2.7.0 or newer; use the matching firmware setup package")
 		}
 	}
 	expectedChip := "esp32"
 	targetID := byte(1)
-	if target == "esp32s3dev" {
+	if target == "esp32s3dev" || target == "esp32s3n8r2" {
 		expectedChip, targetID = "esp32-s3", 2
 	}
 	if targetID == 1 && (profile.FormatVersion.Major != 1 || profile.FormatVersion.Minor > 0) {
@@ -4062,7 +4114,7 @@ func flashUSB(esptool, port, target string, pkg *Package, pcbProfilePath string,
 		return fmt.Errorf("setup package does not contain USB install instructions")
 	}
 
-	chip := map[string]string{"esp32dev": "esp32", "esp32s3dev": "esp32s3"}[target]
+	chip := map[string]string{"esp32dev": "esp32", "esp32s3dev": "esp32s3", "esp32s3n8r2": "esp32s3"}[target]
 	if chip == "" {
 		return fmt.Errorf("unsupported USB target %s; board was not erased", target)
 	}
@@ -4275,6 +4327,7 @@ func chooseTargetForOTA(pkg *Package) (string, error) {
 		if _, ok := pkg.Manifest.Targets[target]; ok {
 			return target, nil
 		}
+		return "", fmt.Errorf("setup package does not contain the detected firmware target %s", target)
 	}
 	// Older OpenTurbine builds predate /api/device_info but expose the build
 	// platform in /api/hardware. Use that read-only identity before suggesting
@@ -4298,7 +4351,7 @@ func chooseTargetForOTA(pkg *Package) (string, error) {
 
 func targetFromIdentity(target, chip string) (string, error) {
 	t := strings.ToLower(strings.TrimSpace(target))
-	if t == "esp32dev" || t == "esp32s3dev" {
+	if t == "esp32dev" || t == "esp32s3dev" || t == "esp32s3n8r2" {
 		return t, nil
 	}
 	chip = strings.ToLower(strings.TrimSpace(chip))
@@ -4350,10 +4403,14 @@ func detectTargetFromHardware() (string, error) {
 		return "", fmt.Errorf("hardware identity returned %s", resp.Status)
 	}
 	var v struct {
-		Platform string `json:"platform"`
+		Platform       string `json:"platform"`
+		FirmwareTarget string `json:"firmware_target"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return "", err
+	}
+	if v.FirmwareTarget != "" {
+		return targetFromIdentity(v.FirmwareTarget, "")
 	}
 	switch strings.ToLower(strings.TrimSpace(v.Platform)) {
 	case "esp32s3", "esp32-s3", "esp32s3dev":

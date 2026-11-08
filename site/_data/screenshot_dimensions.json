@@ -171,9 +171,13 @@
     "width": 1239,
     "height": 1263
   },
+  "oil-circuit-protection": {
+    "width": 1239,
+    "height": 626
+  },
   "oil-feedback-settings": {
     "width": 1257,
-    "height": 1671
+    "height": 1400
   },
   "oil-feedback": {
     "width": 1308,

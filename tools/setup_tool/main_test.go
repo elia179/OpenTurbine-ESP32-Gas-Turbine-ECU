@@ -196,6 +196,12 @@ func TestBuildCustomPCBProfileContainer(t *testing.T) {
 		t.Fatalf("matching release rejected profile: %v", err)
 	}
 	os.Remove(extendedPath)
+	pkg.Manifest.Version = "2.7.1-dev"
+	developmentPath, _, err := buildCustomPCBProfile(pkg, "esp32s3dev", sourcePath)
+	if err != nil {
+		t.Fatalf("matching development package rejected profile: %v", err)
+	}
+	os.Remove(developmentPath)
 
 }
 
@@ -486,7 +492,7 @@ func writeTestPackageZip(t *testing.T, path, version string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = io.WriteString(manifest, `{"project":"OpenTurbine","version":"`+version+`","package_schema":4,"minimum_setup_tool_version":"0.7.0","targets":{}}`)
+	_, err = io.WriteString(manifest, `{"project":"OpenTurbine","version":"`+version+`","package_schema":5,"minimum_setup_tool_version":"0.7.0","targets":{}}`)
 	if err != nil {
 		t.Fatal(err)
 	}

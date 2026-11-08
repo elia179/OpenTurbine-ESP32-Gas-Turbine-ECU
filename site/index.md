@@ -10,7 +10,7 @@ description: OpenTurbine is experimental ESP32 turbine ECU software with Windows
 <p>Configure sensors, outputs, fuel and oil control, startup/shutdown sequences and protection in your browser. The ECU hosts the interface; no internet connection is needed to use it.</p>
 {% include download-cta.html %}
 <p class="quiet">Windows installer. Classic ESP32: 4 MB flash minimum. ESP32-S3 DevKitC-1-compatible: 8 MB minimum; PSRAM not required.</p>
-</div><figure><img class="screenshot" src="{{ '/assets/images/hero-dashboard.png' | relative_url }}" width="1000" height="936" alt="Simulated OpenTurbine dashboard showing N1 speed, temperature, oil pressure and battery voltage"><figcaption>Simulated readings—not an engine tune. Select to enlarge.</figcaption></figure></div></section>
+</div><figure><img class="screenshot" src="{{ '/assets/images/hero-dashboard.png' | relative_url }}" width="1000" height="936" alt="Example OpenTurbine dashboard showing N1 speed, temperature, oil pressure and battery voltage"><figcaption>Example readings; configure limits for your engine. Select to enlarge.</figcaption></figure></div></section>
 
 <section class="section"><div class="shell"><h2>Choose your next step</h2><div class="card-grid four">
 <a class="card" href="{{ '/get-started/' | relative_url }}"><h3>Install</h3><p>Flash a supported board, connect to its Wi-Fi and open the dashboard.</p></a>

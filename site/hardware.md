@@ -19,8 +19,9 @@ Use a Classic ESP32 with at least 4 MB flash, or an ESP32-S3 DevKitC-1-compatibl
 
 ## OpenTurbine PCB v1.0
 
-This is the only supported official PCB profile in OpenTurbine 2.7.0. It targets
-**ESP32-S3-WROOM-1-N8 (8 MB flash, no PSRAM)**. Bare development boards use the
+The upcoming 2.7.1 profile targets **ESP32-S3-WROOM-1-N8R2 (8 MB flash, 2 MB Quad PSRAM)**.
+Use its matching N8R2 firmware and Setup Tool 0.8.0 package when released; the
+published 2.7.0 profile describes the earlier N8 choice. Bare development boards use the
 **Development board** installation choice and need no profile. Older PCB
 routings are archived and excluded from the Setup Tool catalogue.
 

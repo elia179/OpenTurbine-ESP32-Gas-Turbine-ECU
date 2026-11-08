@@ -135,6 +135,7 @@ def main() -> int:
         # LittleFS working/log space; the S3 retains the broader defaults.
         ("esp32dev", "partitions.csv", "16384", "0x8000", "0x23000"),
         ("esp32s3dev", "partitions_8mb.csv", "65536", "0x10000", "0x28000"),
+        ("esp32s3n8r2", "partitions_8mb.csv", "65536", "0x10000", "0x28000"),
     ):
         run(f"{env} firmware", pio + ["run", "-e", env, "-j", "2"])
         run(f"{env} LittleFS", pio + ["run", "-e", env, "-t", "buildfs", "-j", "2"])

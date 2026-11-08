@@ -257,6 +257,10 @@ function renderPersistenceHealth(d) {
     ? `Event recorder degraded: ${eventErrors[eventCode] || `error ${eventCode}`}`
     : 'Event recorder healthy';
   const capacity = Number(d.session_capacity_rows || 0);
+  if(_sessionCaptureSchema && Number(d.session_memory_bytes)>0){
+    _sessionCaptureSchema.budget_bytes=Number(d.session_memory_bytes);
+    _sessionCaptureSchema.external_memory=d.session_external_memory===true;
+  }
   updateSessionEstimate();
   const buffer = d.session_capture_active && capacity
     ? ` · run buffer ${Number(d.session_queued_rows || 0)}/${capacity} samples` +
@@ -766,7 +770,8 @@ function updateSessionEstimate() {
   if(compact)bytes+=Number(schema.prefix_bytes);
   const samples=Math.floor(Number(schema.budget_bytes)/bytes);
   const minutes=samples*interval/60000;
-  el.textContent=`Up to ${minutes.toFixed(minutes<1?2:1)} min`;
+  el.textContent=`Up to ${minutes.toFixed(minutes<1?2:1)} min${schema.external_memory?' · expanded recording memory':''}`;
+  el.title='Estimated recording time in RAM. Saved log space depends on free flash storage. Unusual sensor values can shorten this time.';
 }
 document.addEventListener('input',event=>{
   if(event.target.matches('#session-log-interval,[data-bit],[data-registry-log-id]'))updateSessionEstimate();

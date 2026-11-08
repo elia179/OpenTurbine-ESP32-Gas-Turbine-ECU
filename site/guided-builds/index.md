@@ -38,7 +38,7 @@ Normal full-power N1 is about **60000 RPM**, combustor pressure **{{ e.p1_normal
 
 Use [Get Started]({{ '/get-started/' | relative_url }}) to install OpenTurbine, then choose the appropriate [development-board pin column and parts]({{ '/guided-builds/parts/' | relative_url }}). The main instructions use device and terminal names so the method transfers between boards. PCB profiles have their own labelled connections.
 
-Begin with hazardous load energy disconnected and suitable test loads/signals. Verify physical interfaces and command behavior before a live engine attempt. The independent physical stop and the engine's required lubrication/protection apply from Build 1. Keep notes identifying physical tests versus simulated checks.
+Begin with hazardous load energy disconnected and suitable test loads/signals. Verify physical interfaces and command behavior before a live engine attempt. The independent physical stop and the engine's required lubrication/protection apply from Build 1. Record the checks completed and any commissioning work still needed.
 
 Keep one live ECU browser session at a time; reading this guide in another tab is fine. Select a screenshot or diagram to enlarge it. Every required setting is described in text too. **Hide walkthrough screenshots** gives a shorter reading view while keeping wiring diagrams visible.
 

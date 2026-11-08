@@ -37,6 +37,16 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
       assert.equal(await node.locator('.registry-status-error').count(),0,name+' complete');await shot(name,node);
       await node.getByRole('button',{name:'Done',exact:true}).click();
     };
+    if(process.argv.includes('--oil-control')){
+      await load(2,'controllers');
+      await open('[data-group="oil-loop-oil_pump"]');
+      await open('[data-group="oil-loop-oil_pump"] .protection-card');
+      await shot('oil-feedback-settings','[data-group="oil-loop-oil_pump"] .protection-card');
+      await open('[data-group="safety"]');
+      await open('#oil-loop-protection-0');
+      await shot('oil-circuit-protection','#oil-loop-protection-0');
+      assert.deepEqual(errors,[]);await browser.close();process.exit(0);
+    }
     for(const level of [1,2,3]){
       await load(level,'hardware');
       const body=await page.locator('body').innerText();assert.ok(!/Pin conflict:|Pin missing/.test(body),`Build ${level} valid pins`);

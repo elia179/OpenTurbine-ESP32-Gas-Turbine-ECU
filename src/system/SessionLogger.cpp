@@ -1,5 +1,7 @@
 #include "SessionLogger.h"
 #include "SessionCapture.h"
+#include "SessionMemory.h"
+#include "SessionArchivePlan.h"
 #include "ByteRecordRing.h"
 #include "../hal/actuators/RelayDemand.h"
 #include "SessionFiles.h"
@@ -14,6 +16,7 @@
 #include <cstring>
 #include <freertos/FreeRTOS.h>
 #include <cstdlib>
+#include <esp_heap_caps.h>
 
 // ── Row snapshot passed through the inter-core ring ─────────
 // Plain-old-data struct — Core 1 fills it, Core 0 writes it.
@@ -67,12 +70,17 @@ static bool              _lowSpaceDropActive = false;
 static constexpr uint32_t SESSION_FLUSH_MS = 5000;
 static uint32_t          _lastFlushMs = 0;
 // Retain the original worst-case byte budget, but spend it only on selected
-// fields. No PSRAM dependency and no increase in the active-run heap budget.
+// fields. This remains the fallback budget on boards without usable PSRAM.
 static constexpr size_t SESSION_QUEUE_BYTES = 64 * sizeof(SessionRow);
+static size_t _allocatedBytes = 0;
+static bool _externalStorage = false;
+static SessionArchivePlan _archivePlan;
+static bool _archivePlanning = false;
+static bool _archivePrepared = false;
 static SessionCapture::Layout _captureLayout;
 static uint32_t _captureMask = 0;
 static uint32_t _captureIntervalMs = 1000;
-static uint16_t _queueCapacity = 0;
+static uint32_t _queueCapacity = 0;
 static bool _capturedGlowRelay = false;
 static uint32_t          _registryCaptureMask = 0;
 
@@ -108,8 +116,8 @@ static uint32_t _configuredRegistryCaptureMask() {
 static bool _prepareCaptureLayout() {
     const bool valid = SessionCapture::configure<Config, ChannelRegistry::MAX_INPUT_CHANNELS>(
         _captureLayout, _captureMask, _registryCaptureMask);
-    _queueCapacity = valid ? SESSION_QUEUE_BYTES / _captureLayout.storedBytes() : 0;
-    return valid && _captureLayout.maxBytes() <= PACKED_ROW_BYTES && _queueCapacity > 0;
+    return valid && _captureLayout.maxBytes() <= PACKED_ROW_BYTES &&
+        SESSION_QUEUE_BYTES / _captureLayout.storedBytes() > 0;
 }
 
 static bool _receiveRow(SessionRow& row) {
@@ -172,11 +180,27 @@ SessionLogger::FieldStorage SessionLogger::fieldStorage(uint32_t mask) {
     if (!SessionCapture::configure<Config, ChannelRegistry::MAX_INPUT_CHANNELS>(layout,mask,0)) return {};
     return {static_cast<uint16_t>(layout.bytes()-sizeof(uint32_t)),layout.hasScaledFields()};
 }
-size_t SessionLogger::storageBudget() { return SESSION_QUEUE_BYTES; }
+static size_t _externalBudget() {
+#if defined(OT_QUAD_PSRAM)
+    if (psramFound()) return SessionMemory::externalBudget(
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
+        heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
+        SESSION_QUEUE_BYTES);
+#endif
+    return 0;
+}
+size_t SessionLogger::storageBudget() {
+    if (_hasCapturedLayout()) return _allocatedBytes;
+    const size_t external = _externalBudget();
+    return external ? external : SESSION_QUEUE_BYTES;
+}
+bool SessionLogger::externalStorage() {
+    return _hasCapturedLayout() ? _externalStorage : _externalBudget() > 0;
+}
 uint32_t SessionLogger::capacityRows() {
     if (_hasCapturedLayout()) return _queueCapacity;
     const uint32_t bytes = sampleBytes();
-    return bytes ? SESSION_QUEUE_BYTES / bytes : 0;
+    return bytes ? storageBudget() / bytes : 0;
 }
 uint32_t SessionLogger::captureIntervalMs() {
     return _hasCapturedLayout() ? _captureIntervalMs :
@@ -247,9 +271,9 @@ static uint8_t _csvColumnCount(uint32_t mask) {
 }
 
 // ── Write one queued row to the open file (Core 0 only) ──────
-static void _writeRow(const SessionRow& row) {
+static char r[768];
+static size_t _formatRow(const SessionRow& row) {
     uint32_t mask = row.mask;
-    static char r[768];
     int n = snprintf(r, sizeof(r), "%lu", (unsigned long)row.t_ms);
     bool rowComplete = n >= 0 && n < (int)sizeof(r);
 
@@ -322,12 +346,20 @@ static void _writeRow(const SessionRow& row) {
         // wrong columns. Legal calibration ranges are intentionally broad;
         // if their rendered values exceed this bounded maintenance buffer,
         // report the loss through the existing backlog/degraded health path.
+        return 0;
+    }
+    r[sizeof(r) - 1] = 0;
+    return (size_t)n;
+}
+
+static size_t _writeRow(const SessionRow& row) {
+    const size_t length = _formatRow(row);
+    if (!length) {
         _droppedRows = _droppedRows + 1;
         _healthy = false;
         _errorCode = 4;
-        return;
+        return 0;
     }
-    r[sizeof(r) - 1] = 0;
     const uint32_t nowMs = millis();
     if (_lowSpaceDropActive || nowMs - _lastFreeCheckMs >= SESSION_FREE_CHECK_MS) {
         _lastFreeCheckMs = nowMs;
@@ -341,17 +373,18 @@ static void _writeRow(const SessionRow& row) {
             _droppedRows = _droppedRows + 1;
             _healthy = false;
             _errorCode = 5;
-            return;
+            return length + 2;
         }
     }
-    if (_file.println(r) == 0) {
+    if (_file.println(r) != length + 2) {
         _droppedRows = _droppedRows + 1;
         _healthy = false;
         _errorCode = 6;
         _lowSpaceDropActive = true;
-        return;
+        return length + 2;
     }
     _rowCount++;
+    return length + 2;
 }
 
 // ── One-time init ─────────────────────────────────────────────
@@ -570,15 +603,29 @@ void SessionLogger::startSession() {
         return;
     }
     _releaseCaptureStorage();
-    _rowStorage = static_cast<uint8_t*>(std::malloc(SESSION_QUEUE_BYTES));
+    _allocatedBytes = 0;
+    _externalStorage = false;
+    _archivePlanning = false;
+    _archivePrepared = false;
+    // Allocate once per run; never resize or touch the heap in tick().
+    // Try smaller external blocks if availability changed since the estimate.
+    for (size_t bytes = _externalBudget(); bytes >= SESSION_QUEUE_BYTES && bytes; bytes /= 2) {
+        _rowStorage = static_cast<uint8_t*>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (_rowStorage) { _allocatedBytes = bytes; _externalStorage = true; break; }
+    }
+    if (!_rowStorage) {
+        _rowStorage = static_cast<uint8_t*>(heap_caps_malloc(SESSION_QUEUE_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        if (_rowStorage) _allocatedBytes = SESSION_QUEUE_BYTES;
+    }
     if (!_rowStorage) {
         _startPending = false;
         _healthy = false;
         _errorCode = 1;
         return;
     }
+    _queueCapacity = _allocatedBytes / _captureLayout.storedBytes();
     portENTER_CRITICAL(&_rowMux);
-    _rowRing.attach(_rowStorage, SESSION_QUEUE_BYTES, _captureLayout.hasScaledFields() ? 0 : _captureLayout.bytes());
+    _rowRing.attach(_rowStorage, _allocatedBytes, _captureLayout.hasScaledFields() ? 0 : _captureLayout.bytes());
     portEXIT_CRITICAL(&_rowMux);
     _currentPath[0] = '\0';
     _rowCount = 0;
@@ -683,12 +730,63 @@ void SessionLogger::drainQueue() {
         return;
     }
     if (!_open || !_rowStorage) return;
+    // PSRAM can hold more binary samples than flash can hold rendered CSV.
+    // Measure without consuming the original queue, evict older sessions,
+    // then discard only the oldest excess rows. Keep the shutdown/fault tail.
+    // Never scan while capture is still writing to this shared buffer.
+    if (_externalStorage && _endPending && !_archivePrepared && !_archivePlanning) {
+        portENTER_CRITICAL(&_rowMux);
+        _archivePlan.begin(_rowRing);
+        portEXIT_CRITICAL(&_rowMux);
+        _archivePlanning = true;
+    }
+    if (_archivePlanning) {
+        char packed[PACKED_ROW_BYTES+1];
+        SessionRow row;
+        const uint32_t started = millis();
+        for (uint8_t i=0; i<64 && !_archivePlan.ready(); ++i) {
+            _archivePlan.scanOne(packed, sizeof(packed), [&](const char* data, size_t bytes) -> size_t {
+                if (!_captureLayout.unpack(data, bytes, &row)) return 0;
+                row.mask = _captureMask;
+                const size_t length = _formatRow(row);
+                return length ? length + 2 : 0; // Print::println uses CRLF.
+            });
+            if (millis() - started >= 10) break;
+        }
+        if (_archivePlan.ready()) {
+            _evictOldSessions(_archivePlan.bytes() + 4096);
+            _archivePlanning = false;
+            _archivePrepared = true;
+        }
+        return;
+    }
+    if (_archivePrepared) {
+        const size_t free = freeBytes();
+        const size_t reserved = reserveBytes() + 4096;
+        const size_t available = free > reserved ? free - reserved : 0;
+        const uint32_t started = millis();
+        uint8_t trimmed = 0;
+        while (_archivePlan.bytes() > available && _queuedRowCount() && trimmed < 64) {
+            SessionRow row;
+            if (_receiveRow(row)) {
+                const size_t length = _formatRow(row);
+                _archivePlan.consumed(length ? length + 2 : 0);
+                _droppedRows = _droppedRows + 1;
+            }
+            _healthy = false;
+            _errorCode = 5;
+            ++trimmed;
+            if (millis() - started >= 10) break;
+        }
+        if (trimmed) return;
+    }
     SessionRow row;
-    static constexpr uint8_t MAX_ROWS_PER_DRAIN = 8;
+    const uint8_t MAX_ROWS_PER_DRAIN = _externalStorage ? 64 : 8;
     const uint32_t started = millis();
     uint8_t drained = 0;
     while (_open && drained < MAX_ROWS_PER_DRAIN && _receiveRow(row)) {
-        _writeRow(row);
+        const size_t consumed = _writeRow(row);
+        if (_archivePrepared) _archivePlan.consumed(consumed);
         ++drained;
         if (millis() - started >= 10) break;
     }

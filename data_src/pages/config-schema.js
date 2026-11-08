@@ -175,8 +175,6 @@ const ALL_CONFIG_SCHEMA = [
     { key:'ab_ui',   path:['afterburner','use_igniter'],       label:'Use AB Igniter',      type:'checkbox', desc:'Fire the dedicated afterburner igniter installed in Hardware during the ignition window. Can be used alone or with torch.', basic:true },
     { key:'ab_tpct', path:['afterburner','torch_spike_pct'],   label:'Torch Spike %',       desc:'Extra main-fuel-metering demand during the torch window. Higher values introduce more fuel. Typical: 20–40%.', step:5, min:0, max:100 },
     { key:'ab_tms',  path:['afterburner','torch_duration_ms'], label:'Torch Duration (ms)', desc:'How long to hold the fuel spike before cutting back. Typical: 300–600 ms.', step:50, min:0, max:3000 },
-    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine shutdown'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — use engine shutdown only'}], desc:'Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.', basic:true },
-    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'Used only in Custom mode. It should be below the configured main-engine temperature shutdown.', step:10, min:0 },
     { key:'ab_lpp',  path:['afterburner','lightup_pump_pct'],  label:'Light-Up Pump %', desc:'AB fuel pump demand used while the light-up sequence is trying to establish a confirmed flame.', step:5, min:0, max:100 },
   ]},
   { title: 'Afterburner — Flame Confirmation', id: 'ab-flame-section', fields: [
@@ -192,6 +190,10 @@ const ALL_CONFIG_SCHEMA = [
     { key:'ab_pmx', path:['afterburner','pump_max_pct'],         label:'Afterburner Fuel Pump Max %', desc:'Maximum afterburner fuel-pump demand. Fixed Max Output holds this value while the afterburner is running.', step:5, min:0, max:100 },
     { key:'ab_mo',  path:['afterburner','main_fuel_offset_pct'], label:'Main Fuel Offset %',    desc:'Adds to main fuel while AB is running. A negative value may reduce fuel, but a running pump is held at its calibrated reliable minimum; an Off command remains Off. 0 = none.', step:2, min:-20, max:50 },
     { key:'ab_sms', path:['afterburner','stabilize_ms'],         label:'Stabilize Hold (ms)',   desc:'Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms.', step:100, min:0, max:3600000 },
+  ]},
+  { title: 'Afterburner Protection', id: 'ab-protection-section', sectionNote:'Independent temperature and flame-loss protection for the afterburner. Ignition commands and flame-confirmation setup remain in the afterburner controller.', fields: [
+    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine shutdown'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — use engine shutdown only'}], desc:'Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.', basic:true },
+    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'Used only in Custom mode. It should be below the configured main-engine temperature shutdown.', step:10, min:0 },
     { key:'ab_smt', path:['afterburner','stabilize_max_tot'],    label:'Stabilize Max EGT',  unitType:'temp', zeroOff:true, desc:'AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled.', step:10, min:0, max:100000 },
     { key:'ab_fld', path:['afterburner','flame_loss_delay_ms'], label:'Running Flame-Loss Delay (ms)', desc:'When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running.', step:100, min:0, max:60000 },
   ]},

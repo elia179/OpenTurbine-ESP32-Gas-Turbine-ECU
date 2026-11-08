@@ -44,11 +44,11 @@ Open **Controllers → Shutdown & Protection → N2 Power Shaft protection**. Se
 
 If using N2 fuel limiting, its gradual-reduction band must sit below this trip with operating margin around the normal target. Start with the **Simple** method and review its reduction authority. Predictive uses acceleration as well and requires separate validation. Use the enable switch to turn automatic shutdown off while keeping the reference limit.
 
-**Check:** inject a safely simulated approach and overspeed. Confirm instrument colour/status, actual commanded fuel cut and the named fault. Repeat with N1 held steady to distinguish the two sources. The governor is ordinary regulation; its existence does not replace independent overspeed protection.
+**Check:** apply suitable test feedback approaching and exceeding the limit. Confirm instrument colour/status, actual commanded fuel cut and the named fault. Repeat with N1 held steady to distinguish the two sources. The governor is ordinary regulation; its existence does not replace independent overspeed protection.
 
 <h2 id="governor">3 · Convert the fuel controller into an N2 governor</h2>
 
-The example uses a load capable of absorbing power from the free turbine. Below the target, more fuel tends to add turbine power; above it, less fuel reduces power. A sudden load removal can accelerate the free turbine rapidly; use simulated feedback for these initial command checks.
+The example uses a load capable of absorbing power from the free turbine. Below the target, more fuel tends to add turbine power; above it, less fuel reduces power. A sudden load removal can accelerate the free turbine rapidly; use test feedback for these initial command checks.
 
 First set **Fuel-metering support → Idle → Off** for this governor exercise. The governor will use the earlier {{ e.fuel_idle_pct }}% stable-idle command as its lower fuel bound.
 
@@ -81,7 +81,7 @@ For variable speed demand, choose **Variable input**, select **Throttle Input**,
 
 </details>
 
-**Check:** below/above-target test feedback moves fuel in the intended direction while respecting output bounds. Check target acquisition, deadband and sustained error, then remove expected N2 feedback to verify the loss response configured above. Zero while legitimately stopped is a separate condition. Simulated input changes demonstrate command logic; stability and load response need the real constrained mechanical system.
+**Check:** below/above-target test feedback moves fuel in the intended direction while respecting output bounds. Check target acquisition, deadband and sustained error, then remove expected N2 feedback to verify the loss response configured above. Zero while legitimately stopped is a separate condition. Test input changes demonstrate command logic; stability and load response need the real constrained mechanical system.
 
 <h2 id="sequence">4 · Review startup and ownership again</h2>
 
@@ -103,11 +103,11 @@ If a controller must take over before Running, use the **sequencer activation** 
 
 <h2 id="verify">5 · Verify the second-shaft behavior</h2>
 
-Keep hazardous energy isolated for command tests; use test signals or the simulator. Record real mechanical commissioning separately.
+Keep hazardous energy isolated for command tests; use suitable test signals. Record real mechanical commissioning separately.
 
 - Check N1/N2 identities, PPR and any gearbox conversion independently.
 - Check normal handover, governor direction, output bounds and loss of N2.
-- Simulate an increase in N2 representing loss of load; verify fuel reduction and independent overspeed response. This does not physically qualify load rejection.
+- Apply an N2 test signal representing loss of load; verify fuel reduction and independent overspeed response. This does not physically qualify load rejection.
 - Confirm temperature/N1 constraints can reduce the governor's requested fuel.
 - Repeat STOP, failed-start timeout, shutdown and configured oil-loss policies.
 - Review lubrication for a free turbine that may continue spinning after the core stops. Add an independently configured oil circuit or windmilling protection if required by the design, and test its own shaft source.

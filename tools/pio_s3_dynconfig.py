@@ -3,6 +3,7 @@ Import("env")
 dynconfig_by_env = {
     "esp32dev": "xtensa_esp32.so",
     "esp32s3dev": "xtensa_esp32s3.so",
+    "esp32s3n8r2": "xtensa_esp32s3.so",
 }
 
 dynconfig = dynconfig_by_env.get(env["PIOENV"])

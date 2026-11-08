@@ -521,6 +521,9 @@ async function sectionVisible(page, title) {
       'afterburner entry gates belong to Sequence, not Controllers');
     assert.equal(await disabled(page, '#cf-ab_ui'), false);
     assert.equal(await disabled(page, '#cf-ab_pcm'), false);
+    for(const key of ['ab_tgm','ab_ttl','ab_smt','ab_fld'])
+      assert.equal(await page.locator(`[data-group="safety"] #cf-${key}`).count(),1,
+        `${key} belongs to Shutdown & Protection`);
     results.push('afterburner output behavior unlocks with fitted hardware while entry gates remain sequence-owned');
 
     console.log(`Config super audit passed (${results.length} groups):`);

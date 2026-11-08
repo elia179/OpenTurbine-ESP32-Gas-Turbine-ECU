@@ -60,7 +60,7 @@ function runValidation() {
     warnings.push({
       section: 'Idle',
       key:     'warn-idlelimit',
-      msg:     '⚠ Idle target is at or above the selected shaft hard limit.'
+      msg:     '⚠ Idle target is at or above the selected shaft’s configured maximum. Review the target and the shaft limit in Shutdown & Protection.'
     });
   }
 
@@ -185,9 +185,9 @@ function runValidation() {
     });
   }
 
-  // 6. Safety-zero: oil running min = 0 disables oil pressure fault
+  // An enabled general oil-pressure protection needs a usable trip point.
   const oilRunningVal = fv('oil_rm');
-  if (hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
+  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
@@ -382,9 +382,9 @@ async function validateBeforeSave(cfg) {
       warns.push('N1 recovery confirmation is below the effective speed allowed to fire relight ignition. Normally set recovery at or above that firing floor.');
   }
 
-  if (hwCfg.controllers?.dynamic_idle && idleSource < 2 && idleSourceAvailable &&
+  if (hwCfg.controllers?.dynamic_idle && cfg.safety?.underspeed_enabled && idleSource === 0 && idleSourceAvailable &&
       hasAnyIdleRpm && idleTarget !== undefined && minRpm !== undefined && idleTarget < minRpm)
-    warns.push('Idle target RPM (' + idleTarget + ') is below Min RPM (' + minRpm + '). Engine may fault at idle.');
+    warns.push('N1 idle target (' + idleTarget + ' RPM) is below the enabled N1 underspeed trip (' + minRpm + ' RPM). Raise the target or review N1 underspeed in Shutdown & Protection.');
 
   if (hwCfg.controllers?.dynamic_idle) {
     const idleDeadband = Number(gv(cfg, 'dynamic_idle', idleSource >= 2 ? 'pressure_deadband_bar' : 'deadband_rpm') || 0);
@@ -443,19 +443,22 @@ async function validateBeforeSave(cfg) {
   if (standbyEnabled && standbySourceAvailable && standbyPct <= 0 && standbyBar <= 0)
     warns.push('Windmilling-oil protection commands neither pump output nor pressure. Set a protective pump percentage or pressure target, or it will run without delivering oil.');
 
-  // Oil system cross-checks
-  const oilRunning   = gv(cfg, 'oil', 'running_min');
-  const oilStartup   = gv(cfg, 'oil', 'startup_min_bar');
-  const oilMapMin    = gv(cfg, 'oil', 'map_min');
-  const oilMapMax    = gv(cfg, 'oil', 'map_max');
+  // Validate the actual named oil loops, not obsolete global mapping fields.
   const hasOilPressure = hasRegistryInput('oil_pressure');
-  if (hasOilPressure) {
-    if (oilStartup !== undefined && oilRunning !== undefined && oilStartup < oilRunning)
-      warns.push('Startup oil-pressure minimum (' + oilStartup + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). Startup may pass and then immediately fault if low-oil safety is enabled.');
-    if (oilMapMin !== undefined && oilMapMax !== undefined && oilMapMin > oilMapMax)
-      errors.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is greater than Full-Throttle Oil Pressure (' + oilMapMax + ' bar). Swap them.');
-    if (oilMapMin !== undefined && oilRunning !== undefined && oilMapMin < oilRunning)
-      warns.push('Normal Running Oil Pressure (' + oilMapMin + ' bar) is below Low-Pressure Limit (' + oilRunning + ' bar). The running oil setpoint should be at or above the configured limit.');
+  const oilRunning = gv(cfg, 'oil', 'running_min');
+  if (hwCfg.controllers?.oil_loop !== false) for (const loop of hwCfg.oil_loops || []) {
+    if (loop.enabled === false) continue;
+    const pump = controllerOutputs('oil_pump').find(output=>String(output.id)===String(loop.pump_output));
+    if (!pump) continue;
+    const target = Number(loop.target_bar ?? 2.5);
+    const lowestTarget = Number(loop.target_source || 0) === 0 ? target : Math.min(target,Number(loop.target_high_bar ?? 2.5));
+    const loopLimit = Number(loop.low_pressure_bar ?? 1);
+    const primaryPressure = controllerInputs('oil_pressure')[0]?.id;
+    const generalLimit = String(loop.pressure_input)===String(primaryPressure) && hwCfg.safety?.low_oil && (Number(cfg.safety?.oil_pressure_modes ?? 4)&4) ? Number(cfg.oil?.running_min || 0) : 0;
+    const lowResponse = Number(loop.low_pressure_response ?? 2);
+    const limit = Math.max(lowResponse>0?loopLimit:0,generalLimit);
+    if (limit>0 && lowestTarget<=limit)
+      warns.push(controllerChannelName(pump)+' pressure target ('+lowestTarget+' bar) reaches or falls below an enabled low-pressure limit ('+limit+' bar). Raise its target or review oil pressure protection in Shutdown & Protection.');
   }
 
   // EGT / temperature cross-checks
@@ -508,11 +511,10 @@ async function validateBeforeSave(cfg) {
       errors.push(l2 + ' (' + full + ') must be above ' + l1 + ' (' + soft + ').');
   });
 
-  // Safety-zero checks: 0 = disabled in SafetyMonitor - warn loudly
-  if (primaryLimit !== undefined && primaryLimit === 0)
-    warns.push(primaryLabel + ' Limit is 0 - overtemperature protection is DISABLED. The engine will not shut down on over-temperature.');
-  if (hasOilPressure && oilRunning !== undefined && oilRunning === 0)
-    warns.push('Low-Pressure Limit is 0 — oil pressure fault protection has no trip point. The engine will not shut down on low pressure.');
+  if (hwCfg.safety?.overtemp && primaryLimit !== undefined && primaryLimit === 0)
+    warns.push(primaryLabel + ' shutdown is enabled with a zero limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
+  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunning !== undefined && oilRunning === 0)
+    warns.push('General oil pressure protection is enabled with a zero Low-Pressure Limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
 
   if (hasActualAfterburnerHardware() &&
       Number(gv(cfg, 'afterburner', 'flame_mode')) === 2) {

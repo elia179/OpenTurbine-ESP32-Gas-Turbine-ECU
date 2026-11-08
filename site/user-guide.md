@@ -326,7 +326,7 @@ A controller continuously changes an output based on a measurement. Enable it on
 
 ### 9.2 Safety functions
 
-Enabling a checkbox does not prove the protection. You must force a safe simulated fault and confirm the response.
+Enabling a checkbox does not prove the protection. Apply a suitable test signal or disconnect the input safely, then confirm the configured response.
 
 <div class="table-wrap"><table>
 <thead><tr><th>Safety</th><th>Trigger and prerequisite</th></tr></thead>
@@ -464,7 +464,7 @@ On a fresh generic development-board installation, the safe example profile cont
 4. **Wait TOT Cool:** holds until the selected temperature is below its target if appropriate.
 5. **Final Stop:** waits for zero N1, cuts the main oil pump and preserves configured scavenge behavior.
 
-Verify that STOP removes fuel immediately. Cooling, purge or scavenge actions may continue only as deliberately required. Test web STOP, loss of throttle/RC, a simulated sensor fault and the independent hardwired stop separately.
+Verify that STOP removes fuel immediately. Cooling, purge or scavenge actions may continue only as deliberately required. Test web STOP, loss of throttle/RC, an input-failure test and the independent hardwired stop separately.
 
 ### 12.3 Every block field
 
@@ -521,6 +521,18 @@ Switch contacts have fixed **20 ms debounce**. A controller's additional **Condi
 {% include build-screen.html file="switch-fault-controller" step="A named switch shutdown" alt="Binary switch condition, fault-shutdown action, separate confirmation time and activation events." caption="Choose the logical switch state. Input polarity belongs in Hardware; the condition confirmation belongs here." %}
 
 Save and reopen the card, then dry-test input movement, output direction and bounds, activation, deactivation to the Hardware safe state, sensor loss, STOP and reboot. The [bench-light walkthrough]({{ '/guided-builds/control/#custom' | relative_url }}) demonstrates a non-engine output. A displayed demand is not proof that a physical actuator responded.
+
+
+### Control settings and protection settings
+
+Set normal output behavior in the controller: its input, target, direction, output range and response. A controller’s **feedback-loss fallback** stays there too, because it defines what that output does when its input becomes unavailable.
+
+Set engine limits, confirmation times and fault actions under **Controllers → Shutdown & Protection**. Each oil-pressure loop has a named **Oil circuit pressure protection** card for its low-running-pressure response; its controller links to that card. The controller’s pressure target is separate from this trip threshold. These protections monitor during Running while the corresponding pressure controller is enabled. The general oil-pressure protection has its own **Monitor during** selection and remains independent.
+
+Afterburner temperature guards and running flame-loss protection also live under **Shutdown & Protection → Afterburner Protection**. The afterburner controller retains its ignition commands, required light-up evidence and confirmation deadline. Those describe how an ignition attempt succeeds or fails. A custom controller explicitly assigned **Request Fault Shutdown** or **Request Normal Shutdown** remains a deliberate protection action.
+
+Idle’s **Stop Controlling Above** value releases idle correction above that reading; it does not shut down the engine. Overspeed and temperature limits are configured in Shutdown & Protection.
+
 
 ## Part 14: Dry-test the complete ECU
 

@@ -208,7 +208,9 @@ Under **Fuel-metering support → Idle**, select **Off — no idle floor**. Mapp
 
 <h3 id="oil-control">5.2 · Oil pressure</h3>
 
-For oil, edit the existing pressure controller if one is already assigned to Oil Pump. Otherwise use the creator's separate **Oil pump** and **Pressure feedback** selectors, then **Create oil-pressure controller**. Open **Oil Pump → Oil Pressure Control**. Select **Oil Pressure**, the matching pump, **Pressure target set by → Fixed pressure**, and **{{ e.oil_target_bar }} bar**. Set its **Low-pressure threshold** to {{ e.oil_min_bar }} bar and **Low-pressure confirmation** to {{ e.oil_confirm_ms }} ms. Verify command bounds and failure responses against the oil rig. Use **Normal fault shutdown** for the teaching feedback-loss/low-pressure responses; [Build 2]({{ '/guided-builds/control/#feedback' | relative_url }}) explains the full card.
+For oil, edit the existing pressure controller if one is already assigned to Oil Pump. Otherwise use the creator's separate **Oil pump** and **Pressure feedback** selectors, then **Create oil-pressure controller**. Open **Oil Pump → Oil Pressure Control**. Select **Oil Pressure**, the matching pump, **Pressure target set by → Fixed pressure**, and **{{ e.oil_target_bar }} bar**. Set the controller’s feedback-loss response to **Normal fault shutdown** and verify its command bounds against the oil rig.
+
+Follow its **Low-pressure protection** link to **Shutdown & Protection → Oil circuit pressure protection → Oil Pump · low pressure**. Set **Low-pressure threshold** to {{ e.oil_min_bar }} bar, **Low-pressure confirmation** to {{ e.oil_confirm_ms }} ms and **Normal fault shutdown**. [Build 2]({{ '/guided-builds/control/#feedback' | relative_url }}) explains both cards.
 
 **Check:** on an appropriate oil circuit, establish target pressure without excessive overshoot and compare the gauge. Response gain and pump duty depend on the pump. The sequence establishes lubrication before ignition and retains it during shutdown.
 
@@ -255,7 +257,7 @@ Open **Sequence → Startup**, reviewing any defaults before replacement. Choose
 
 Both Final Startup Checks instances share settings. Leave their optional output-release switches off: explicit actions perform release. The second check must pass without starter assistance. This path uses an explicit fuel command instead of **Accelerate to Idle**, whose built-in fuel behavior is different.
 
-{% include build-screen.html file="sequence-engine-startup" step="The complete Startup" alt="Startup builds oil pressure, cranks, ignites, admits fuel, checks temperature and stable readings, releases starter and ignition, then checks again." caption="Follow this one path. Test evidence comes from safe equipment or simulation; timers alone do not prove combustion." %}
+{% include build-screen.html file="sequence-engine-startup" step="The complete Startup" alt="Startup builds oil pressure, cranks, ignites, admits fuel, checks temperature and stable readings, releases starter and ignition, then checks again." caption="Follow this one path. Use suitable test signals to check the order; timers alone do not prove combustion." %}
 
 <h3 id="shutdown">7.2 · Shutdown</h3>
 
@@ -269,7 +271,7 @@ Save and reopen both paths. **If the editor warns “SafetyHold present but no S
 
 <h2 id="verify">8 · Prove the setup and save it</h2>
 
-Keep hazardous energy isolated. Use safe signal sources or simulation for conditions you cannot produce physically; do not bypass protection to force a test through.
+Keep hazardous energy isolated. Use suitable test signals for conditions you cannot produce directly; do not bypass protection to force a test through.
 
 - **Measurements:** each input agrees with its reference; calibrated throttle travel is smooth.
 - **Outputs:** each individual test uses the right connection and direction, then returns to its physical safe state.
@@ -277,9 +279,9 @@ Keep hazardous energy isolated. Use safe signal sources or simulation for condit
 - Leave a required condition unsatisfied: its timeout must produce the stated abort/fault and fuel cut.
 - Test STOP during startup and Running. Check physical isolation and lubrication, not just the mode label.
 - Exercise feedback loss and inspect the reason and output response. Reduced power does not restore missing protection.
-- Save/reload and download the engine file from **System → Maintenance → Backup & restore → Download backup**. Record **Build 1 — basic turbojet** and physical versus simulated checks with it; keeping the automatic filename is fine.
+- Save/reload and download the engine file from **System → Maintenance → Backup & restore → Download backup**. Record **Build 1 — basic turbojet** and the checks completed with it; keeping the automatic filename is fine.
 
-**Build 1 is complete when** these checks pass and the saved backup exists. Record any simulated checks and pending physical checks with it. Continue to Build 2 only when this baseline works; live commissioning still needs measured engine limits and verified starting behavior.
+**Build 1 is complete when** these checks pass and the saved backup exists. Record any commissioning checks still needed with it. Continue to Build 2 only when this baseline works; live commissioning still needs measured engine limits and verified starting behavior.
 
 {% include build-screen.html file="engine-backup-restore" step="Save a complete engine-file backup" alt="System maintenance card with full engine-file download and restore controls." caption="Download the file after saving and reopening your settings. Label it with the build stage and the checks actually completed." %}
 

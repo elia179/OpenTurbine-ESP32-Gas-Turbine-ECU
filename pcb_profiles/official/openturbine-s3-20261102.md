@@ -1,10 +1,12 @@
 # OpenTurbine PCB v1.0 — final source 4 November 2026
 
-Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). Use the matching **2.7.0 firmware package and Setup Tool 0.7.9 or newer**. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
+Profile: [`openturbine-s3-20261102.otpcb.json`](openturbine-s3-20261102.otpcb.json). This working revision targets **2.7.1 with the N8R2 firmware image** and is not released yet. Installer integration and exact-module hardware qualification remain pending. This profile uses format **2.0**, deliberately rejected by older firmware. Plain development boards retain their normal workflow without a PCB profile. The older 28 October profile is archived and is not offered by the installer.
 
-Source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`, SHA256 `e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Target: **ESP32-S3-WROOM-1-N8**, 8 MB flash, no PSRAM. N8R8 is unsuitable for these GPIO35–37 connections.
+Source: `OpenTurbine_ECU_V2_READY_TO_ORDER_2026_11_04.epro2`, SHA256 `e3b5d7a43a73c9dabf93fa2271849bcefa8bc327156b16c4f1a752bba0f073c4`. The importer checks the source hash and actual device/connector pad nets. The source PCB is not changed by this software work. Fitted-module choice updated by the owner on 8 November: **ESP32-S3-WROOM-1-N8R2**, 8 MB Quad flash and 2 MB Quad PSRAM, superseding the N8 part in the original source BOM. The source-file hash still identifies the unchanged routing export. N8R8 uses Octal PSRAM and is unsuitable for these GPIO35–37 connections; that restriction does not apply to N8R2.
 
-The Setup Tool bundles this profile. A standalone [profile JSON download](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbine_PCB_v1.0.otpcb.json) is also included with the matched release; do not substitute an archived routing.
+The released 2.7.0 Setup Tool bundles the previous N8 revision. The N8R2 revision must ship together with the matching 2.7.1 firmware and updated installer; do not mix these working files with an old package.
+
+The matched release bundles this profile. A standalone [profile JSON download](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases/latest/download/OpenTurbine_PCB_v1.0.otpcb.json) is also included with the matched release; do not substitute an archived routing.
 
 ## Choose connectors, then functions
 

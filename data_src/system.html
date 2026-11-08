@@ -592,7 +592,8 @@ function refreshProtectionCount(){
   const count=Array.from(group.querySelectorAll('.protection-enable input[type="checkbox"]')).filter(input=>
     input.checked&&!['cf-sf_st_en','cf-sf_sd_en'].includes(input.id)&&(input.id!=='cf-sf_sg_en'||startupGuardHasTrip())&&
     input.closest('.cfg-field')?.dataset.hardwareUnavailable!=='1'&&
-    !input.closest('[data-safety-available="false"]')).length;
+    !input.closest('[data-safety-available="false"]')).length +
+    group.querySelectorAll('[data-oil-loop-protection-active="true"]').length;
   badge.textContent=count+' active';badge.dataset.active=String(count>0);
   badge.title='Enabled protection functions with fitted prerequisites, including fuel limiting. Incomplete startup setup is excluded; a valid startup guard counts once. Operation also depends on engine state and each protection’s conditions.';
 }
@@ -1155,7 +1156,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'power', title:'Power Turbine & Afterburner', desc:'N2 control and afterburner ignition/running behavior', sections:['Afterburner — Ignition Method','Afterburner — Flame Confirmation','Afterburner — Running'] },
   { id:'oil', title:'Oil & Lubrication Controllers', desc:'Normal pressure response and windmilling oil behavior', sections:['Oil Pressure Control','Windmilling Oil Protection'] },
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
-  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
+  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
   { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];
@@ -1954,7 +1955,7 @@ function runValidation() {
     warnings.push({
       section: 'Idle',
       key:     'warn-idlelimit',
-      msg:     '⚠ Idle target is at or above the selected shaft hard limit.'
+      msg:     '⚠ Idle target is at or above the selected shaft’s configured maximum. Review the target and the shaft limit in Shutdown & Protection.'
     });
   }
 
@@ -2079,9 +2080,9 @@ function runValidation() {
     });
   }
 
-  // 6. Safety-zero: oil running min = 0 disables oil pressure fault
+  // An enabled general oil-pressure protection needs a usable trip point.
   const oilRunningVal = fv('oil_rm');
-  if (hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
+  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
@@ -3022,7 +3023,7 @@ function applyRcPwmVisibility() {
 // ── AB sections — show only when hasAfterburner ───────────────
 let hasAfterburnerCfg = false;
 function applyAbCfgVisibility() {
-  const ids = ['ab-ign-section','ab-flame-section','ab-run-section'];
+  const ids = ['ab-ign-section','ab-flame-section','ab-run-section','ab-protection-section'];
   ids.forEach(id => {
     const sec = document.getElementById(id);
     if (sec) {

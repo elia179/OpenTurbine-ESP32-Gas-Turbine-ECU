@@ -7,6 +7,8 @@ Run after both firmware environments and their LittleFS images have been built:
     pio run -e esp32dev -t buildfs
     pio run -e esp32s3dev
     pio run -e esp32s3dev -t buildfs
+    pio run -e esp32s3n8r2
+    pio run -e esp32s3n8r2 -t buildfs
     python tools/build_setup_package.py --esptool C:\path\to\esptool.exe
 
 The output ZIP is intentionally deterministic enough for release checks and is
@@ -61,18 +63,24 @@ TARGETS = {
         "bootloader_address": "0x0000",
         "partition_csv": "partitions_8mb.csv",
     },
+    "esp32s3n8r2": {
+        "chip": "ESP32-S3",
+        "bootloader_address": "0x0000",
+        "partition_csv": "partitions_8mb.csv",
+    },
 }
 COMMON_FLASH = [
     ("0x8000", "partitions.bin"),
     ("0xe000", "boot_app0.bin"),
     ("0x10000", "firmware.bin"),
 ]
-PACKAGE_SCHEMA = 4
-SETUP_TOOL_VERSION = "0.7.9"
-MINIMUM_SETUP_TOOL_VERSION = "0.7.9"
+PACKAGE_SCHEMA = 5
+SETUP_TOOL_VERSION = "0.8.0"
+MINIMUM_SETUP_TOOL_VERSION = "0.8.0"
 ESPTOOL_VERSION = "5.3.0"
 # Deliberate installer catalogue: historical profiles remain test fixtures, not choices.
 SHIPPED_OFFICIAL_PROFILES = ("openturbine-s3-20261102.otpcb.json",)
+OFFICIAL_FIRMWARE_TARGETS = {"openturbine-s3-20261102": "esp32s3n8r2"}
 
 
 def source_commit() -> str:
@@ -354,7 +362,7 @@ def stage_package(stage: Path, esptool: Path, esptool_license: Path | None = Non
             usb_flash.append(entry)
         firmware_digest = hashlib.sha256((env_stage / "firmware.bin").read_bytes()).hexdigest()
         official_profiles = []
-        expected_profile_chip = "esp32-s3" if env == "esp32s3dev" else "esp32"
+        expected_profile_chip = "esp32-s3" if meta["chip"] == "ESP32-S3" else "esp32"
         for profile_name in SHIPPED_OFFICIAL_PROFILES:
             source = ROOT / "pcb_profiles" / "official" / profile_name
             profile = json.loads(source.read_text(encoding="utf-8"))
@@ -373,6 +381,7 @@ def stage_package(stage: Path, esptool: Path, esptool_license: Path | None = Non
                 "revision": profile["board"]["revision"],
                 "file": f"pcb_profiles/{file_name}",
                 "sha256": hashlib.sha256(binary).hexdigest(),
+                "firmware_target": OFFICIAL_FIRMWARE_TARGETS.get(profile["board"]["id"], env),
             })
         manifest["targets"][env] = {
             "chip": meta["chip"],

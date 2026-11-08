@@ -71,6 +71,16 @@ const {chromium,firefox,webkit}=require('playwright');
    assert.equal(await p.locator('#session-buffer-estimate').innerText(),'Up to 38.4 min');
    await p.evaluate(()=>{SLOG_BITS.forEach(bit=>document.querySelector(`[data-bit="${bit}"]`).checked=false);updateSessionEstimate();});
    assert.match(await p.locator('#session-buffer-estimate').innerText(),/Select channels/);
+   await p.evaluate(()=>{
+    document.querySelector('[data-bit="mode"]').checked=true;
+    document.getElementById('session-log-interval').value='1000';
+    _sessionSettingsLoaded=true;_sessionCaptureSchema.external_memory=true;
+    _sessionCaptureSchema.budget_bytes=1048576;updateSessionEstimate();
+   });
+   assert.match(await p.locator('#session-buffer-estimate').innerText(),/expanded recording memory/);
+   await p.evaluate(()=>renderPersistenceHealth({session_memory_bytes:16128,session_external_memory:false,session_capacity_rows:1000}));
+   assert.doesNotMatch(await p.locator('#session-buffer-estimate').innerText(),/expanded recording memory/);
+   assert.equal(await p.evaluate(()=>_sessionCaptureSchema.budget_bytes),16128);
    let eventAttempts=0;
    await p.route('**/api/log',r=>{eventAttempts++;return reply(r,eventAttempts===1?JSON.stringify({error:'ECU is busy'}):'[{"t":1,"ev":"BOOT"}]',eventAttempts===1?503:200);});
    await p.evaluate(()=>loadLog());assert.equal(eventAttempts,2);

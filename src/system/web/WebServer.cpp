@@ -2314,6 +2314,8 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["session_dropped_rows"]  = SessionLogger::droppedRows();
     doc["session_queued_rows"]   = SessionLogger::queuedRows();
     doc["session_capacity_rows"] = SessionLogger::capacityRows();
+    doc["session_external_memory"] = SessionLogger::externalStorage();
+    doc["session_memory_bytes"] = SessionLogger::storageBudget();
     doc["session_sample_bytes"] = SessionLogger::sampleBytes();
     doc["session_capture_interval_ms"] = SessionLogger::captureIntervalMs();
     doc["session_logger_healthy"] = SessionLogger::healthy();
@@ -3042,6 +3044,7 @@ void WebServer::_setupRoutes() {
         };
         JsonObject capture=doc["capture"].to<JsonObject>();
         capture["budget_bytes"]=SessionLogger::storageBudget();
+        capture["external_memory"]=SessionLogger::externalStorage();
         capture["timestamp_bytes"]=sizeof(uint32_t);
         capture["prefix_bytes"]=2;
         capture["registry_value_bytes"]=sizeof(float);
@@ -3124,6 +3127,8 @@ void WebServer::_setupRoutes() {
         labels["p2"] = p2Name;
 
         doc["session_capacity_rows"]=SessionLogger::capacityRows();
+        doc["session_external_memory"]=SessionLogger::externalStorage();
+        doc["session_memory_bytes"]=SessionLogger::storageBudget();
         doc["session_queued_rows"]=SessionLogger::queuedRows();
         doc["session_capture_interval_ms"]=SessionLogger::captureIntervalMs();
         doc["session_capture_active"]=SessionLogger::captureActive();
@@ -3159,7 +3164,11 @@ void WebServer::_setupRoutes() {
     _server.on("/api/device_info", HTTP_GET, [](AsyncWebServerRequest* req) {
         auto& ed = EngineData::instance();
 #if defined(OT_PLATFORM_ESP32S3)
+#if defined(OT_QUAD_PSRAM)
+        const char* target = "esp32s3n8r2";
+#else
         const char* target = "esp32s3dev";
+#endif
         const char* chip = "ESP32-S3";
 #else
         const char* target = "esp32dev";
