@@ -7,8 +7,11 @@ permalink: /guided-builds/extend/
 build_level: 3
 ---
 
-{% include guided-nav.html %}
 {% assign e = site.data.guided_example %}
+
+{% include build-brief.html begin="#n2" start="The checked Build 2 setup and backup; an independently designed free-turbine/load system." change="Add N2 and its protection; convert the existing fuel controller into a governor." finish="Dry handover/failure checks pass; save the Build 3 backup and pending mechanical tests." %}
+
+{% include guided-nav.html %}
 
 ## What changes in this build
 
@@ -106,9 +109,9 @@ At this point, you should be able to identify every measurement, controller and 
 
 {% include build-screen.html file="engine-backup-restore" step="Save the Build 3 milestone" alt="System maintenance backup controls for downloading the complete engine configuration." caption="Keep this free-turbine configuration and its test notes separate from the earlier turbojet backups." %}
 
-<h2 id="instruments">6 · Choose useful instruments</h2>
+<h2 id="instruments">Optional instruments after Build 3</h2>
 
-Add only what helps your installation. These are independent [optional workshops]({{ '/guided-builds/instruments/' | relative_url }}), not requirements for finishing this build:
+**The core Build 3 path ends at the backup above.** Add only what helps your installation. These are independent [optional workshops]({{ '/guided-builds/instruments/' | relative_url }}), not requirements for finishing this build:
 
 | Addition | What you learn |
 | --- | --- |

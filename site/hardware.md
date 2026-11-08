@@ -79,11 +79,11 @@ input protection and load-driving capability still need to suit the installation
 | **TCA9554** | Eight I²C on/off inputs or low-current logic outputs per chip | Addresses `0x20–0x27`; optional shared open-drain interrupt for inputs. Use external rated drivers for real loads. A disconnected expander cannot be forced to change its retained output latch. |
 | **TLA2528** | Eight I²C analog inputs or analog-threshold switches per chip | Addresses `0x10–0x17`; configurable reference/supply scaling, valid-voltage window, engineering range and filtering. |
 | **NAU7802** | Two I²C bridge/load-cell channels for torque or thrust | Fixed address `0x2A`; both channels share gain and sample rate. One device can measure torque and thrust when each uses a different channel. |
-| **HX711** | Direct two-wire bridge/load-cell input for shaft torque | Uses one DOUT input and one SCK output GPIO. Calibration stores unloaded zero and torque scale. |
+| **HX711** | Direct two-wire bridge/load-cell input for torque or thrust | Uses one DOUT input and one SCK output GPIO. Calibration stores unloaded zero and torque scale. |
 | **Native ESP32 inputs** | Digital switches, ADC sensors, pulse/frequency sensors, PWM-duty inputs and RC receiver pulses | Covers N1/N2 speed, pressures, voltage, flow, flame, operator commands and generic fitted channels when the signal is conditioned to the selected ESP32 input limits. |
 | **Native ESP32 outputs** | On/off relay commands, proportional PWM and servo/ESC pulse commands | Covers fuel/oil pumps, starters, valves, ignition, propeller pitch and auxiliaries through suitable external driver electronics. GPIO never supplies load power. |
 
-The Hardware page only offers a detected shared-I²C device for a new assignment.
+For an external shared-I²C device, Hardware offers new assignments only after the chip responds. Known onboard PCB connectors remain selectable for offline planning, with missing-device warnings retained.
 Previously saved assignments remain visible but unhealthy if that chip or bus is
 lost, allowing the installation to be diagnosed or deliberately cleaned up.
 

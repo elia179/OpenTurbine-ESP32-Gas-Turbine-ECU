@@ -54,7 +54,13 @@ Add only the devices in the example inventory. For every channel, choose the rea
 
 Do not copy pin numbers from another board or installation. Classic ESP32 and ESP32-S3 have different usable pins, and a PCB profile may own its connections.
 
-### 2. Controllers
+<span id="3-calibration"></span>
+### 2. Calibrate and check the devices
+
+Calibrate the throttle endpoints, verify N1 against an independent tachometer, compare turbine temperature with a trusted reference, and calibrate oil pressure at zero and against a gauge. Calibration makes a reading meaningful; it does not prove that a chosen safety limit is suitable. With load energy isolated, also verify output polarity, endpoints and safe state using short individual Tools tests. Establish actuator minimums on suitable separate rigs before using those ranges in control.
+
+<span id="2-controllers"></span>
+### 3. Controllers
 
 Open the existing Main Fuel Metering controller. If none owns that output yet, create it under **Controllers → Output controllers → + Create controller**; use the [illustrated steps]({{ '/guided-builds/basic/#ownership' | relative_url }}). A straightforward starting point is operator demand commanding the fuel output, with engine-specific limits and automatic idle left for later commissioning.
 
@@ -62,11 +68,17 @@ Choose **Running Idle Mode** deliberately. **Off** adds no Running floor; Fixed,
 
 If the oil pump is proportional and oil pressure is fitted, it may use an oil-pressure controller. A relay oil pump remains simple On/Off sequence hardware. Leave optional behavior disabled until its feedback and purpose are understood.
 
-### 3. Calibration
+<span id="5-protection"></span>
+### 4. Protection
 
-Calibrate the throttle endpoints, verify N1 against an independent tachometer, compare turbine temperature with a trusted reference, and calibrate oil pressure at zero and against a gauge. Calibration makes a reading meaningful; it does not prove that a chosen safety limit is suitable.
+Enable a protection only after its input is fitted, calibrated, and proven healthy. Keep these ideas separate:
 
-### 4. Sequence
+- **Pullback** gradually reduces fuel as a measured value approaches a configured boundary.
+- **Hard shutdown** removes combustion authority when its independently configured trip condition is confirmed.
+- **Reduced-Power operation** is a deliberate degraded option for eligible feedback failures; it is not a replacement for a working stop path.
+
+<span id="4-sequence"></span>
+### 5. Sequence
 
 A typical startup concept is:
 
@@ -77,14 +89,6 @@ A typical shutdown concept is:
 **Remove fuel and ignition → allow speed/temperature to fall → continue required oil or cooldown actions → stop all outputs**
 
 The exact order can vary with the engine and starting system. Every wait needs a finite timeout and safe failure result. Do not copy example delays or demands from an unrelated turbine.
-
-### 5. Protection
-
-Enable a protection only after its input is fitted, calibrated, and proven healthy. Keep these ideas separate:
-
-- **Pullback** gradually reduces fuel as a measured value approaches a configured boundary.
-- **Hard shutdown** removes combustion authority when its independently configured trip condition is confirmed.
-- **Reduced-Power operation** is a deliberate degraded option for eligible feedback failures; it is not a replacement for a working stop path.
 
 ### 6. Dry test
 

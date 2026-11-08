@@ -1,5 +1,9 @@
+{% if include.compact %}
+<p><strong>Make the example your own.</strong> Names, functions, connections and values are teaching choices. Use your board's worksheet, keep backups and learn with hazardous load power isolated. Added circuitry may change the required wiring. <a href="{{ '/guided-builds/#one-example-that-grows' | relative_url }}">Read the example assumptions.</a></p>
+{% else %}
 <aside class="card">
   <p><strong>Make the example your own.</strong> Names, channel functions, GPIO assignments, controllers and sequences can be changed to suit your installation. The systems and values here are examples for learning OpenTurbine's logic, not a required engine design or a ready-to-run tune.</p>
   <p>You can explore and revise settings without editing the software. An incorrect setup can normally be corrected or restored from an engine-file backup; take occasional backups, especially before larger experiments. Trying settings can operate connected outputs, so learn with hazardous load power disconnected and appropriate test signals or dummy loads.</p>
   <p>The wiring examples assume plain ESP32 development boards and the stated external interfaces. An added PCB or other circuitry may change voltage levels, polarity, pin assignments and power connections. Follow that hardware's schematic and documentation before applying these connections.</p>
 </aside>
+{% endif %}

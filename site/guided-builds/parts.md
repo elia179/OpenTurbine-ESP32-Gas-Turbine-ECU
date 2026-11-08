@@ -9,23 +9,29 @@ permalink: /guided-builds/parts/
 {% include guided-nav.html %}
 {% assign e = site.data.guided_example %}
 
-## Parts for each build
+<span id="parts-for-each-build"></span>
+## Prepare for Build 1 first
 
 Choose components by their documented electrical interface. A bare chip, a breakout with a regulator and a board with 5 V pull-ups can require different wiring. All signal connections must meet the selected ESP32's limits. Drivers carry load power; GPIO supplies commands only.
 
-| Build | Part / interface | Establish before connection |
+| Part / interface | Establish before connection |
+| --- | --- |
+| Supported Classic ESP32 ≥4 MB or ESP32-S3 ≥8 MB, USB data cable | Exact module, exposed pins, supply and correct firmware target |
+| Physical Start and Stop momentary dry contacts | Separate GPIOs, active-low wiring and appropriate bias |
+| Conditioned N1 pickup | Clean 3.3 V-compatible pulses, actual PPR, speed bandwidth and mounting |
+| K-type probe and matching MAX31855 module | Probe location, polarity, compatible supply/logic and SPI terminals |
+| 10 kΩ linear throttle potentiometer | Ends at 3.3 V/GND, identified wiper and ADC1 input |
+| Oil-pressure transducer and conditioning | Example: 0–10 bar gauge, 0.5–4.5 V output; actual supply/range/reference and ADC-safe conditioning |
+| Electric starter and compatible ESC/driver | Pulse interface, endpoints, arming, safe disengagement and stall/current requirements |
+| Fuel pump, oil pump and separate rated PWM drivers | Supply, command frequency, reliable minimum, polarity and physical off behavior |
+| Spark ignition system and command driver | Rated isolation, suppression and correct command polarity |
+| Fuel shutoff and driver | Plumbing suitability, command direction and physical de-energized state |
+| Fused supplies, physical energy-removing stop, meter and test loads | Separate power paths and deliberate signal references; suitable load protection |
+
+### Add these only when you reach a later build
+
+| Build | Additional part / interface | Establish before connection |
 | --- | --- | --- |
-| 1 | Supported Classic ESP32 ≥4 MB or ESP32-S3 ≥8 MB, USB data cable | Exact module, exposed pins, supply and correct firmware target |
-| 1 | Physical Start and Stop momentary dry contacts | Separate GPIOs, active-low wiring and appropriate bias |
-| 1 | Conditioned N1 pickup | Clean 3.3 V-compatible pulses, actual PPR, speed bandwidth and mounting |
-| 1 | K-type probe and matching MAX31855 module | Probe location, polarity, compatible supply/logic and SPI terminals |
-| 1 | 10 kΩ linear throttle potentiometer | Ends at 3.3 V/GND, identified wiper and ADC1 input |
-| 1 | Oil-pressure transducer and conditioning | Example: 0–10 bar gauge, 0.5–4.5 V output; actual supply/range/reference and ADC-safe conditioning |
-| 1 | Electric starter and compatible ESC/driver | Pulse interface, endpoints, arming, safe disengagement and stall/current requirements |
-| 1 | Fuel pump, oil pump and separate rated PWM drivers | Supply, command frequency, reliable minimum, polarity and physical off behavior |
-| 1 | Spark ignition system and command driver | Rated isolation, suppression and correct command polarity |
-| 1 | Fuel shutoff and driver | Plumbing suitability, command direction and physical de-energized state |
-| 1 | Fused supplies, physical energy-removing stop, meter and test loads | Separate power paths and deliberate signal references; suitable load protection |
 | 2 | Combustor-pressure transducer and conditioner | Separate sensor/tap; pressure and temperature rating; named gauge/absolute reference |
 | 2 optional | Second-circuit dry pressure switch | Meaning of ON, safe wiring and desired monitoring phases |
 | 3 | Free turbine, suitable load and conditioned N2 pickup | Independent mechanical ratings, lubrication, PPR and any gear ratio |
@@ -38,17 +44,17 @@ Main recipes use signal names. Pick **one column** and keep it throughout. These
 
 | First used | Signal / displayed name | Classic GPIO | S3 GPIO |
 | --- | --- | --- | --- |
-| 1 | Start / Stop | 13 / 14 | 9 / 10 |
-| 1 | N1 Speed | 27 | 6 |
-| 1 | SPI SCK / MISO | 18 / 19 | 12 / 13 |
-| 1 | Main TOT chip select | 23 | 14 |
-| 1 | Throttle Input, ADC1 | 34 | 1 |
-| 1 | Oil Pressure, ADC1 | 35 | 2 |
-| 1 | Starter ESC command | 32 | 15 |
-| 1 | Main Fuel Metering PWM | 25 | 16 |
-| 1 | Igniter command | 33 | 17 |
-| 1 | Oil Pump PWM | 26 | 21 |
-| 1 | Fuel Shutoff command | 21 | 18 |
+| Start / Stop | 13 / 14 | 9 / 10 |
+| N1 Speed | 27 | 6 |
+| SPI SCK / MISO | 18 / 19 | 12 / 13 |
+| Main TOT chip select | 23 | 14 |
+| Throttle Input, ADC1 | 34 |
+| Oil Pressure, ADC1 | 35 | 2 |
+| Starter ESC command | 32 | 15 |
+| Main Fuel Metering PWM | 25 | 16 |
+| Igniter command | 33 | 17 |
+| Oil Pump PWM | 26 | 21 |
+| Fuel Shutoff command | 21 | 18 |
 | 2 | Combustor Pressure, ADC1 | 36 | 3 |
 | 2 optional | Oil circuit 2 switch | 4 | 35 |
 | 3 | N2 Power Shaft | 22 | 40 |
@@ -60,12 +66,14 @@ Screenshots use the S3 column. The electrical function and configuration order a
 
 <h2 id="engine-worksheet">The shared engine worksheet</h2>
 
+Fill the rows needed for your current build; later-build values are here for reference, not extra settings to enable now.
+
 Use this as a record, not an installation preset. **Operating anchors** come from the example brief. **Assumed values** make the lesson concrete; they have not been measured on an HX80 engine. **Measured interface values** come from your sensor, driver, calibration rig and engine. A turbocharger model does not determine a fuel schedule.
 
 | Quantity | Teaching example | Source / what to record for your engine |
 | --- | --- | --- |
 | Normal full-power N1 | {{ e.n1_full_rpm }} RPM | Operating anchor; record actual shaft and independently measured speed |
-| Normal combustor pressure | 3–4 bar gauge | Operating anchor; identify tap and reference |
+| Normal combustor pressure | {{ e.p1_normal_min_bar }}–{{ e.p1_normal_max_bar }} bar gauge | Operating anchor; identify tap and reference |
 | Normal oil supply | 4–5 bar gauge | Operating anchor; identify where measured and oil temperature |
 | Nominal oil target | {{ e.oil_target_bar }} bar | Midpoint example; validate supply, flow and bearing requirements |
 | N1 idle / maximum trip | {{ e.n1_idle_rpm }} / {{ e.n1_trip_rpm }} RPM | Assumed teaching values; establish actual stable idle and permissible limit independently |
@@ -78,7 +86,7 @@ Use this as a record, not an installation preset. **Operating anchors** come fro
 | P1 limiting begin / full / shutdown | {{ e.p1_soft_bar }} / {{ e.p1_full_reduction_bar }} / {{ e.p1_trip_bar }} bar | Assumed; preserve operating margin, not sensor full scale |
 | N2 target / hard trip | {{ e.n2_target_rpm }} / {{ e.n2_trip_rpm }} RPM | Assumed for a separate teaching power shaft; include gearing if sensed elsewhere |
 
-Record fuel type, nozzle/flow calibration, pump/ESC models, temperature-probe position, actual starter release, all finite wait timeouts, oil cooldown requirements and each failed-sensor response alongside this table. **No fuel-delivery pressure is inferred from the combustor's 3–4 bar.**
+Record fuel type, nozzle/flow calibration, pump/ESC models, temperature-probe position, actual starter release, all finite wait timeouts, oil cooldown requirements and each failed-sensor response alongside this table. **No fuel-delivery pressure is inferred from the combustor's {{ e.p1_normal_min_bar }}–{{ e.p1_normal_max_bar }} bar.**
 
 The [Holset family service manual](https://www.turbomaster.info/eng/turbos/data/HX80.pdf) covers the original turbocharger's identification, installation and service requirements. It is not a validated homemade turbojet start schedule. Treat the guide's assumed numbers accordingly.
 

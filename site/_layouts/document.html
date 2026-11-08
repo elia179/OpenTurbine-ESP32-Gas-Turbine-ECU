@@ -1,7 +1,7 @@
 ---
 layout: default
 ---
-<div class="doc-layout shell">
+<div class="doc-layout shell{% if page.url contains '/guided-builds/' or page.learning_guide %} doc-layout--learning{% endif %}">
   {% assign outline = site.data.documentation.pages[page.url] %}
   <aside class="doc-sidebar" aria-label="Documentation navigation">
     <a class="doc-find" href="{{ '/reference/' | relative_url }}">Find a topic or setting →</a>

@@ -295,15 +295,17 @@ All switch inputs use the same fixed 20 ms debounce; there is no debounce adjust
 
 ## First setup
 
-The web interface is organized in the order a new installation should normally follow:
+Work by task rather than visiting every tab once. Follow this order with hazardous load power isolated:
 
-1. **Hardware** — add only what is physically fitted, select signal types, assign pins, and resolve inventory requirements.
-2. **Controllers** — choose what owns each output and configure its local tuning and safety limits.
-3. **System** — configure ECU-wide runtime, communications, logging, display, and housekeeping behavior.
-4. **Calibration** — calibrate inputs and find minimum reliable fuel-metering and pump outputs.
-5. **Sequence** — review ordered startup, shutdown, and afterburner transitions.
-6. **Tools** — test one output at a time with fuel and ignition made safe.
-7. **Dashboard** — perform dry sequences before any fueled attempt.
+1. **Hardware** — add the actual devices, select interfaces and resolve connection conflicts.
+2. **Calibration / Dashboard** — verify and calibrate each measurement before using it for automatic control.
+3. **Tools / actuator calibration** — prove output polarity and safe states, then measure usable pump ranges on a suitable isolated rig.
+4. **Controllers** — define normal output ownership, targets and independent protections using the verified inputs and actuator ranges.
+5. **Sequence** — configure ordered transitions, finite waits and the handover to normal control.
+6. **Dashboard / Tools** — prove normal dry operation, STOP, timeouts and configured failure responses.
+7. **System** — save a complete engine-file backup at the verified milestone. Set identity/Wi-Fi security early; revisit runtime and communications when needed.
+
+The screen-by-screen reference below explains alternatives. The illustrated [guided builds](https://elia179.github.io/OpenTurbine-ESP32-Gas-Turbine-ECU/guided-builds/) provide one cumulative path.
 
 Settings that cannot apply to the fitted hardware are hidden or ghosted in normal use. Controllers and System open in **Configured system**, showing everything that can affect the fitted turbine. **Explore all features** exposes every hardware-dependent value for advance planning: amber-bordered tuning values can be edited and saved, but remain inactive until their stated sensor, output, or controller prerequisite is configured in Hardware. Enable switches and choices that name missing hardware stay locked, so browsing or preparing values cannot arm a feature unexpectedly. **Changed** reviews pending edits; search also finds unavailable features.
 
@@ -318,12 +320,12 @@ This is the literal path from an unopened board to a dry-tested ECU.
 5. **Set identity and Wi-Fi security.** In System, set a recognizable engine name and an 8–63 character AP password if the ECU should not remain open. Save, let it reboot, then reconnect using the new network name/password.
 6. **Configure one device at a time.** In Hardware, select the correct target, enable only fitted devices, choose electrical types, assign pins, and resolve every warning. Save and reboot.
 7. **Verify the saved hardware.** Reopen Hardware after reboot and compare every pin/type with the wiring before applying actuator power.
-8. **Check live inputs.** Power sensors only. Open Dashboard/Calibration and confirm plausible raw/live response. Do not enable a safety based on an uncalibrated sensor.
-9. **Configure control and safety.** Review the fitted system in Controllers, using search when needed. Then review ECU-wide settings on System. Do not use example suggestions as authority.
-10. **Calibrate inputs and pump minimums.** Follow the visible Calibration wizards with fuel/ignition made safe.
-11. **Review sequences and simple controls.** Confirm startup/shutdown order, timing, sensor gates, abort behavior, output ownership, hysteresis, mappings, and safe inactive values.
-12. **Test outputs at logic level.** With load power still isolated, confirm output polarity using a meter or test indicator.
-13. **Connect and test loads individually.** Use Tools in STANDBY. Begin with short duration and conservative proportional output. Keep fuel and ignition separated until each path is proven.
+8. **Check and calibrate inputs.** Power sensors only. Compare raw and engineering readings with independent references; capture throttle endpoints. Do not enable automatic control/protection from an unproven measurement.
+9. **Test output signals.** With load energy isolated, use short Tools tests and a meter/test indicator to confirm polarity, endpoints and return to the safe state.
+10. **Measure actuator ranges.** On suitable separate pump/flow rigs, use short individual tests and the Calibration wizards to establish reliable minimums. Keep fuel and ignition separated from the engine.
+11. **Configure normal control and safety.** In Controllers, select each output's owner, its calibrated feedback/command source, authority and independent protection. Review ECU-wide System settings as applicable.
+12. **Review sequences.** Confirm startup/shutdown order, finite sensor waits, abort results and output-ownership handover.
+13. **Save and reopen.** Verify that the Hardware, calibration, Controllers and both sequence paths retain the intended choices before dry testing.
 14. **Test every stop path.** Verify web STOP, physical STOP, loss-of-signal behavior, and fuel shutoff. Do not continue if any stop path is ambiguous.
 15. **Run complete dry sequences.** Fuel disconnected, ignition disabled where appropriate, and turbine restrained. Confirm mode/block progress and output order.
 16. **Back up the engine file.** Download it from System and store it securely.

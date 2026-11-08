@@ -7,14 +7,17 @@ permalink: /guided-builds/control/
 build_level: 2
 ---
 
-{% include guided-nav.html %}
 {% assign e = site.data.guided_example %}
+
+{% include build-brief.html begin="#pressure" start="The checked Build 1 setup and its backup." change="Add P1, automatic idle, limiting and startup protection. Second-switch exercises are optional." finish="Changed-function checks and the original start/stop pass; save the Build 2 backup." %}
+
+{% include guided-nav.html %}
 
 ## Start from the basic turbojet
 
 You should have the [Build 1 checklist]({{ '/guided-builds/basic/#verify' | relative_url }}) completed and its engine-file backup saved. Reuse its channels. The only required new measurement here is **Combustor Pressure**; the second-circuit switch exercise is optional. Do not create another fuel or oil pump entry.
 
-The same [teaching worksheet]({{ '/guided-builds/parts/#engine-worksheet' | relative_url }}) supplies the example numbers. {{ e.n1_full_rpm }} RPM full-power N1, 3–4 bar combustor pressure and 4–5 bar oil pressure describe normal operation. Other numbers are assumed examples, requiring verification for an actual engine.
+The same [teaching worksheet]({{ '/guided-builds/parts/#engine-worksheet' | relative_url }}) supplies the example numbers. {{ e.n1_full_rpm }} RPM full-power N1, {{ e.p1_normal_min_bar }}–{{ e.p1_normal_max_bar }} bar combustor pressure and 4–5 bar oil pressure describe normal operation. Other numbers are assumed examples, requiring verification for an actual engine.
 
 {% include build-figure.html file="level-2" alt="Build 2 adds combustor pressure to the basic turbojet and develops fuel and oil control without adding duplicate pumps." caption="The wiring grows by one pressure input. Most of this build changes how existing measurements and outputs work together." %}
 
@@ -30,7 +33,30 @@ This pressure is measured at the identified combustor tap, in **bar gauge** for 
 
 **Check:** depressurized gauge zero and at least two known points agree with the reference. At the example's {{ e.p1_normal_bar }} bar nominal pressure, the illustrated ADC signal is 760 mV. A sensor's 10 bar measuring range is not the engine's pressure limit.
 
-<h2 id="idle">2 · Add automatic idle</h2>
+<h2 id="feedback">2 · Review the existing oil control</h2>
+
+This is a **review of Build 1, not another controller to add**. Keep its working settings unless the oil-rig checks show a reason to tune them.
+
+Open **Controllers → Oil Pump → Oil Pressure Control**, the controller already created in Build 1. Keep **Pressure feedback = Oil Pressure**, **Controlled pump = Oil Pump**, **Pressure target set by = Fixed pressure**, **Pressure target = {{ e.oil_target_bar }} bar**. Variable targets based on fuel demand or shaft speed are optional; the basic engine does not need them to explain a pressure loop.
+
+{% include build-screen.html file="oil-feedback-settings" step="Read the oil controller in groups" alt="Oil pressure controller with fixed 4.5 bar target, pump bounds, response settings and low-pressure/feedback-loss responses." caption="Target pressure, usable pump range and failure response solve different problems. Verify each on the actual oil circuit." %}
+
+| Group | What to establish |
+| --- | --- |
+| Pressure deadband | A small tolerated pressure error; example {{ e.oil_deadband_bar }} bar |
+| Minimum / maximum pump command | Repeatable pump operation and permitted driver authority, measured on the rig |
+| Response gain | How strongly demand changes with pressure error; tune without excessive overshoot or cycling |
+| Feedback-loss delay / command | How long loss must persist and what bounded pump command is used afterward |
+| Low-pressure threshold / confirmation | Separate from target; example {{ e.oil_min_bar }} bar for {{ e.oil_confirm_ms }} ms |
+| Failure responses | Warning, normal fault shutdown or immediate dry-oil stop, selected deliberately |
+
+**Normal fault shutdown** cuts combustion and follows the configured shutdown handling. **Immediate dry-oil stop** has a different output policy, including a bounded selected-pump run; read its displayed explanation before choosing it. A higher pump command cannot cure an empty tank, broken line or failed pump.
+
+There are two possible sources of a low-oil response: this loop's own low-pressure monitoring, and **Shutdown & Protection → Oil pressure protection**. Review both and align their thresholds/times deliberately. The teaching loop and general protection use the same {{ e.oil_min_bar }} bar/{{ e.oil_confirm_ms }} ms example; do not leave a second unseen threshold fighting the intended policy. The general protection's selected phases do not change the loop's independent failure behavior.
+
+**Check:** confirm input/output direction separately, then a small target change on a suitable nonhazardous oil rig. Observe settling, bounds, low pressure, lost feedback and recovery. Repeat the startup prime and shutdown lubrication checks after tuning. Save and reload.
+
+<h2 id="idle">3 · Add automatic idle</h2>
 
 Build 1 maps the lowest throttle position to a fixed {{ e.fuel_idle_pct }}% fuel command. Automatic idle instead adjusts the Running fuel floor to hold a measured speed. This helps explain feedback: **target speed → compare actual N1 → adjust fuel → change N1**.
 
@@ -54,27 +80,6 @@ Open **Response tuning**, review Fuel Increase/Decrease Time and save. Their cor
 
 **Other idle choices:** Off uses the mapped low command; Fixed fuel percentage supplies a separate Running floor; Input channel follows a selected calibrated input. They are alternatives, not additional required controllers. Their full procedures are in the [Idle reference]({{ '/user-guide/#field-fi_mode' | relative_url }}).
 
-<h2 id="feedback">3 · Understand and verify oil feedback</h2>
-
-Open **Controllers → Oil Pump → Oil Pressure Control**, the controller already created in Build 1. Keep **Pressure feedback = Oil Pressure**, **Controlled pump = Oil Pump**, **Pressure target set by = Fixed pressure**, **Pressure target = {{ e.oil_target_bar }} bar**. Variable targets based on fuel demand or shaft speed are optional; the basic engine does not need them to explain a pressure loop.
-
-{% include build-screen.html file="oil-feedback-settings" step="Read the oil controller in groups" alt="Oil pressure controller with fixed 4.5 bar target, pump bounds, response settings and low-pressure/feedback-loss responses." caption="Target pressure, usable pump range and failure response solve different problems. Verify each on the actual oil circuit." %}
-
-| Group | What to establish |
-| --- | --- |
-| Pressure deadband | A small tolerated pressure error; example {{ e.oil_deadband_bar }} bar |
-| Minimum / maximum pump command | Repeatable pump operation and permitted driver authority, measured on the rig |
-| Response gain | How strongly demand changes with pressure error; tune without excessive overshoot or cycling |
-| Feedback-loss delay / command | How long loss must persist and what bounded pump command is used afterward |
-| Low-pressure threshold / confirmation | Separate from target; example {{ e.oil_min_bar }} bar for {{ e.oil_confirm_ms }} ms |
-| Failure responses | Warning, normal fault shutdown or immediate dry-oil stop, selected deliberately |
-
-**Normal fault shutdown** cuts combustion and follows the configured shutdown handling. **Immediate dry-oil stop** has a different output policy, including a bounded selected-pump run; read its displayed explanation before choosing it. A higher pump command cannot cure an empty tank, broken line or failed pump.
-
-There are two possible sources of a low-oil response: this loop's own low-pressure monitoring, and **Shutdown & Protection → Oil pressure protection**. Review both and align their thresholds/times deliberately. The teaching loop and general protection use the same {{ e.oil_min_bar }} bar/{{ e.oil_confirm_ms }} ms example; do not leave a second unseen threshold fighting the intended policy. The general protection's selected phases do not change the loop's independent failure behavior.
-
-**Check:** confirm input/output direction separately, then a small target change on a suitable nonhazardous oil rig. Observe settling, bounds, low pressure, lost feedback and recovery. Repeat the startup prime and shutdown lubrication checks after tuning. Save and reload.
-
 <h2 id="limits">4 · Separate display, limiting and shutdown</h2>
 
 Open **Controllers → Shutdown & Protection → Combustor Pressure protection**. Three concepts must stay distinct:
@@ -92,6 +97,8 @@ Open **Controllers → Shutdown & Protection → Combustor Pressure protection**
 {% include build-screen.html file="pressure-protection" step="Two independent protection switches" alt="Combustor Pressure protection showing separate enabled fault shutdown and fuel limiting, with ordered thresholds." caption="The limiting band sits below the independent hard trip. A coloured instrument is not proof that shutdown is enabled or tested." %}
 
 N1 and engine temperature also use retained reference limits for colours; their shutdown marker follows enable state. Find fields via **Dashboard → Edit cards → Edit limit & safety**. Manual instrument scale preferences do not recalibrate a sensor or enable protection. Oil pressure is a low-limit instrument: do not copy a high-pressure trip interpretation onto it.
+
+The illustrative limiting band starts above the example's {{ e.p1_normal_min_bar }}–{{ e.p1_normal_max_bar }} bar normal range. On your engine, establish the actual permissible operating range and margin before choosing a band; a limiter set inside normal operation will deliberately reduce normal fuel demand.
 
 {% include build-screen.html file="dashboard-pressure-limit" step="Recognize the Dashboard reference" alt="Combustor-pressure instrument approaching its retained 4.5 bar reference, with an approach colour and limit marker." caption="A simulated 4 bar reading illustrates the approach. The configured fault shutdown and fuel limiter are separate decisions." %}
 
@@ -115,9 +122,11 @@ A sustained-temperature trip does not measure acceleration. Keep the N1/finite-t
 
 The **Hot engine start interlock** in the temperature card is another decision: it checks temperature **before starting**. The example pre-start maximum is {{ e.tot_prestart_c }} °C. It is not the ignition-confirmation temperature or a startup overtemperature threshold. Verify it blocks a hot start and accepts a healthy cool input.
 
-<h2 id="custom">6 · Make a named switch safety controller</h2>
+<h2 id="custom">6 · Optional: add a second-circuit switch</h2>
 
-Optional example: a second oil circuit has its own switch. Add it only if you want to learn a separate controller; do not duplicate the existing oil measurement as another hidden protection.
+**Skip to [the Build 2 checks](#verify) if you have no second circuit.** This exercise and step 7 use the same extra switch; neither is required for the main build.
+
+Example: a second oil circuit has its own switch. Add it only if you want to learn a separate controller; do not duplicate the existing oil measurement as another hidden protection.
 
 1. Wire a dry contact using the [Start/Stop pattern]({{ '/guided-builds/basic/#power' | relative_url }}). Choose **Hardware → Add input → Generic digital input**, enter your own name (suggested: **Oil circuit 2 switch**), select **On/off switch input**, assign its GPIO and set polarity so **ON means pressure fault**. Check both physical states.
 2. In **Controllers → + Create controller**, choose **Request Fault Shutdown** and create a controller named **Oil circuit 2**.
@@ -128,7 +137,9 @@ Optional example: a second oil circuit has its own switch. Add it only if you wa
 
 **Check:** a brief contact disturbance shorter than confirmation does not trip, a sustained fault does, and the displayed reason identifies this controller. Test in each chosen phase. An active pressure-fault switch while stopped should not become an unintended Standby fault; monitoring starts at the selected event. Inspect the consequences of a broken wire—simple contacts are not supervised circuits.
 
-<h2 id="handover">7 · Place controller activation in Sequence</h2>
+<h2 id="handover">7 · Optional: choose an exact activation point</h2>
+
+Continue here only after creating and checking the optional controller in step 6.
 
 Entering a mode is convenient; sometimes a controller should start at an exact point inside Startup. To learn this, edit the optional **Oil circuit 2** controller: select **Activate when → Sequencer block** instead of Entering Running. Keep Shutdown/Standby deactivation. Save and read the sequence-placement notice.
 
@@ -143,7 +154,16 @@ When an output controller is active, conflicting sequence commands for its outpu
 
 <h2 id="verify">8 · Check the changes and save Build 2</h2>
 
-Repeat the affected dry checks: calibrated P1 readings, idle correction/limits, oil feedback and loss policy, gradual limiting versus hard trip, startup-temperature envelope, switch confirmation and controller placement. Verify the normal start/stop path again after changing control or activation. Save/reload and download **Build 2 — controlled turbojet**.
+Keep hazardous load energy isolated. Check the new relationships in this order:
+
+- **P1:** zero/reference readings agree; its Dashboard reference uses the saved pressure limit.
+- **Oil:** the original pressure loop, low-pressure response and feedback-loss policy still agree.
+- **Idle:** N1 below target adds bounded fuel; above cutoff the added floor releases.
+- **Protection:** limiting reduces fuel before hard shutdown; startup immediate/dwell guards behave separately.
+- **Optional switch:** if added, check confirmation and its chosen phase or placed activation block.
+- **Whole system:** repeat normal start, STOP and failed-start timeout after the changes.
+
+Save/reload and download **Build 2 — controlled turbojet**. Retain the Build 1 backup; record which tests were simulated and which used the physical installation.
 
 {% include build-screen.html file="engine-backup-restore" step="Save the Build 2 milestone" alt="System maintenance card with engine-file backup and restore controls." caption="Download a fresh engine file after saving and reopening the updated settings; keep your Build 1 backup too." %}
 

@@ -11,6 +11,7 @@ The public learning path lives in `site/guided-builds/`. It has three cumulative
 - `site/_includes/build-figure.html`, `guided-nav.html`, `build-flow.html`: shared visual/learning elements.
 - `tools/generate_guided_build_diagrams.py`: source for the SVG drawings.
 - `site/_includes/build-screen.html`: captioned, accessible UI walkthrough screenshots.
+- `site/_includes/build-brief.html`: each build's prerequisites, changed work, completion criterion and first-step link.
 - `tools/capture_guided_build_screenshots.cjs`: isolated simulated inventories and software workflows captured from the actual ECU UI.
 - `tools/audit_guided_builds.cjs`: built-site browser audit; deliberately outside the `ui_*.cjs` firmware audit discovery because it requires a built Jekyll site.
 
@@ -46,7 +47,13 @@ The Pages workflow performs the browser audit after the Jekyll build. Optional `
 
 ## Review each change
 
-Keep diagrams, tables, parts, stable IDs, screenshots and UI labels in agreement. Do not import the simulator's exhaustive inventory into a beginner screenshot. The fixture starts with empty sequences and captures a separate complete dummy-load example; neither is a commissioned engine configuration. The capture tool rejects visible missing-pin/conflict warnings. Inspect every refreshed screenshot, especially subcards that could retain unrelated demo settings.
+Keep the learning order consistent across installation, the single-shaft overview, the full User Guide and the builds: describe Hardware, check/calibrate measurements, test individual output interfaces, configure normal control and protection, then prove sequences and back up. System identity/security can be set early; tabs are not a one-pass checklist.
+
+Keep the three builds cumulative. Mark later additions and optional exercises explicitly; do not make a reader add another owner of an existing output. Use short device-level subsections inside the main steps, and place wiring and Hardware views before calibration. A review of an existing loop must say it is a review. Each build ends with observable checks and a named backup milestone.
+
+Maintain existing anchor destinations when moving reference sections. Regenerate the search/outline index and validate both old and new links. Example numbers and their screenshots must agree; the normal operating range, measuring span, control target, limiting band and hard trip are different quantities. The pressure-limiting example starts above its stated normal range.
+
+Keep diagrams, tables, parts, stable IDs, screenshots and UI labels in agreement. Do not import the simulator's exhaustive inventory into a beginner screenshot. The shared fixture constructs the cumulative engine for each level; optional workshops add only their own inventory. Recipe tests remove the answers before reproducing the controller/sequence tasks. These are simulated teaching configurations, not commissioned engine setups. The capture tool rejects visible missing-pin/conflict warnings. Inspect every refreshed screenshot, especially subcards that could retain unrelated demo settings.
 
 The SVGs are precise connection illustrations and functional maps, not a qualification of a physical installation. Manufacturer specifications ground the Hall, converter, OneWire and amplifier patterns; actual breakout designs, load drivers, protection, grounding and engine commissioning still require verification. Real RPM/temperature/pressure limits, fuel demands, timings and load ratings are not supplied by the learning guide.
 

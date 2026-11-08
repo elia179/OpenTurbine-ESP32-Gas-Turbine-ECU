@@ -6,6 +6,8 @@ lede: Choose one useful addition. These workshops are optional and do not form a
 permalink: /guided-builds/instruments/
 ---
 
+{% include guided-nav.html %}
+
 ## Choose an addition
 
 Complete the relevant guided build first. Each workshop below is independent: you do not need every sensor to finish Build 3. Reuse existing channels instead of adding duplicates, and reserve pins against your actual board inventory.

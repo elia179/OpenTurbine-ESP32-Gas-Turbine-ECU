@@ -104,6 +104,14 @@ th,td { padding:.85rem; border-bottom:1px solid var(--line); text-align:left; }
 
 /* Guided builds stay readable without JavaScript and when printed. */
 .build-cards h2 { font-size:1.55rem; }
+.build-brief { margin:1.5rem 0; padding:1rem 1.2rem; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:.65rem; background:var(--surface); }
+.build-brief dl { margin:0; display:grid; gap:.85rem; }
+.build-brief dl > div { display:grid; grid-template-columns:9rem minmax(0,1fr); gap:1rem; }
+.build-brief dt { font-weight:800; }
+.build-brief dd { margin:0; }
+.build-begin { margin:.8rem 0 0; }
+.build-begin a { display:inline-flex; align-items:center; min-height:44px; font-weight:800; }
+@media (max-width:640px) { .build-brief dl > div { grid-template-columns:minmax(0,1fr); gap:.2rem; } }
 .site-header #site-nav a { white-space:nowrap; }
 .build-cards .button { margin-top:.6rem; }
 .build-level-nav { display:flex; position:static; flex-wrap:wrap; gap:.5rem; margin:0 0 2rem; padding:0; border:0; background:none; box-shadow:none; max-height:none; }
@@ -185,6 +193,8 @@ th,td { padding:.85rem; border-bottom:1px solid var(--line); text-align:left; }
   .doc-sidebar { position:static; }
   .doc-outline nav { max-height:45vh; }
   .doc-paths { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
+  .doc-layout--learning .doc-sidebar .doc-find,.doc-layout--learning .doc-sidebar .doc-paths { display:none; }
+  .doc-layout--learning .doc-outline { margin:0; padding-bottom:.3rem; }
 }
 @media print {
   .doc-layout { display:block; padding:0; }

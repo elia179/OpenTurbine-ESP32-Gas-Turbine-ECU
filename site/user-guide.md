@@ -18,14 +18,14 @@ Keep fuel disconnected, ignition energy disabled, starter/load power isolated, a
 1. [Words used in this guide](#part-1-words-used-in-this-guide)
 2. [What you need](#part-2-what-you-need)
 3. [How the system is connected](#part-3-how-the-system-is-connected)
-4. [Wire the ECU power and emergency stop](#part-4-wire-the-ecu-power-and-emergency-stop)
-5. [Wire inputs and sensors](#part-5-wire-inputs-and-sensors)
-6. [Wire outputs and actuators](#part-6-wire-outputs-and-actuators)
-7. [Install OpenTurbine and connect](#part-7-install-openturbine-and-connect)
+4. [Install OpenTurbine and connect](#part-4-install-openturbine-and-connect)
+5. [Wire the ECU power and emergency stop](#part-5-wire-the-ecu-power-and-emergency-stop)
+6. [Wire inputs and sensors](#part-6-wire-inputs-and-sensors)
+7. [Wire outputs and actuators](#part-7-wire-outputs-and-actuators)
 8. [Describe the hardware in the dashboard](#part-8-describe-the-hardware-in-the-dashboard)
 9. [Understand controllers and safety functions](#part-9-understand-controllers-and-safety-functions)
-10. [Configure Controllers and System](#part-10-configure-controllers-and-system)
-11. [Calibrate inputs and outputs](#part-11-calibrate-inputs-and-outputs)
+10. [Calibrate inputs and outputs](#part-10-calibrate-inputs-and-outputs)
+11. [Configure Controllers and System](#part-11-configure-controllers-and-system)
 12. [Build startup and shutdown sequences](#part-12-build-startup-and-shutdown-sequences)
 13. [Use custom controllers](#part-13-use-custom-controllers)
 14. [Dry-test the complete ECU](#part-14-dry-test-the-complete-ecu)
@@ -89,9 +89,32 @@ There are four paths to keep separate:
 
 Use a deliberate star-ground or similarly engineered return scheme. Starter, pump and ignition current must not flow through the sensor ground path. If an interface is intentionally isolated, follow its isolation design and do not add a ground that defeats it.
 
-## Part 4: Wire the ECU power and emergency stop
+<span id="part-7-install-openturbine-and-connect"></span>
+## Part 4: Install OpenTurbine and connect
 
-### 4.1 Build the power path
+If this ECU previously ran a pre-2.0 build, keep its engine file only as a
+reference and follow the
+[v2 migration guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/V2_MIGRATION.md).
+Version 2.0 intentionally changed the hardware model and several startup/safety
+settings; recommission it instead of assuming an old file is safe.
+
+1. Download the [guided Windows Setup Tool]({{ '/get-started/' | relative_url }}).
+2. Disconnect all load power. Connect exactly one intended ESP32 by USB.
+3. For a blank board choose **Clean install / reinstall**. It erases that board. For an existing working ECU, make a backup and choose **Update and keep my setup**.
+4. If the tool identifies a CP210x or WCH USB bridge without a COM port, open its matching official vendor download page, install the driver yourself, reconnect and choose **Try Again**. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions.
+5. For a clean USB install, choose the matching hardware profile and review **Erase board and install**. For a Wi-Fi update, confirm the initial ECU network connection once; restart and file checks then run automatically.
+6. After installation, join the Wi-Fi network created by the ECU and browse to `http://192.168.4.1`.
+7. Complete the safety acknowledgement and first-run prompts.
+
+Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer.
+
+If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See [Troubleshooting]({{ '/troubleshooting/' | relative_url }}) if needed.
+
+<span id="part-4-wire-the-ecu-power-and-emergency-stop"></span>
+## Part 5: Wire the ECU power and emergency stop
+
+<span id="41-build-the-power-path"></span>
+### 5.1 Build the power path
 
 1. Read the exact ESP32 board's VIN/5V and 3V3 limits. Do not guess from another board.
 2. With power off, connect the regulated supply positive through an appropriately rated fuse to the board input specified by its manufacturer.
@@ -102,7 +125,8 @@ Use a deliberate star-ground or similarly engineered return scheme. Starter, pum
 
 Never feed external voltage into an unpowered ESP32 GPIO. It can back-power and damage the board.
 
-### 4.2 Build the independent stop
+<span id="42-build-the-independent-stop"></span>
+### 5.2 Build the independent stop
 
 The emergency stop must directly remove the energy that can keep fuel flowing or a hazardous load operating. A common pattern uses a normally closed fuel valve or a power contactor whose coil circuit passes through a latching emergency-stop button. The exact components and ratings depend on the system.
 
@@ -118,9 +142,11 @@ The safe result must not depend on code executing.
 
 <p class="guide-return"><a href="#guide-contents">Back to contents</a></p>
 
-## Part 5: Wire inputs and sensors
+<span id="part-5-wire-inputs-and-sensors"></span>
+## Part 6: Wire inputs and sensors
 
-### 5.1 The rule for every input
+<span id="51-the-rule-for-every-input"></span>
+### 6.1 The rule for every input
 
 Before connecting a signal to the ESP32, answer all five questions from its datasheet:
 
@@ -132,7 +158,8 @@ Before connecting a signal to the ESP32, answer all five questions from its data
 
 Measure the conditioned output before attaching it to the GPIO. ESP32 GPIO uses 3.3 V logic and is not 5 V tolerant.
 
-### 5.2 Typical wiring by electrical type
+<span id="52-typical-wiring-by-electrical-type"></span>
+### 6.2 Typical wiring by electrical type
 
 Click or tap this diagram to enlarge it. These four patterns cover conditioned pressure, pulse speed, a dry-contact switch and a thermocouple converter. They use the same terminal labels and colors as the Guided Builds; replace each generic GPIO label with the pin saved on Hardware.
 
@@ -153,33 +180,34 @@ Click or tap this diagram to enlarge it. These four patterns cover conditioned p
 <tr><td>DS18B20</td><td>VDD and GND as specified; DQ → selected GPIO with the required pull-up to the correct logic supply.</td><td>GPIO, discovered sensor/address behavior and resolution. The 10-bit default updates substantially faster than 12-bit. Keep the bus away from ignition noise.</td></tr>
 <tr><td>NTC thermistor</td><td>Thermistor plus a known resistor form a voltage divider; divider midpoint → ADC GPIO.</td><td>GPIO, nominal resistance, beta/coefficient and calibration. Divider values must keep the pin safe.</td></tr>
 <tr><td>HX711</td><td>Load cell/bridge → HX711 inputs; HX711 data and clock → their selected GPIOs; power and grounding follow the module/load-cell specifications.</td><td>Data/clock pins, zero and scale calibration.</td></tr>
-<tr><td>TCA9554 / TLA2528 / NAU7802 I²C</td><td>Connect every device to the configured shared SDA/SCL bus with suitable pull-ups and 3.3 V-compatible levels. The Hardware page discovers responding chips automatically.</td><td>Only connected devices can receive new assignments. TCA9554 provides binary I/O, TLA2528 analog inputs, and NAU7802 thrust/torque load-cell channels.</td></tr>
+<tr><td>TCA9554 / TLA2528 / NAU7802 I²C</td><td>Connect every device to the configured shared SDA/SCL bus with suitable pull-ups and 3.3 V-compatible levels. The Hardware page discovers responding chips automatically.</td><td>New external-bus assignments require a responding chip. Known onboard PCB connectors can be planned offline, with health warnings retained. TCA9554 provides binary I/O, TLA2528 analog inputs, and NAU7802 thrust/torque load-cell channels.</td></tr>
 </tbody></table></div>
 
 Classic ESP32 note: use ADC1 GPIO 32–39 while Wi-Fi is active. GPIO 34–39 are input-only. ADC2 readings are unreliable while Wi-Fi is operating. On ESP32-S3, use only choices offered for that selected target; native USB and flash/PSRAM pins are not spare pins.
 
 If an I²C chip is unplugged, its channels become unhealthy and its saved assignments are shown as **Disconnected**. Use **Remove device and assignments** to clear all channels and dependencies belonging to a permanently removed chip. Native ESP32 GPIO remains strongly recommended for turbine fuel, ignition, starter, and shutdown outputs because a disconnected TCA9554 can physically retain its last output latch.
 
-### 5.3 Every available input purpose
+<span id="53-every-available-input-purpose"></span>
+### 6.3 Every available input purpose
 
 The **Purpose** field tells the firmware how an installed channel may be used. The current code offers these purposes:
 
 <div class="table-wrap"><table>
 <thead><tr><th>Input purpose</th><th>What it does and how to use it</th></tr></thead>
 <tbody>
-<tr><td>N1 speed</td><td>Primary core-shaft RPM. Used by startup checks, overspeed, flameout/surge logic, idle control, windmilling protection and logs. Wire only a clean conditioned pulse and set pulses/revolution.</td></tr>
+<tr><td>N1 speed</td><td>Primary core-shaft RPM. Used by startup checks, overspeed, flameout/surge logic, idle control, windmilling protection and logs. Select the actual supported electrical interface. Pulse pickups need clean conditioned edges and the correct pulses/revolution; voltage-output transmitters need their own calibrated scale.</td></tr>
 <tr><td>N2 speed</td><td>Free power-turbine/output-shaft RPM. Enables N2 overspeed, N2 idle feedback, shaft power and the N2 governor.</td></tr>
 <tr><td>Additional shaft speed</td><td>Extra speed channel for simple controls, custom sequencing and logs. It does not replace the primary N1 or N2 purpose.</td></tr>
 <tr><td>TOT / EGT</td><td>Turbine-outlet temperature, normally through a supported thermocouple converter. Can be the primary engine-temperature safety source.</td></tr>
 <tr><td>TIT</td><td>Turbine-inlet temperature. Use when the engine documentation specifies a TIT limit; never substitute a TOT limit.</td></tr>
 <tr><td>Oil pressure</td><td>Feedback for oil protection and optional closed-loop oil-pump control. Wire and calibrate the exact transducer range.</td></tr>
 <tr><td>Fuel pressure</td><td>Fuel-manifold feedback for diagnostics and optional low-pressure shutdown.</td></tr>
-<tr><td>P1 / P2 / coolant pressure</td><td>Compressor inlet, compressor discharge and cooling-system measurements used for display, logging, controllers and calculated behavior where supported.</td></tr>
+<tr><td>P1 / P2 / coolant pressure</td><td>User-named pressure measurements. Identify the actual tap, sensor range and gauge/absolute reference; P1/P2 do not prescribe which engine tap you must use. Available to display, logging and the supported controls/protections.</td></tr>
 <tr><td>Oil, coolant or intake temperature</td><td>Auxiliary temperature channels. Oil temperature can enable its dedicated shutdown; others are available to logging and automation.</td></tr>
 <tr><td>Fuel flow</td><td>Pulse or analog flow measurement for consumption logs and supported controls. Enter the manufacturer's pulses/litre or calibrated mapping.</td></tr>
 <tr><td>Main / scavenge oil flow</td><td>Separate flow feedback for the corresponding pump. Calibrate in L/min, enable monitoring on that pump's Hardware card, and test its minimum-flow threshold. Confirmed underflow warns by default; shutdown is a separate Config choice.</td></tr>
 <tr><td>Main flame / afterburner flame</td><td>Dedicated combustion detectors. Main flame can confirm startup/flameout; AB flame can confirm afterburner light-off.</td></tr>
-<tr><td>Torque</td><td>Analog, HX711, NAU7802, or shaft torsion by phase difference between two pickups on the same shaft. Phase torque needs matching effective pulses per shaft revolution and calibrated zero phase and shaft sensitivity; two unrelated RPM readings cannot measure torque. NAU7802 calibration captures unloaded zero plus known force and lever arm. See the <a href="{{ '/guided-builds/extend/#challenge' | relative_url }}">two-pickup walkthrough</a>. With shaft speed it supports shaft-power calculation; it is also available to controllers.</td></tr>
+<tr><td>Torque</td><td>Analog, HX711, NAU7802, or shaft torsion by phase difference between two pickups on the same shaft. Phase torque needs matching effective pulses per shaft revolution and calibrated zero phase and shaft sensitivity; two unrelated RPM readings cannot measure torque. NAU7802 calibration captures unloaded zero plus known force and lever arm. See the <a href="{{ '/guided-builds/instruments/#challenge' | relative_url }}">two-pickup walkthrough</a>. With shaft speed it supports shaft-power calculation; it is also available to controllers.</td></tr>
 <tr><td>Thrust</td><td>Conditioned local/TLA2528 analog transmitter or NAU7802 load-cell measurement. Analog inputs use linear or multi-point calibration; NAU7802 uses unloaded zero plus a known force or mass. Canonical display, telemetry, controllers and logs use newtons.</td></tr>
 <tr><td>Battery / bus voltage</td><td>Scaled ADC measurement for display, logs and undervoltage protection. A battery must never connect directly to an ADC pin.</td></tr>
 <tr><td>Throttle input</td><td>Operator demand from analog, RC PWM, pulse-duty or another supported input. Calibrate low/high endpoints and signal-loss behavior.</td></tr>
@@ -188,16 +216,18 @@ The **Purpose** field tells the firmware how an installed channel may be used. T
 <tr><td>Inhibit-start</td><td>Prevents a start while the external inhibit is active.</td></tr>
 <tr><td>Emergency-stop request</td><td>Requests ECU shutdown. Useful in addition to, never instead of, the hardwired energy-removing stop.</td></tr>
 <tr><td>Fault switch</td><td>External equipment can request fault shutdown.</td></tr>
-<tr><td>Low-oil / zero-oil switch</td><td>Discrete alternatives or supplements to an analog oil-pressure transducer for their corresponding protections.</td></tr>
+<tr><td>Oil-pressure switch</td><td>A logical pressure-fault input for oil protection. Independent circuits use separately named inputs and custom safety controllers; there is no need to duplicate one switch as low-oil and zero-oil.</td></tr>
 <tr><td>Sequence gate</td><td>Physical permission/condition used by a Wait For Input sequence block.</td></tr>
 <tr><td>Afterburner arm / command</td><td>Separate permission and fire-request switches for afterburner installations.</td></tr>
 <tr><td>Reduced-power mode</td><td>Requests the configured output cap.</td></tr>
 <tr><td>Generic automation input</td><td>Normalized digital, analog, pulse, RC or duty input for custom rules/sequence logic; it has no built-in engine meaning.</td></tr>
 </tbody></table></div>
 
-## Part 6: Wire outputs and actuators
+<span id="part-6-wire-outputs-and-actuators"></span>
+## Part 7: Wire outputs and actuators
 
-### 6.1 Never power a load from a GPIO
+<span id="61-never-power-a-load-from-a-gpio"></span>
+### 7.1 Never power a load from a GPIO
 
 An ESP32 GPIO can provide only a logic command. Use an interface rated for the real voltage, continuous current, starting/stall current, inductive energy, switching rate and fault conditions.
 
@@ -209,7 +239,8 @@ An ESP32 GPIO can provide only a logic command. Use an interface rated for the r
 <tr><td>Servo / ESC</td><td>GPIO signal → servo/ESC control input; reference grounds only as the interface requires. Load power comes from its separately rated supply.</td><td>Fuel-pump ESC, starter ESC, propeller pitch or nozzle actuator.</td></tr>
 </tbody></table></div>
 
-### 6.2 Every available output purpose
+<span id="62-every-available-output-purpose"></span>
+### 7.2 Every available output purpose
 
 <div class="table-wrap"><table>
 <thead><tr><th>Output purpose</th><th>What OpenTurbine commands</th></tr></thead>
@@ -233,26 +264,6 @@ An ESP32 GPIO can provide only a logic command. Use an interface rated for the r
 </tbody></table></div>
 
 For every output, set a **Power-on state / Boot safe demand** and a **Fault safe demand** that are electrically safe. Verify actual polarity at the driver input and load terminals; a label in software cannot correct a wrongly wired active-low module.
-
-## Part 7: Install OpenTurbine and connect
-
-If this ECU previously ran a pre-2.0 build, keep its engine file only as a
-reference and follow the
-[v2 migration guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/V2_MIGRATION.md).
-Version 2.0 intentionally changed the hardware model and several startup/safety
-settings; recommission it instead of assuming an old file is safe.
-
-1. Download the [guided Windows Setup Tool]({{ '/get-started/' | relative_url }}).
-2. Disconnect all load power. Connect exactly one intended ESP32 by USB.
-3. For a blank board choose **Clean install / reinstall**. It erases that board. For an existing working ECU, make a backup and choose **Update and keep my setup**.
-4. If the tool identifies a CP210x or WCH USB bridge without a COM port, open its matching official vendor download page, install the driver yourself, reconnect and choose **Try Again**. If a COM port exists but the board does not respond, close serial monitors and follow the BOOT/RESET instructions.
-5. For a clean USB install, choose the matching hardware profile and review **Erase board and install**. For a Wi-Fi update, confirm the initial ECU network connection once; restart and file checks then run automatically.
-6. After installation, join the Wi-Fi network created by the ECU and browse to `http://192.168.4.1`.
-7. Complete the safety acknowledgement and first-run prompts.
-
-Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer.
-
-If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See [Troubleshooting]({{ '/troubleshooting/' | relative_url }}) if needed.
 
 ## Part 8: Describe the hardware in the dashboard
 
@@ -356,41 +367,8 @@ Additional independently named oil/fuel switch protections use custom controller
 
 Configured speed, selected temperature, pressure and torque limits remain Dashboard advisory references with automatic shutdown off. Positive pressure/torque limits supply scale, limit marker and approach colours; without a positive limit, the card uses automatic range unless a manual display range was selected. Use **Dashboard → Edit cards → Edit limit & safety**, or the note/link beside the corresponding safety field. The enable toggle controls automatic action, not whether the saved reference exists.
 
-## Part 10: Configure Controllers and System
-
-### 10.1 Safe order
-
-1. Open **Controllers** only after Hardware saves without errors; use **System** for ECU-wide behavior and communications.
-2. Start in **Configured system**, which opens by default and shows the controls supported by the fitted hardware. Enter limits from the exact engine, sensor and actuator documentation.
-3. Use **Changed** to review every edit. The edit-accent outline marks unsaved fields; amber warnings indicate missing prerequisites.
-4. Use **Explore all features** to inspect or preconfigure features whose required hardware/controller is absent. Amber-bordered tuning values save normally but remain inactive until Hardware satisfies the displayed prerequisite. Enable switches and choices for missing hardware remain locked, so Explore cannot arm a feature unexpectedly. Search also reveals unavailable settings; neither Explore nor Developer Mode bypasses a missing physical prerequisite.
-5. Save one related group at a time and read the save recap.
-6. Reopen the page and confirm values survived the reboot/save.
-
-Never copy “typical”, example or preset values into a fueled turbine without verifying them. Units matter: RPM, milliseconds, percent, pressure and °C/°F are not interchangeable.
-
-### 10.2 Complete source-matched field reference
-
-For an illustrated example, follow [creating a controller]({{ '/guided-builds/control/#custom' | relative_url }}). The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
-
-<div class="field-filter" data-field-filter hidden><label for="field-query">Find a Controllers or System field</label><input id="field-query" type="search" placeholder="Type the field name or a keyword"><p class="quiet" data-field-status role="status" aria-live="polite"></p></div>
-{% include generated-config-fields.html %}
-
-### 10.3 Connect a remote display or controller
-
-Use **Hardware → Communications → MAVLink connection** to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile supplies named UART defaults; expand its advanced connection settings to inspect or change exposed pins. Unused UART pins can serve other GPIO functions. Bare development boards use 3.3 V UART signals and shared ground.
-
-Then open **System → Connections & runtime → MAVLink connection**. Match the receiver's baud rate. TX alone supports monitoring. Add RX to reveal sender IDs and throttle timeout; enable **Remote engine commands** only when Start, Stop, fault acknowledgement or fitted afterburner controls are required. IDs filter a trusted sender; they are not authentication.
-
-{% include build-screen.html file="mavlink-monitoring" step="Monitoring with TX only" alt="MAVLink monitoring setup with receiver-only fields hidden and engine commands unavailable without RX." caption="Match baud rate at both ends. TX alone sends data; it cannot receive engine commands or throttle demand." %}
-
-Remote throttle is separate from that command permission. Select **MAVLink throttle demand** explicitly as a controller input and review its input-loss behavior. Receiving packets does not select the input or start the engine. A heartbeat alone does not keep throttle demand valid.
-
-{% include build-screen.html file="mavlink-receiver" step="Add a receiver deliberately" alt="MAVLink setup with RX assigned, sender IDs and timeout visible, and remote engine commands still disabled." caption="Adding RX reveals the receiver settings. Engine-command permission remains a separate choice, and throttle must be selected explicitly in its controller." %}
-
-The [MAVLink setup and protocol guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/MAVLINK_TELEMETRY.md) links the matching Cluster receiver and ArduPilot companion example. Stock ArduPilot EFI telemetry does not automatically provide the OpenTurbine custom channels or remote controls; those require the supplied dialect or a bridge.
-
-## Part 11: Calibrate inputs and outputs
+<span id="part-11-calibrate-inputs-and-outputs"></span>
+## Part 10: Calibrate inputs and outputs
 
 Calibration makes a displayed number match reality. Do it in **STANDBY** or **FAULT**, with hazardous energy isolated.
 
@@ -416,7 +394,45 @@ Specific checks:
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
 - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
 - **Main fuel/oil/starter proportional outputs:** test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig.
-- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#fuel' | relative_url }}).
+- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#47-measure-the-fuel-pump-minimum' | relative_url }}).
+
+<span id="part-10-configure-controllers-and-system"></span>
+## Part 11: Configure Controllers and System
+
+<span id="101-safe-order"></span>
+### 11.1 Safe order
+
+1. Open **Controllers** only after Hardware saves without errors and its measurements have been checked/calibrated; use **System** for ECU-wide behavior and communications.
+2. Start in **Configured system**, which opens by default and shows the controls supported by the fitted hardware. Enter limits from the exact engine, sensor and actuator documentation.
+3. Use **Changed** to review every edit. The edit-accent outline marks unsaved fields; amber warnings indicate missing prerequisites.
+4. Use **Explore all features** to inspect or preconfigure features whose required hardware/controller is absent. Amber-bordered tuning values save normally but remain inactive until Hardware satisfies the displayed prerequisite. Enable switches and choices for missing hardware remain locked, so Explore cannot arm a feature unexpectedly. Search also reveals unavailable settings; neither Explore nor Developer Mode bypasses a missing physical prerequisite.
+5. Save one related group at a time and read the save recap.
+6. Reopen the page and confirm values survived the reboot/save.
+
+Never copy “typical”, example or preset values into a fueled turbine without verifying them. Units matter: RPM, milliseconds, percent, pressure and °C/°F are not interchangeable.
+
+<span id="102-complete-source-matched-field-reference"></span>
+### 11.2 Complete source-matched field reference
+
+For an illustrated example, follow [creating a controller]({{ '/guided-builds/control/#custom' | relative_url }}). The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
+
+<div class="field-filter" data-field-filter hidden><label for="field-query">Find a Controllers or System field</label><input id="field-query" type="search" placeholder="Type the field name or a keyword"><p class="quiet" data-field-status role="status" aria-live="polite"></p></div>
+{% include generated-config-fields.html %}
+
+<span id="103-connect-a-remote-display-or-controller"></span>
+### 11.3 Connect a remote display or controller
+
+Use **Hardware → Communications → MAVLink connection** to assign TX and, when receiving commands or throttle, RX. Save Hardware first. A PCB profile supplies named UART defaults; expand its advanced connection settings to inspect or change exposed pins. Unused UART pins can serve other GPIO functions. Bare development boards use 3.3 V UART signals and shared ground.
+
+Then open **System → Connections & runtime → MAVLink connection**. Match the receiver's baud rate. TX alone supports monitoring. Add RX to reveal sender IDs and throttle timeout; enable **Remote engine commands** only when Start, Stop, fault acknowledgement or fitted afterburner controls are required. IDs filter a trusted sender; they are not authentication.
+
+{% include build-screen.html file="mavlink-monitoring" step="Monitoring with TX only" alt="MAVLink monitoring setup with receiver-only fields hidden and engine commands unavailable without RX." caption="Match baud rate at both ends. TX alone sends data; it cannot receive engine commands or throttle demand." %}
+
+Remote throttle is separate from that command permission. Select **MAVLink throttle demand** explicitly as a controller input and review its input-loss behavior. Receiving packets does not select the input or start the engine. A heartbeat alone does not keep throttle demand valid.
+
+{% include build-screen.html file="mavlink-receiver" step="Add a receiver deliberately" alt="MAVLink setup with RX assigned, sender IDs and timeout visible, and remote engine commands still disabled." caption="Adding RX reveals the receiver settings. Engine-command permission remains a separate choice, and throttle must be selected explicitly in its controller." %}
+
+The [MAVLink setup and protocol guide](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/blob/main/docs/MAVLINK_TELEMETRY.md) links the matching Cluster receiver and ArduPilot companion example. Stock ArduPilot EFI telemetry does not automatically provide the OpenTurbine custom channels or remote controls; those require the supplied dialect or a bridge.
 
 ## Part 12: Build startup and shutdown sequences
 

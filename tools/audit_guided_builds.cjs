@@ -46,6 +46,16 @@ const server = http.createServer((req,res) => {
     const basicHtml = fs.readFileSync(path.join(built,'guided-builds/basic/index.html'),'utf8');
     assert.ok(basicHtml.indexOf('enable SPI') < basicHtml.indexOf('tot-configured.png'),'SPI setup must precede temperature card');
     assert.ok(basicHtml.indexOf('Analog voltage input (ADC)') < basicHtml.indexOf('throttle-calibration.png'),'Hardware must precede throttle calibration');
+    assert.ok(basicHtml.indexOf('pressure-configured.png') < basicHtml.indexOf('pressure-calibration.png'),'oil Hardware setup must precede its calibration');
+    assert.ok(basicHtml.indexOf('rpm.svg') < basicHtml.indexOf('n1-configured.png'),'speed wiring precedes its Hardware view');
+    assert.ok(basicHtml.indexOf('thermocouple.svg') < basicHtml.indexOf('spi-configured.png'),'converter wiring precedes bus configuration');
+    const controlHtml=fs.readFileSync(path.join(built,'guided-builds/control/index.html'),'utf8');
+    for(const lesson of ['basic','control','extend']){
+      const html=fs.readFileSync(path.join(built,'guided-builds',lesson,'index.html'),'utf8');
+      assert.ok(html.includes('Build starting point and result'),lesson+' explains its prerequisites and completion');
+    }
+    assert.ok(controlHtml.includes('neither is required for the main build'),'second-switch exercises are explicitly optional');
+    assert.ok(controlHtml.indexOf('id="feedback"')<controlHtml.indexOf('id="idle"'),'review existing oil control before introducing the next control change');
     for (const shot of ['throttle-calibration','pressure-calibration','fuel-minimum-calibration','automatic-idle-off','oil-feedback-settings','oil-pressure-protection','tool-settings','manual-tests','engine-backup-restore','sequence-engine-startup','sequence-engine-shutdown','main-fuel-controller'])
       assert.ok(basicHtml.includes(`${shot}.png`), `complete sequence lacks ${shot}`);
     const basicSource=fs.readFileSync('site/guided-builds/basic.md','utf8');
@@ -64,6 +74,7 @@ const server = http.createServer((req,res) => {
     assert.ok(example.fuel_min_pct<example.fuel_idle_pct&&example.fuel_idle_pct<example.fuel_max_pct);
     assert.ok(example.n1_idle_rpm<example.n1_full_rpm&&example.n1_full_rpm<example.n1_trip_rpm);
     assert.ok(example.p1_normal_bar<example.p1_soft_bar&&example.p1_soft_bar<example.p1_full_reduction_bar&&example.p1_full_reduction_bar<example.p1_trip_bar);
+    assert.ok(example.p1_normal_max_bar<example.p1_soft_bar,'teaching pressure limiting starts above the stated normal range');
     assert.ok(example.oil_min_bar<example.oil_target_bar);
     for(const bad of ['600 RPM target','1000 RPM is only','60 °C and 5 °C','sequence-bench-startup.png'])assert.ok(!basicHtml.includes(bad),'no signal-generator or competing bench recipe in basic');
     const settingRecords = JSON.parse(fs.readFileSync(path.resolve('site/_data/config_search.json'),'utf8'));
@@ -170,7 +181,7 @@ const server = http.createServer((req,res) => {
     const plain = await noJS.newPage();
     await plain.goto(`${base}/guided-builds/basic/`);
     assert.equal(await plain.locator('#verify').isVisible(),true,'verification is available without JS');
-    assert.equal(await plain.locator('.build-level-nav a').count(),4);
+    assert.equal(await plain.locator('.build-level-nav a').count(),6,'preparation and optional workshops are reachable without JavaScript');
     assert.ok(await plain.locator('.doc-outline a').count()>=9,'static section outline');
     assert.equal(await plain.locator('#site-nav').isVisible(),true,'no-JS navigation stays available');
     await noJS.close();

@@ -1,7 +1,9 @@
 <nav class="build-level-nav" aria-label="Guided build levels">
-  <a href="{{ '/guided-builds/' | relative_url }}">Choose a level</a>
+  <a href="{{ '/guided-builds/' | relative_url }}"{% if page.url == '/guided-builds/' %} aria-current="page"{% endif %}>Overview</a>
+  <a href="{{ '/guided-builds/parts/' | relative_url }}"{% if page.url == '/guided-builds/parts/' %} aria-current="page"{% endif %}>Prepare</a>
   <a href="{{ '/guided-builds/basic/' | relative_url }}"{% if page.build_level == 1 %} aria-current="page"{% endif %}>1 · Basic turbojet</a>
-  <a href="{{ '/guided-builds/control/' | relative_url }}"{% if page.build_level == 2 %} aria-current="page"{% endif %}>2 · Control and protection</a>
-  <a href="{{ '/guided-builds/extend/' | relative_url }}"{% if page.build_level == 3 %} aria-current="page"{% endif %}>3 · Free power turbine</a>
+  <a href="{{ '/guided-builds/control/' | relative_url }}"{% if page.build_level == 2 %} aria-current="page"{% endif %}>2 · Control</a>
+  <a href="{{ '/guided-builds/extend/' | relative_url }}"{% if page.build_level == 3 %} aria-current="page"{% endif %}>3 · Free turbine</a>
+  <a href="{{ '/guided-builds/instruments/' | relative_url }}"{% if page.url == '/guided-builds/instruments/' %} aria-current="page"{% endif %}>Workshops</a>
 </nav>
-{% if page.build_level %}<p class="build-screen-note">Select an image to enlarge; close with <strong>Close</strong> or <strong>Escape</strong>. Diagrams show terminal connections, not physical pin order. Screenshots follow the <a href="{{ '/guided-builds/parts/#engine-worksheet' | relative_url }}">shared teaching example</a> on an S3; use your board's pin column.</p>{% endif %}
+{% if page.build_level %}<p class="build-screen-note">Select images to enlarge. Screenshots use S3; follow <a href="{{ '/guided-builds/parts/#pin-plan' | relative_url }}">your board's pin column</a>. Diagrams show connections, not physical pin order.</p>{% endif %}

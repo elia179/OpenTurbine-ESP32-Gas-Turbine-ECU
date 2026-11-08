@@ -1,0 +1,8 @@
+<aside class="build-brief" aria-label="Build starting point and result">
+  <dl>
+    <div><dt>Start with</dt><dd>{{ include.start }}</dd></div>
+    <div><dt>This build changes</dt><dd>{{ include.change }}</dd></div>
+    <div><dt>Finish when</dt><dd>{{ include.finish }}</dd></div>
+  </dl>
+  {% if include.begin %}<p class="build-begin"><a href="{{ include.begin }}">Go to step 1 →</a></p>{% endif %}
+</aside>

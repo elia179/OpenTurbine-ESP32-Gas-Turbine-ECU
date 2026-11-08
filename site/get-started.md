@@ -58,10 +58,12 @@ Join the Wi-Fi network created by the board, remain connected even if Windows sa
 
 OpenTurbine does not require one fixed engine layout. Describe only the sensors and actuators your system actually has, then configure and test them in this order:
 
-**Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard**
+**Hardware → check/calibrate inputs → test outputs → Controllers & protection → Sequence → dry checks → backup**
 
-Start with [Level 1: build a basic system]({{ '/guided-builds/basic/' | relative_url }}) for wiring, configured cards and checks in order. The [complete User Guide]({{ '/user-guide/' | relative_url }}) is the detailed reference; the [single-shaft overview]({{ '/example-system/' | relative_url }}) shows the overall relationships.
+Return to Hardware for each device you add. Calibration and Tools are used as needed; you do not finish the ECU by visiting each tab once. Set the engine name and Wi-Fi password on System early, then use its backup controls at each completed milestone.
+
+Start with [Build 1: configure a basic turbojet]({{ '/guided-builds/basic/' | relative_url }}) for wiring, configured cards and checks in order. The [complete User Guide]({{ '/user-guide/' | relative_url }}) is the detailed reference; the [single-shaft overview]({{ '/example-system/' | relative_url }}) shows the overall relationships.
 
 Do not connect fuel or ignition energy until the independent stop and every configured shutdown path have been dry-tested.
 
-<p class="document-nav"><a href="{{ '/guided-builds/basic/' | relative_url }}">Begin Level 1</a><a href="{{ '/user-guide/' | relative_url }}">Open the User Guide</a><a href="{{ '/hardware/' | relative_url }}">Hardware requirements</a><a href="{{ '/troubleshooting/' | relative_url }}">Troubleshooting</a></p>
+<p class="document-nav"><a href="{{ '/guided-builds/basic/' | relative_url }}">Begin Build 1</a><a href="{{ '/user-guide/' | relative_url }}">Open the User Guide</a><a href="{{ '/hardware/' | relative_url }}">Hardware requirements</a><a href="{{ '/troubleshooting/' | relative_url }}">Troubleshooting</a></p>
