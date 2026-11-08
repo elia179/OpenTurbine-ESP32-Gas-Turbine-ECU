@@ -55,7 +55,7 @@ const server = http.createServer((req,res) => {
       assert.ok(html.includes('Build starting point and result'),lesson+' explains its prerequisites and completion');
     }
     assert.ok(controlHtml.includes('neither is required for the main build'),'second-switch exercises are explicitly optional');
-    assert.ok(controlHtml.indexOf('id="feedback"')<controlHtml.indexOf('id="idle"'),'review existing oil control before introducing the next control change');
+    assert.ok(controlHtml.indexOf('id="pressure"')<controlHtml.indexOf('id="limits"')&&controlHtml.indexOf('id="limits"')<controlHtml.indexOf('id="idle"'),'new pressure measurement leads directly into its protection settings');
     for (const shot of ['throttle-calibration','pressure-calibration','fuel-minimum-calibration','automatic-idle-off','oil-feedback-settings','oil-pressure-protection','tool-settings','manual-tests','engine-backup-restore','sequence-engine-startup','sequence-engine-shutdown','main-fuel-controller'])
       assert.ok(basicHtml.includes(`${shot}.png`), `complete sequence lacks ${shot}`);
     const basicSource=fs.readFileSync('site/guided-builds/basic.md','utf8');
@@ -105,6 +105,11 @@ const server = http.createServer((req,res) => {
       await page.close();
     }
     const page = await browser.newPage({viewport:{width:390,height:844}});
+    await page.goto(`${base}/guided-builds/control/`);
+    const oilReference=page.locator('details').filter({has:page.locator('#feedback')});
+    assert.equal(await oilReference.getAttribute('open'),null,'oil tuning stays optional in the main reading path');
+    await page.goto(`${base}/guided-builds/control/#feedback`);
+    assert.equal(await oilReference.evaluate(el=>el.open),true,'a direct oil-reference link opens the optional material');
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.goto(`${base}/guided-builds/basic/`);
     assert.equal(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches),true);
@@ -166,7 +171,7 @@ const server = http.createServer((req,res) => {
     await page.locator('[data-reading-toggle]').click();
     assert.equal(await page.locator('.build-screen').first().isVisible(),false);
     assert.equal(await page.locator('.build-figure img[src$="power.svg"]').isVisible(),true,'compact mode retains wiring');
-    await page.goto(`${base}/guided-builds/control/`);
+      await page.goto(`${base}/guided-builds/control/`);
     assert.equal(await page.locator('.build-screen').first().isVisible(),false,'compact choice persists');
     await page.locator('[data-reading-toggle]').click();
     assert.equal(await page.locator('.build-screen').first().isVisible(),true);
@@ -210,7 +215,7 @@ const server = http.createServer((req,res) => {
       for (const [name,lesson] of [['controller-create','instruments'],['controller-mapping','instruments'],['controller-states','instruments'],['oil-feedback-settings','control']]) {
         await page.goto(`${base}/guided-builds/${lesson}/`);await readyImages();
         const figure=page.locator(`figure:has(img[src$="/${name}.png"])`);
-        await figure.evaluate(el=>el.scrollIntoView({block:'start'}));
+      await figure.evaluate(el=>{for(let parent=el;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;el.scrollIntoView({block:'start'});});
         await page.evaluate(()=>scrollBy(0,-75));
         await page.screenshot({path:path.join(folder,`guide-${name}.png`)});
       }

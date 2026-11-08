@@ -56,11 +56,11 @@ Complete **2.1 → 2.2 → 2.3** in order. For each input, connect it, save its 
 
 Select **N1 speed**, enter your chosen name (suggested: **N1 Speed**), choose **Hardware pulse counter (PCNT)** under **Signal type** and assign its GPIO. Enter the pickup's actual **pulses per revolution** (PPR). The example uses one counted pulse per revolution. Its conditioner supplies clean 3.3 V-compatible pulses; raw magnetic pickups and 5 V outputs need conditioning.
 
-{% include build-figure.html file="rpm" alt="A 3.3 V open-drain Hall demonstration input has supply bypass and an external pull-up on the pulse signal." caption="This explains an open-drain interface on the bench. The actual pickup and mounting must suit turbine speed; never attach the teaching magnet to a turbine rotor." %}
+{% include build-figure.html file="rpm" alt="A 3.3 V open-drain Hall demonstration input has supply bypass and an external pull-up on the pulse signal." caption="Open-drain Hall input example. Choose a pickup, target and mounting suitable for the shaft speed and environment." %}
 
 {% include build-screen.html file="n1-configured" step="Configure the gas-generator speed input" alt="Expanded N1 Hardware card showing its name, pulse input, GPIO and pulses per revolution." caption="The example counts one pulse per revolution. Enter your pickup's actual PPR and your board's assigned GPIO; the name is your choice." %}
 
-The diagram uses an external pull-up. For compatible short bench wiring, **Input bias → Pull-up** can supply bias on a suitable pin instead. Verify pulse quality at the required rate. At {{ e.n1_full_rpm }} RPM and 1 PPR, a generator supplies **1000 Hz**; at 100 Hz the display should show 6000 RPM. Compare against an independent reference. A stationary magnet does not generate continuing RPM.
+The diagram uses an external pull-up. For compatible short bench wiring, **Input bias → Pull-up** can supply bias on a suitable pin instead. Verify pulse quality at the required rate. At {{ e.n1_full_rpm }} RPM and 1 PPR, a generator supplies **1000 Hz**; at 100 Hz the display should show 6000 RPM. Compare against an independent reference.
 
 <h3 id="temperature">2.2 · Exhaust temperature</h3>
 
@@ -82,7 +82,7 @@ Add **TOT / EGT**, enter your chosen name (suggested: **Main TOT**), choose **MA
 
 Wire a 10 kΩ linear potentiometer with its ends at 3.3 V and GND and its wiper at the throttle ADC pin.
 
-{% include build-figure.html file="throttle" alt="Potentiometer ends go to 3.3 V and ground; its wiper goes to the throttle ADC input." caption="Identify the wiper with a meter. Never use 5 V for this connection." %}
+{% include build-figure.html file="throttle" alt="Potentiometer ends go to 3.3 V and ground; its wiper goes to the throttle ADC input." caption="Identify the wiper with a meter. This development-board circuit uses 3.3 V and GND at the ends." %}
 
 Add **Throttle Input → Analog voltage input (ADC)**, assign the wiper's ADC GPIO and save.
 
@@ -135,7 +135,13 @@ For each device below, choose **Hardware → Add output**, its named purpose, dr
 
 {% include build-figure.html file="servo" alt="An ESC receives command and signal ground; separate rated power supplies it." caption="Confirm arming and stop behavior before connecting starter power." %}
 
-**ESC with a BEC:** its red/positive receiver lead is a power output. **Never connect it to 3.3 V or a GPIO.** Leave it disconnected and insulated when powering the ECU separately. If the BEC provides regulated **5 V** with sufficient current, you may use it to feed the development board's documented **5 V power input**, with GND connected. Verify the actual board and BEC first; some BECs output higher voltages. Do not parallel it with USB power or another supply unless the board explicitly supports that arrangement. See [Espressif's DevKitC power-input guidance](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html#power-supply-options).
+**ESC with a BEC:** the red receiver lead supplies power. With a separately powered ECU, leave it insulated. It belongs on neither GPIO nor the 3.3 V rail.
+
+<details class="build-hint" markdown="1"><summary>Can the BEC power the ECU?</summary>
+
+A regulated **5 V** BEC with enough current may feed the development board's documented **5 V power input**, with GND connected. Check its actual output: some BECs supply higher voltage. Use one supply path unless the board supports combining it with USB or another supply. See [Espressif's DevKitC power-input guidance](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html#power-supply-options).
+
+</details>
 
 {% include build-screen.html file="starter-configured" step="Configure the starter ESC signal" alt="Starter Hardware card showing RC servo or ESC output and pulse settings." caption="Match the ESC's signal endpoints and arming procedure. This GPIO carries the command, not starter power." %}
 
@@ -147,7 +153,7 @@ For each device below, choose **Hardware → Add output**, its named purpose, dr
 
 <h3 id="ignition">4.3 · Spark ignition</h3>
 
-{% include build-figure.html file="relay" alt="The ECU Igniter GPIO drives a relay module. Its normally open contacts switch fused low-voltage power to a self-contained spark ignition unit; the unit supplies the spark plug." caption="Igniter example: use a spark unit designed to operate from switched DC power and relay contacts rated for its voltage, inrush and switching duty. VCC powers the relay module; COM and NO switch the spark unit's supply. Never switch the high-voltage spark lead or connect a bare ignition coil to this circuit. Check module polarity and physical off before connecting ignition power." %}
+{% include build-figure.html file="relay" alt="The ECU Igniter GPIO drives a relay module. Its normally open contacts switch fused low-voltage power to a self-contained spark ignition unit; the unit supplies the spark plug." caption="This example switches the low-voltage supply to a self-contained spark unit: VCC powers the relay module; COM and NO switch the unit. Bare coils need their own ignition driver. Match contact ratings and command polarity." %}
 
 {% include build-screen.html file="igniter-configured" step="Configure the ignition command" alt="Igniter Hardware card showing its on/off interface, GPIO and safe state." caption="Confirm physical off at logical zero using a dummy load before connecting ignition energy." %}
 
@@ -155,7 +161,7 @@ For each device below, choose **Hardware → Add output**, its named purpose, dr
 
 Reuse the PWM wiring pattern with this pump's own rated driver and assigned GPIO.
 
-{% include build-screen.html file="oil-pump-configured" step="Configure the oil-pump driver" alt="Oil Pump Hardware card with its PWM pin and electrical output settings." caption="Check this pump's own driver ratings and direction; do not assume it matches the fuel pump." %}
+{% include build-screen.html file="oil-pump-configured" step="Configure the oil-pump driver" alt="Oil Pump Hardware card with its PWM pin and electrical output settings." caption="Match the driver and direction to this oil pump." %}
 
 <h3 id="fuel-shutoff">4.5 · Fuel shutoff</h3>
 
@@ -173,7 +179,7 @@ For each output, open **Tools → Tool settings**, review short test duration an
 
 <h3 id="fuel-minimum">4.7 · Measure the fuel pump minimum</h3>
 
-Calibrate the actual fuel pump through **Calibration → Minimum Reliable Fuel-Metering Output** on an isolated flow rig. Follow sweep, stop and repeatable-restart prompts. Do not run it dry unless permitted. This measures reliable metering, **not engine idle**. The assumed teaching results are {{ e.fuel_min_pct }}% reliable minimum and {{ e.fuel_idle_pct }}% idle; your measurements replace both.
+Calibrate the actual fuel pump through **Calibration → Minimum Reliable Fuel-Metering Output** on an isolated flow rig. Follow sweep, stop and repeatable-restart prompts, using the pump's specified priming and lubrication. This measures reliable metering, **not engine idle**. The assumed teaching results are {{ e.fuel_min_pct }}% reliable minimum and {{ e.fuel_idle_pct }}% idle; your measurements replace both.
 
 {% include build-screen.html file="fuel-minimum-calibration" step="Measure reliable fuel-metering output" alt="Fuel-metering minimum calibration panel with sweep and repeatable restart checks." caption="Use an isolated flow rig. The measured reliable minimum is different from the engine's idle command." %}
 
