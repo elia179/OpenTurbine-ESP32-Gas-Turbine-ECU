@@ -819,7 +819,7 @@
     {
       "title": "2.1 · N1 speed",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#21-n1-speed",
+      "url": "/guided-builds/basic/#n1-setup",
       "text": "Select N1 speed, enter your chosen name (suggested: N1 Speed), choose Hardware pulse counter (PCNT) under Signal type and assign its GPIO. Enter the pickup's actual pulses per revolution (PPR). The example uses one counted pulse per revolution. Its conditioner supplies clean 3.3 V-compatible pulses; raw magnetic pickups and 5 V outputs need conditioning. The diagram uses an external pull-up. For compatible short bench wiring, Input bias → Pull-up can supply bias on a suitable pin instead. Verify pulse quality at the required rate. At RPM and 1 PPR, a generator supplies 1000 Hz; at 100 Hz the display should show 6000 RPM. Compare against an independent reference. A stationary magnet does not generate continuing RPM."
     },
     {
@@ -867,25 +867,25 @@
     {
       "title": "4.4 · Oil pump",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#44-oil-pump",
+      "url": "/guided-builds/basic/#oil-pump",
       "text": "Reuse the PWM wiring pattern with this pump's own rated driver and assigned GPIO."
     },
     {
       "title": "4.5 · Fuel shutoff",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#45-fuel-shutoff",
+      "url": "/guided-builds/basic/#fuel-shutoff",
       "text": "Use the valve's rated on/off driver and assigned GPIO; identify the de-energized valve position before testing."
     },
     {
       "title": "4.6 · Test each output separately",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#46-test-each-output-separately",
+      "url": "/guided-builds/basic/#output-tests",
       "text": "For each output, open Tools → Tool settings, review short test duration and demand, save, then run its test. Begin with dummy loads or signal measurement. Check physical direction and return to the safe state after expiry. Prove shutoff direction with a benign unpressurized test. A relay click does not prove valve state."
     },
     {
       "title": "4.7 · Measure the fuel pump minimum",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#47-measure-the-fuel-pump-minimum",
+      "url": "/guided-builds/basic/#fuel-minimum",
       "text": "Calibrate the actual fuel pump through Calibration → Minimum Reliable Fuel-Metering Output on an isolated flow rig. Follow sweep, stop and repeatable-restart prompts. Do not run it dry unless permitted. This measures reliable metering, not engine idle. The assumed teaching results are % reliable minimum and % idle; your measurements replace both."
     },
     {
@@ -897,13 +897,13 @@
     {
       "title": "5.1 · Main fuel",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#51-main-fuel",
+      "url": "/guided-builds/basic/#main-fuel-control",
       "text": "In Controllers → Output controllers → + Create controller, choose Main Fuel Metering, create it if absent, and open it: | Setting | Teaching configuration | | --- | --- | | Controller name | Main Fuel | | Control method / Controlled by | Map input to output / Throttle Input | | Input low / high | 0% / 100% | | Output low / high | % / % | | Activate when | Entering Running | | Deactivate when | Entering Shutdown and Entering Standby | Under Fuel-metering support → Idle, select Off — no idle floor. Mapping Output low supplies this example's simple idle command; no extra idle method is needed. Save. Throttle requests fuel, not a guaranteed RPM."
     },
     {
       "title": "5.2 · Oil pressure",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#52-oil-pressure",
+      "url": "/guided-builds/basic/#oil-control",
       "text": "For oil, edit the existing pressure controller if one is already assigned to Oil Pump. Otherwise use the creator's separate Oil pump and Pressure feedback selectors, then Create oil-pressure controller. Open Oil Pump → Oil Pressure Control. Select Oil Pressure, the matching pump, Pressure target set by → Fixed pressure, and bar. Set its Low-pressure threshold to bar and Low-pressure confirmation to ms. Verify command bounds and failure responses against the oil rig. Use Normal fault shutdown for the teaching feedback-loss/low-pressure responses; Build 2 explains the full card. Check: on an appropriate oil circuit, establish target pressure without excessive overshoot and compare the gauge. Response gain and pump duty depend on the pump. The sequence establishes lubrication before ignition and retains it during shutdown."
     },
     {
@@ -921,19 +921,19 @@
     {
       "title": "7.1 · Startup",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#71-startup",
+      "url": "/guided-builds/basic/#startup",
       "text": "Open Sequence → Startup, reviewing any defaults before replacement. Choose + Add block, add the stated type, open its card and set the fields. Use the grip to reorder. Device commands are ACTION entries; Set Starter — UNTIL waits for N1. | Order | Startup block | Teaching setting / purpose | | --- | --- | --- | | 1 | Build Oil Pressure | Target bar; minimum ; timeout ms | | 2 | Set Starter — UNTIL | %, ramp %/s; N1 ; timeout ms | | 3 | Set Igniter — ACTION | ON | | 4 | Set Fuel Shutoff — ACTION | Open; verify actual command polarity | | 5 | Set Main Fuel Metering — ACTION | % assumed starting fuel | | 6 | Confirm Combustion by Temperature | °C; timeout ms | | 7 | Final Startup Checks | Require N1 ≥ RPM, oil ≥ bar, TOT ≥ °C; stable ms; timeout ms | | 8 | Set Starter — ACTION | 0% | | 9 | Set Igniter — ACTION | OFF | | 10 | Final Startup Checks | Repeat after starter release to verify sustained operation | Both Final Startup Checks instances share settings. Leave their optional output-release switches off: explicit actions perform release. The second check must pass without starter assistance. This path uses an explicit fuel command instead of Accelerate to Idle, whose built-in fuel behavior is different."
     },
     {
       "title": "7.2 · Shutdown",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#72-shutdown",
+      "url": "/guided-builds/basic/#shutdown",
       "text": "On Shutdown, add Immediate Fuel and Ignition Cut → Wait for Rotor to Slow → Cooldown → Wait for Complete Stop. Fuel and ignition cut first. Set the N1-drop threshold below the actual starter's safe re-engagement speed. In Cooldown, choose oil pumping ON, bar target and °C temperature target; starter cooling stays OFF unless its mechanism supports it. Give every wait a finite, engine-appropriate timeout. Shutdown can continue after cooling timeout: check final oil behavior deliberately."
     },
     {
       "title": "7.3 · Save and review both paths",
       "context": "Build 1 Configure a basic turbojet",
-      "url": "/guided-builds/basic/#73-save-and-review-both-paths",
+      "url": "/guided-builds/basic/#sequence-review",
       "text": "Save and reopen both paths. If the editor warns “SafetyHold present but no Spool block”: this recipe uses Final Startup Checks and explicit fuel/starter actions instead of Accelerate to Idle. Before confirming that warning, verify the Starter 0% action is before the second Final Startup Checks and the final preview shows Starter 0%. Correct any missing starter cut or sensor evidence first. Check the handover to Main Fuel on entering Running; the Shutdown preview must show combustion off and the intended oil behavior."
     },
     {

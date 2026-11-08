@@ -54,7 +54,9 @@ assume an older setup remains valid.
 
 Run the full v2 dry commissioning path:
 
-**Hardware → Controllers → System → Calibration → Sequence → Tools → Dashboard/Log**
+**Hardware → check/calibrate inputs → test outputs → Controllers & protection → Sequence → dry checks → backup**
+
+Use System for identity/security and ECU-wide settings as needed. The tabs are not a one-pass checklist; verify a measurement before enabling control or protection that depends on it.
 
 Verify physical direction and safe state for every output, sensor-loss behavior,
 hard safety trips, overlapping limiters/controllers, shutdown order, reboot

@@ -52,7 +52,7 @@ Complete **2.1 → 2.2 → 2.3** in order. For each input, connect it, save its 
 
 **Choose your own names.** Use names that make sense on your engine; **N1 Speed** (or simply **N1**) and **Main TOT** are suggestions. Screenshots use these example names. In later selectors, choose the corresponding device you named.
 
-### 2.1 · N1 speed
+<h3 id="n1-setup">2.1 · N1 speed</h3>
 
 Select **N1 speed**, enter your chosen name (suggested: **N1 Speed**), choose **Hardware pulse counter (PCNT)** under **Signal type** and assign its GPIO. Enter the pickup's actual **pulses per revolution** (PPR). The example uses one counted pulse per revolution. Its conditioner supplies clean 3.3 V-compatible pulses; raw magnetic pickups and 5 V outputs need conditioning.
 
@@ -151,19 +151,19 @@ For each device below, choose **Hardware → Add output**, its named purpose, dr
 
 {% include build-screen.html file="igniter-configured" step="Configure the ignition command" alt="Igniter Hardware card showing its on/off interface, GPIO and safe state." caption="Confirm physical off at logical zero using a dummy load before connecting ignition energy." %}
 
-### 4.4 · Oil pump
+<h3 id="oil-pump">4.4 · Oil pump</h3>
 
 Reuse the PWM wiring pattern with this pump's own rated driver and assigned GPIO.
 
 {% include build-screen.html file="oil-pump-configured" step="Configure the oil-pump driver" alt="Oil Pump Hardware card with its PWM pin and electrical output settings." caption="Check this pump's own driver ratings and direction; do not assume it matches the fuel pump." %}
 
-### 4.5 · Fuel shutoff
+<h3 id="fuel-shutoff">4.5 · Fuel shutoff</h3>
 
 Use the valve's rated on/off driver and assigned GPIO; identify the de-energized valve position before testing.
 
 {% include build-screen.html file="shutoff-configured" step="Configure the fuel-shutoff command" alt="Fuel Shutoff Hardware card showing its on/off output and direction." caption="Verify which command opens and closes the valve, including loss of power." %}
 
-### 4.6 · Test each output separately
+<h3 id="output-tests">4.6 · Test each output separately</h3>
 
 For each output, open **Tools → Tool settings**, review short test duration and demand, save, then run its test. Begin with dummy loads or signal measurement. Check physical direction and return to the safe state after expiry. Prove shutoff direction with a benign unpressurized test. A relay click does not prove valve state.
 
@@ -171,7 +171,7 @@ For each output, open **Tools → Tool settings**, review short test duration an
 
 {% include build-screen.html file="manual-tests" step="Find the individual actuator tests" alt="Manual actuator test cards for the configured engine outputs." caption="Test one output at a time with suitable dummy loads or isolated equipment, and verify it stops." %}
 
-### 4.7 · Measure the fuel pump minimum
+<h3 id="fuel-minimum">4.7 · Measure the fuel pump minimum</h3>
 
 Calibrate the actual fuel pump through **Calibration → Minimum Reliable Fuel-Metering Output** on an isolated flow rig. Follow sweep, stop and repeatable-restart prompts. Do not run it dry unless permitted. This measures reliable metering, **not engine idle**. The assumed teaching results are {{ e.fuel_min_pct }}% reliable minimum and {{ e.fuel_idle_pct }}% idle; your measurements replace both.
 
@@ -181,7 +181,7 @@ Calibrate the actual fuel pump through **Calibration → Minimum Reliable Fuel-M
 
 Hardware describes connections; **Controllers** defines normal control; **Sequence** handles transitions. Configure one normal controller per output.
 
-### 5.1 · Main fuel
+<h3 id="main-fuel-control">5.1 · Main fuel</h3>
 
 In **Controllers → Output controllers → + Create controller**, choose **Main Fuel Metering**, create it if absent, and open it:
 
@@ -200,7 +200,7 @@ Under **Fuel-metering support → Idle**, select **Off — no idle floor**. Mapp
 
 {% include build-screen.html file="automatic-idle-off" step="Keep this first build's idle support simple" alt="Idle support panel with the separate idle mode set to Off." caption="The Main Fuel controller's output-low value supplies this build's assumed idle demand." %}
 
-### 5.2 · Oil pressure
+<h3 id="oil-control">5.2 · Oil pressure</h3>
 
 For oil, edit the existing pressure controller if one is already assigned to Oil Pump. Otherwise use the creator's separate **Oil pump** and **Pressure feedback** selectors, then **Create oil-pressure controller**. Open **Oil Pump → Oil Pressure Control**. Select **Oil Pressure**, the matching pump, **Pressure target set by → Fixed pressure**, and **{{ e.oil_target_bar }} bar**. Set its **Low-pressure threshold** to {{ e.oil_min_bar }} bar and **Low-pressure confirmation** to {{ e.oil_confirm_ms }} ms. Verify command bounds and failure responses against the oil rig. Use **Normal fault shutdown** for the teaching feedback-loss/low-pressure responses; [Build 2]({{ '/guided-builds/control/#feedback' | relative_url }}) explains the full card.
 
@@ -230,7 +230,7 @@ Startup's oil check comes next. It permits pressure to build before ignition wit
 
 <h2 id="sequence">7 · Build startup and shutdown</h2>
 
-### 7.1 · Startup
+<h3 id="startup">7.1 · Startup</h3>
 
 Open **Sequence → Startup**, reviewing any defaults before replacement. Choose **+ Add block**, add the stated type, open its card and set the fields. Use the grip to reorder. Device commands are **ACTION** entries; **Set Starter — UNTIL** waits for N1.
 
@@ -251,13 +251,13 @@ Both Final Startup Checks instances share settings. Leave their optional output-
 
 {% include build-screen.html file="sequence-engine-startup" step="The complete Startup" alt="Startup builds oil pressure, cranks, ignites, admits fuel, checks temperature and stable readings, releases starter and ignition, then checks again." caption="Follow this one path. Test evidence comes from safe equipment or simulation; timers alone do not prove combustion." %}
 
-### 7.2 · Shutdown
+<h3 id="shutdown">7.2 · Shutdown</h3>
 
 On **Shutdown**, add **Immediate Fuel and Ignition Cut → Wait for Rotor to Slow → Cooldown → Wait for Complete Stop**. Fuel and ignition cut first. Set the N1-drop threshold below the actual starter's safe re-engagement speed. In **Cooldown**, choose oil pumping ON, {{ e.oil_target_bar }} bar target and {{ e.tot_cooldown_c }} °C temperature target; starter cooling stays OFF unless its mechanism supports it. Give every wait a finite, engine-appropriate timeout. Shutdown can continue after cooling timeout: check final oil behavior deliberately.
 
 {% include build-screen.html file="sequence-engine-shutdown" step="The matching Shutdown" alt="Shutdown cuts combustion, waits for speed drop, cools with oil delivery and waits for stop." caption="Check final fuel/ignition off states and required lubrication on the actual installation." %}
 
-### 7.3 · Save and review both paths
+<h3 id="sequence-review">7.3 · Save and review both paths</h3>
 
 Save and reopen both paths. **If the editor warns “SafetyHold present but no Spool block”:** this recipe uses Final Startup Checks and explicit fuel/starter actions instead of Accelerate to Idle. Before confirming that warning, verify the Starter 0% action is before the second Final Startup Checks and the final preview shows Starter 0%. Correct any missing starter cut or sensor evidence first. Check the handover to Main Fuel on entering Running; the Shutdown preview must show combustion off and the intended oil behavior.
 

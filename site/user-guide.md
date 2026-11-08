@@ -394,7 +394,7 @@ Specific checks:
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
 - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
 - **Main fuel/oil/starter proportional outputs:** test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig.
-- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#47-measure-the-fuel-pump-minimum' | relative_url }}).
+- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#fuel-minimum' | relative_url }}).
 
 <span id="part-10-configure-controllers-and-system"></span>
 ## Part 11: Configure Controllers and System
