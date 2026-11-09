@@ -44,11 +44,14 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await open('.controller-create-card');await page.locator('#new-oil-loop-output').selectOption('oil_pump');await page.locator('#new-oil-loop-pressure').selectOption('oil_pressure_main');await page.getByRole('button',{name:'Create oil-pressure controller',exact:true}).click();
     await open('[data-group="oil-loop-oil_pump"]');await open('[data-group="oil-loop-oil_pump"] .protection-card');
     await labelControl('Pressure target set by').selectOption({label:'Fixed pressure'});await fill(labelControl('Pressure target (bar)'),e.oil_target_bar);
+    await labelControl('If pressure feedback is lost').selectOption({label:'Normal fault shutdown'});
+    await open('[data-group="safety"]');await open('#oil-loop-protection-0');
     await fill(labelControl('Low-pressure threshold (bar)'),e.oil_min_bar);await fill(labelControl('Low-pressure confirmation (ms)'),e.oil_confirm_ms);
-    await labelControl('If pressure feedback is lost').selectOption({label:'Normal fault shutdown'});await labelControl('If running pressure stays low').selectOption({label:'Normal fault shutdown'});
+    await labelControl('If running pressure stays low').selectOption({label:'Normal fault shutdown'});
     await saveControllers();
     let saved=await(await page.request.get(base+'/api/ecu_config')).json();
     assert.equal(saved.settings.rules.length,1);assert.equal(saved.settings.rules[0].output_min,e.fuel_idle_pct/100);assert.equal(saved.hardware.oil_loops[0].target_bar,e.oil_target_bar);
+    assert.equal(saved.hardware.oil_loops[0].low_pressure_bar,e.oil_min_bar);assert.equal(saved.hardware.oil_loops[0].low_pressure_confirm_ms,e.oil_confirm_ms);
     console.log('Build 1 fuel and oil creators, fields, recap save and reload reproduced.');
     await page.goto(base+'/sequence.html');
     const add=async(tab,title,kind)=>{
