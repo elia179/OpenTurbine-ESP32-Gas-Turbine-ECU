@@ -34,6 +34,12 @@ async function patchData(page, patch) {
 async function goto(page, route, waitSelector) {
   await page.goto(`${base}/${route}`);
   await page.waitForSelector(waitSelector, { state: 'attached' });
+  if (route === 'sequence.html') {
+    // The menu exists in the initial HTML, before its hardware/config reads
+    // finish. Inspect the loaded model rather than racing the empty shell.
+    await page.waitForFunction(() => typeof _seqLoading !== 'undefined' &&
+      !_seqLoading && !!hwCfg.profile_id && Array.isArray(hwCfg.startup_seq));
+  }
   if (['config.html', 'controllers.html', 'system.html'].includes(route)) {
     // Controller pages intentionally start every card and subcard collapsed.
     // Reveal only the tested field's ancestry instead of depending on the old
