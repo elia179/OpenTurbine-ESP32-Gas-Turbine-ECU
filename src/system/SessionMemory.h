@@ -2,10 +2,14 @@
 #include <stddef.h>
 
 namespace SessionMemory {
-// Leave at least 256 KiB of external memory free, and bound even larger
-// modules to 1 MiB of capture. Fragmentation can reduce this estimate.
+// PSRAM is supported only on the 2 MiB variant. Other capacities retain
+// internal-RAM logging. Leave external headroom and cap capture at 1 MiB.
+static constexpr size_t SUPPORTED_EXTERNAL_BYTES = 2 * 1024 * 1024;
 static constexpr size_t EXTERNAL_LIMIT = 1024 * 1024;
 static constexpr size_t EXTERNAL_RESERVE = 256 * 1024;
+constexpr bool supportedExternalSize(size_t bytes) {
+    return bytes == SUPPORTED_EXTERNAL_BYTES;
+}
 constexpr size_t externalBudget(size_t freeBytes, size_t largestBlock, size_t minimum) {
     if (freeBytes <= EXTERNAL_RESERVE) return 0;
     const size_t available = freeBytes - EXTERNAL_RESERVE;

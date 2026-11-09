@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""Build OpenTurbine_Recommended.zip for the Windows setup tool.
 
-Run after both firmware environments and their LittleFS images have been built:
+Run after all three firmware environments and their LittleFS images have been built:
 
     pio run -e esp32dev
     pio run -e esp32dev -t buildfs
@@ -403,7 +403,7 @@ def stage_package(stage: Path, esptool: Path, esptool_license: Path | None = Non
         raise RuntimeError(
             "Cannot build setup package; missing required files:\n  - "
             + "\n  - ".join(missing)
-            + "\n\nBuild both PlatformIO environments and pass --esptool C:\\path\\to\\esptool.exe."
+            + "\n\nBuild all required PlatformIO environments and pass --esptool C:\\path\\to\\esptool.exe."
         )
 
     (stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

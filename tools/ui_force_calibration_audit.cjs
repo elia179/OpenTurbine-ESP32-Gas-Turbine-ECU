@@ -72,6 +72,16 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     await page.reload();
     await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.hx711_zero===10000);
     assert.equal(await page.evaluate(()=>_loadCellCal.torque.zero),null);
+    const thrustHx={...hx,id:'thrust_main',name:'Thrust',purpose:'thrust',role:'thrust'};
+    await setup(thrustHx,'thrust',60000);
+    assert.match(await page.locator('#thrust-loadcell-wizard').textContent(),/HX711/);
+    assert.equal(await page.locator('#thrust-lc-arm').count(),0);
+    await capture('thrust');await stimulus('thrust',260000);
+    await save('thrust',200,'N');await saved('thrust');
+    channel=(await state()).hardware.channel_registry.inputs[0];
+    assert.equal(channel.hx711_zero,60000);close(channel.hx711_scale,.001);
+    assert.match(await page.locator('#thrust-lc-status').textContent(),/N\/count/);
+    for(const force of [0,50,100,200,300])close((60000+force*1000-channel.hx711_zero)*channel.hx711_scale,force);
     const analog={id:'thrust_main',name:'Thrust',purpose:'thrust',role:'thrust',driver:1,
       installed:true,pin:35,min:0,max:4095,analog_zero_mv:0,analog_mv_per_unit:10};
     await setup(analog,'thrust',500,false); // Raw capture can repair incorrect existing scaling.
@@ -105,6 +115,24 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     channel=(await state()).hardware.channel_registry.inputs[0];
     assert.equal(channel.loadcell_zero,1000);close(channel.loadcell_n_per_count,-4.4482216153/500);
     assert.equal(channel.calibration_points,undefined);
+    // Match the reported zero/200 N procedure with a signed, nonzero tare.
+    // Verify the persisted line at intermediate loads and after reloading,
+    // rather than checking only the reference point that defines its scale.
+    for(const polarity of [-1,1]) {
+      const zero=-polarity*65537;
+      await setup(nau,'thrust',zero);await capture('thrust');
+      await stimulus('thrust',zero+polarity*2000000);
+      await save('thrust',200,'N');await saved('thrust');
+      await page.reload();
+      await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.loadcell_zero!==0);
+      channel=await page.evaluate(()=>cfg.hardware.channel_registry.inputs[0]);
+      assert.equal(channel.loadcell_zero,zero);
+      for(const force of [0,0.0255,0.0256,1,25,50,100,150,200,250,300,0,-1]) {
+        const raw=zero+polarity*Math.round(force*10000);
+        close((raw-channel.loadcell_zero)*channel.loadcell_n_per_count,force);
+      }
+      assert.equal(await page.evaluate(()=>_loadCellCal.thrust.zero),null);
+    }
     // Other TLA2528 voltage-based calibration controls must use its 5 V reference.
     const adc=(id,purpose,role,device_channel)=>({id,purpose,role,name:id,driver:9,installed:true,
       pin:-1,i2c_address:16,device_channel,i2c_reference_mv:5000,min:0,max:4095});

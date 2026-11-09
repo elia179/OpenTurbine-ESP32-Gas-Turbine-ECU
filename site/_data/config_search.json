@@ -235,9 +235,9 @@
   },
   {
     "title": "Minimum Fuel During Gradual Protection (%)",
-    "context": "Setting · Throttle Response",
+    "context": "Setting · Shared Fuel-Limiting Settings",
     "url": "/user-guide/#field-pb_min",
-    "text": "Common physical fuel floor for non-emergency gradual limiting. It prevents an enabled limiter from pulling the main engine below the user-tested stable minimum; STOP and hard shutdowns still cut fuel."
+    "text": "Lowest main-fuel demand permitted by gradual fuel limiting. Choose a measured stable-running minimum. Fault shutdown and STOP can still cut fuel completely."
   },
   {
     "title": "N1 Fuel-Limiting Mode",
@@ -471,7 +471,7 @@
     "title": "Idle Input High",
     "context": "Setting · Idle",
     "url": "/user-guide/#field-fi_high",
-    "text": "Input reading mapped to Maximum Normal Idle Fuel Output. Use the source’s engineering units, not its raw ADC or pulse calibration. Low and high must differ."
+    "text": "Input reading mapped to Maximum Normal Idle Fuel Output. Use the units shown beside the field. Low and high must differ."
   },
   {
     "title": "Maximum Normal Idle Fuel Output (%)",
@@ -927,13 +927,13 @@
     "title": "Torch Temperature Guard",
     "context": "Setting · Afterburner Protection",
     "url": "/user-guide/#field-ab_tgm",
-    "text": "Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown."
+    "text": "Automatic ends the torch pulse at the selected engine-temperature limit minus its warning margin. Custom uses the cut temperature below. Off applies no torch-only temperature cut. Engine overtemperature shutdown has its own enable switch."
   },
   {
     "title": "Custom Torch EGT Cut",
     "context": "Setting · Afterburner Protection",
     "url": "/user-guide/#field-ab_ttl",
-    "text": "Used only in Custom mode. It should be below the configured main-engine temperature shutdown."
+    "text": "A positive value ends the torch pulse above this temperature; unavailable temperature feedback also ends it. Zero applies no torch-only cut. The main-engine overtemperature limit and enable switch are separate."
   },
   {
     "title": "Stabilize Max EGT",

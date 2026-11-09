@@ -3,7 +3,9 @@
 Release packages must contain firmware and web assets built from the same commit
 and must report the packaged version/target/build during post-install verification.
 
-The unreleased OpenTurbine 2.6.1 iteration uses Setup Tool 0.7.8. Wi-Fi updates ask for the initial connection once, then check both restarts automatically. If a long Wi-Fi interruption expires the dashboard transfer, the tool rechecks that the engine is safe and restarts the complete dashboard set once. It does not resend firmware; a second failure or a safety rejection stops the update.
+OpenTurbine 2.7.1 uses Setup Tool 0.8.0 and package schema 5. It adds a separate N8R2 image for 2 MB Quad PSRAM; selecting OpenTurbine PCB v1.0 selects that image automatically. Bare boards can use Classic, generic S3, or the exact N8R2 development-board choice. Exact N8R2 module boot/update qualification is pending.
+
+Wi-Fi updates ask for the initial connection once, then check both restarts automatically. If a long Wi-Fi interruption expires the dashboard transfer, the tool rechecks that the engine is safe and restarts the complete dashboard set once. It does not resend firmware; a second failure or a safety rejection stops the update.
 Verification reports identity and per-file progress, retries transient reads and
 offers verification-only retry after uploads have finished. USB setup reports the
 current port and elapsed activity, rechecks the chip before erase, and distinguishes
@@ -198,14 +200,20 @@ esp32s3dev/boot_app0.bin
 esp32s3dev/firmware.bin
 esp32s3dev/littlefs.bin
 esp32s3dev/web_assets/*.gz
+esp32s3n8r2/bootloader.bin
+esp32s3n8r2/partitions.bin
+esp32s3n8r2/boot_app0.bin
+esp32s3n8r2/firmware.bin
+esp32s3n8r2/littlefs.bin
+esp32s3n8r2/web_assets/*.gz
 ```
 
-The generated `manifest.json` must include `package_schema: 4`,
+The generated `manifest.json` must include `package_schema: 5`,
 `setup_tool_version`, and `minimum_setup_tool_version`. The package schema
-protects the flashing/layout contract. The minimum version makes Setup Tool
-0.6.0 a stable client: later firmware and dashboard packages remain compatible
-without requiring a new EXE unless they adopt a newer package format or feature
-that the installed tool cannot handle. `setup_tool_version` records which tool
+protects the flashing/layout contract. Schema 5 requires Setup Tool 0.8.0 or
+newer so the N8R2 image cannot be confused with the generic S3 image. Later
+packages remain compatible when their declared minimum is met.
+`setup_tool_version` records which tool
 source built the package; it is informational for modern packages rather than
 an exact-match requirement.
 

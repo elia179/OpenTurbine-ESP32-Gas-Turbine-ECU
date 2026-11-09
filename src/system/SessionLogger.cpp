@@ -17,6 +17,9 @@
 #include <freertos/FreeRTOS.h>
 #include <cstdlib>
 #include <esp_heap_caps.h>
+#if defined(OT_QUAD_PSRAM)
+#include <esp_psram.h>
+#endif
 
 // ── Row snapshot passed through the inter-core ring ─────────
 // Plain-old-data struct — Core 1 fills it, Core 0 writes it.
@@ -182,7 +185,8 @@ SessionLogger::FieldStorage SessionLogger::fieldStorage(uint32_t mask) {
 }
 static size_t _externalBudget() {
 #if defined(OT_QUAD_PSRAM)
-    if (psramFound()) return SessionMemory::externalBudget(
+    if (psramFound() && SessionMemory::supportedExternalSize(esp_psram_get_size()))
+        return SessionMemory::externalBudget(
         heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
         heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
         SESSION_QUEUE_BYTES);

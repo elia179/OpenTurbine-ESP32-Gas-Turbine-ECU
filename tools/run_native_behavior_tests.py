@@ -68,6 +68,8 @@ def compile_command(compiler: list[str], flags: list[str]) -> list[str]:
             converted.append("/I" + next(iterator))
         elif flag.startswith("-D"):
             converted.append("/D" + flag[2:])
+        elif flag.startswith("-U"):
+            converted.append("/U" + flag[2:])
         elif flag == "-o":
             output = Path(next(iterator))
             converted.extend(["/Fe" + str(output), "/Fo" + str(output.parent) + os.sep])
@@ -125,6 +127,7 @@ def main() -> int:
             ("startup_temperature_behavior", [str(ROOT / "dev" / "host" / "startup_temperature_behavior.cpp")], []),
             ("operator_adc_behavior", [str(ROOT / "dev" / "host" / "operator_adc_behavior.cpp")], []),
             ("log_memory_behavior", [str(ROOT / "dev" / "host" / "log_memory_behavior.cpp")], []),
+            ("psram_behavior", [str(ROOT / "dev" / "host" / "psram_behavior.cpp")], []),
             ("recent_event_log_behavior", [str(ROOT / "dev" / "host" / "recent_event_log_behavior.cpp")], []),
             ("controller_activation", [str(ROOT / "dev" / "host" / "controller_activation_behavior.cpp")], []),
             ("controller_activation_integration", [str(ROOT / "dev" / "host" / "controller_activation_integration.cpp")], []),
@@ -148,7 +151,8 @@ def main() -> int:
             ("gpio_input_bias_s3", [str(ROOT / "dev" / "host" / "gpio_input_bias_behavior.cpp")],
              ["-DOT_PLATFORM_ESP32S3"]),
             ("phase_registry", [str(ROOT / "dev" / "host" / "phase_registry_behavior.cpp")], []),
-            ("i2c_loadcell_behavior", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], []),
+            ("i2c_loadcell_behavior", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], ["-DOT_PLATFORM_ESP32"]),
+            ("i2c_loadcell_behavior_s3", [str(ROOT / "dev" / "host" / "i2c_loadcell_behavior.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("i2c_peripheral_behavior", [str(ROOT / "dev" / "host" / "i2c_peripheral_behavior.cpp")], []),
             ("i2c_peripheral_behavior_s3", [str(ROOT / "dev" / "host" / "i2c_peripheral_behavior.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("status_indicator_behavior", [str(ROOT / "dev" / "host" / "status_indicator_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
@@ -172,7 +176,7 @@ def main() -> int:
             }.get(name, name)
             exe = Path(tmp) / (exe_name + (".exe" if os.name == "nt" else ""))
             subprocess.run(compile_command(compiler, [
-                "-std=c++17", "-pthread", "-DOT_HOST_TEST",
+                "-std=c++17", "-UNDEBUG", "-pthread", "-DOT_HOST_TEST",
                 "-I", str(ROOT / "dev" / "host" / "fakes"),
                 "-I", str(ROOT),
                 "-I", str(arduino_json),

@@ -1,7 +1,7 @@
 #include <cassert>
 #include <deque>
 #include <vector>
-#include <fstream>
+#include <cstdio>
 #include <iostream>
 #include "libraries/OpenTurbineMavlink/src/OpenTurbineMavlinkClient.h"
 #include "libraries/OpenTurbineMavlink/src/RemoteDemand.h"
@@ -98,6 +98,8 @@ int main(){
     mavlink_msg_heartbeat_encode_status(ecu.system,ecu.component,ecu.status(),&message,&heartbeat);ecu.send(golden,message);
     mavlink_efi_status_t efi{};efi.rpm=60000;efi.exhaust_gas_temperature=650;efi.fuel_flow=250;
     mavlink_msg_efi_status_encode_status(ecu.system,ecu.component,ecu.status(),&message,&efi);ecu.send(golden,message);
-    std::ofstream file("artifacts/mavlink-standard-golden.bin",std::ios::binary);file.write(reinterpret_cast<const char*>(golden.outgoing.data()),golden.outgoing.size());
+    FILE* file=std::fopen("artifacts/mavlink-standard-golden.bin","wb");assert(file);
+    assert(std::fwrite(golden.outgoing.data(),1,golden.outgoing.size(),file)==golden.outgoing.size());
+    assert(std::fclose(file)==0);
     std::cout<<"MAVLink client metadata completeness, stale/invalid batches, correlated ACKs, reboot behavior and remote-demand freshness passed\n";
 }

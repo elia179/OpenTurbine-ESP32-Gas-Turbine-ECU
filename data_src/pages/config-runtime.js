@@ -542,11 +542,13 @@ function applyAbIgnitionParamVisibility() {
   }
   showF('ab_tpct', useTorch);
   showF('ab_tms',  useTorch);
-  showF('ab_ttl',  useTorch);
+  const guardMode = Number(document.getElementById('cf-ab_tgm')?.value ?? cfg?.afterburner?.torch_guard_mode ?? 0);
+  showF('ab_tgm', useTorch);
+  showF('ab_ttl', useTorch && guardMode === 1);
   showF('ab_tr',   flameMode === 1);
   showF('ab_tw',   flameMode === 1);
   showF('ab_ams',  flameMode === 2);
-  showF('ab_fld',  flameMode === 0);
+  showF('ab_fld',  flameMode === 0 || flameMode === 3);
   applyView();
 }
 

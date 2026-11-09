@@ -12,13 +12,17 @@ const {chromium,firefox,webkit}=require('playwright');
    let configAttempts=0;
    await p.route('**/api/config',r=>++configAttempts<=4?r.fulfill({status:503,headers:{'Retry-After':'1'},json:{error:'Snapshot busy'}}):r.continue());
    await p.goto(base+'/system.html');
-   await p.waitForFunction(()=>typeof cfg!=='undefined'&&cfg.profile_id&&typeof _fieldSnap!=='undefined'&&Object.keys(_fieldSnap).length>0,null,{timeout:15000});
+   await p.waitForFunction(()=>typeof cfg!=='undefined'&&cfg.profile_id&&typeof _fieldSnap!=='undefined'&&Object.keys(_fieldSnap).length>0,null,{timeout:30000});
    assert.equal(configAttempts,5,'System must recover after four busy replies');
    await p.unroute('**/api/config');
    let hardwareAttempts=0;
    await p.route('**/api/hardware',r=>++hardwareAttempts<=4?r.fulfill({status:503,headers:{'Retry-After':'1'},json:{error:'Snapshot busy'}}):r.continue());
    await p.goto(base+'/sequence.html');
-   await p.waitForFunction(()=>typeof _seqLoading!=='undefined'&&!_seqLoading&&!document.querySelector('main').inert,null,{timeout:15000});
+   // Allow renderer startup under the complete multi-browser gate. The
+   // transport retry count, Retry-After and operation budgets remain asserted.
+   await p.waitForFunction(()=>typeof _seqLoading!=='undefined'&&!_seqLoading&&!document.querySelector('main').inert,null,{timeout:30000}).catch(async error=>{
+    console.error('Sequence retry loader diagnostics',JSON.stringify({name,packed,hardwareAttempts,state:await p.evaluate(()=>({loading:typeof _seqLoading==='undefined'?null:_seqLoading,inert:document.querySelector('main')?.inert,text:document.body.innerText.slice(-1500)}))}));throw error;
+   });
    assert.equal(hardwareAttempts,5,'Sequence must recover after four busy replies');
    let delayAttempts=0;
    await p.route('**/api/__read_delay',r=>++delayAttempts===1?r.fulfill({status:503,headers:{'Retry-After':'1'},json:{error:'Busy'}}):r.fulfill({json:{ready:true}}));

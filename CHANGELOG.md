@@ -10,10 +10,19 @@ _Note: there is no 1.2.0 release â€” 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
-### 2.7.1 in development
+## [2.7.1] — 2026-11-09
+
+- Release an abandoned firmware-update session after its idle timeout even when the connection was lost between acknowledged chunks. Restore ordinary page access and allow a fresh update without restarting the ECU.
+
+- Allow input/output draft cards before buses or devices are configured; PCB connection selection also offers an unassigned draft. Keep incomplete cards unsaveable. Give Thrust the same ADC/HX711/TLA2528/NAU7802 interface choices as other force inputs and support guided HX711 thrust calibration in newtons.
+- Read NAU7802 conversion bytes in an explicit sequence and decode signed 24-bit counts without relying on operand order. Extend force calibration checks across byte/sign boundaries, both bridge polarities, and saved/reloaded zero/200 N calibration.
+- Recover automatically when a still-responding NAU7802 loses its power/conversion configuration after an ADC-only reset. Invalidate its old samples while reinitializing, retain the saved force calibration, and keep native-test assertions enabled in optimized builds.
+- Refresh controller input, feedback-gain, oil-loop and predictive-pressure fields together when display units change; convert absolute temperatures separately from hysteresis/deadbands. Preserve maintenance file selections and progress on System.
+- Preserve exact untouched values during unrelated saves, unit changes and reverted edits, including older threshold-based enable choices. Allow valid engineering values between converted spinner increments while retaining range checks.
+- Put the shared gradual-limiting fuel floor beside protections; show afterburner running flame-loss timing for both supported flame-sensor modes and reveal a custom torch cut only in Custom mode.
 
 - Add a separate ESP32-S3 N8R2 build with Quad PSRAM for OpenTurbine PCB v1.0 and compatible development boards. Exact-module boot/update qualification is pending.
-- Use up to 1 MiB of available PSRAM for selected-field session capture, retaining external-memory headroom and the existing internal-RAM fallback. Keep ordinary allocations internal and preserve bounded post-run flash writes.
+- Use up to 1 MiB of supported 2 MB PSRAM for selected-field session capture; ignore larger PSRAM devices, retaining external-memory headroom and the existing internal-RAM fallback. Keep ordinary allocations internal and preserve bounded post-run flash writes.
 - Report recording capacity from the allocated run buffer and retain counters above 65,535 samples. Extra recording RAM does not increase permanent flash-log storage.
 - Separate oil-circuit low-pressure trips and afterburner temperature/flame-loss guards from normal controller settings. Keep feedback-loss fallback beside its controller and preserve saved protection policies.
 - Remove generic controller caution banners and replace obsolete oil/idle validation with checks against the actual enabled settings. Update setup guidance and oil-control screenshots.

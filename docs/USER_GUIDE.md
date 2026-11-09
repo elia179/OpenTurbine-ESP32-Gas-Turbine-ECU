@@ -56,7 +56,7 @@ Use only the environment matching the board. The filesystem upload is required b
 
 ### Development boards and PCB profiles
 
-The sole official board is [OpenTurbine PCB v1.0](../pcb_profiles/official/openturbine-s3-20261102.md). Its upcoming 2.7.1 profile uses ESP32-S3-WROOM-1-N8R2 (8 MB flash, 2 MB Quad PSRAM); use the matching N8R2 firmware and Setup Tool 0.8.0 package when released. The published 2.7.0 profile describes the earlier N8 choice. Select Development board for a bare module; select the N8R2 development-board option only for that module. Archived board profiles are not installation choices.
+The sole official board is [OpenTurbine PCB v1.0](../pcb_profiles/official/openturbine-s3-20261102.md). Its 2.7.1 profile uses ESP32-S3-WROOM-1-N8R2 (8 MB flash, 2 MB Quad PSRAM); use the matching N8R2 firmware and Setup Tool 0.8.0 package. The older 2.7.0 profile describes the earlier N8 choice. Select Development board for a bare module; select the N8R2 development-board option only for that module. Archived board profiles are not installation choices.
 
 A development-board install leaves the dedicated PCB-profile partition erased. Hardware setup then works exactly as the normal manual workflow: choose electrical interfaces, GPIOs, buses, addresses, polarity, and calibration.
 
@@ -130,7 +130,7 @@ Never copy a classic ESP32 pin number into an S3 installation without reselectin
 
 ### Shared I²C devices
 
-OpenTurbine scans its configured SDA/SCL bus at startup and rechecks it while running. The Hardware page only offers a TCA9554, TLA2528, or NAU7802 for a new assignment when that device is responding. Detection does not guess a turbine function: add an input/output card, choose what it measures or controls, then select the detected device and channel.
+OpenTurbine scans its configured SDA/SCL bus at startup and rechecks it while running. You can add any input or output as a draft to explore its settings before wiring the hardware or enabling a bus. In PCB mode, choose **Add unassigned card** to explore first. Save stays unavailable until required connections and settings are complete. Selecting a new external TCA9554, TLA2528, or NAU7802 assignment requires that device to respond. Detection does not guess a turbine function: choose what the card measures or controls, then select its device and channel.
 
 On a development board, **Shared sensor buses** initially shows a compact
 Enabled/Disabled summary. Choose **Edit buses** only when fitting or changing
@@ -261,7 +261,7 @@ Enter the real pull-up resistance, NTC R₀, and beta value. For another analog 
 
 ### Torque, thrust, and load-cell sensors
 
-The primary **Torque** Hardware card offers one Sensor interface selector: **Analog 0–3.3 V transmitter**, **TLA2528 analog channel**, **HX711 load-cell amplifier**, a detected **NAU7802**, or **shaft torsion by phase difference** using two conditioned square-wave pickups. The I²C choices require the shared bus and detected device. Add repeatable **General / additional torque** cards for separately named measurements; they do not replace or combine with primary shaft torque or its power calculation. Thrust supports the conditioned local/TLA2528 analog transmitters and NAU7802 bridge channels. An HX711 requires two GPIOs: DOUT is an ECU input and SCK is an ECU output.
+The primary **Torque** Hardware card offers one Sensor interface selector: **Analog 0–3.3 V transmitter**, **TLA2528 analog channel**, **HX711 load-cell amplifier**, a detected **NAU7802**, or **shaft torsion by phase difference** using two conditioned square-wave pickups. The I²C choices require the shared bus and detected device. Add repeatable **General / additional torque** cards for separately named measurements; they do not replace or combine with primary shaft torque or its power calculation. Thrust supports conditioned local/TLA2528 analog transmitters, HX711 load cells and NAU7802 bridge channels. Its Sensor interface selector does not require I2C when using ADC or HX711. An HX711 requires two GPIOs: DOUT is an ECU input and SCK is an ECU output.
 
 For a NAU7802, use Calibration to capture unloaded zero and a known force/mass. Thrust is stored in newtons. Torque uses the calibrated force multiplied by the entered perpendicular lever arm in metres and is stored in newton-metres. The known-load wizard accepts N, kg mass, g, kgf, or lbf and converts them to canonical newtons. Conditioned analog transmitters use the normal linear or advanced sensor-curve calibration. Do not treat default scale or zero values as a calibration.
 
@@ -443,7 +443,7 @@ Use **Edit cards** to hide unneeded cards or follow a card's limit-setting link.
 
 After a run, the summary reports available duration, peaks, and the minimum healthy oil pressure measured while RUNNING. Use **Log** to review Event Log fault/configuration records and configure Session Data. CSV row interval, event-snapshot interval, standby snapshots, and all session channel selection—including P1/P2, torque and calculated shaft power, and starter demand—are owned by this page. During engine operation, selected session fields use compact binary storage within a fixed RAM budget and written to flash only after STANDBY/FAULT; if that buffer fills, older rows are dropped so the shutdown/fault tail is preserved. Temperatures are stored to 0.1 °C, pressures/voltages/currents to 0.01 of their base unit, torque/thrust to 0.01 Nm/N, and normalized output demand to 0.1%. RPM, timestamps, timing diagnostics, flow, calculated shaft power and general calibrated channels retain their original representation. A compact field outside its encodable range, or an invalid reading, retains its original float instead of clipping or wrapping. Fewer selected channels and a longer interval extend the captured time. The **Recording memory** field shows the approximate maximum duration in minutes for the selected channels and interval, including unsaved edits. Float fallbacks consume more bytes and shorten that window. Event records also share a fixed byte budget rather than reserving worst-case space per event. Choose an interval that covers the part of the run you need, and export important evidence before factory reset or a clean installation.
 
-The upcoming **2.7.1 N8R2 build** can use up to 1 MiB of PSRAM for session capture, with memory reserved for other work. Without usable PSRAM it retains the internal recording buffer. This extra RAM is temporary recording space, not extra flash storage. After stopping, the ECU measures the CSV size, makes room by removing older sessions when needed, and keeps the newest captured tail if the whole run cannot fit. Dropped samples are reported. Export important logs before resetting or reinstalling.
+The **2.7.1 N8R2 build** supports exactly 2 MB of Quad PSRAM and can use up to 1 MiB of it for session capture, with memory reserved for other work. Larger PSRAM capacities are not used; without supported PSRAM it retains the internal recording buffer. This extra RAM is temporary recording space, not extra flash storage. After stopping, the ECU measures the CSV size, makes room by removing older sessions when needed, and keeps the newest captured tail if the whole run cannot fit. Dropped samples are reported. Export important logs before resetting or reinstalling.
 
 ### 3. Calibration
 
@@ -548,6 +548,8 @@ Developer Mode exposes diagnostics and allows Bench Mode. While RUNNING, it perm
 
 ### Control settings and protection settings
 
+**Minimum Fuel During Gradual Protection** is under **Shutdown & Protection → Shared Fuel-Limiting Settings**. It is shared by the gradual limiters; normal throttle opening and closing times stay under Throttle Response.
+
 Set normal output behavior in the controller: its input, target, direction, output range and response. A controller’s **feedback-loss fallback** stays there too, because it defines what that output does when its input becomes unavailable.
 
 Set engine limits, confirmation times and fault actions under **Controllers → Shutdown & Protection**. Each oil-pressure loop has a named **Oil circuit pressure protection** card for its low-running-pressure response; its controller links to that card. The controller’s pressure target is separate from this trip threshold. These protections monitor during Running while the corresponding pressure controller is enabled. The general oil-pressure protection has its own **Monitor during** selection and remains independent.
@@ -555,6 +557,10 @@ Set engine limits, confirmation times and fault actions under **Controllers → 
 Afterburner temperature guards and running flame-loss protection also live under **Shutdown & Protection → Afterburner Protection**. The afterburner controller retains its ignition commands, required light-up evidence and confirmation deadline. Those describe how an ignition attempt succeeds or fails. A custom controller explicitly assigned **Request Fault Shutdown** or **Request Normal Shutdown** remains a deliberate protection action.
 
 Idle’s **Stop Controlling Above** value releases idle correction above that reading; it does not shut down the engine. Overspeed and temperature limits are configured in Shutdown & Protection.
+
+The unit buttons apply to controller inputs, targets, oil-loop settings and pressure tuning as well as protection fields. Changing units preserves settings and pending edits. Temperature bands are converted as differences: a 100 °C threshold becomes 212 °F, while a 10 °C hysteresis becomes 18 °F. Calibration and CSV fields retain their explicitly labelled units.
+
+Afterburner running flame-loss confirmation is available for both verified flame-sensor and external flame-controller modes. A custom torch cut appears only in Custom guard mode; Automatic uses the engine-temperature reference and margin, and Off applies no torch-only cut.
 
 ## Pre-start review
 

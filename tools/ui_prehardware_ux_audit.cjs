@@ -142,13 +142,13 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await goto(page, 'hardware.html', '#hardware-profile-section');
     await page.locator('button[onclick="addRegistryChannel(\'input\')"]').click();
     await page.locator('#registry-add-catalog .registry-add-option', { hasText: 'TOT / EGT' }).click();
-    assert.match(await text(page, '#registry-add-error'), /MAX thermocouple amplifier.*shared SPI wiring.*SCK and MISO.*CS pin/is);
-    const spiSetupButton = page.locator('#registry-add-error button[onclick="openRegistryBusPrerequisite(\'spi\')"]');
-    assert.equal(await spiSetupButton.count(), 1);
-    await spiSetupButton.click();
-    assert.equal(await visible(page, '#hardware-buses-editor'), true);
-    assert.equal(await page.locator('#en-spi').evaluate(el => document.activeElement === el), true);
-    results.push('bus-dependent devices explain the electrical prerequisite and lead directly to its wiring controls');
+    assert.equal(await page.locator('#registry-add-modal').isVisible(), false);
+    const draftTot=await page.evaluate(()=>registryRoot().inputs.find(c=>c.purpose==='tot'));
+    assert.ok(draftTot, 'A thermocouple card can be explored before SPI is configured');
+    assert.equal(await page.evaluate(()=>!!cfg.spi?.enabled), false);
+    assert.equal(await page.locator('#btn-save').isDisabled(), true);
+    assert.match(await text(page, '#registry-inputs'), /shared SPI bus|SPI wiring|CS pin/i);
+    results.push('bus-dependent cards open as drafts before wiring is configured; incomplete setup cannot be saved');
 
     await reset(page);
     await goto(page, 'hardware.html', '#hardware-profile-section');

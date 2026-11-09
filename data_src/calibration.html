@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -2631,7 +2631,7 @@ const _loadCellCal = {torque:{zero:null,id:null,mode:null}, thrust:{zero:null,id
 function forceCalibrationMode(kind, channel) {
   if (!channel || channel.installed === false) return null;
   if (Number(channel.driver) === 10) return 'nau';
-  if (kind === 'torque' && Number(channel.driver) === 1 && Number(channel.torque_interface) === 1) return 'hx';
+  if (Number(channel.driver) === 1 && Number(channel.torque_interface) === 1) return 'hx';
   if (kind === 'thrust' && [1,9].includes(Number(channel.driver)) && !Number(channel.torque_interface)) return 'analog';
   return null;
 }
@@ -2709,12 +2709,12 @@ function saveLoadCellKnown(kind) {
       if (!(arm > 0 && arm <= 100)) { alert('Enter a valid perpendicular lever arm in metres.'); return; }
     }
     if (mode === 'hx') {
-      const scale = nPerCount * arm;
+      const scale = nPerCount * (arm ?? 1);
       if (!(scale >= 0.000001 && scale <= 1000000)) {
         alert(scale <= 0 ? 'The loaded HX711 count must be greater than zero count. Check load direction and the A+/A− bridge wiring.' : 'The computed HX711 scale is outside the supported range. Check the known load and lever arm.'); return;
       }
       fields = {hx711_zero:zero,hx711_scale:scale};
-      summary = `Saved: zero ${zero}, ${scale.toExponential(6)} Nm/count, from ${forceN.toFixed(3)} N × ${arm} m.`;
+      summary = `Saved: zero ${zero}, ${scale.toExponential(6)} ${kind==='torque'?'Nm':'N'}/count, from ${forceN.toFixed(3)} N${kind==='torque'?' × '+arm+' m':''}.`;
     } else if (mode === 'nau') {
       fields = {loadcell_zero:zero,loadcell_n_per_count:nPerCount};
       if (arm !== null) fields.lever_arm_m = arm;

@@ -823,6 +823,14 @@ private:
                 _markMissing(0x2A, Nau7802);
                 return;
             }
+            // The bridge ADC may brown out/reset without the ESP resetting
+            // or losing its I2C address. ACK/CR polling alone would then wait
+            // forever on an ADC whose power and conversion bits were reset.
+            if ((pu & 0x96U) != 0x96U) {
+                _logNauFailure("[I2C] NAU7802 configuration lost; reinitializing");
+                _beginNauConfiguration();
+                return;
+            }
             if (!(pu & 0x20U)) {
                 return;
             }
@@ -832,9 +840,16 @@ private:
                 ok = Wire.endTransmission(true) == 0 &&
                      Wire.requestFrom((uint8_t)0x2A, (uint8_t)3) == 3;
                 if (ok) {
-                    raw = ((int32_t)Wire.read() << 16) |
-                          ((int32_t)Wire.read() << 8) | Wire.read();
-                    if (raw & 0x00800000L) raw |= 0xFF000000L;
+                    // Sequence FIFO reads explicitly: C++ does not specify
+                    // operand evaluation order for a chain of bitwise ORs.
+                    // Reordered bytes destroy linearity across byte/sign
+                    // boundaries even when one reference point is calibrated.
+                    const uint32_t msb = (uint8_t)Wire.read();
+                    const uint32_t middle = (uint8_t)Wire.read();
+                    const uint32_t lsb = (uint8_t)Wire.read();
+                    const uint32_t bits = (msb << 16) | (middle << 8) | lsb;
+                    raw = (int32_t)bits;
+                    if (bits & 0x00800000UL) raw -= 0x01000000L;
                     if (_nauDiscardNextSample) {
                         _nauDiscardNextSample = false;
                         return;

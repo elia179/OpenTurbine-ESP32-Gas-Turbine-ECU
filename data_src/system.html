@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -225,12 +225,19 @@ document.addEventListener('click', async event => {
 
 // ── Per-field changed-state tracking (mirrors hardware.html) ──
 let _fieldSnap = {};
+let _fieldBaseSnap = {};
+let _collectedFields = new Set();
 let _idleInputSnap = {};
 
 function _snapshotFields() {
   _idleInputSnap = JSON.parse(JSON.stringify({input_id:cfg?.dynamic_idle?.input_id || '',
     input_low:cfg?.dynamic_idle?.input_low ?? 0, input_high:cfg?.dynamic_idle?.input_high ?? 1}));
   _fieldSnap = {};
+  _fieldBaseSnap = {};
+  _collectedFields.clear();
+  SCHEMA.forEach(section=>section.fields.forEach(field=>{
+    _fieldBaseSnap['cf-'+field.key] = getPath(cfg,field.path);
+  }));
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
     .forEach(el => {
       _fieldSnap[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
@@ -356,8 +363,17 @@ function _controllerRuleChanges() {
     if (key === 'target') return value === 'request_fault' ? 'Request Fault Shutdown' : value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
     if(['on_value','off_value'].includes(key)&&(['request_shutdown','request_fault'].includes(String(rule.target))||[4,11].includes(Number(hwCfg?.channel_registry?.outputs?.find(row=>String(row.id)===String(rule.target))?.driver))))
       return Number(value)>=.5?'ON':'OFF';
-    if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
+    if (['response_gain','integral_gain'].includes(key)) {
+      const meta=controllerInputDisplay(rule.source);
+      return `${Number((Number(value)*100/meta.scale).toFixed(4))}% / ${meta.unit||'unit'}${key==='integral_gain'?' / s':''}`;
+    }
+    if (['on_value','off_value','output_min','output_max'].includes(key))
       return `${Number((Number(value) * 100).toFixed(4))}%`;
+    const source=controllerFieldInput(rule,key);
+    if(source.id && value!==undefined && value!==null) {
+      const meta=controllerInputDisplay(source.id);
+      return `${Number(controllerValueToDisplay(value,source.id,source.delta).toFixed(4))}${meta.unit?' '+meta.unit:''}`;
+    }
     return value === undefined || value === null || value === '' ? '(none)' : String(value);
   };
   const matchedOld = new Set();
@@ -426,12 +442,13 @@ function _buildChanges() {
     if (!Number(cfg?.dynamic_idle?.fuel_mode || 0)) continue;
     const fieldKey = {input_id:'fi_input',input_low:'fi_low',input_high:'fi_high'}[key];
     const el = document.getElementById('cf-'+fieldKey);
-    const current = el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
+    const unchangedRange = el && key!=='input_id' && String(cfg?.dynamic_idle?.input_id||'')===_idleInputSnap.input_id && OTFieldValueEqual(el,el.value,_fieldSnap[el.id]);
+    const current = unchangedRange ? _idleInputSnap[key] : el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
     if (String(current) === String(_idleInputSnap[key])) continue;
     const display = (value,id) => {
       if (key === 'input_id') return value ? controllerChannelName(simpleControlInputs().find(row=>row.id===value)) || `Missing input: ${value}` : 'Automatic: configured Idle Input';
       const meta = controllerInputDisplay(id);
-      return `${Number((value*meta.scale).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
+      return `${Number(controllerValueToDisplay(value,id).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
     };
     changes.push({key:'fi_'+key,label:'Idle / '+label,was:display(_idleInputSnap[key],_idleInputSnap.input_id),now:display(current,cfg?.dynamic_idle?.input_id),inactive:false});
   }
@@ -773,18 +790,33 @@ function setControllerSwitchState(index,op) {
 
 // Presentation only: controller configuration keeps its existing engineering units.
 function controllerInputDisplay(id) {
-  const row = simpleControlInputs().find(input => String(input.id) === String(id));
+  const row = simpleControlInputs().find(input => String(input.id) === String(id)) ||
+    hwCfg?.channel_registry?.inputs?.find(input=>String(input.id)===String(id));
   const purpose = String(row?.purpose || '');
   if (['throttle','idle','ab_input'].includes(purpose)) return {scale:100,unit:'%'};
-  if (purpose.includes('pressure')) return {scale:1,unit:'bar'};
+  if (purpose.includes('pressure')) return {scale:toDispPress(1),unit:dispPressUnit()};
   if (['n1_speed','n2_speed','shaft_speed'].includes(purpose)) return {scale:1,unit:'RPM'};
-  if (['tot','tit','oil_temperature'].includes(purpose)) return {scale:1,unit:'°C'};
+  if (['tot','tit'].includes(purpose)||purpose.includes('temperature'))
+    return {scale:toDispTempDelta(1),offset:toDispTemp(0),unit:dispTempUnit()};
   if (purpose === 'battery_voltage') return {scale:1,unit:'V'};
   if (purpose.includes('current')) return {scale:1,unit:'A'};
   if (purpose === 'torque') return {scale:1,unit:'Nm'};
   if (purpose === 'thrust') return {scale:1,unit:'N'};
   if (purpose.includes('flow')) return {scale:1,unit:'L/min'};
   return {scale:1,unit:''};
+}
+function controllerValueToDisplay(value,id,delta=false) {
+  const meta=controllerInputDisplay(id);
+  return Number(value)*meta.scale+(delta?0:Number(meta.offset||0));
+}
+function controllerValueFromDisplay(value,id,delta=false) {
+  const meta=controllerInputDisplay(id);
+  return (Number(value)-(delta?0:Number(meta.offset||0)))/meta.scale;
+}
+function controllerFieldInput(rule,key) {
+  const sourceKeys=['input_min','input_max','threshold','hysteresis','target_fixed','target_low','target_high','deadband'];
+  return {id:sourceKeys.includes(key)?rule?.source:['target_input_min','target_input_max'].includes(key)?rule?.target_source:'',
+    delta:['hysteresis','deadband'].includes(key)};
 }
 
 // Interpret old files for display only. Never rewrite their behavior on load
@@ -834,7 +866,7 @@ function configuredIdleSource() {
   const input = explicitId ? simpleControlInputs().find(row=>String(row.id)===explicitId) : controllerInputs('idle')[0];
   if (input) {
     const display = controllerInputDisplay(input.id);
-    const endpoints = explicitId ? `${Number(((cfg.dynamic_idle.input_low ?? 0)*display.scale).toFixed(4))}–${Number(((cfg.dynamic_idle.input_high ?? 1)*display.scale).toFixed(4))}${display.unit ? ' '+display.unit : ''}` : '0–100% calibrated travel';
+    const endpoints = explicitId ? `${Number(controllerValueToDisplay(cfg.dynamic_idle.input_low??0,input.id).toFixed(4))}–${Number(controllerValueToDisplay(cfg.dynamic_idle.input_high??1,input.id).toFixed(4))}${display.unit ? ' '+display.unit : ''}` : '0–100% calibrated travel';
     return {active:true,title:`Idle input · ${controllerChannelName(input)}`,description:`Maps ${endpoints} to ${range} fuel in Running. Missing or unhealthy input falls back to retained startup idle, bounded by this fuel range. Startup actions are unchanged.`};
   }
   if (mode === 3) return {active:false,title:explicitId ? 'Selected input unavailable' : 'No Idle Input configured',description:'Choose a fitted input below or add an Idle Input in Hardware. No other sensor is selected silently.'};
@@ -1145,7 +1177,9 @@ function renderSystemSetup() {
   if (frBtn) frBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
   const cfgRestoreBtn = document.getElementById('cfg-restore-btn');
   if (cfgRestoreBtn) cfgRestoreBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
-  ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, !mav.enabled));
+  // The section dependency controls Configured/Explore visibility. A disabled
+  // link must not prevent preparing display references in Explore.
+  ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, false));
 }
 
 // OT_SYSTEM_ONLY_END
@@ -1156,7 +1190,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'power', title:'Power Turbine & Afterburner', desc:'N2 control and afterburner ignition/running behavior', sections:['Afterburner — Ignition Method','Afterburner — Flame Confirmation','Afterburner — Running'] },
   { id:'oil', title:'Oil & Lubrication Controllers', desc:'Normal pressure response and windmilling oil behavior', sections:['Oil Pressure Control','Windmilling Oil Protection'] },
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
-  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
+  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Shared Fuel-Limiting Settings','Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
   { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];
@@ -1474,22 +1508,22 @@ function updateIdleSourceFields() {
 }
 
 function _fieldToDisplay(f, value) {
-  if (['fi_low','fi_high'].includes(f.key)) return value * controllerInputDisplay(cfg?.dynamic_idle?.input_id).scale;
+  if (['fi_low','fi_high'].includes(f.key)) return controllerValueToDisplay(value,cfg?.dynamic_idle?.input_id);
   let out = value;
   if (f.zeroOff && Number(out) === 0) return 0;
   if (f.unitType === 'temp') out = toDispTemp(out);
   else if (f.unitType === 'temp_delta' || f.unitType === 'temp_rate') out = toDispTempDelta(out);
-  else if (f.unitType === 'press') out = toDispPress(out);
+  else if (f.unitType === 'press' || f.unitType === 'press_rate') out = toDispPress(out);
   return f.scale ? out * f.scale : out;
 }
 
 function _fieldFromDisplay(f, value) {
-  if (['fi_low','fi_high'].includes(f.key)) return value / controllerInputDisplay(cfg?.dynamic_idle?.input_id).scale;
+  if (['fi_low','fi_high'].includes(f.key)) return controllerValueFromDisplay(value,cfg?.dynamic_idle?.input_id);
   if (f.zeroOff && Number(value) === 0) return 0;
   let out = f.scale ? value / f.scale : value;
   if (f.unitType === 'temp') return fromDispTemp(out);
   if (f.unitType === 'temp_delta' || f.unitType === 'temp_rate') return fromDispTempDelta(out);
-  if (f.unitType === 'press') return fromDispPress(out);
+  if (f.unitType === 'press' || f.unitType === 'press_rate') return fromDispPress(out);
   return out;
 }
 
@@ -1498,7 +1532,7 @@ function _fieldStepToDisplay(f, value) {
   let out = value;
   if (f.unitType === 'temp' || f.unitType === 'temp_delta' || f.unitType === 'temp_rate') {
     out = tempUnit() === 'F' ? out * 9 / 5 : out;
-  } else if (f.unitType === 'press') {
+  } else if (f.unitType === 'press' || f.unitType === 'press_rate') {
     out = toDispPress(out);
   }
   return f.scale ? out * f.scale : out;
@@ -1516,38 +1550,47 @@ function _fieldDef(key) {
   return null;
 }
 
-function _switchConfigUnit(unitTypes, setter, nextUnit) {
-  const fields = [];
+function _switchConfigUnit(setter, nextUnit) {
+  const snapshots = [];
   SCHEMA.forEach(sec => sec.fields.forEach(f => {
-    if (!unitTypes.includes(f.unitType)) return;
+    if (!f.unitType && !['fi_low','fi_high'].includes(f.key)) return;
     const el = document.getElementById('cf-' + f.key);
     if (!el || el.type === 'checkbox') return;
-    const current = parseFloat(el.value);
-    const snap = parseFloat(_fieldSnap[el.id]);
-    fields.push({
-      f, el,
-      current: isNaN(current) ? null : _fieldFromDisplay(f, current),
-      snap: isNaN(snap) ? null : _fieldFromDisplay(f, snap)
-    });
+    const base = _fieldBaseSnap[el.id];
+    const old = parseFloat(_fieldSnap[el.id]);
+    const stored=getPath(cfg,f.path);
+    const current=OTFieldValueEqual(el,el.value,_fieldSnap[el.id])&&stored!==undefined?stored:_fieldFromDisplay(f,parseFloat(el.value));
+    snapshots.push({f,id:el.id,current,base:base===undefined?_fieldFromDisplay(f,old):base});
   }));
+  // Capture edits using the old units before rebuilding every editor. Oil
+  // loops and custom controllers live outside SCHEMA and need this rebuild too.
+  collectConfigFields();
   setter(nextUnit);
-  fields.forEach(({ f, el, current, snap }) => {
-    if (current !== null) el.value = _roundedDisplay(_fieldToDisplay(f, current));
-    if (snap !== null) _fieldSnap[el.id] = _roundedDisplay(_fieldToDisplay(f, snap));
-    if (f.min !== undefined) el.min = _roundedDisplay(_fieldToDisplay(f, f.min));
-    if (f.max !== undefined) el.max = _roundedDisplay(_fieldToDisplay(f, f.max));
-    if (f.step !== undefined) el.step = _roundedDisplay(_fieldStepToDisplay(f, f.step));
+  // System's file pickers and update progress must survive a display change.
+  // Only Controllers has the extra editors that require a full rebuild.
+  if(CONFIG_SURFACE==='controllers')renderForm(true);
+  else snapshots.forEach(({f,id,current})=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(Number.isFinite(current))el.value=_roundedDisplay(_fieldToDisplay(f,current));
+    if(f.min!==undefined)el.min=_roundedDisplay(_fieldToDisplay(f,f.min));
+    if(f.max!==undefined)el.max=_roundedDisplay(_fieldToDisplay(f,f.max));
+    if(f.step!==undefined)el.step=_roundedDisplay(_fieldStepToDisplay(f,f.step));
   });
+  snapshots.forEach(({f,id,base}) => {
+    if (Number.isFinite(Number(base))) _fieldSnap[id] = _roundedDisplay(_fieldToDisplay(f,base));
+  });
+  _applyAllVisibility();
   _refreshChangedBorders();
+  applyView();
   runValidation();
 }
 
 function setConfigTempUnit(value) {
-  _switchConfigUnit(['temp', 'temp_delta', 'temp_rate'], setTempUnit, value);
+  _switchConfigUnit(setTempUnit, value);
 }
 
 function setConfigPressUnit(value) {
-  _switchConfigUnit(['press'], setPressUnit, value);
+  _switchConfigUnit(setPressUnit, value);
 }
 
 function _detailsStateKey(card) {
@@ -1620,8 +1663,8 @@ function renderForm(preserveControllerOpenState = true) {
     }
     const isTempUnit = f.unitType === 'temp' || f.unitType === 'temp_delta';
     const unitSuffix = (!isSel && f.unitType)
-      ? f.unitType === 'temp_rate'
-        ? ` (<span data-unit="temp">${dispTempUnit()}</span>/s)`
+      ? ['temp_rate','press_rate'].includes(f.unitType)
+        ? ` (<span data-unit="${f.unitType==='temp_rate'?'temp':'press'}">${f.unitType==='temp_rate'?dispTempUnit():dispPressUnit()}</span>/s)`
         : ` (<span data-unit="${isTempUnit ? 'temp' : 'press'}">${isTempUnit ? dispTempUnit() : dispPressUnit()}</span>)`
       : (!isSel && f.unit ? ` (${f.unit})` : '');
     const min = (!isCb && !isSel && f.min !== undefined) ? ` min="${_roundedDisplay(_fieldToDisplay(f, f.min))}"` : '';
@@ -1831,8 +1874,10 @@ function renderForm(preserveControllerOpenState = true) {
   applyAbIgnitionParamVisibility();
   const _abUtEl = document.getElementById('cf-ab_ut');
   const _abFmEl = document.getElementById('cf-ab_fm');
+  const _abGuardEl = document.getElementById('cf-ab_tgm');
   if (_abUtEl) _abUtEl.addEventListener('change', applyAbIgnitionParamVisibility);
   if (_abFmEl) _abFmEl.addEventListener('change', applyAbIgnitionParamVisibility);
+  if (_abGuardEl) _abGuardEl.addEventListener('change', applyAbIgnitionParamVisibility);
   refreshStartupGuardUi();
   document.getElementById('cf-sf_sg_en')?.addEventListener('change',refreshStartupGuardUi);
   const _egSrcEl = document.getElementById('cf-eg_src');
@@ -2137,6 +2182,21 @@ function collectConfigFields() {
       // Old-file choices are interpreted for display only. Only an explicit
       // mode/channel action may replace their stored behavior.
       if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
+      const shown = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.id in _fieldSnap && OTFieldValueEqual(el, shown, _fieldSnap[el.id])) {
+        // A rounded display is not an edit. If a staged edit was reverted,
+        // restore its exact saved value rather than the rounded presentation.
+        if (_collectedFields.has(el.id)) {
+          if (_fieldBaseSnap[el.id] !== undefined) setPath(cfg, f.path, _fieldBaseSnap[el.id]);
+          else {
+            const parent=getPath(cfg,f.path.slice(0,-1));
+            if(parent && typeof parent==='object') delete parent[f.path[f.path.length-1]];
+          }
+        }
+        _collectedFields.delete(el.id);
+        return;
+      }
+      _collectedFields.add(el.id);
       if (f.type === 'checkbox') {
         setPath(cfg, f.path, el.checked);
       } else if (f.string) {
@@ -2168,7 +2228,15 @@ async function saveConfig() {
     // Legacy or future-hardware values elsewhere on System must not block an
     // unrelated Appearance save. Validate only controls changed in this edit.
     const invalid = Array.from(document.querySelectorAll('#cfg-form input:invalid, #cfg-form select:invalid'))
-      .find(element => element.classList.contains('field-changed'));
+      .find(element => {
+        if(!element.classList.contains('field-changed'))return false;
+        const validity=element.validity;
+        // Engineering-value steps are useful arrow increments. Converted
+        // temperatures/pressures need not land on that browser step grid.
+        const convertedField=!!_fieldDef(element.id.replace(/^cf-/,''))?.unitType;
+        const otherError=['badInput','valueMissing','rangeOverflow','rangeUnderflow','patternMismatch','typeMismatch','tooLong','tooShort','customError'].some(key=>validity[key]);
+        return otherError || !convertedField || !validity.stepMismatch;
+      });
     if (invalid) {
       invalid.reportValidity();
       invalid.focus();
@@ -2974,11 +3042,13 @@ function applyAbIgnitionParamVisibility() {
   }
   showF('ab_tpct', useTorch);
   showF('ab_tms',  useTorch);
-  showF('ab_ttl',  useTorch);
+  const guardMode = Number(document.getElementById('cf-ab_tgm')?.value ?? cfg?.afterburner?.torch_guard_mode ?? 0);
+  showF('ab_tgm', useTorch);
+  showF('ab_ttl', useTorch && guardMode === 1);
   showF('ab_tr',   flameMode === 1);
   showF('ab_tw',   flameMode === 1);
   showF('ab_ams',  flameMode === 2);
-  showF('ab_fld',  flameMode === 0);
+  showF('ab_fld',  flameMode === 0 || flameMode === 3);
   applyView();
 }
 

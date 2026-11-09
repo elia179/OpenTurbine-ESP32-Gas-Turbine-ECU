@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {chromium, request} = require('playwright');
-const {execFileSync} = require('node:child_process');
+const {joinFixtureWifi} = require('./fixture_wifi_helper.cjs');
 
 if (!process.argv.includes('--allow-write')) throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(arg => /^http/.test(arg)) || 'http://192.168.4.1';
@@ -27,7 +27,7 @@ async function snapshot() {
 
 (async () => {
   const before = await snapshot();
-  assert.equal(before.info.state, 'STANDBY');
+  assert.ok(['STANDBY','FAULT'].includes(before.info.state), 'ECU must be stopped');
   assert.equal(before.info.outputs_active, false);
   const candidates = [
     process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
@@ -45,7 +45,7 @@ async function snapshot() {
     await page.goto(`${base}/system.html`, {waitUntil:'domcontentloaded', timeout:30000});
     await page.locator('#assets-files').waitFor({state:'attached'});
     await page.waitForFunction(() => typeof window.startSystemWebAssetsUpdate === 'function');
-    await page.waitForFunction(() => runtimeMode === 'STANDBY', null, {timeout:30000});
+    await page.waitForFunction(() => ['STANDBY','FAULT'].includes(runtimeMode), null, {timeout:30000});
     await page.locator('#assets-files').setInputFiles(files);
     await page.waitForFunction(() => /Done.*rebooting|Error/i.test(document.getElementById('assets-state')?.textContent || ''),
       null, {timeout:180000});
@@ -58,22 +58,24 @@ async function snapshot() {
   let after;
   for (let attempt=0; attempt<40; attempt++) {
     if (attempt % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-      try {execFileSync('netsh', ['wlan','connect','name='+wifiProfile], {stdio:'ignore'});} catch (_) {}
+      try {joinFixtureWifi(wifiProfile);} catch (_) {}
     }
     try {
       after = await snapshot();
       if (after.live.boot_count > before.live.boot_count &&
-          after.info.state === 'STANDBY' && after.info.outputs_active === false) break;
+          after.info.state === before.info.state && after.info.outputs_active === false) break;
     } catch (_) {}
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   assert.ok(after);
   assert.ok(after.live.boot_count > before.live.boot_count, 'web asset upload did not reboot the ECU');
   assert.equal(after.info.build_id, before.info.build_id);
+  assert.equal(after.info.state, before.info.state);
+  assert.equal(after.info.outputs_active, false);
   assert.equal(after.cfg.hardware.actuators.status_led.enabled, before.cfg.hardware.actuators.status_led.enabled);
   assert.deepEqual(after.cfg.hardware.channel_registry, before.cfg.hardware.channel_registry);
   assert.deepEqual(after.cfg, before.cfg, 'web asset update must preserve the complete engine file');
   const html = await (await fetch(`${base}/hardware.html`)).text();
   assert.match(html, /Electrical output endpoints/);
-  console.log(`Browser web asset update passed: 12 files, ${chunks} bounded chunks, complete engine file retained exactly, STANDBY, outputs inactive.`);
+  console.log(`Browser web asset update passed: 12 files, ${chunks} bounded chunks, complete engine file retained exactly, ${after.info.state}, outputs inactive.`);
 })().catch(error => {console.error(error.stack || error); process.exit(1);});

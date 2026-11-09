@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <cassert>
-#include <fstream>
+#include <cstdio>
 #include <iostream>
 using std::isfinite;
 constexpr int LOW=0,HIGH=1,OUTPUT=1;
@@ -33,6 +33,12 @@ bool  HardwareConfig::hasMAVLink = {};
 int   HardwareConfig::mavlinkTxPin = {};
 int   HardwareConfig::mavlinkRxPin = {};
 static uint32_t crc(const std::string& s){uint32_t c=~0u;for(uint8_t b:s){c^=b;for(int n=0;n<8;n++)c=(c>>1)^((c&1)?0xedb88320u:0);}return ~c;}
+static std::string readFile(const char* path) {
+ FILE* file = std::fopen(path, "rb"); assert(file);
+ std::string text; char buffer[4096]; size_t count;
+ while ((count = std::fread(buffer, 1, sizeof(buffer), file)) != 0) text.append(buffer, count);
+ assert(!std::ferror(file)); assert(std::fclose(file) == 0); return text;
+}
 static void load(JsonDocument& doc){
  std::string payload;serializeJson(doc,payload);
  ProfileHeader h={};memcpy(h.magic,"OTPB",4);h.containerVersion=1;h.encoding=1;h.formatMajor=doc["format_version"]["major"];h.formatMinor=doc["format_version"]["minor"];h.targetChip=2;h.origin=2;h.headerSize=32;h.payloadLength=payload.size();h.payloadCrc32=crc(payload);
@@ -40,7 +46,7 @@ static void load(JsonDocument& doc){
  EngineData::instance().hardwareReady=true;PcbProfileManager::begin();
 }
 int main(int argc,char** argv){
- std::ifstream in("pcb_profiles/official/openturbine-s3-20261102.otpcb.json");assert(in);JsonDocument source;assert(!deserializeJson(source,in));
+ const auto in=readFile("pcb_profiles/official/openturbine-s3-20261102.otpcb.json");JsonDocument source;assert(!deserializeJson(source,in));
  load(source);assert(PcbProfileManager::active());const auto* p=PcbProfileManager::catalog();
  assert(p->hasPowerStage&&p->healthHeartbeat&&p->powerControlDevice>=0&&p->portCount==34&&p->supplyVoltageDivider==37);
  assert(p->gpioHeaderCount==4);for(int pin:p->powerInh)assert(PcbProfileManager::gpioReserved(pin));
@@ -57,7 +63,7 @@ int main(int argc,char** argv){
  assert(strstr(p->gpioHeaderNotes[2],"pull-down"));
  JsonDocument metadata;PcbProfileManager::toJson(metadata.to<JsonObject>());
  bool lastAdc=false;for(JsonObjectConst port:metadata["ports"].as<JsonArrayConst>())if(!strcmp(port["id"]|"","analog_8"))for(JsonObjectConst mode:port["modes"].as<JsonArrayConst>()){assert(mode["i2c_address"]==16&&mode["device_channel"]==7);lastAdc=true;}assert(lastAdc);
- for(int arg=1;arg<argc;arg++){std::ifstream setup(argv[arg]);assert(setup);JsonDocument channels;assert(!deserializeJson(channels,setup));ChannelRegistry r;if(!r.fromJson(channels.as<JsonObjectConst>())){std::cerr<<argv[arg]<<": "<<ChannelRegistry::validationError()<<"\n";return 1;}std::cout<<"PASS saved PCB engine registry "<<argv[arg]<<"\n";
+ for(int arg=1;arg<argc;arg++){const auto setup=readFile(argv[arg]);JsonDocument channels;assert(!deserializeJson(channels,setup));ChannelRegistry r;if(!r.fromJson(channels.as<JsonObjectConst>())){std::cerr<<argv[arg]<<": "<<ChannelRegistry::validationError()<<"\n";return 1;}std::cout<<"PASS saved PCB engine registry "<<argv[arg]<<"\n";
  JsonDocument stale;stale.set(channels);
  for(const char* direction:{"inputs","outputs"})for(JsonObject c:stale[direction].as<JsonArray>())if(c["physical_port"].is<const char*>()){
      c["pin"]=0;c["i2c_address"]=0;c["device_channel"]=0;

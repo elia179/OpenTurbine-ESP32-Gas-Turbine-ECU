@@ -524,6 +524,19 @@ async function sectionVisible(page, title) {
     for(const key of ['ab_tgm','ab_ttl','ab_smt','ab_fld'])
       assert.equal(await page.locator(`[data-group="safety"] #cf-${key}`).count(),1,
         `${key} belongs to Shutdown & Protection`);
+    await patchHardware(page,{ab_flame:{enabled:true}});
+    await patchConfig(page,{afterburner:{use_torch:true,torch_guard_mode:0,torch_tot_limit:650,flame_mode:3}});
+    await gotoConfig(page);
+    assert.equal(await shown(page,'#cf-ab_fld'),true,'external flame controllers also use running flame-loss confirmation');
+    assert.equal(await shown(page,'#cf-ab_ttl'),false,'automatic guard uses the engine limit rather than a custom cut');
+    await page.locator('#cf-ab_tgm').selectOption('1');
+    assert.equal(await shown(page,'#cf-ab_ttl'),true);
+    await page.locator('#cf-ab_tgm').selectOption('2');
+    assert.equal(await shown(page,'#cf-ab_ttl'),false);
+    await page.evaluate(()=>collectConfigFields());
+    assert.equal(await page.evaluate(()=>cfg.afterburner.torch_tot_limit),650,'changing guard method retains its custom temperature');
+    await page.locator('#cf-ab_fm').selectOption('1');
+    assert.equal(await shown(page,'#cf-ab_fld'),false);
     results.push('afterburner output behavior unlocks with fitted hardware while entry gates remain sequence-owned');
 
     console.log(`Config super audit passed (${results.length} groups):`);

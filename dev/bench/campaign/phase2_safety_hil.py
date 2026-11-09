@@ -115,6 +115,12 @@ class SafetyQualification:
         self.verify_profile({"overspeed", "n2_overspeed", "overtemp", "low_oil", "hot_start", "oil_zero", "flameout"})
 
     def verify_profile(self, expected_safeties):
+        # Current firmware migrates the former oil_zero enable flag into the
+        # single oil-pressure protection. Verify the canonical saved state.
+        expected_safeties = set(expected_safeties)
+        if "oil_zero" in expected_safeties:
+            expected_safeties.remove("oil_zero")
+            expected_safeties.add("low_oil")
         hw = self.dut.hardware()
         data = self.dut.data()
         settings = self.dut.config()

@@ -208,7 +208,7 @@ The **Purpose** field tells the firmware how an installed channel may be used. T
 <tr><td>Main / scavenge oil flow</td><td>Separate flow feedback for the corresponding pump. Calibrate in L/min, enable monitoring on that pump's Hardware card, and test its minimum-flow threshold. Confirmed underflow warns by default; shutdown is a separate Config choice.</td></tr>
 <tr><td>Main flame / afterburner flame</td><td>Dedicated combustion detectors. Main flame can confirm startup/flameout; AB flame can confirm afterburner light-off.</td></tr>
 <tr><td>Torque</td><td>Analog, HX711, NAU7802, or shaft torsion by phase difference between two pickups on the same shaft. Phase torque needs matching effective pulses per shaft revolution and calibrated zero phase and shaft sensitivity; two unrelated RPM readings cannot measure torque. NAU7802 calibration captures unloaded zero plus known force and lever arm. See the <a href="{{ '/guided-builds/instruments/#challenge' | relative_url }}">two-pickup walkthrough</a>. With shaft speed it supports shaft-power calculation; it is also available to controllers.</td></tr>
-<tr><td>Thrust</td><td>Conditioned local/TLA2528 analog transmitter or NAU7802 load-cell measurement. Analog inputs use linear or multi-point calibration; NAU7802 uses unloaded zero plus a known force or mass. Canonical display, telemetry, controllers and logs use newtons.</td></tr>
+<tr><td>Thrust</td><td>Conditioned local/TLA2528 analog transmitter, HX711 or NAU7802 load cell. Choose the Sensor interface on the card; ADC and HX711 need no I²C bus. Analog inputs use linear or multi-point calibration; load cells use unloaded zero plus a known force or mass. Canonical display, telemetry, controllers and logs use newtons.</td></tr>
 <tr><td>Battery / bus voltage</td><td>Scaled ADC measurement for display, logs and undervoltage protection. A battery must never connect directly to an ADC pin.</td></tr>
 <tr><td>Throttle input</td><td>Operator demand from analog, RC PWM, pulse-duty or another supported input. Calibrate low/high endpoints and signal-loss behavior.</td></tr>
 <tr><td>Idle input</td><td>Separate idle/startup demand, usable as digital, analog, RC PWM, pulse or duty depending on the installation.</td></tr>
@@ -282,6 +282,8 @@ First configure the required physical **Start** and **Stop** inputs. These are E
 3. Complete the card fields described below.
 4. Resolve every red requirement, pin conflict or invalid-channel message.
 5. Save, let the ECU reboot, reopen Hardware, and compare the saved page with the physical wire list.
+
+You can add a draft card before its wiring or shared bus is configured. In PCB mode, **Add unassigned card** opens its settings first. Save stays unavailable until the required connection and settings are valid.
 
 ### 8.3 What every channel-card field means
 
@@ -525,6 +527,8 @@ Save and reopen the card, then dry-test input movement, output direction and bou
 
 ### Control settings and protection settings
 
+**Minimum Fuel During Gradual Protection** is under **Shutdown & Protection → Shared Fuel-Limiting Settings**. It is shared by the gradual limiters; normal throttle opening and closing times stay under Throttle Response.
+
 Set normal output behavior in the controller: its input, target, direction, output range and response. A controller’s **feedback-loss fallback** stays there too, because it defines what that output does when its input becomes unavailable.
 
 Set engine limits, confirmation times and fault actions under **Controllers → Shutdown & Protection**. Each oil-pressure loop has a named **Oil circuit pressure protection** card for its low-running-pressure response; its controller links to that card. The controller’s pressure target is separate from this trip threshold. These protections monitor during Running while the corresponding pressure controller is enabled. The general oil-pressure protection has its own **Monitor during** selection and remains independent.
@@ -532,6 +536,10 @@ Set engine limits, confirmation times and fault actions under **Controllers → 
 Afterburner temperature guards and running flame-loss protection also live under **Shutdown & Protection → Afterburner Protection**. The afterburner controller retains its ignition commands, required light-up evidence and confirmation deadline. Those describe how an ignition attempt succeeds or fails. A custom controller explicitly assigned **Request Fault Shutdown** or **Request Normal Shutdown** remains a deliberate protection action.
 
 Idle’s **Stop Controlling Above** value releases idle correction above that reading; it does not shut down the engine. Overspeed and temperature limits are configured in Shutdown & Protection.
+
+The unit buttons apply to controller inputs, targets, oil-loop settings and pressure tuning as well as protection fields. Changing units preserves settings and pending edits. Temperature bands are converted as differences: a 100 °C threshold becomes 212 °F, while a 10 °C hysteresis becomes 18 °F. Calibration and CSV fields retain their explicitly labelled units.
+
+Afterburner running flame-loss confirmation is available for both verified flame-sensor and external flame-controller modes. A custom torch cut appears only in Custom guard mode; Automatic uses the engine-temperature reference and margin, and Off applies no torch-only cut.
 
 
 ## Part 14: Dry-test the complete ECU
@@ -587,6 +595,10 @@ Switch faults name the configured input and link to its Hardware assignment and 
 **Fullscreen** on the Dashboard requests browser fullscreen where supported, including compatible Android browsers. Browser permissions or platform limitations may prevent the request. Exit with the same button or the browser's fullscreen control.
 
 Output cards show actual commanded demand and current command owner. A configured idle/governor target is explicitly labelled as configured. The oil card's **run minimum** is the lowest measured healthy running pressure, not a saved shutdown threshold. Unused startup presets are not shown as active commands. The throttle-feedback warning appears only when the runtime limiter actually holds an attempted increase.
+
+### Recording capacity
+
+Select the channels you need on **Log** and use its capacity estimate for the chosen interval. The 2.7.1 N8R2 image supports exactly 2 MB of Quad PSRAM and can use up to 1 MiB for temporary recording; larger PSRAM capacities are not used. Other boards retain the internal buffer. Extra recording RAM does not increase flash-log storage.
 
 ### Backups
 

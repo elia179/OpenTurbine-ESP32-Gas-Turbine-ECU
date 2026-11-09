@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -2005,7 +2005,7 @@ const REGISTRY_INPUT_PURPOSES=[
   {value:'flame',label:'Flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
   {value:'ab_flame',label:'Afterburner flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
   {value:'torque',label:'Torque',role:'torque',drivers:[1,2,9,10],group:'Engine sensors'},
-  {value:'thrust',label:'Thrust',role:'thrust',drivers:[10,1,9],group:'Engine sensors'},
+  {value:'thrust',label:'Thrust',role:'thrust',drivers:[1,9,10],group:'Engine sensors'},
   {value:'battery_voltage',label:'Battery / bus voltage',role:'voltage',drivers:[1,9],group:'Engine sensors'},
   {value:'throttle',label:'Throttle input',role:'operator',drivers:[1,3,2,7,9],group:'Operator inputs'},
   {value:'idle',label:'Idle input',role:'operator',drivers:[0,1,3,2,7,8,9],group:'Operator inputs'},
@@ -2136,7 +2136,7 @@ const REGISTRY_INPUT_PRESETS=[
   {group:'Engine sensors',purpose:'flame',role:'flame',label:'Flame',id:'flame_main',name:'Flame',driver:1},
   {group:'Engine sensors',purpose:'ab_flame',role:'flame',label:'AB flame',id:'ab_flame_main',name:'AB Flame',driver:1},
   {group:'Engine sensors',purpose:'torque',role:'torque',label:'Torque',id:'torque_main',name:'Torque',driver:1},
-  {group:'Engine sensors',purpose:'thrust',role:'thrust',label:'Thrust',id:'thrust_main',name:'Thrust',driver:10,i2c_address:42,device_channel:0},
+  {group:'Engine sensors',purpose:'thrust',role:'thrust',label:'Thrust',id:'thrust_main',name:'Thrust',driver:1},
   {group:'Engine sensors',purpose:'battery_voltage',role:'voltage',label:'Battery voltage',id:'battery_voltage',name:'Battery Volt',driver:1},
   {group:'Operator and interlock inputs',purpose:'throttle',role:'operator',label:'Throttle input',id:'operator_throttle',name:'Throttle Input',driver:1},
   {group:'Operator and interlock inputs',purpose:'idle',role:'operator',label:'Idle input',id:'operator_idle',name:'Idle Input',driver:1},
@@ -2376,8 +2376,6 @@ function registryLoadCellIsHx711(c) {
 function registryTorqueInterfaceEditor(direction, c, index) {
   const purpose = registryDerivedPurpose(direction, c);
   if (direction !== 'input' || !['torque','general_torque','thrust','general_thrust'].includes(purpose)) return '';
-  const torque = ['torque','general_torque'].includes(purpose);
-  if (!torque && [9,10].includes(Number(c.driver))) return '';
   const hx = registryLoadCellIsHx711(c);
   const phase = Number(c.torque_interface || 0) === 2;
   const driver = Number(c.driver);
@@ -2391,14 +2389,12 @@ function registryTorqueInterfaceEditor(direction, c, index) {
     const unavailable = present(type)&&pcbProfileActive() ? '' : !cfg.i2c?.enabled ? ' — enable I2C bus' : cfg._i2c_discovery?.status_unavailable ? ' - status unavailable' : cfg._i2c_discovery?.bus_active===false ? ' - bus unavailable' : !present(type) ? ' — not detected' : '';
     return `<option value="${value}"${selected?' selected':''}${!selected&&unavailable?' disabled':''}>${label}${unavailable}</option>`;
   };
-  const choices = torque
-    ? `<option value="adc"${driver===1&&!hx?' selected':''}>${pcbProfileActive()?'Analog voltage transmitter':'Analog 0–3.3 V transmitter (ESP32 ADC)'}</option>
+  const choices = `<option value="adc"${driver===1&&!hx?' selected':''}>${pcbProfileActive()?'Analog voltage transmitter':'Analog 0–3.3 V transmitter (ESP32 ADC)'}</option>
        <option value="hx711"${hx?' selected':''}>HX711 load-cell amplifier</option>
        ${i2cOption('tla2528','TLA2528','TLA2528 analog input',driver===9)}
        ${i2cOption('nau7802','NAU7802','NAU7802 I2C load cell',driver===10)}
-       ${purpose==='torque'?`<option value="phase"${phase?' selected':''}>Shaft torsion by phase difference (two pickups)</option>`:''}`
-    : `<option value="0"${!hx&&!phase?' selected':''}>Analog 0–3.3 V transmitter</option><option value="1"${hx?' selected':''}>HX711 load-cell amplifier</option>`;
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected.${torque?' Shared I2C devices require an enabled bus and detected chip.':''}</span><select onchange="${torque?`updateRegistryTorqueSensorType(${index},this.value)`:`updateRegistryChannel('input',${index},'torque_interface',+this.value)`}">${choices}</select></div>
+       ${purpose==='torque'?`<option value="phase"${phase?' selected':''}>Shaft torsion by phase difference (two pickups)</option>`:''}`;
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected. Shared I2C devices require an enabled bus and detected chip.</span><select onchange="updateRegistryTorqueSensorType(${index},this.value)">${choices}</select></div>
     ${hx ? `<div class="hw-field"><span class="hw-label">HX711 SCK GPIO</span><span class="hw-desc">Clock output from the ECU to HX711 SCK.</span><select class="${clkClass}" onchange="updateRegistryChannel('input',${index},'hx711_clk',+this.value)">${buildPinOptions(clk,'out')}</select></div>
     <div class="hw-field"><span class="hw-label">HX711 scale (${unit}/count)</span><input type="number" min="0.000001" max="1000000" step="0.000001" value="${registryFormatValue(scale,6)}" oninput="updateRegistryChannel('input',${index},'hx711_scale',registryParseValue(this.value))"></div>
     <div class="hw-field"><span class="hw-label">HX711 zero count</span><input type="number" step="1" value="${Math.round(zero)}" oninput="updateRegistryChannel('input',${index},'hx711_zero',+this.value)"></div>` : ''}`;
@@ -4811,7 +4807,7 @@ function setPumpFlowSensorEnabled(outputIndex, enabled) {
 
 function updateRegistryTorqueSensorType(index, type) {
   const c = registryRoot().inputs[index];
-  if (!c || !['torque','general_torque'].includes(registryDerivedPurpose('input',c))) return;
+  if (!c || !['torque','general_torque','thrust','general_thrust'].includes(registryDerivedPurpose('input',c))) return;
   const i2cDriver = type === 'tla2528' ? 9 : type === 'nau7802' ? 10 : 0;
   if(type==='tla2528'&&pcbProfileActive()) {
     const choice=pcbCompatibleChoices('input',registryDerivedPurpose('input',c),c.role,c.physical_port||'',c)
@@ -5381,15 +5377,6 @@ function closeRegistryAddDialog() {
   const modal = document.getElementById('registry-add-modal');
   if (modal) modal.style.display = 'none';
 }
-function openRegistryBusPrerequisite(bus) {
-  const key = bus === 'i2c' ? 'i2c' : 'spi';
-  closeRegistryAddDialog();
-  _workflowEditOpen.add('buses');
-  renderHardwareWorkflowSummaries();
-  const panel = document.getElementById('hardware-buses-panel');
-  panel?.scrollIntoView({behavior:'smooth', block:'start'});
-  document.getElementById(`en-${key}`)?.focus();
-}
 function renderRegistryAddCatalog() {
   const box = document.getElementById('registry-add-catalog');
   if (!box) return;
@@ -5453,11 +5440,6 @@ function selectRegistryAddPreset(index) {
   const existing = rows.filter(c=>registryDerivedPurpose(_registryAddDirection,c)===purpose).length;
   if (existing > 0 && registryPurposeIsSingleton(_registryAddDirection, purpose))
     return registryAddError(`${preset.label} is already installed. Edit or remove its existing card instead.`);
-  if (!pcbProfileActive() && Number(preset.driver) >= 8 && !cfg.i2c?.enabled)
-    return registryAddBusPrerequisite('i2c', preset.label);
-  if (!pcbProfileActive() && Number(preset.temp_interface) >= 1 &&
-      Number(preset.temp_interface) <= 3 && !cfg.spi?.enabled)
-    return registryAddBusPrerequisite('spi', preset.label);
   if (pcbProfileActive()) {
     const choices = pcbConnectorChoices(pcbCompatibleChoices(_registryAddDirection, purpose, preset.role), null, preset.driver);
     const box = document.getElementById('registry-add-catalog');
@@ -5471,7 +5453,8 @@ function selectRegistryAddPreset(index) {
       ${(pcbGpioHeaderChoices(_registryAddDirection,preset.driver)).map(g=>`<button type="button" class="registry-add-option" title="${escapeHtmlText(g.status)}" ${g.available?'':'disabled aria-disabled="true"'} onclick="selectRegistryGpioHeader(${index},${g.pin})">${escapeHtmlText(g.label)}<small>${escapeHtmlText(g.status)}</small></button>`).join('')}
       </div></div><details><summary>Advanced: direct wiring to a spare GPIO</summary><div class="registry-add-group-grid"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">${preset.role==='temperature'?'External temperature sensor':preset.role==='torque'?'External torque sensor':'Spare ESP32 GPIO'}<small>${preset.role==='temperature'?'Choose MAX6675, MAX31855 or MAX31856 and an unused CS GPIO on the shared SPI bus.':preset.role==='torque'?'Choose HX711, phase pickups or an external transmitter. I2C sensor options become available when their device is detected.':'Only pins left electrically free by this PCB are available.'}</small></button>
       </div></details>
-      ${registryExternalSourceChoices(preset,index)}`;
+      ${registryExternalSourceChoices(preset,index)}
+      <div class="registry-add-group"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">Add unassigned card<small>Explore its settings, then choose a supported connection on the card.</small></button></div>`;
     const panel = document.querySelector('#registry-add-modal .registry-add-panel');
     if (panel) panel.scrollTop = 0;
     return;
@@ -5705,18 +5688,6 @@ function registryAddError(message) {
   const err = document.getElementById('registry-add-error');
   if (!err) return;
   err.textContent = message;
-  err.style.display = '';
-}
-function registryAddBusPrerequisite(bus, deviceLabel) {
-  const err = document.getElementById('registry-add-error');
-  if (!err) return;
-  const i2c = bus === 'i2c';
-  const explanation = i2c
-    ? 'This device uses the shared I2C wiring. Configure SDA and SCL once; its address and channel are selected on the device card.'
-    : 'A MAX thermocouple amplifier uses the shared SPI wiring. Configure SCK and MISO once; each temperature probe then gets its own CS pin.';
-  err.innerHTML = `<strong>${escapeHtmlText(deviceLabel)} needs shared ${i2c ? 'I2C' : 'SPI'} wiring.</strong>
-    <span style="display:block;color:var(--text-2);margin:.3rem 0 .55rem">${explanation}</span>
-    <button type="button" onclick="openRegistryBusPrerequisite('${i2c ? 'i2c' : 'spi'}')">Configure shared ${i2c ? 'I2C' : 'SPI'} wiring</button>`;
   err.style.display = '';
 }
 function addRegistryChannel(direction) {

@@ -41,7 +41,7 @@
 #include "esp_timer.h"     // synchronized dual-pickup phase stimulus (tester only)
 #include "driver/gpio.h"
 
-static const char* OTBENCH_VER = "0.14";
+static const char* OTBENCH_VER = "0.15";
 
 // ── Signal kinds ─────────────────────────────────────────────
 enum Kind {
@@ -125,7 +125,12 @@ static volatile uint8_t g_i2cPhase = 0;
 static volatile uint16_t g_tlaRaw = 2048;
 static volatile uint32_t g_tlaCalMs = 0;
 static volatile int32_t g_nauRaw = 0;
+static volatile int32_t g_nauRawSecond = 0;
 static volatile uint32_t g_nauAnalogMs = 0, g_nauCalMs = 0;
+static volatile uint32_t g_nauReadMs = 0;
+static volatile uint8_t g_nauPreviousChannel = 0;
+static volatile bool g_nauOldSample = false;
+static volatile bool g_nauResetRequested = false;
 static volatile uint8_t g_nauCalMask = 0;
 static volatile bool g_nauInitOk = false;
 static volatile bool g_tlaRegisterRead = false;
@@ -160,6 +165,8 @@ static void i2cEmuReceive(int count) {
                     memset((void*)g_i2cRegs, 0, sizeof(g_i2cRegs));
                     g_nauCalMask = 0;
                     g_nauInitOk = false;
+                    g_nauOldSample = false;
+                    g_nauReadMs = millis();
                 }
                 if (writtenReg == 0x00 && (value & 0x84) == 0x84 &&
                     (g_i2cRegs[0] & 0x84) != 0x84) g_nauAnalogMs = millis();
@@ -170,6 +177,10 @@ static void i2cEmuReceive(int count) {
                         g_i2cRegs[0x15] == 0x30 &&
                         (uint32_t)(millis() - g_nauAnalogMs) >= 600;
                     if (!g_nauInitOk) value |= 0x08; // CAL_ERR
+                }
+                if (writtenReg == 0x02 && ((value ^ g_i2cRegs[2]) & 0x80)) {
+                    g_nauPreviousChannel = (g_i2cRegs[2] >> 7) & 1;
+                    g_nauOldSample = true;
                 }
             }
             g_i2cRegs[g_i2cReg & 0x1F] = value;
@@ -209,6 +220,14 @@ static void preloadPeripheralReply() {
 }
 
 static void preloadNauReply() {
+        if (g_nauResetRequested) {
+            memset((void*)g_i2cRegs, 0, sizeof(g_i2cRegs));
+            g_nauCalMask = 0;
+            g_nauInitOk = false;
+            g_nauOldSample = false;
+            g_nauReadMs = millis();
+            g_nauResetRequested = false;
+        }
         uint8_t reply[3];
         size_t length = 1;
         // Honor the addressed register rather than an assumed read order.
@@ -217,15 +236,24 @@ static void preloadNauReply() {
             g_i2cRegs[2] &= (uint8_t)~0x04;
             if (!(g_i2cRegs[2] & 0x08))
                 g_nauCalMask |= (uint8_t)(1U << ((g_i2cRegs[2] >> 7) & 1));
+            g_nauReadMs = millis();
         }
         if (g_i2cReg == 0x00) {
             uint8_t status = g_i2cRegs[0] & (uint8_t)~0x28;
             if (status & 0x02) status |= 0x08;
+            const uint8_t rateCode = (g_i2cRegs[2] >> 4) & 7;
+            const uint16_t rate = rateCode == 7 ? 320 : rateCode == 3 ? 80 :
+                rateCode == 2 ? 40 : rateCode == 1 ? 20 : 10;
             if (g_nauInitOk && !(g_i2cRegs[2] & 0x0C) &&
+                uint32_t(millis() - g_nauReadMs) >= (1000U + rate - 1U) / rate &&
                 (g_nauCalMask & (1U << ((g_i2cRegs[2] >> 7) & 1)))) status |= 0x20;
             reply[0] = status;
         } else if (g_i2cReg == 0x12) {
-            const uint32_t raw = (uint32_t)g_nauRaw & 0x00FFFFFFUL;
+            const uint8_t channel = g_nauOldSample ? g_nauPreviousChannel : (g_i2cRegs[2] >> 7);
+            g_nauOldSample = false;
+            g_nauReadMs = millis(); // reading 0x12 consumes the ready result
+            const uint32_t raw = (uint32_t)(channel
+                ? g_nauRawSecond : g_nauRaw) & 0x00FFFFFFUL;
             reply[0] = (uint8_t)(raw >> 16);
             reply[1] = (uint8_t)(raw >> 8);
             reply[2] = (uint8_t)raw;
@@ -275,6 +303,7 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
     } else if (mode == I2C_EMU_NAU7802) {
         address = 0x2A;
         g_nauRaw = constrain(value, -8388351L, 8388350L);
+        g_nauRawSecond = g_nauRaw;
     } else {
         return false;
     }
@@ -282,6 +311,7 @@ static bool i2cEmuBegin(I2cEmuMode mode, int32_t value) {
     g_i2cPhase = 0;
     g_nauCalMask = 0;
     g_nauInitOk = false;
+    g_nauResetRequested = false;
     g_tlaRegisterRead = false;
     g_nauAnalogMs = g_nauCalMs = 0;
     Wire.onReceive(i2cEmuReceive);
@@ -926,6 +956,37 @@ static void handleLine(char* line) {
 #endif
         i2cEmuStop();
         for (int i = 0; i < NUM_SIGNALS; i++) safeState(SIGNALS[i]);
+        Serial.println("OK");
+        return;
+    }
+    if (strcasecmp(cmd, "NAURESET") == 0) {
+        if (g_i2cEmuMode != I2C_EMU_NAU7802) {
+            Serial.println("ERR NAU emulator must be active");
+            return;
+        }
+        g_nauResetRequested = true;
+        Serial.println("OK");
+        return;
+    }
+    if (strcasecmp(cmd, "NAURAW") == 0) {
+        char* first = strtok(nullptr, " \t");
+        char* second = strtok(nullptr, " \t");
+        char* end = nullptr;
+        const long a = first ? strtol(first, &end, 0) : 0;
+        if (!first || !*first || *end || a < -8388608L || a > 8388607L) {
+            Serial.println("ERR usage: NAURAW <signed CH1 count> [signed CH2 count]");
+            return;
+        }
+        const long b = second ? strtol(second, &end, 0) : a;
+        if ((second && (!*second || *end)) || b < -8388608L || b > 8388607L ||
+            g_i2cEmuMode != I2C_EMU_NAU7802) {
+            Serial.println("ERR NAU emulator must be active; counts must fit signed 24 bits");
+            return;
+        }
+        // Change bridge stimulus without restarting the chip or losing the
+        // DUT's register configuration/calibration between load points.
+        g_nauRaw = (int32_t)a;
+        g_nauRawSecond = (int32_t)b;
         Serial.println("OK");
         return;
     }

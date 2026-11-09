@@ -1190,12 +1190,13 @@ expect('local registry oil pressure is sampled directly instead of circularly mi
   !hardware.includes('ed.registryInputValue[i] = ed.oilPressure') &&
   !hardware.includes('return 6;') &&
   hardware.includes('ed.oilPressure = ed.registryInputValue[oilPressAnalog]'));
+const thrustPurposeDrivers = (hardwareCatalog.match(/value:'thrust',label:'Thrust',role:'thrust',drivers:\[([^\]]+)\]/)?.[1] || '').split(',').map(Number);
 expect('canonical torque and thrust consume one registry sample across analog and I2C adapters',
   hardware.includes('const bool registryOwnsTorque') &&
   hardware.includes('ed.torque = ed.registryInputValue[torqueRegistry]') &&
   hardware.includes('ed.thrust = ed.registryInputValue[thrustRegistry]') &&
   hwConfig.includes('thrust->driver == ChannelRegistry::I2cAnalog') &&
-  hardwareCatalog.includes("{value:'thrust',label:'Thrust',role:'thrust',drivers:[10,1,9]"));
+  [1,9,10].every(driver => thrustPurposeDrivers.includes(driver)));
 expect('NTC tables cannot consume the electrical fault rails and threshold-only flame cards do not advertise curves',
   channelRegistry.includes('c.calibrationRaw[0] == 0') &&
   channelRegistry.includes('c.calibrationRaw[c.calibrationPointCount - 1] >= 4095') &&

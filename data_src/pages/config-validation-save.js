@@ -548,6 +548,21 @@ function collectConfigFields() {
       // Old-file choices are interpreted for display only. Only an explicit
       // mode/channel action may replace their stored behavior.
       if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
+      const shown = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.id in _fieldSnap && OTFieldValueEqual(el, shown, _fieldSnap[el.id])) {
+        // A rounded display is not an edit. If a staged edit was reverted,
+        // restore its exact saved value rather than the rounded presentation.
+        if (_collectedFields.has(el.id)) {
+          if (_fieldBaseSnap[el.id] !== undefined) setPath(cfg, f.path, _fieldBaseSnap[el.id]);
+          else {
+            const parent=getPath(cfg,f.path.slice(0,-1));
+            if(parent && typeof parent==='object') delete parent[f.path[f.path.length-1]];
+          }
+        }
+        _collectedFields.delete(el.id);
+        return;
+      }
+      _collectedFields.add(el.id);
       if (f.type === 'checkbox') {
         setPath(cfg, f.path, el.checked);
       } else if (f.string) {
@@ -579,7 +594,15 @@ async function saveConfig() {
     // Legacy or future-hardware values elsewhere on System must not block an
     // unrelated Appearance save. Validate only controls changed in this edit.
     const invalid = Array.from(document.querySelectorAll('#cfg-form input:invalid, #cfg-form select:invalid'))
-      .find(element => element.classList.contains('field-changed'));
+      .find(element => {
+        if(!element.classList.contains('field-changed'))return false;
+        const validity=element.validity;
+        // Engineering-value steps are useful arrow increments. Converted
+        // temperatures/pressures need not land on that browser step grid.
+        const convertedField=!!_fieldDef(element.id.replace(/^cf-/,''))?.unitType;
+        const otherError=['badInput','valueMissing','rangeOverflow','rangeUnderflow','patternMismatch','typeMismatch','tooLong','tooShort','customError'].some(key=>validity[key]);
+        return otherError || !convertedField || !validity.stepMismatch;
+      });
     if (invalid) {
       invalid.reportValidity();
       invalid.focus();

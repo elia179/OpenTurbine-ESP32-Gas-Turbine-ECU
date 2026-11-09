@@ -45,6 +45,7 @@ Open **Controllers → Shutdown & Protection → Combustor Pressure protection**
 
 1. Set the retained pressure limit. Turn **Fault shutdown** ON and set its confirmation time.
 2. Turn **Fuel limiting** ON. Choose **Simple — measured value** first; enter Begin/Full values and review Reduction Strength. Predictive additionally uses rate of change and needs separate validation.
+   The common fuel floor is in **Shutdown & Protection → Shared Fuel-Limiting Settings → Minimum Fuel During Gradual Protection**. Keep it at a measured stable-running value; each enabled gradual limiter uses that floor.
 3. Save and compare the Dashboard. With a positive saved limit, P1/P2/torque bars use its reference, colours and limit marker. With no positive limit they use automatic range. Switching shutdown OFF preserves the saved reference and advisory display; it only disables automatic shutdown.
 
 {% include build-screen.html file="pressure-protection" step="Two independent protection switches" alt="Combustor Pressure protection showing separate enabled fault shutdown and fuel limiting, with ordered thresholds." caption="The limiting band sits below the independent hard trip. A coloured instrument is not proof that shutdown is enabled or tested." %}
@@ -113,7 +114,7 @@ Open **Controllers → Oil Pump → Oil Pressure Control**, the controller alrea
 | --- | --- |
 | Pressure deadband | A small tolerated pressure error; example {{ e.oil_deadband_bar }} bar |
 | Minimum / maximum pump command | Repeatable pump operation and permitted driver authority, measured on the rig |
-| Response gain | How strongly demand changes with pressure error; tune without excessive overshoot or cycling |
+| Response gain | How strongly demand changes with pressure error, in the displayed pressure unit; tune without excessive overshoot or cycling |
 | Feedback-loss delay / command | How long loss must persist and what bounded pump command is used afterward |
 | Low-pressure threshold / confirmation | Under **Shutdown & Protection → Oil circuit pressure protection → Oil Pump · low pressure**; example {{ e.oil_min_bar }} bar for {{ e.oil_confirm_ms }} ms |
 | Feedback-loss response | Stays with the controller because it handles an unavailable pressure input |

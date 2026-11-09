@@ -14,6 +14,11 @@ class Print;
 #include "../../src/system/SessionArchivePlan.h"
 
 int main() {
+    static_assert(SessionMemory::supportedExternalSize(2 * 1024 * 1024));
+    static_assert(!SessionMemory::supportedExternalSize(0));
+    static_assert(!SessionMemory::supportedExternalSize(1024 * 1024));
+    static_assert(!SessionMemory::supportedExternalSize(4 * 1024 * 1024));
+    static_assert(!SessionMemory::supportedExternalSize(8 * 1024 * 1024));
     const size_t minimum = 16 * 1024;
     assert(SessionMemory::externalBudget(0,0,minimum)==0);
     assert(SessionMemory::externalBudget(SessionMemory::EXTERNAL_RESERVE,1024*1024,minimum)==0);

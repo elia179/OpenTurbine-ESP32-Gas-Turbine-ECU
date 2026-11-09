@@ -47,7 +47,9 @@ const ALL_CONFIG_SCHEMA = [
     { key:'th_ru', path:['throttle','ramp_up_ms'],   label:'Full Opening Time (ms)', desc:'Time for the fuel/throttle output to move from 0 to 100%. A larger value opens more gently.', step:50, min:0, basic:true },
     { key:'th_rd', path:['throttle','ramp_down_ms'], label:'Full Closing Time (ms)', desc:'Time for the fuel/throttle output to move from 100% to 0. A smaller value closes faster.', step:50, min:0, basic:true },
     { key:'th_ex', path:['throttle','expo'],         label:'Low-Throttle Sensitivity', desc:'Softens response near idle while preserving full travel. 0 is linear; 1 is maximum softening. Technical name: throttle expo.', step:0.05, min:0, max:1 },
-    { key:'pb_min', path:['throttle','pullback_min_pct'], label:'Minimum Fuel During Gradual Protection (%)', desc:'Common physical fuel floor for non-emergency gradual limiting. It prevents an enabled limiter from pulling the main engine below the user-tested stable minimum; STOP and hard shutdowns still cut fuel.', step:1, min:0, max:100 },
+  ]},
+  { title: 'Shared Fuel-Limiting Settings', id:'fuel-limiting-settings', sectionNote:'Shared by the enabled gradual fuel limiters below.', fields: [
+    { key:'pb_min', path:['throttle','pullback_min_pct'], label:'Minimum Fuel During Gradual Protection (%)', desc:'Lowest main-fuel demand permitted by gradual fuel limiting. Choose a measured stable-running minimum. Fault shutdown and STOP can still cut fuel completely.', step:1, min:0, max:100, basic:true },
   ]},
   { title: 'Gradual Fuel Limit Protection', id: 'gradual-protection', sectionNote:'Optional non-emergency fuel reduction as a measured value approaches its configured boundary. Each separate shutdown protection acts only when its safety switch or trip limit is enabled.', fields: [
     { key:'pb_n1e', path:['throttle','pullback_n1'], modePath:['throttle','pullback_n1_mode'], label:'N1 Fuel-Limiting Mode', type:'pullback_mode', desc:'Off disables gradual fuel limiting; it does not change the separate N1 overspeed safety switch. Simple uses measured N1. Predictive uses N1 acceleration to act earlier. The maximum causes shutdown only when N1 overspeed safety is enabled.' },
@@ -92,7 +94,7 @@ const ALL_CONFIG_SCHEMA = [
     { key:'fi_fixed', path:['dynamic_idle','fixed_fuel_pct'], label:'Fixed Running Idle Fuel (%)', desc:'Replaces the retained startup idle floor in Running. Throttle may command more. A nonzero value below the calibrated pump minimum is raised to that minimum; zero adds no idle floor.', step:0.01, min:0, max:100, basic:true },
     { key:'fi_input', path:['dynamic_idle','input_id'], label:'Idle Input Channel', type:'select', string:true, options:()=>idleInputOptions(), desc:'Automatic uses the input assigned the Idle purpose in Hardware. An explicit choice uses that exact fitted input; it never silently changes to another sensor.', basic:true },
     { key:'fi_low', path:['dynamic_idle','input_low'], label:'Idle Input Low', desc:'Input reading mapped to the calibrated pump minimum. Readings outside the selected endpoints are clamped. Reversed endpoints invert the mapping.', step:0.001, min:-1000000000, max:1000000000, basic:true },
-    { key:'fi_high', path:['dynamic_idle','input_high'], label:'Idle Input High', desc:'Input reading mapped to Maximum Normal Idle Fuel Output. Use the source’s engineering units, not its raw ADC or pulse calibration. Low and high must differ.', step:0.001, min:-1000000000, max:1000000000, basic:true },
+    { key:'fi_high', path:['dynamic_idle','input_high'], label:'Idle Input High', desc:'Input reading mapped to Maximum Normal Idle Fuel Output. Use the units shown beside the field. Low and high must differ.', step:0.001, min:-1000000000, max:1000000000, basic:true },
     { key:'th_mx', path:['throttle','idle_max_pct'], label:'Maximum Normal Idle Fuel Output (%)', desc:'Upper endpoint for Input channel mode. Automatic Idle multiplies this base ceiling by Maximum Fuel Range Multiplier, capped at 100%; its summary shows the resulting range. The low end is the calibrated pump minimum. Fixed mode uses its own percentage; Off adds no floor. STOP and hard protection may still cut fuel.', step:1, min:0, max:100, basic:true },
     { key:'di_src', path:['dynamic_idle','source'], label:'Idle Feedback Source', type:'select', options:[{v:0,l:'N1 core speed'},{v:1,l:'N2 output-shaft speed'},{v:2,l:'P1 pressure (experimental)'},{v:3,l:'P2 pressure (experimental)'}], desc:'Choose the fitted feedback used to regulate idle. Pressure feedback is experimental and requires separate stand validation.', basic:true },
     { key:'di_tr', path:['dynamic_idle','target_rpm'],    label:'Idle Target (N1/N2)', unit:'RPM', desc:'Used when the selected feedback source is N1 or N2.', step:500, min:0, basic:true },
@@ -117,9 +119,9 @@ const ALL_CONFIG_SCHEMA = [
     { key:'di_lr', path:['dynamic_idle','learn_rate'], label:'Steady-Idle Learning Speed (0-1)', desc:'How quickly the learned steady-idle fuel output adapts after speed settles. Smaller values are steadier.', step:0.01, min:0 },
     { key:'di_la', path:['dynamic_idle','learn_accel_max'], label:'Maximum Speed Change While Learning (RPM/s)', desc:'The ECU learns steady-idle fuel only while RPM is changing more slowly than this value.', step:100, min:0 },
     { key:'di_pde', path:['dynamic_idle','pressure_decel_enter_bar'], label:'Catch Entry Above Target', unitType:'press', zeroOff:true, desc:'Predictive pressure deceleration catch can begin this far above target. 0 disables the fast-deceleration fuel drop.', step:0.01, min:0 },
-    { key:'di_psb', path:['dynamic_idle','pressure_settle_band_bar'], label:'Settled Pressure Band', unit:'bar', desc:'Pressure band in which the ECU may learn the steady-idle fuel demand.', step:0.01, min:0 },
-    { key:'di_pfr', path:['dynamic_idle','pressure_full_response_bar'], label:'Pressure Error for Full Correction', unit:'bar', desc:'Pressure error where predictive idle reaches its configured correction rate.', step:0.01, min:0 },
-    { key:'di_plr', path:['dynamic_idle','pressure_learn_rate_max_bar_s'], label:'Maximum Pressure Change While Learning', unit:'bar/s', desc:'Learning pauses while pressure changes faster than this value.', step:0.01, min:0 },
+    { key:'di_psb', path:['dynamic_idle','pressure_settle_band_bar'], label:'Settled Pressure Band', unitType:'press', desc:'Pressure band in which the ECU may learn the steady-idle fuel demand.', step:0.01, min:0 },
+    { key:'di_pfr', path:['dynamic_idle','pressure_full_response_bar'], label:'Pressure Error for Full Correction', unitType:'press', desc:'Pressure error where predictive idle reaches its configured correction rate.', step:0.01, min:0 },
+    { key:'di_plr', path:['dynamic_idle','pressure_learn_rate_max_bar_s'], label:'Maximum Pressure Change While Learning', unitType:'press_rate', desc:'Learning pauses while pressure changes faster than this value.', step:0.01, min:0 },
   ]},
   { title: 'Combustion & Startup Protection', id: 'safety-monitor', sectionNote:'Independent shutdown monitoring for starting and running. A confirmed combustion loss cuts fuel and begins fault shutdown when this protection is enabled; automatic relight is configured separately and does not change this timer.', fields: [
     { key:'sf_ci', path:['safety','check_interval_ms'],    label:'Safety Check Interval (ms)', desc:'How often general safety conditions are evaluated. Hard overspeed and current-delay timing run independently. Restricted to 10-250 ms so protection cannot be delayed by configuration.', step:10, min:10, max:250 },
@@ -192,8 +194,8 @@ const ALL_CONFIG_SCHEMA = [
     { key:'ab_sms', path:['afterburner','stabilize_ms'],         label:'Stabilize Hold (ms)',   desc:'Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms.', step:100, min:0, max:3600000 },
   ]},
   { title: 'Afterburner Protection', id: 'ab-protection-section', sectionNote:'Independent temperature and flame-loss protection for the afterburner. Ignition commands and flame-confirmation setup remain in the afterburner controller.', fields: [
-    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine shutdown'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — use engine shutdown only'}], desc:'Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.', basic:true },
-    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'Used only in Custom mode. It should be below the configured main-engine temperature shutdown.', step:10, min:0 },
+    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine limit'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — no torch-only cut'}], desc:'Automatic ends the torch pulse at the selected engine-temperature limit minus its warning margin. Custom uses the cut temperature below. Off applies no torch-only temperature cut. Engine overtemperature shutdown has its own enable switch.', basic:true },
+    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'A positive value ends the torch pulse above this temperature; unavailable temperature feedback also ends it. Zero applies no torch-only cut. The main-engine overtemperature limit and enable switch are separate.', step:10, min:0 },
     { key:'ab_smt', path:['afterburner','stabilize_max_tot'],    label:'Stabilize Max EGT',  unitType:'temp', zeroOff:true, desc:'AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled.', step:10, min:0, max:100000 },
     { key:'ab_fld', path:['afterburner','flame_loss_delay_ms'], label:'Running Flame-Loss Delay (ms)', desc:'When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running.', step:100, min:0, max:60000 },
   ]},
@@ -280,12 +282,19 @@ document.addEventListener('click', async event => {
 
 // ── Per-field changed-state tracking (mirrors hardware.html) ──
 let _fieldSnap = {};
+let _fieldBaseSnap = {};
+let _collectedFields = new Set();
 let _idleInputSnap = {};
 
 function _snapshotFields() {
   _idleInputSnap = JSON.parse(JSON.stringify({input_id:cfg?.dynamic_idle?.input_id || '',
     input_low:cfg?.dynamic_idle?.input_low ?? 0, input_high:cfg?.dynamic_idle?.input_high ?? 1}));
   _fieldSnap = {};
+  _fieldBaseSnap = {};
+  _collectedFields.clear();
+  SCHEMA.forEach(section=>section.fields.forEach(field=>{
+    _fieldBaseSnap['cf-'+field.key] = getPath(cfg,field.path);
+  }));
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
     .forEach(el => {
       _fieldSnap[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
@@ -411,8 +420,17 @@ function _controllerRuleChanges() {
     if (key === 'target') return value === 'request_fault' ? 'Request Fault Shutdown' : value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
     if(['on_value','off_value'].includes(key)&&(['request_shutdown','request_fault'].includes(String(rule.target))||[4,11].includes(Number(hwCfg?.channel_registry?.outputs?.find(row=>String(row.id)===String(rule.target))?.driver))))
       return Number(value)>=.5?'ON':'OFF';
-    if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
+    if (['response_gain','integral_gain'].includes(key)) {
+      const meta=controllerInputDisplay(rule.source);
+      return `${Number((Number(value)*100/meta.scale).toFixed(4))}% / ${meta.unit||'unit'}${key==='integral_gain'?' / s':''}`;
+    }
+    if (['on_value','off_value','output_min','output_max'].includes(key))
       return `${Number((Number(value) * 100).toFixed(4))}%`;
+    const source=controllerFieldInput(rule,key);
+    if(source.id && value!==undefined && value!==null) {
+      const meta=controllerInputDisplay(source.id);
+      return `${Number(controllerValueToDisplay(value,source.id,source.delta).toFixed(4))}${meta.unit?' '+meta.unit:''}`;
+    }
     return value === undefined || value === null || value === '' ? '(none)' : String(value);
   };
   const matchedOld = new Set();
@@ -481,12 +499,13 @@ function _buildChanges() {
     if (!Number(cfg?.dynamic_idle?.fuel_mode || 0)) continue;
     const fieldKey = {input_id:'fi_input',input_low:'fi_low',input_high:'fi_high'}[key];
     const el = document.getElementById('cf-'+fieldKey);
-    const current = el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
+    const unchangedRange = el && key!=='input_id' && String(cfg?.dynamic_idle?.input_id||'')===_idleInputSnap.input_id && OTFieldValueEqual(el,el.value,_fieldSnap[el.id]);
+    const current = unchangedRange ? _idleInputSnap[key] : el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
     if (String(current) === String(_idleInputSnap[key])) continue;
     const display = (value,id) => {
       if (key === 'input_id') return value ? controllerChannelName(simpleControlInputs().find(row=>row.id===value)) || `Missing input: ${value}` : 'Automatic: configured Idle Input';
       const meta = controllerInputDisplay(id);
-      return `${Number((value*meta.scale).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
+      return `${Number(controllerValueToDisplay(value,id).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
     };
     changes.push({key:'fi_'+key,label:'Idle / '+label,was:display(_idleInputSnap[key],_idleInputSnap.input_id),now:display(current,cfg?.dynamic_idle?.input_id),inactive:false});
   }

@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <cassert>
+#ifdef NDEBUG
+#error "NAU7802 behavior tests require assertions, including optimized builds"
+#endif
 #include <iostream>
+#include <string>
 using std::max;
 using std::min;
 using std::isfinite;
@@ -146,5 +150,49 @@ int main() {
             }
         }
     }
-    std::cout << "NAU7802 behavior passed: analog startup, nonblocking settling, write retry, calibration errors/timeouts, both-channel calibration, signed force/torque, stale-channel discard, saturation rejection, fresh filter recovery and zero/400 N load sweeps in both polarities\n";
+    // Calibrate at 200 N with a nonzero tare, persist the actual registry JSON,
+    // restart while the reference load is still applied, then unload/reload.
+    // Exercise byte carries and signed zero: a byte swap can match the known
+    // point but produce negative or discontinuous readings between points.
+    for (const int polarity : {-1, 1}) {
+        auto calibrated = registry();
+        auto& c = calibrated.inputs[0];
+        std::strcpy(c.id, "thrust_main");
+        std::strcpy(c.name, "Thrust");
+        std::strcpy(c.purpose, "thrust");
+        c.loadCellZero = -polarity * 65537;
+        const int32_t knownRaw = c.loadCellZero + polarity * 2000000;
+        c.loadCellNPerCount = 200.0f / (knownRaw - c.loadCellZero);
+        JsonDocument saved;
+        calibrated.toJson(saved.to<JsonObject>());
+        std::string bytes;
+        serializeJson(saved, bytes);
+        JsonDocument loaded;
+        assert(!deserializeJson(loaded, bytes));
+        ChannelRegistry restored;
+        assert(restored.fromJson(loaded.as<JsonObjectConst>()));
+        assert(restored.inputs[0].loadCellZero == c.loadCellZero);
+        Wire = FakeWire{};
+        Wire.samples[0] = knownRaw;
+        start(restored); advance(800); assert(input(0,200));
+        for (const int32_t count : {0, 1, 255, 256, 257, 65535, 65536,
+                                    65537, 65538, 500000, 1000000, 1500000,
+                                    2000000, 2500000, 3000000, 0, -10000}) {
+            Wire.samples[0] = c.loadCellZero + polarity * count;
+            advance(4);
+            assert(input(0, count * 0.0001f));
+            float value; int32_t raw; uint32_t seq, sampleMs;
+            assert(I2CDeviceManager::input(0,value,raw,seq,sampleMs));
+            assert(raw == Wire.samples[0]);
+        }
+    }
+    // A separately powered ADC can reset while the ESP and I2C address stay
+    // alive. ACK alone must not leave a reset ADC permanently unconfigured.
+    auto resetRecovery = registry();
+    Wire = FakeWire{};
+    start(resetRecovery); advance(800); assert(input(0,100));
+    Wire.regs.fill(0); Wire.calibrated = 0;
+    advance(4); assert(!input(0,100));
+    advance(900); assert(input(0,100));
+    std::cout << "NAU7802 behavior passed: startup/recovery, signed force/torque, both channels, filter recovery, both-polarity load sweeps, byte/sign boundaries, persisted zero/200 N calibration across restart and ADC-only reset recovery\n";
 }

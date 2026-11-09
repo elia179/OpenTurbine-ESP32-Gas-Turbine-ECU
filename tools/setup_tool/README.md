@@ -1,6 +1,6 @@
 # OpenTurbine Setup Tool
 
-In development for OpenTurbine 2.7.1: Setup Tool 0.8.0 uses package schema 5,
+For OpenTurbine 2.7.1: Setup Tool 0.8.0 uses package schema 5,
 including a separate Quad-PSRAM N8R2 image. Selecting OpenTurbine PCB v1.0
 selects that image automatically. A plain N8R2 development-board choice is
 also available; N8 and existing no-PSRAM boards retain the generic S3 image.
@@ -67,7 +67,7 @@ python tools/build_setup_package.py `
   --esptool "$env:USERPROFILE\.platformio\penv\Scripts\esptool.exe"
 ```
 
-The generated manifest includes `package_schema: 4`; the EXE and ZIP must come
+The generated manifest includes `package_schema: 5`; the EXE and ZIP must come
 from the same release family. The ZIP also includes OpenTurbine's license and
 the bundled esptool third-party notice.
 

@@ -80,7 +80,7 @@ function setPumpFlowSensorEnabled(outputIndex, enabled) {
 
 function updateRegistryTorqueSensorType(index, type) {
   const c = registryRoot().inputs[index];
-  if (!c || !['torque','general_torque'].includes(registryDerivedPurpose('input',c))) return;
+  if (!c || !['torque','general_torque','thrust','general_thrust'].includes(registryDerivedPurpose('input',c))) return;
   const i2cDriver = type === 'tla2528' ? 9 : type === 'nau7802' ? 10 : 0;
   if(type==='tla2528'&&pcbProfileActive()) {
     const choice=pcbCompatibleChoices('input',registryDerivedPurpose('input',c),c.role,c.physical_port||'',c)
@@ -650,15 +650,6 @@ function closeRegistryAddDialog() {
   const modal = document.getElementById('registry-add-modal');
   if (modal) modal.style.display = 'none';
 }
-function openRegistryBusPrerequisite(bus) {
-  const key = bus === 'i2c' ? 'i2c' : 'spi';
-  closeRegistryAddDialog();
-  _workflowEditOpen.add('buses');
-  renderHardwareWorkflowSummaries();
-  const panel = document.getElementById('hardware-buses-panel');
-  panel?.scrollIntoView({behavior:'smooth', block:'start'});
-  document.getElementById(`en-${key}`)?.focus();
-}
 function renderRegistryAddCatalog() {
   const box = document.getElementById('registry-add-catalog');
   if (!box) return;
@@ -722,11 +713,6 @@ function selectRegistryAddPreset(index) {
   const existing = rows.filter(c=>registryDerivedPurpose(_registryAddDirection,c)===purpose).length;
   if (existing > 0 && registryPurposeIsSingleton(_registryAddDirection, purpose))
     return registryAddError(`${preset.label} is already installed. Edit or remove its existing card instead.`);
-  if (!pcbProfileActive() && Number(preset.driver) >= 8 && !cfg.i2c?.enabled)
-    return registryAddBusPrerequisite('i2c', preset.label);
-  if (!pcbProfileActive() && Number(preset.temp_interface) >= 1 &&
-      Number(preset.temp_interface) <= 3 && !cfg.spi?.enabled)
-    return registryAddBusPrerequisite('spi', preset.label);
   if (pcbProfileActive()) {
     const choices = pcbConnectorChoices(pcbCompatibleChoices(_registryAddDirection, purpose, preset.role), null, preset.driver);
     const box = document.getElementById('registry-add-catalog');
@@ -740,7 +726,8 @@ function selectRegistryAddPreset(index) {
       ${(pcbGpioHeaderChoices(_registryAddDirection,preset.driver)).map(g=>`<button type="button" class="registry-add-option" title="${escapeHtmlText(g.status)}" ${g.available?'':'disabled aria-disabled="true"'} onclick="selectRegistryGpioHeader(${index},${g.pin})">${escapeHtmlText(g.label)}<small>${escapeHtmlText(g.status)}</small></button>`).join('')}
       </div></div><details><summary>Advanced: direct wiring to a spare GPIO</summary><div class="registry-add-group-grid"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">${preset.role==='temperature'?'External temperature sensor':preset.role==='torque'?'External torque sensor':'Spare ESP32 GPIO'}<small>${preset.role==='temperature'?'Choose MAX6675, MAX31855 or MAX31856 and an unused CS GPIO on the shared SPI bus.':preset.role==='torque'?'Choose HX711, phase pickups or an external transmitter. I2C sensor options become available when their device is detected.':'Only pins left electrically free by this PCB are available.'}</small></button>
       </div></details>
-      ${registryExternalSourceChoices(preset,index)}`;
+      ${registryExternalSourceChoices(preset,index)}
+      <div class="registry-add-group"><button type="button" class="registry-add-option" onclick="selectRegistryBareGpio(${index})">Add unassigned card<small>Explore its settings, then choose a supported connection on the card.</small></button></div>`;
     const panel = document.querySelector('#registry-add-modal .registry-add-panel');
     if (panel) panel.scrollTop = 0;
     return;
@@ -974,18 +961,6 @@ function registryAddError(message) {
   const err = document.getElementById('registry-add-error');
   if (!err) return;
   err.textContent = message;
-  err.style.display = '';
-}
-function registryAddBusPrerequisite(bus, deviceLabel) {
-  const err = document.getElementById('registry-add-error');
-  if (!err) return;
-  const i2c = bus === 'i2c';
-  const explanation = i2c
-    ? 'This device uses the shared I2C wiring. Configure SDA and SCL once; its address and channel are selected on the device card.'
-    : 'A MAX thermocouple amplifier uses the shared SPI wiring. Configure SCK and MISO once; each temperature probe then gets its own CS pin.';
-  err.innerHTML = `<strong>${escapeHtmlText(deviceLabel)} needs shared ${i2c ? 'I2C' : 'SPI'} wiring.</strong>
-    <span style="display:block;color:var(--text-2);margin:.3rem 0 .55rem">${explanation}</span>
-    <button type="button" onclick="openRegistryBusPrerequisite('${i2c ? 'i2c' : 'spi'}')">Configure shared ${i2c ? 'I2C' : 'SPI'} wiring</button>`;
   err.style.display = '';
 }
 function addRegistryChannel(direction) {

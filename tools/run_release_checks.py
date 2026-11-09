@@ -71,6 +71,7 @@ def main() -> int:
         "generate public Config reference",
         [node, "tools/generate_site_config_reference.cjs"],
     )
+    run("generate documentation index", [python, "tools/generate_documentation_index.py"])
     run("public-content validation", [python, "tools/validate_public_content.py"])
     run("fixture Wi-Fi reconnect behavior", [node, "tools/fixture_wifi_helper_test.cjs"])
     run("UI audit suite", [node, "tools/run_ui_audits.cjs"])

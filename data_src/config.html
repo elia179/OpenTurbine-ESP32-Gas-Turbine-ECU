@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261106d',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261106d');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -330,7 +330,9 @@ const ALL_CONFIG_SCHEMA = [
     { key:'th_ru', path:['throttle','ramp_up_ms'],   label:'Full Opening Time (ms)', desc:'Time for the fuel/throttle output to move from 0 to 100%. A larger value opens more gently.', step:50, min:0, basic:true },
     { key:'th_rd', path:['throttle','ramp_down_ms'], label:'Full Closing Time (ms)', desc:'Time for the fuel/throttle output to move from 100% to 0. A smaller value closes faster.', step:50, min:0, basic:true },
     { key:'th_ex', path:['throttle','expo'],         label:'Low-Throttle Sensitivity', desc:'Softens response near idle while preserving full travel. 0 is linear; 1 is maximum softening. Technical name: throttle expo.', step:0.05, min:0, max:1 },
-    { key:'pb_min', path:['throttle','pullback_min_pct'], label:'Minimum Fuel During Gradual Protection (%)', desc:'Common physical fuel floor for non-emergency gradual limiting. It prevents an enabled limiter from pulling the main engine below the user-tested stable minimum; STOP and hard shutdowns still cut fuel.', step:1, min:0, max:100 },
+  ]},
+  { title: 'Shared Fuel-Limiting Settings', id:'fuel-limiting-settings', sectionNote:'Shared by the enabled gradual fuel limiters below.', fields: [
+    { key:'pb_min', path:['throttle','pullback_min_pct'], label:'Minimum Fuel During Gradual Protection (%)', desc:'Lowest main-fuel demand permitted by gradual fuel limiting. Choose a measured stable-running minimum. Fault shutdown and STOP can still cut fuel completely.', step:1, min:0, max:100, basic:true },
   ]},
   { title: 'Gradual Fuel Limit Protection', id: 'gradual-protection', sectionNote:'Optional non-emergency fuel reduction as a measured value approaches its configured boundary. Each separate shutdown protection acts only when its safety switch or trip limit is enabled.', fields: [
     { key:'pb_n1e', path:['throttle','pullback_n1'], modePath:['throttle','pullback_n1_mode'], label:'N1 Fuel-Limiting Mode', type:'pullback_mode', desc:'Off disables gradual fuel limiting; it does not change the separate N1 overspeed safety switch. Simple uses measured N1. Predictive uses N1 acceleration to act earlier. The maximum causes shutdown only when N1 overspeed safety is enabled.' },
@@ -375,7 +377,7 @@ const ALL_CONFIG_SCHEMA = [
     { key:'fi_fixed', path:['dynamic_idle','fixed_fuel_pct'], label:'Fixed Running Idle Fuel (%)', desc:'Replaces the retained startup idle floor in Running. Throttle may command more. A nonzero value below the calibrated pump minimum is raised to that minimum; zero adds no idle floor.', step:0.01, min:0, max:100, basic:true },
     { key:'fi_input', path:['dynamic_idle','input_id'], label:'Idle Input Channel', type:'select', string:true, options:()=>idleInputOptions(), desc:'Automatic uses the input assigned the Idle purpose in Hardware. An explicit choice uses that exact fitted input; it never silently changes to another sensor.', basic:true },
     { key:'fi_low', path:['dynamic_idle','input_low'], label:'Idle Input Low', desc:'Input reading mapped to the calibrated pump minimum. Readings outside the selected endpoints are clamped. Reversed endpoints invert the mapping.', step:0.001, min:-1000000000, max:1000000000, basic:true },
-    { key:'fi_high', path:['dynamic_idle','input_high'], label:'Idle Input High', desc:'Input reading mapped to Maximum Normal Idle Fuel Output. Use the source’s engineering units, not its raw ADC or pulse calibration. Low and high must differ.', step:0.001, min:-1000000000, max:1000000000, basic:true },
+    { key:'fi_high', path:['dynamic_idle','input_high'], label:'Idle Input High', desc:'Input reading mapped to Maximum Normal Idle Fuel Output. Use the units shown beside the field. Low and high must differ.', step:0.001, min:-1000000000, max:1000000000, basic:true },
     { key:'th_mx', path:['throttle','idle_max_pct'], label:'Maximum Normal Idle Fuel Output (%)', desc:'Upper endpoint for Input channel mode. Automatic Idle multiplies this base ceiling by Maximum Fuel Range Multiplier, capped at 100%; its summary shows the resulting range. The low end is the calibrated pump minimum. Fixed mode uses its own percentage; Off adds no floor. STOP and hard protection may still cut fuel.', step:1, min:0, max:100, basic:true },
     { key:'di_src', path:['dynamic_idle','source'], label:'Idle Feedback Source', type:'select', options:[{v:0,l:'N1 core speed'},{v:1,l:'N2 output-shaft speed'},{v:2,l:'P1 pressure (experimental)'},{v:3,l:'P2 pressure (experimental)'}], desc:'Choose the fitted feedback used to regulate idle. Pressure feedback is experimental and requires separate stand validation.', basic:true },
     { key:'di_tr', path:['dynamic_idle','target_rpm'],    label:'Idle Target (N1/N2)', unit:'RPM', desc:'Used when the selected feedback source is N1 or N2.', step:500, min:0, basic:true },
@@ -400,9 +402,9 @@ const ALL_CONFIG_SCHEMA = [
     { key:'di_lr', path:['dynamic_idle','learn_rate'], label:'Steady-Idle Learning Speed (0-1)', desc:'How quickly the learned steady-idle fuel output adapts after speed settles. Smaller values are steadier.', step:0.01, min:0 },
     { key:'di_la', path:['dynamic_idle','learn_accel_max'], label:'Maximum Speed Change While Learning (RPM/s)', desc:'The ECU learns steady-idle fuel only while RPM is changing more slowly than this value.', step:100, min:0 },
     { key:'di_pde', path:['dynamic_idle','pressure_decel_enter_bar'], label:'Catch Entry Above Target', unitType:'press', zeroOff:true, desc:'Predictive pressure deceleration catch can begin this far above target. 0 disables the fast-deceleration fuel drop.', step:0.01, min:0 },
-    { key:'di_psb', path:['dynamic_idle','pressure_settle_band_bar'], label:'Settled Pressure Band', unit:'bar', desc:'Pressure band in which the ECU may learn the steady-idle fuel demand.', step:0.01, min:0 },
-    { key:'di_pfr', path:['dynamic_idle','pressure_full_response_bar'], label:'Pressure Error for Full Correction', unit:'bar', desc:'Pressure error where predictive idle reaches its configured correction rate.', step:0.01, min:0 },
-    { key:'di_plr', path:['dynamic_idle','pressure_learn_rate_max_bar_s'], label:'Maximum Pressure Change While Learning', unit:'bar/s', desc:'Learning pauses while pressure changes faster than this value.', step:0.01, min:0 },
+    { key:'di_psb', path:['dynamic_idle','pressure_settle_band_bar'], label:'Settled Pressure Band', unitType:'press', desc:'Pressure band in which the ECU may learn the steady-idle fuel demand.', step:0.01, min:0 },
+    { key:'di_pfr', path:['dynamic_idle','pressure_full_response_bar'], label:'Pressure Error for Full Correction', unitType:'press', desc:'Pressure error where predictive idle reaches its configured correction rate.', step:0.01, min:0 },
+    { key:'di_plr', path:['dynamic_idle','pressure_learn_rate_max_bar_s'], label:'Maximum Pressure Change While Learning', unitType:'press_rate', desc:'Learning pauses while pressure changes faster than this value.', step:0.01, min:0 },
   ]},
   { title: 'Combustion & Startup Protection', id: 'safety-monitor', sectionNote:'Independent shutdown monitoring for starting and running. A confirmed combustion loss cuts fuel and begins fault shutdown when this protection is enabled; automatic relight is configured separately and does not change this timer.', fields: [
     { key:'sf_ci', path:['safety','check_interval_ms'],    label:'Safety Check Interval (ms)', desc:'How often general safety conditions are evaluated. Hard overspeed and current-delay timing run independently. Restricted to 10-250 ms so protection cannot be delayed by configuration.', step:10, min:10, max:250 },
@@ -475,8 +477,8 @@ const ALL_CONFIG_SCHEMA = [
     { key:'ab_sms', path:['afterburner','stabilize_ms'],         label:'Stabilize Hold (ms)',   desc:'Hold time after confirmed ignition before declaring the afterburner Running. Typical: 500-2000 ms.', step:100, min:0, max:3600000 },
   ]},
   { title: 'Afterburner Protection', id: 'ab-protection-section', sectionNote:'Independent temperature and flame-loss protection for the afterburner. Ignition commands and flame-confirmation setup remain in the afterburner controller.', fields: [
-    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine shutdown'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — use engine shutdown only'}], desc:'Automatic is the simple default. Off removes only the extra torch pulse at the normal engine over-temperature shutdown.', basic:true },
-    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'Used only in Custom mode. It should be below the configured main-engine temperature shutdown.', step:10, min:0 },
+    { key:'ab_tgm',  path:['afterburner','torch_guard_mode'],  label:'Torch Temperature Guard', type:'select', options:[{v:0,l:'Automatic margin below engine limit'},{v:1,l:'Custom torch-only cut'},{v:2,l:'Off — no torch-only cut'}], desc:'Automatic ends the torch pulse at the selected engine-temperature limit minus its warning margin. Custom uses the cut temperature below. Off applies no torch-only temperature cut. Engine overtemperature shutdown has its own enable switch.', basic:true },
+    { key:'ab_ttl',  path:['afterburner','torch_tot_limit'],   label:'Custom Torch EGT Cut',  unitType:'temp', desc:'A positive value ends the torch pulse above this temperature; unavailable temperature feedback also ends it. Zero applies no torch-only cut. The main-engine overtemperature limit and enable switch are separate.', step:10, min:0 },
     { key:'ab_smt', path:['afterburner','stabilize_max_tot'],    label:'Stabilize Max EGT',  unitType:'temp', zeroOff:true, desc:'AB faults if selected EGT exceeds this during the stabilize hold. 0 = disabled.', step:10, min:0, max:100000 },
     { key:'ab_fld', path:['afterburner','flame_loss_delay_ms'], label:'Running Flame-Loss Delay (ms)', desc:'When flame-sensor verification is selected, shut down only the afterburner if its flame signal is absent or unhealthy for this long while Running. Default 1000 ms. The main engine keeps running.', step:100, min:0, max:60000 },
   ]},
@@ -563,12 +565,19 @@ document.addEventListener('click', async event => {
 
 // ── Per-field changed-state tracking (mirrors hardware.html) ──
 let _fieldSnap = {};
+let _fieldBaseSnap = {};
+let _collectedFields = new Set();
 let _idleInputSnap = {};
 
 function _snapshotFields() {
   _idleInputSnap = JSON.parse(JSON.stringify({input_id:cfg?.dynamic_idle?.input_id || '',
     input_low:cfg?.dynamic_idle?.input_low ?? 0, input_high:cfg?.dynamic_idle?.input_high ?? 1}));
   _fieldSnap = {};
+  _fieldBaseSnap = {};
+  _collectedFields.clear();
+  SCHEMA.forEach(section=>section.fields.forEach(field=>{
+    _fieldBaseSnap['cf-'+field.key] = getPath(cfg,field.path);
+  }));
   document.querySelectorAll('input[id^="cf-"], select[id^="cf-"]')
     .forEach(el => {
       _fieldSnap[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
@@ -694,8 +703,17 @@ function _controllerRuleChanges() {
     if (key === 'target') return value === 'request_fault' ? 'Request Fault Shutdown' : value === 'request_shutdown' ? 'Request Normal Shutdown' : nameFor(value, 'outputs');
     if(['on_value','off_value'].includes(key)&&(['request_shutdown','request_fault'].includes(String(rule.target))||[4,11].includes(Number(hwCfg?.channel_registry?.outputs?.find(row=>String(row.id)===String(rule.target))?.driver))))
       return Number(value)>=.5?'ON':'OFF';
-    if (['on_value','off_value','output_min','output_max','response_gain','integral_gain'].includes(key))
+    if (['response_gain','integral_gain'].includes(key)) {
+      const meta=controllerInputDisplay(rule.source);
+      return `${Number((Number(value)*100/meta.scale).toFixed(4))}% / ${meta.unit||'unit'}${key==='integral_gain'?' / s':''}`;
+    }
+    if (['on_value','off_value','output_min','output_max'].includes(key))
       return `${Number((Number(value) * 100).toFixed(4))}%`;
+    const source=controllerFieldInput(rule,key);
+    if(source.id && value!==undefined && value!==null) {
+      const meta=controllerInputDisplay(source.id);
+      return `${Number(controllerValueToDisplay(value,source.id,source.delta).toFixed(4))}${meta.unit?' '+meta.unit:''}`;
+    }
     return value === undefined || value === null || value === '' ? '(none)' : String(value);
   };
   const matchedOld = new Set();
@@ -764,12 +782,13 @@ function _buildChanges() {
     if (!Number(cfg?.dynamic_idle?.fuel_mode || 0)) continue;
     const fieldKey = {input_id:'fi_input',input_low:'fi_low',input_high:'fi_high'}[key];
     const el = document.getElementById('cf-'+fieldKey);
-    const current = el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
+    const unchangedRange = el && key!=='input_id' && String(cfg?.dynamic_idle?.input_id||'')===_idleInputSnap.input_id && OTFieldValueEqual(el,el.value,_fieldSnap[el.id]);
+    const current = unchangedRange ? _idleInputSnap[key] : el ? (key === 'input_id' ? el.value : _fieldFromDisplay({key:fieldKey},Number(el.value))) : cfg?.dynamic_idle?.[key] ?? (key === 'input_id' ? '' : key === 'input_low' ? 0 : 1);
     if (String(current) === String(_idleInputSnap[key])) continue;
     const display = (value,id) => {
       if (key === 'input_id') return value ? controllerChannelName(simpleControlInputs().find(row=>row.id===value)) || `Missing input: ${value}` : 'Automatic: configured Idle Input';
       const meta = controllerInputDisplay(id);
-      return `${Number((value*meta.scale).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
+      return `${Number(controllerValueToDisplay(value,id).toFixed(4))}${meta.unit ? ' '+meta.unit : ''}`;
     };
     changes.push({key:'fi_'+key,label:'Idle / '+label,was:display(_idleInputSnap[key],_idleInputSnap.input_id),now:display(current,cfg?.dynamic_idle?.input_id),inactive:false});
   }
@@ -1282,7 +1301,7 @@ function _mountControllerLocalSettings(outputs) {
     const feedbackResponse = Number(loop.feedback_loss_response ?? 2);
     const responseOptions = (selected,feedback=false) => `<option value="0"${selected===0?' selected':''}>${feedback?'Fallback only':'Disabled'}</option><option value="1"${selected===1?' selected':''}>Warning only</option><option value="2"${selected===2?' selected':''}>Normal fault shutdown</option><option value="3"${selected===3?' selected':''}>Immediate dry-oil stop</option>`;
     const options = (rows, selected) => rows.map(row => `<option value="${_escHtml(row.id)}"${String(row.id)===String(selected)?' selected':''}>${_escHtml(controllerChannelName(row))}</option>`).join('');
-    const number = (key,label,value,step,min=0,max='',percent=false) => `<label class="cfg-field"><span class="cfg-label">${_escHtml(label)}${percent?' (%)':''}</span><input type="number" min="${min}"${max!==''?` max="${max}"`:''} step="${step}" value="${Number(value)}" onchange="updateControllerOilLoop(${loopIndex},'${key}',+this.value${percent?'/100':''})"></label>`;
+    const number = (key,label,value,step,min=0,max='',percent=false,baseScale=1) => `<label class="cfg-field"><span class="cfg-label">${_escHtml(label)}${percent?' (%)':''}</span><input type="number" min="${min}"${max!==''?` max="${max}"`:''} step="${step}" value="${Number(value)}" onchange="updateControllerOilLoop(${loopIndex},'${key}',+this.value${percent?'/100':baseScale!==1?'*'+baseScale:''})"></label>`;
     const pressure = (key,label,value,step,max=20) => `<label class="cfg-field"><span class="cfg-label">${_escHtml(label)} (${dispPressUnit()})</span><input type="number" min="0" max="${toDispPress(max)}" step="${toDispPress(step)}" value="${Math.round(toDispPress(Number(value))*1000)/1000}" onchange="updateControllerOilLoop(${loopIndex},'${key}',fromDispPress(+this.value))"></label>`;
     const card = document.createElement('details');
     card.className = 'protection-card controller-subcard';
@@ -1297,7 +1316,7 @@ function _mountControllerLocalSettings(outputs) {
       ${source>=2?number('speed_min_rpm','Low shaft speed (RPM)',loop.speed_min_rpm??0,100,0,1000000):''}
       ${source>=2?number('speed_max_rpm','High shaft speed (RPM)',loop.speed_max_rpm??20000,100,0,1000000):''}
       ${pressure('deadband_bar','Pressure deadband',loop.deadband_bar??.2,.01,5)}
-      ${binary?'':number('response_gain','Response gain',loop.response_gain??1.8,.05,0,100)}
+      ${binary?'':number('response_gain',`Response gain (per ${dispPressUnit()})`,Number(((loop.response_gain??1.8)/toDispPress(1)).toPrecision(8)),.05/toDispPress(1),0,100/toDispPress(1),false,toDispPress(1))}
       ${binary?'':number('min_demand','Minimum pump command',Math.round(Number(loop.min_demand??.18)*100),1,0,100,true)}
       ${binary?'':number('max_demand','Maximum pump command',Math.round(Number(loop.max_demand??1)*100),1,0,100,true)}
       ${number('failsafe_delay_ms','Feedback-loss delay (ms)',loop.failsafe_delay_ms??1500,100,0,60000)}
@@ -1399,18 +1418,33 @@ function setControllerSwitchState(index,op) {
 
 // Presentation only: controller configuration keeps its existing engineering units.
 function controllerInputDisplay(id) {
-  const row = simpleControlInputs().find(input => String(input.id) === String(id));
+  const row = simpleControlInputs().find(input => String(input.id) === String(id)) ||
+    hwCfg?.channel_registry?.inputs?.find(input=>String(input.id)===String(id));
   const purpose = String(row?.purpose || '');
   if (['throttle','idle','ab_input'].includes(purpose)) return {scale:100,unit:'%'};
-  if (purpose.includes('pressure')) return {scale:1,unit:'bar'};
+  if (purpose.includes('pressure')) return {scale:toDispPress(1),unit:dispPressUnit()};
   if (['n1_speed','n2_speed','shaft_speed'].includes(purpose)) return {scale:1,unit:'RPM'};
-  if (['tot','tit','oil_temperature'].includes(purpose)) return {scale:1,unit:'°C'};
+  if (['tot','tit'].includes(purpose)||purpose.includes('temperature'))
+    return {scale:toDispTempDelta(1),offset:toDispTemp(0),unit:dispTempUnit()};
   if (purpose === 'battery_voltage') return {scale:1,unit:'V'};
   if (purpose.includes('current')) return {scale:1,unit:'A'};
   if (purpose === 'torque') return {scale:1,unit:'Nm'};
   if (purpose === 'thrust') return {scale:1,unit:'N'};
   if (purpose.includes('flow')) return {scale:1,unit:'L/min'};
   return {scale:1,unit:''};
+}
+function controllerValueToDisplay(value,id,delta=false) {
+  const meta=controllerInputDisplay(id);
+  return Number(value)*meta.scale+(delta?0:Number(meta.offset||0));
+}
+function controllerValueFromDisplay(value,id,delta=false) {
+  const meta=controllerInputDisplay(id);
+  return (Number(value)-(delta?0:Number(meta.offset||0)))/meta.scale;
+}
+function controllerFieldInput(rule,key) {
+  const sourceKeys=['input_min','input_max','threshold','hysteresis','target_fixed','target_low','target_high','deadband'];
+  return {id:sourceKeys.includes(key)?rule?.source:['target_input_min','target_input_max'].includes(key)?rule?.target_source:'',
+    delta:['hysteresis','deadband'].includes(key)};
 }
 
 // Interpret old files for display only. Never rewrite their behavior on load
@@ -1460,7 +1494,7 @@ function configuredIdleSource() {
   const input = explicitId ? simpleControlInputs().find(row=>String(row.id)===explicitId) : controllerInputs('idle')[0];
   if (input) {
     const display = controllerInputDisplay(input.id);
-    const endpoints = explicitId ? `${Number(((cfg.dynamic_idle.input_low ?? 0)*display.scale).toFixed(4))}–${Number(((cfg.dynamic_idle.input_high ?? 1)*display.scale).toFixed(4))}${display.unit ? ' '+display.unit : ''}` : '0–100% calibrated travel';
+    const endpoints = explicitId ? `${Number(controllerValueToDisplay(cfg.dynamic_idle.input_low??0,input.id).toFixed(4))}–${Number(controllerValueToDisplay(cfg.dynamic_idle.input_high??1,input.id).toFixed(4))}${display.unit ? ' '+display.unit : ''}` : '0–100% calibrated travel';
     return {active:true,title:`Idle input · ${controllerChannelName(input)}`,description:`Maps ${endpoints} to ${range} fuel in Running. Missing or unhealthy input falls back to retained startup idle, bounded by this fuel range. Startup actions are unchanged.`};
   }
   if (mode === 3) return {active:false,title:explicitId ? 'Selected input unavailable' : 'No Idle Input configured',description:'Choose a fitted input below or add an Idle Input in Hardware. No other sensor is selected silently.'};
@@ -1734,17 +1768,22 @@ function renderSimpleControls() {
       `<option value="${esc(row.id)}"${String(row.id)===String(selected)?' selected':''}${disabled.has(String(row.id))&&String(row.id)!==String(selected)?' disabled':''}>${esc(controllerChannelName(row))}</option>`).join('');
   const numberField = (index, key, label, value, attrs='step="any"') => {
     const rule = cfg.rules?.[index];
-    const sourceKeys = ['input_min','input_max','threshold','hysteresis','target_fixed','target_low','target_high','deadband'];
-    const display = sourceKeys.includes(key) ? controllerInputDisplay(rule?.source)
-      : ['target_input_min','target_input_max'].includes(key) ? controllerInputDisplay(rule?.target_source) : {scale:1,unit:''};
-    const displayed = Number((Number(value) * display.scale).toPrecision(15));
+    const {id:inputId,delta} = controllerFieldInput(rule,key);
+    const display = controllerInputDisplay(inputId);
+    const gain=['response_gain','integral_gain'].includes(key);
+    const percent=['on_value','off_value','output_min','output_max'].includes(key);
+    const gainDisplay=controllerInputDisplay(rule?.source);
+    const displayed = Number((gain?Number(value)/gainDisplay.scale:controllerValueToDisplay(value,inputId,delta)).toPrecision(15));
+    attrs=attrs.replace(/(min|max|step)="([^"]+)"/g,(match,name,limit)=>Number.isFinite(Number(limit))
+      ? `${name}="${controllerValueToDisplay(Number(limit),inputId,delta||name==='step')}"` : match);
     const idle = configuredIdleSource();
     const target = simpleControlOutputs().find(row => String(row.id) === String(rule?.target));
     const fuel = ['main_fuel','fuel_pump'].includes(String(target?.purpose || ''));
     const note = key === 'input_min' && fuel && idle.active && (Number(rule?.mode_mask ?? 4) & 4)
       ? `<span class="cfg-desc" data-idle-floor-note>In Running, the lower fuel command is limited by the idle source: ${esc(idle.title)}. See Idle under Fuel-metering support.</span>` : '';
-    const accessibleLabel = `${label}${display.unit ? ` (${display.unit})` : ''}`;
-    return `<label class="cfg-field"><span class="cfg-label">${accessibleLabel}</span><input type="number" aria-label="${esc(accessibleLabel)}" ${attrs} value="${displayed}" onchange="updateSimpleControl(${index},'${key}',+this.value${display.scale === 1 ? '' : '/'+display.scale})">${note}</label>`;
+    const accessibleLabel = `${gain?label.replace('unit',gainDisplay.unit||'unit'):label}${display.unit ? ` (${display.unit})` : ''}`;
+    const edited = gain?`+this.value*${gainDisplay.scale}/100`:percent?'+this.value/100':`controllerValueFromDisplay(+this.value,${esc(JSON.stringify(inputId||''))},${delta})`;
+    return `<label class="cfg-field"><span class="cfg-label">${accessibleLabel}</span><input type="number" aria-label="${esc(accessibleLabel)}" ${attrs} value="${displayed}" onchange="updateSimpleControl(${index},'${key}',${edited})">${note}</label>`;
   };
   const flowBlock = (step, title, desc, body) => `<div class="controller-function-block"><div class="controller-function-heading"><b><span>${step}</span>${title}</b><span>${desc}</span></div><div class="cfg-grid">${body}</div></div>`;
   const rules = cfg.rules || [];
@@ -1778,12 +1817,12 @@ function renderSimpleControls() {
     const methodChoice = `<label class="cfg-field"><span class="cfg-label">Control method</span><select onchange="updateSimpleControl(${index},'kind',+this.value)"><option value="0"${kind===0?' selected':''}>${switchInput?'Switch state':'On / Off with hysteresis'}</option>${relay?'':`<option value="1"${kind===1?' selected':''}>Map input to output</option><option value="2"${kind===2?' selected':''}>Hold a feedback target</option>`}${actionTarget?'':'<option value="3"'+(kind===3?' selected':'')+'>Fixed output</option>'}</select></label>`;
     let topology = '';
     if (kind === 0) {
-      topology = flowBlock('02',switchInput?'Switch condition':'Control input',switchInput?(actionTarget?'Choose the switch and the ON/OFF state that requests the action.':'Choose the switch and the ON/OFF state that commands the output.'):'The measured value that decides when the output changes.',`${inputChoice}<label class="cfg-field"><span class="cfg-label">${actionTarget?(rule.target==='request_fault'?'Request fault shutdown when':'Request normal shutdown when'):switchInput?'Command output when':'Direction'}</span><select onchange="${switchInput?'setControllerSwitchState':'updateSimpleControl'}(${index},${switchInput?'':"'op',"}+this.value)"><option value="0"${Number(rule.op||0)===0?' selected':''}>${switchInput?'Switch is ON':actionTarget?'Input is above threshold':'Turn on above'}</option><option value="1"${Number(rule.op||0)===1?' selected':''}>${switchInput?'Switch is OFF':actionTarget?'Input is below threshold':'Turn on below'}</option></select>${switchInput?'<span class="cfg-desc">ON/OFF is the logical state after Hardware polarity and the built-in 20 ms debounce.</span>':''}</label>${switchInput?(!controllerSwitchSettingsReady(rule)?`<div class="cfg-field"><span class="cfg-desc">This older controller has numeric switch settings. Apply the ON/OFF condition before saving.</span><button type="button" onclick="setControllerSwitchState(${index},${Number(rule.op||0)})">Use switch state</button></div>`:''):numberField(index,'threshold','Switch point',rule.threshold??0)+numberField(index,'hysteresis','Hysteresis',rule.hysteresis??0,'min="0" step="any"')}${numberField(index,'confirm_ms','Condition confirmation time (ms)',rule.confirm_ms??0,'min="0" max="60000" step="1"').replace('</label>','<span class="cfg-desc">The condition must stay true continuously. Returning to normal, losing the input or stopping monitoring resets this timer. 0 adds no delay. Switch contacts also have built-in 20 ms debounce.</span></label>')}`) + (actionTarget?'':relay?flowBlock('03','Output state','States used when the condition matches and when it does not.',['on_value','off_value'].map((key,i)=>`<label class="cfg-field"><span class="cfg-label">${i?'Otherwise':'When condition matches'}</span><select onchange="updateSimpleControl(${index},'${key}',+this.value)"><option value="1"${Number(rule[key]||0)>=.5?' selected':''}>ON</option><option value="0"${Number(rule[key]||0)<.5?' selected':''}>OFF</option></select></label>`).join('')):flowBlock('03','Output command','Output levels used on each side of the switch point.',`${numberField(index,'on_value','On output (%)',Number(rule.on_value??1)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'off_value','Off output (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}`));
+      topology = flowBlock('02',switchInput?'Switch condition':'Control input',switchInput?(actionTarget?'Choose the switch and the ON/OFF state that requests the action.':'Choose the switch and the ON/OFF state that commands the output.'):'The measured value that decides when the output changes.',`${inputChoice}<label class="cfg-field"><span class="cfg-label">${actionTarget?(rule.target==='request_fault'?'Request fault shutdown when':'Request normal shutdown when'):switchInput?'Command output when':'Direction'}</span><select onchange="${switchInput?'setControllerSwitchState':'updateSimpleControl'}(${index},${switchInput?'':"'op',"}+this.value)"><option value="0"${Number(rule.op||0)===0?' selected':''}>${switchInput?'Switch is ON':actionTarget?'Input is above threshold':'Turn on above'}</option><option value="1"${Number(rule.op||0)===1?' selected':''}>${switchInput?'Switch is OFF':actionTarget?'Input is below threshold':'Turn on below'}</option></select>${switchInput?'<span class="cfg-desc">ON/OFF is the logical state after Hardware polarity and the built-in 20 ms debounce.</span>':''}</label>${switchInput?(!controllerSwitchSettingsReady(rule)?`<div class="cfg-field"><span class="cfg-desc">This older controller has numeric switch settings. Apply the ON/OFF condition before saving.</span><button type="button" onclick="setControllerSwitchState(${index},${Number(rule.op||0)})">Use switch state</button></div>`:''):numberField(index,'threshold','Switch point',rule.threshold??0)+numberField(index,'hysteresis','Hysteresis',rule.hysteresis??0,'min="0" step="any"')}${numberField(index,'confirm_ms','Condition confirmation time (ms)',rule.confirm_ms??0,'min="0" max="60000" step="1"').replace('</label>','<span class="cfg-desc">The condition must stay true continuously. Returning to normal, losing the input or stopping monitoring resets this timer. 0 adds no delay. Switch contacts also have built-in 20 ms debounce.</span></label>')}`) + (actionTarget?'':relay?flowBlock('03','Output state','States used when the condition matches and when it does not.',['on_value','off_value'].map((key,i)=>`<label class="cfg-field"><span class="cfg-label">${i?'Otherwise':'When condition matches'}</span><select onchange="updateSimpleControl(${index},'${key}',+this.value)"><option value="1"${Number(rule[key]||0)>=.5?' selected':''}>ON</option><option value="0"${Number(rule[key]||0)<.5?' selected':''}>OFF</option></select></label>`).join('')):flowBlock('03','Output command','Output levels used on each side of the switch point.',`${numberField(index,'on_value','On output (%)',Number(rule.on_value??1)*100,'min="0" max="100" step="any"')}${numberField(index,'off_value','Off output (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"')}`));
     } else if (kind === 1) {
-      topology = flowBlock('02','Control input','Choose the input and the range that will be mapped.',`${inputChoice}${numberField(index,'input_min','Input low',rule.input_min??0)}${numberField(index,'input_max','Input high',rule.input_max??1)}`) + flowBlock('03','Output range','Output command at the low and high ends of the input range.',`${numberField(index,'output_min','Output low (%)',Number(rule.output_min??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'output_max','Output high (%)',Number(rule.output_max??1)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}`);
+      topology = flowBlock('02','Control input','Choose the input and the range that will be mapped.',`${inputChoice}${numberField(index,'input_min','Input low',rule.input_min??0)}${numberField(index,'input_max','Input high',rule.input_max??1)}`) + flowBlock('03','Output range','Output command at the low and high ends of the input range.',`${numberField(index,'output_min','Output low (%)',Number(rule.output_min??0)*100,'min="0" max="100" step="any"')}${numberField(index,'output_max','Output high (%)',Number(rule.output_max??1)*100,'min="0" max="100" step="any"')}`);
       topology += flowBlock('04','Input loss','If this input becomes unhealthy or stale, command this output. No fallback input is selected.',window.OTControllerTiming?.scheduled(rule)
         ? `<div class="cfg-field"><span class="cfg-label">Output if input is unavailable</span><b>${Math.round(Number(target?.safe_demand ?? (rule.target==='prop_pitch_main'?1:0))*100)}%</b><span class="cfg-desc">Uses the output's safe demand. Set it on Hardware in this output's settings.</span></div>`
-        : numberField(index,'off_value','Output if input is unavailable (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)"));
+        : numberField(index,'off_value','Output if input is unavailable (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"'));
     } else if (kind === 2) {
       const targetSource = targetSourceType === 0 ? '' : `<label class="cfg-field"><span class="cfg-label">${targetSourceType===1?'Selector input':'Target input'}</span><select onchange="updateSimpleControl(${index},'target_source',this.value)">${optionRows(inputs,rule.target_source)}</select></label>`;
       const targetValues = targetSourceType === 0
@@ -1791,9 +1830,9 @@ function renderSimpleControls() {
         : targetSourceType === 1
           ? `<div class="controller-switch-target"><span class="controller-switch-target-head"><b>Low target</b><span>OFF</span></span>${numberField(index,'target_low','When selector input is OFF',rule.target_low??0)}</div><div class="controller-switch-target"><span class="controller-switch-target-head"><b>High target</b><span class="on">ON</span></span>${numberField(index,'target_high','When selector input is ON',rule.target_high??1)}</div>`
           : `${numberField(index,'target_input_min','Target input low',rule.target_input_min??0)}${numberField(index,'target_input_max','Target input high',rule.target_input_max??1)}${numberField(index,'target_low','Target at input low',rule.target_low??0)}${numberField(index,'target_high','Target at input high',rule.target_high??1)}`;
-      topology = flowBlock('02','Feedback','The control method and measured value held at the target.',methodChoice+inputChoice) + flowBlock('03','Target','Choose where the requested feedback value comes from.',`<label class="cfg-field"><span class="cfg-label">How is the target selected?</span><select onchange="updateSimpleControl(${index},'target_source_type',+this.value)"><option value="0"${targetSourceType===0?' selected':''}>Fixed value</option><option value="1" title="Two-state switch"${targetSourceType===1?' selected':''}>Input switch</option><option value="2" title="Variable input mapping"${targetSourceType===2?' selected':''}>Variable input</option></select></label>${targetSource}${targetValues}`) + flowBlock('04','Output authority','Restrict how much authority this controller has over the selected output.',`${numberField(index,'output_min','Minimum output (%)',Number(rule.output_min??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'output_max','Maximum output (%)',Number(rule.output_max??1)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}`) + `<details class="protection-card" style="grid-column:1/-1"><summary><span><span class="protection-card-title">Response tuning</span><span class="protection-card-desc">Start gently, then tune during safe bench tests</span></span><span class="protection-card-chevron">›</span></summary><div class="cfg-grid">${numberField(index,'response_gain','Immediate response (% / unit)',Number(rule.response_gain??.02)*100,'min="0" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'integral_gain','Correction rate (% / unit / s)',Number(rule.integral_gain??.005)*100,'min="0" step="any"').replace("+this.value)","+this.value/100)")}${numberField(index,'deadband','Target deadband',rule.deadband??0,'min="0" step="any"')}${numberField(index,'off_value','Feedback-loss output (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}</div></details>`;
+      topology = flowBlock('02','Feedback','The control method and measured value held at the target.',methodChoice+inputChoice) + flowBlock('03','Target','Choose where the requested feedback value comes from.',`<label class="cfg-field"><span class="cfg-label">How is the target selected?</span><select onchange="updateSimpleControl(${index},'target_source_type',+this.value)"><option value="0"${targetSourceType===0?' selected':''}>Fixed value</option><option value="1" title="Two-state switch"${targetSourceType===1?' selected':''}>Input switch</option><option value="2" title="Variable input mapping"${targetSourceType===2?' selected':''}>Variable input</option></select></label>${targetSource}${targetValues}`) + flowBlock('04','Output authority','Restrict how much authority this controller has over the selected output.',`${numberField(index,'output_min','Minimum output (%)',Number(rule.output_min??0)*100,'min="0" max="100" step="any"')}${numberField(index,'output_max','Maximum output (%)',Number(rule.output_max??1)*100,'min="0" max="100" step="any"')}`) + `<details class="protection-card" style="grid-column:1/-1"><summary><span><span class="protection-card-title">Response tuning</span><span class="protection-card-desc">Start gently, then tune during safe bench tests</span></span><span class="protection-card-chevron">›</span></summary><div class="cfg-grid">${numberField(index,'response_gain','Immediate response (% / unit)',Number(rule.response_gain??.02)*100,'min="0" step="any"')}${numberField(index,'integral_gain','Correction rate (% / unit / s)',Number(rule.integral_gain??.005)*100,'min="0" step="any"')}${numberField(index,'deadband','Target deadband',rule.deadband??0,'min="0" step="any"')}${numberField(index,'off_value','Feedback-loss output (%)',Number(rule.off_value??0)*100,'min="0" max="100" step="any"')}</div></details>`;
     } else {
-      topology = flowBlock('02','Output command','The fixed command applied whenever this controller is active.',`${numberField(index,'on_value',relay?'Fixed state (0 = Off, above 0 = On)':'Fixed output (%)',Number(rule.on_value??0)*100,'min="0" max="100" step="any"').replace("+this.value)","+this.value/100)")}<div class="cfg-field"><span class="cfg-label">No feedback input required</span><span class="cfg-desc">Applied while this controller is active. Deactivation sends the Hardware safe command before releasing ownership; a following sequence block or controller can then take over.</span></div>`);
+      topology = flowBlock('02','Output command','The fixed command applied whenever this controller is active.',`${numberField(index,'on_value',relay?'Fixed state (0 = Off, above 0 = On)':'Fixed output (%)',Number(rule.on_value??0)*100,'min="0" max="100" step="any"')}<div class="cfg-field"><span class="cfg-label">No feedback input required</span><span class="cfg-desc">Applied while this controller is active. Deactivation sends the Hardware safe command before releasing ownership; a following sequence block or controller can then take over.</span></div>`);
     }
     const sourceName = controllerChannelName(inputs.find(row => String(row.id) === String(rule.source))) || 'Choose input';
     const outputName = controllerChannelName(target) || 'Choose output';
@@ -1823,7 +1862,7 @@ const ALL_WORKSPACE_GROUPS = [
   { id:'power', title:'Power Turbine & Afterburner', desc:'N2 control and afterburner ignition/running behavior', sections:['Afterburner — Ignition Method','Afterburner — Flame Confirmation','Afterburner — Running'] },
   { id:'oil', title:'Oil & Lubrication Controllers', desc:'Normal pressure response and windmilling oil behavior', sections:['Oil Pressure Control','Windmilling Oil Protection'] },
   { id:'recovery', title:'Start & Recovery Controllers', desc:'Automatic and manual relight behavior', sections:['Automatic Relight','Manual Relight'] },
-  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
+  { id:'safety', title:'Shutdown & Protection', desc:'Gradual fuel pullbacks, reactive or predictive limiting, hard shutdowns, and input-loss actions', sections:['Shared Fuel-Limiting Settings','Engine Protection Limits','Gradual Fuel Limit Protection','Oil Pressure Safety','Afterburner Protection','Combustion & Startup Protection','Auxiliary Protection','RPM Sensor Fault Detection','RC / Servo Signal Loss Detection'] },
   { id:'runtime', title:'ECU Runtime', desc:'Control-loop scheduling and device-wide execution', sections:['ECU Runtime'] },
   { id:'display', title:'External Display Thresholds', desc:'Display-only warning zones for the optional instrument cluster', sections:['External display references'] },
 ];
@@ -2141,22 +2180,22 @@ function updateIdleSourceFields() {
 }
 
 function _fieldToDisplay(f, value) {
-  if (['fi_low','fi_high'].includes(f.key)) return value * controllerInputDisplay(cfg?.dynamic_idle?.input_id).scale;
+  if (['fi_low','fi_high'].includes(f.key)) return controllerValueToDisplay(value,cfg?.dynamic_idle?.input_id);
   let out = value;
   if (f.zeroOff && Number(out) === 0) return 0;
   if (f.unitType === 'temp') out = toDispTemp(out);
   else if (f.unitType === 'temp_delta' || f.unitType === 'temp_rate') out = toDispTempDelta(out);
-  else if (f.unitType === 'press') out = toDispPress(out);
+  else if (f.unitType === 'press' || f.unitType === 'press_rate') out = toDispPress(out);
   return f.scale ? out * f.scale : out;
 }
 
 function _fieldFromDisplay(f, value) {
-  if (['fi_low','fi_high'].includes(f.key)) return value / controllerInputDisplay(cfg?.dynamic_idle?.input_id).scale;
+  if (['fi_low','fi_high'].includes(f.key)) return controllerValueFromDisplay(value,cfg?.dynamic_idle?.input_id);
   if (f.zeroOff && Number(value) === 0) return 0;
   let out = f.scale ? value / f.scale : value;
   if (f.unitType === 'temp') return fromDispTemp(out);
   if (f.unitType === 'temp_delta' || f.unitType === 'temp_rate') return fromDispTempDelta(out);
-  if (f.unitType === 'press') return fromDispPress(out);
+  if (f.unitType === 'press' || f.unitType === 'press_rate') return fromDispPress(out);
   return out;
 }
 
@@ -2165,7 +2204,7 @@ function _fieldStepToDisplay(f, value) {
   let out = value;
   if (f.unitType === 'temp' || f.unitType === 'temp_delta' || f.unitType === 'temp_rate') {
     out = tempUnit() === 'F' ? out * 9 / 5 : out;
-  } else if (f.unitType === 'press') {
+  } else if (f.unitType === 'press' || f.unitType === 'press_rate') {
     out = toDispPress(out);
   }
   return f.scale ? out * f.scale : out;
@@ -2183,38 +2222,47 @@ function _fieldDef(key) {
   return null;
 }
 
-function _switchConfigUnit(unitTypes, setter, nextUnit) {
-  const fields = [];
+function _switchConfigUnit(setter, nextUnit) {
+  const snapshots = [];
   SCHEMA.forEach(sec => sec.fields.forEach(f => {
-    if (!unitTypes.includes(f.unitType)) return;
+    if (!f.unitType && !['fi_low','fi_high'].includes(f.key)) return;
     const el = document.getElementById('cf-' + f.key);
     if (!el || el.type === 'checkbox') return;
-    const current = parseFloat(el.value);
-    const snap = parseFloat(_fieldSnap[el.id]);
-    fields.push({
-      f, el,
-      current: isNaN(current) ? null : _fieldFromDisplay(f, current),
-      snap: isNaN(snap) ? null : _fieldFromDisplay(f, snap)
-    });
+    const base = _fieldBaseSnap[el.id];
+    const old = parseFloat(_fieldSnap[el.id]);
+    const stored=getPath(cfg,f.path);
+    const current=OTFieldValueEqual(el,el.value,_fieldSnap[el.id])&&stored!==undefined?stored:_fieldFromDisplay(f,parseFloat(el.value));
+    snapshots.push({f,id:el.id,current,base:base===undefined?_fieldFromDisplay(f,old):base});
   }));
+  // Capture edits using the old units before rebuilding every editor. Oil
+  // loops and custom controllers live outside SCHEMA and need this rebuild too.
+  collectConfigFields();
   setter(nextUnit);
-  fields.forEach(({ f, el, current, snap }) => {
-    if (current !== null) el.value = _roundedDisplay(_fieldToDisplay(f, current));
-    if (snap !== null) _fieldSnap[el.id] = _roundedDisplay(_fieldToDisplay(f, snap));
-    if (f.min !== undefined) el.min = _roundedDisplay(_fieldToDisplay(f, f.min));
-    if (f.max !== undefined) el.max = _roundedDisplay(_fieldToDisplay(f, f.max));
-    if (f.step !== undefined) el.step = _roundedDisplay(_fieldStepToDisplay(f, f.step));
+  // System's file pickers and update progress must survive a display change.
+  // Only Controllers has the extra editors that require a full rebuild.
+  if(CONFIG_SURFACE==='controllers')renderForm(true);
+  else snapshots.forEach(({f,id,current})=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(Number.isFinite(current))el.value=_roundedDisplay(_fieldToDisplay(f,current));
+    if(f.min!==undefined)el.min=_roundedDisplay(_fieldToDisplay(f,f.min));
+    if(f.max!==undefined)el.max=_roundedDisplay(_fieldToDisplay(f,f.max));
+    if(f.step!==undefined)el.step=_roundedDisplay(_fieldStepToDisplay(f,f.step));
   });
+  snapshots.forEach(({f,id,base}) => {
+    if (Number.isFinite(Number(base))) _fieldSnap[id] = _roundedDisplay(_fieldToDisplay(f,base));
+  });
+  _applyAllVisibility();
   _refreshChangedBorders();
+  applyView();
   runValidation();
 }
 
 function setConfigTempUnit(value) {
-  _switchConfigUnit(['temp', 'temp_delta', 'temp_rate'], setTempUnit, value);
+  _switchConfigUnit(setTempUnit, value);
 }
 
 function setConfigPressUnit(value) {
-  _switchConfigUnit(['press'], setPressUnit, value);
+  _switchConfigUnit(setPressUnit, value);
 }
 
 function _detailsStateKey(card) {
@@ -2287,8 +2335,8 @@ function renderForm(preserveControllerOpenState = true) {
     }
     const isTempUnit = f.unitType === 'temp' || f.unitType === 'temp_delta';
     const unitSuffix = (!isSel && f.unitType)
-      ? f.unitType === 'temp_rate'
-        ? ` (<span data-unit="temp">${dispTempUnit()}</span>/s)`
+      ? ['temp_rate','press_rate'].includes(f.unitType)
+        ? ` (<span data-unit="${f.unitType==='temp_rate'?'temp':'press'}">${f.unitType==='temp_rate'?dispTempUnit():dispPressUnit()}</span>/s)`
         : ` (<span data-unit="${isTempUnit ? 'temp' : 'press'}">${isTempUnit ? dispTempUnit() : dispPressUnit()}</span>)`
       : (!isSel && f.unit ? ` (${f.unit})` : '');
     const min = (!isCb && !isSel && f.min !== undefined) ? ` min="${_roundedDisplay(_fieldToDisplay(f, f.min))}"` : '';
@@ -2498,8 +2546,10 @@ function renderForm(preserveControllerOpenState = true) {
   applyAbIgnitionParamVisibility();
   const _abUtEl = document.getElementById('cf-ab_ut');
   const _abFmEl = document.getElementById('cf-ab_fm');
+  const _abGuardEl = document.getElementById('cf-ab_tgm');
   if (_abUtEl) _abUtEl.addEventListener('change', applyAbIgnitionParamVisibility);
   if (_abFmEl) _abFmEl.addEventListener('change', applyAbIgnitionParamVisibility);
+  if (_abGuardEl) _abGuardEl.addEventListener('change', applyAbIgnitionParamVisibility);
   refreshStartupGuardUi();
   document.getElementById('cf-sf_sg_en')?.addEventListener('change',refreshStartupGuardUi);
   const _egSrcEl = document.getElementById('cf-eg_src');
@@ -3110,6 +3160,21 @@ function collectConfigFields() {
       // Old-file choices are interpreted for display only. Only an explicit
       // mode/channel action may replace their stored behavior.
       if (!Number(cfg?.dynamic_idle?.fuel_mode || 0) && ['fi_mode','fi_input','fi_low','fi_high'].includes(f.key)) return;
+      const shown = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.id in _fieldSnap && OTFieldValueEqual(el, shown, _fieldSnap[el.id])) {
+        // A rounded display is not an edit. If a staged edit was reverted,
+        // restore its exact saved value rather than the rounded presentation.
+        if (_collectedFields.has(el.id)) {
+          if (_fieldBaseSnap[el.id] !== undefined) setPath(cfg, f.path, _fieldBaseSnap[el.id]);
+          else {
+            const parent=getPath(cfg,f.path.slice(0,-1));
+            if(parent && typeof parent==='object') delete parent[f.path[f.path.length-1]];
+          }
+        }
+        _collectedFields.delete(el.id);
+        return;
+      }
+      _collectedFields.add(el.id);
       if (f.type === 'checkbox') {
         setPath(cfg, f.path, el.checked);
       } else if (f.string) {
@@ -3141,7 +3206,15 @@ async function saveConfig() {
     // Legacy or future-hardware values elsewhere on System must not block an
     // unrelated Appearance save. Validate only controls changed in this edit.
     const invalid = Array.from(document.querySelectorAll('#cfg-form input:invalid, #cfg-form select:invalid'))
-      .find(element => element.classList.contains('field-changed'));
+      .find(element => {
+        if(!element.classList.contains('field-changed'))return false;
+        const validity=element.validity;
+        // Engineering-value steps are useful arrow increments. Converted
+        // temperatures/pressures need not land on that browser step grid.
+        const convertedField=!!_fieldDef(element.id.replace(/^cf-/,''))?.unitType;
+        const otherError=['badInput','valueMissing','rangeOverflow','rangeUnderflow','patternMismatch','typeMismatch','tooLong','tooShort','customError'].some(key=>validity[key]);
+        return otherError || !convertedField || !validity.stepMismatch;
+      });
     if (invalid) {
       invalid.reportValidity();
       invalid.focus();
@@ -3670,11 +3743,13 @@ function applyAbIgnitionParamVisibility() {
   }
   showF('ab_tpct', useTorch);
   showF('ab_tms',  useTorch);
-  showF('ab_ttl',  useTorch);
+  const guardMode = Number(document.getElementById('cf-ab_tgm')?.value ?? cfg?.afterburner?.torch_guard_mode ?? 0);
+  showF('ab_tgm', useTorch);
+  showF('ab_ttl', useTorch && guardMode === 1);
   showF('ab_tr',   flameMode === 1);
   showF('ab_tw',   flameMode === 1);
   showF('ab_ams',  flameMode === 2);
-  showF('ab_fld',  flameMode === 0);
+  showF('ab_fld',  flameMode === 0 || flameMode === 3);
   applyView();
 }
 

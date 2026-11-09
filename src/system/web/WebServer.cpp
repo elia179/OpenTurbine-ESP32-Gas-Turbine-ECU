@@ -5541,14 +5541,15 @@ void WebServer::tick() {
     // _otaPendingRestart asserted excludes its completed upload from the
     // interrupted-upload timeout until that restart occurs.
     // Interrupted OTA upload: if the client disconnects mid-upload no further
-    // chunk or completion callback ever runs, so without this timeout the
-    // maintenance lock (423 on start/command/save) persists until power cycle
-    // and _otaUploadOwner dangles.  Idle-timeout pattern matches the asset and
+    // chunk or completion callback ever runs. Between acknowledged chunks the
+    // request owner is deliberately null while the upload remains active;
+    // expiry must follow the session flag, not the current request pointer.
+    // Otherwise the maintenance lock persists until power cycle. Match the asset and
     // config-restore cleanups below; re-check under the lock closes the race
     // against a chunk arriving exactly at the boundary.
-    if (_otaUploadOwner && !_otaPendingRestart && (millis() - _otaUploadLastMs) > 30000) {
+    if (_otaInProgress && !_otaPendingRestart && (millis() - _otaUploadLastMs) > 30000) {
         UploadLock lock;
-        if (_otaUploadOwner && !_otaPendingRestart && (millis() - _otaUploadLastMs) > 30000) {
+        if (_otaInProgress && !_otaPendingRestart && (millis() - _otaUploadLastMs) > 30000) {
             Serial.println("[OTA] Timed out - aborting interrupted firmware upload");
             if (Update.isRunning()) Update.abort();
             _otaError = true;

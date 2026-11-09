@@ -11,9 +11,59 @@ Recorded 8 November 2026. **Implementation in progress on `work/2.7.1-n8r2`; not
 - Setup Tool 0.8.0/package schema 5 selects the matching N8R2 image from the official PCB choice and preserves its identity for updates. Package/profile tests and Go tests pass.
 - Owner added controller-UX scope: shutdown protection settings belong in Shutdown & Protection; controller-specific feedback-loss fallback stays with the controller. Oil-circuit and afterburner guards have been moved without changing their stored behavior. Generic controller warnings and obsolete legacy oil warnings are removed; user-facing guides avoid simulator/fixture commentary.
 - Initial source and packaged UI tests pass for two independent oil circuits, feedback-loss fallback, save/reload and narrow layout in Chromium, Firefox and WebKit. Full current-tree/release and real N8R2 qualification are still required.
-- Current development checkpoint: all three firmware and filesystem images build; their linker/OTA/filesystem margins pass. Native expanded-memory/archive tests, 323 source regression checks, package/profile unit tests, Windows Setup Tool tests, focused source/gzip browser checks and public-content validation pass. A local `2.7.1-dev` package contains Classic, standard S3 and N8R2 images. No device was flashed and nothing was pushed during this work. This is not a full release-gate or HIL sign-off.
+- 8 November checkpoint: all three firmware and filesystem images build; their linker/OTA/filesystem margins pass. Native expanded-memory/archive tests, 323 source regression checks, package/profile unit tests, Windows Setup Tool tests, focused source/gzip browser checks and public-content validation pass. A local `2.7.1-dev` package contains Classic, standard S3 and N8R2 images. No device was flashed during that initial stage, and nothing was pushed. This is not a full release-gate or HIL sign-off.
 
 ## Confirmed target
+
+### 9 November verification update
+
+The current tree is still an unpublished development candidate. All 65 UI audit
+programs pass across their source/packaged browser cases, as do 323 safety
+source checks, the engine setup matrix, I2C support audit, 38 Python tooling
+tests and Windows Setup Tool tests. All three firmware/filesystem builds pass
+their partition and linker budgets. The local preview package is rebuilt from
+the current images; it is not a public release.
+
+Both bare chips pass NAU7802 zero/200 N sweeps, signed-byte boundaries, polarity,
+reload and ADC-only reset recovery. Published 2.6.0 also passed the emulated load
+sweeps on both chips: the tester's physical nonmonotonic response remains
+unreproduced. Explicit byte sequencing removes an ordering hazard; it is not a
+confirmed explanation of that report. See `dev/bench/NAU7802_REVIEW.md`.
+
+Actual System-page firmware/web updates, configuration preservation, navigation
+soaks and internal-buffer session recording pass on Classic and generic S3.
+An abandoned OTA between chunks exposed a persistent maintenance lock; the fix
+passes between-chunk and partial-request disconnects on both chips without a
+reboot. S3 session CSV export parsed 26 complete rows.
+
+Final live navigation passes 72 browser/viewport/page cases on Classic with
+its restored test setup and 72 on S3 with the current PCB profile. Chromium,
+Firefox and WebKit each cover landscape, portrait and phone sizes. Both
+checks preserve configuration and boot count and send no writes. The S3's
+older saved development-board hardware cannot be applied unchanged to the
+new PCB binding; its original full flash/filesystem remain backed up, and a
+valid PCB-default review setup is saved as `tester2`. Classic retains its
+original `tester1` setup and is held in reset while the fixture wires remain
+connected. The assembled-board missing-device fault is expected on bare S3.
+The final S3 read-only check also byte-matches all 12 served web files and
+passes touch fullscreen at tablet/phone widths without writes or a reboot.
+
+Only exactly 2 MB PSRAM is supported. Larger capacities are left unused. The
+attached S3 has 8 MB octal PSRAM and is tested with the generic internal-RAM
+image; it cannot qualify the N8R2 Quad-PSRAM image. Neither the actual N8R2
+module nor assembled PCB is available. Their boot, external-buffer and physical
+electrical qualification remain open.
+
+Windows Application Control blocks several newly built native C++ test
+executables (WinError 4551). Security settings were not changed. Supplemental
+WASI runs pass 30 behavior programs. The remaining seven pass separately
+on the S3 using their existing fake hardware backends and real thread support.
+The MAVLink test exports golden bytes over UART instead of a desktop file;
+independent decoding verifies both variants. All behavior assertions are retained. Snapshot serialization/allocator/stream ownership cases
+pass in WASI, with the unchanged eight-worker lease-concurrency case passing
+separately on Classic ESP32. This is not a complete native-suite sign-off.
+Raw logs, full pre-test flash backups and local review files remain under the
+ignored `artifacts/nau-investigation-20261109/` directory.
 
 The owner has changed the fitted module for **OpenTurbine PCB v1.0** to
 **ESP32-S3-WROOM-1-N8R2**, superseding the earlier N8/no-PSRAM choice.
@@ -65,3 +115,11 @@ ring access and exported capacity); `src/system/SessionCapture.h`;
 
 - [Espressif WROOM-1/1U datasheet v1.8, tables 1-1 and 3-1](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
 - [ESP-IDF external RAM allocation and restrictions](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/external-ram.html) — also verify the APIs/configuration against the project's pinned SDK when implementing.
+
+## Deferred after 2.7.1
+
+Owner approved publishing the candidate on 9 November. Keep the PCB connector-guide
+list indentation/clipping fix for the next iteration: GPIO/UART bullet markers
+extend outside the inner card frame. Check list padding and narrow layouts; no
+PCB routing or firmware behavior change is requested. The PCB guided-build
+walkthrough under artifacts remains private and must not be published.

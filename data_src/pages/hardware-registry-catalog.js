@@ -115,7 +115,7 @@ const REGISTRY_INPUT_PURPOSES=[
   {value:'flame',label:'Flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
   {value:'ab_flame',label:'Afterburner flame sensor',role:'flame',drivers:[0,1,8,9],group:'Engine sensors'},
   {value:'torque',label:'Torque',role:'torque',drivers:[1,2,9,10],group:'Engine sensors'},
-  {value:'thrust',label:'Thrust',role:'thrust',drivers:[10,1,9],group:'Engine sensors'},
+  {value:'thrust',label:'Thrust',role:'thrust',drivers:[1,9,10],group:'Engine sensors'},
   {value:'battery_voltage',label:'Battery / bus voltage',role:'voltage',drivers:[1,9],group:'Engine sensors'},
   {value:'throttle',label:'Throttle input',role:'operator',drivers:[1,3,2,7,9],group:'Operator inputs'},
   {value:'idle',label:'Idle input',role:'operator',drivers:[0,1,3,2,7,8,9],group:'Operator inputs'},
@@ -246,7 +246,7 @@ const REGISTRY_INPUT_PRESETS=[
   {group:'Engine sensors',purpose:'flame',role:'flame',label:'Flame',id:'flame_main',name:'Flame',driver:1},
   {group:'Engine sensors',purpose:'ab_flame',role:'flame',label:'AB flame',id:'ab_flame_main',name:'AB Flame',driver:1},
   {group:'Engine sensors',purpose:'torque',role:'torque',label:'Torque',id:'torque_main',name:'Torque',driver:1},
-  {group:'Engine sensors',purpose:'thrust',role:'thrust',label:'Thrust',id:'thrust_main',name:'Thrust',driver:10,i2c_address:42,device_channel:0},
+  {group:'Engine sensors',purpose:'thrust',role:'thrust',label:'Thrust',id:'thrust_main',name:'Thrust',driver:1},
   {group:'Engine sensors',purpose:'battery_voltage',role:'voltage',label:'Battery voltage',id:'battery_voltage',name:'Battery Volt',driver:1},
   {group:'Operator and interlock inputs',purpose:'throttle',role:'operator',label:'Throttle input',id:'operator_throttle',name:'Throttle Input',driver:1},
   {group:'Operator and interlock inputs',purpose:'idle',role:'operator',label:'Idle input',id:'operator_idle',name:'Idle Input',driver:1},
@@ -486,8 +486,6 @@ function registryLoadCellIsHx711(c) {
 function registryTorqueInterfaceEditor(direction, c, index) {
   const purpose = registryDerivedPurpose(direction, c);
   if (direction !== 'input' || !['torque','general_torque','thrust','general_thrust'].includes(purpose)) return '';
-  const torque = ['torque','general_torque'].includes(purpose);
-  if (!torque && [9,10].includes(Number(c.driver))) return '';
   const hx = registryLoadCellIsHx711(c);
   const phase = Number(c.torque_interface || 0) === 2;
   const driver = Number(c.driver);
@@ -501,14 +499,12 @@ function registryTorqueInterfaceEditor(direction, c, index) {
     const unavailable = present(type)&&pcbProfileActive() ? '' : !cfg.i2c?.enabled ? ' — enable I2C bus' : cfg._i2c_discovery?.status_unavailable ? ' - status unavailable' : cfg._i2c_discovery?.bus_active===false ? ' - bus unavailable' : !present(type) ? ' — not detected' : '';
     return `<option value="${value}"${selected?' selected':''}${!selected&&unavailable?' disabled':''}>${label}${unavailable}</option>`;
   };
-  const choices = torque
-    ? `<option value="adc"${driver===1&&!hx?' selected':''}>${pcbProfileActive()?'Analog voltage transmitter':'Analog 0–3.3 V transmitter (ESP32 ADC)'}</option>
+  const choices = `<option value="adc"${driver===1&&!hx?' selected':''}>${pcbProfileActive()?'Analog voltage transmitter':'Analog 0–3.3 V transmitter (ESP32 ADC)'}</option>
        <option value="hx711"${hx?' selected':''}>HX711 load-cell amplifier</option>
        ${i2cOption('tla2528','TLA2528','TLA2528 analog input',driver===9)}
        ${i2cOption('nau7802','NAU7802','NAU7802 I2C load cell',driver===10)}
-       ${purpose==='torque'?`<option value="phase"${phase?' selected':''}>Shaft torsion by phase difference (two pickups)</option>`:''}`
-    : `<option value="0"${!hx&&!phase?' selected':''}>Analog 0–3.3 V transmitter</option><option value="1"${hx?' selected':''}>HX711 load-cell amplifier</option>`;
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected.${torque?' Shared I2C devices require an enabled bus and detected chip.':''}</span><select onchange="${torque?`updateRegistryTorqueSensorType(${index},this.value)`:`updateRegistryChannel('input',${index},'torque_interface',+this.value)`}">${choices}</select></div>
+       ${purpose==='torque'?`<option value="phase"${phase?' selected':''}>Shaft torsion by phase difference (two pickups)</option>`:''}`;
+  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Sensor interface</span><span class="hw-desc">Choose the sensor hardware actually connected. Shared I2C devices require an enabled bus and detected chip.</span><select onchange="updateRegistryTorqueSensorType(${index},this.value)">${choices}</select></div>
     ${hx ? `<div class="hw-field"><span class="hw-label">HX711 SCK GPIO</span><span class="hw-desc">Clock output from the ECU to HX711 SCK.</span><select class="${clkClass}" onchange="updateRegistryChannel('input',${index},'hx711_clk',+this.value)">${buildPinOptions(clk,'out')}</select></div>
     <div class="hw-field"><span class="hw-label">HX711 scale (${unit}/count)</span><input type="number" min="0.000001" max="1000000" step="0.000001" value="${registryFormatValue(scale,6)}" oninput="updateRegistryChannel('input',${index},'hx711_scale',registryParseValue(this.value))"></div>
     <div class="hw-field"><span class="hw-label">HX711 zero count</span><input type="number" step="1" value="${Math.round(zero)}" oninput="updateRegistryChannel('input',${index},'hx711_zero',+this.value)"></div>` : ''}`;

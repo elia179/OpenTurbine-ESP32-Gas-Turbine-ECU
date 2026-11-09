@@ -493,7 +493,7 @@ async function optionDisabled(page, selector, value) {
     assert.equal(await disabled(page, '#cf-so_src'), true);
     assert.equal(await disabled(page, '#cf-so_rl'), true);
     assert.equal(await disabled(page, '#cf-so_fp'), true);
-    assert.equal(await disabled(page, '#cf-pb_min'), null);
+    assert.equal(await disabled(page, '#cf-pb_min'), true, 'Shared fuel-limiting floor is visible but unavailable without a fitted limiter source');
     assert.equal(await disabled(page, '#cf-pb_n1e'), true);
     assert.equal(await disabled(page, '#cf-pb_n2e'), true);
     assert.equal(await disabled(page, '#cf-pb_n1m'), null);
