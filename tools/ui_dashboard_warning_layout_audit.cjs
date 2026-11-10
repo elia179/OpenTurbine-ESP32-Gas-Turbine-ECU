@@ -14,6 +14,18 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    const context=await browser.newContext({viewport:{width:768,height:1024},hasTouch:true});
    await context.addInitScript(()=>{for(const k of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1','ot_gs_dismissed'])localStorage.setItem(k,'1');});
    const page=await context.newPage();const errors=[],writes=[];
+   const ready=async()=>{
+    await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});
+    // This audit injects complete warning frames directly. Drain and pause the
+    // normal stream so an older in-flight compact/text response cannot replace
+    // that frame halfway through a layout assertion. Transport/reconnect has
+    // its own audit; pointer clicks and visibility assertions remain real.
+    await page.evaluate(async()=>{
+     if(_dashboardSnapshotRequest)await _dashboardSnapshotRequest;
+     _telemetryPauseDepth++;
+     if(!await OTWaitForTelemetryIdle(5000))throw Error('Telemetry did not drain before warning-frame inspection');
+    });
+   };
    page.on('pageerror',e=>errors.push(e.message));
    page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/')&&!['GET','HEAD'].includes(r.method()))writes.push(r.method()+' '+r.url());});
    if(packaged)await page.route(/\/(index\.html|app\.js|style\.css|theme\.js)(?:\?.*)?$/,async route=>{
@@ -22,7 +34,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    });
    await page.request.post(base+'/__sim/reset');await page.request.post(base+'/__sim/data',{data:healthy});
    await page.goto(base+'/index.html');
-   await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});
+   await ready();
    const slot=page.locator('#dashboard-warnings-card');
    const feed=async patch=>{
     await page.request.post(base+'/__sim/data',{data:{...healthy,...patch}});
@@ -62,7 +74,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    assert.ok(order.indexOf('dashboard-warnings-card')>order.indexOf('n1-card'));
    assert.equal(order.filter(id=>id==='dashboard-warnings-card').length,1);
    await page.locator('#dashboard-card-edit-btn').click();await slot.waitFor({state:'hidden'});assert.equal(await slot.isVisible(),false);
-   await page.reload();await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});
+   await page.reload();await ready();
    await feed({});assert.equal(await slot.isVisible(),false);
    assert.deepEqual(await page.evaluate(()=>[...document.querySelector('#dashboard-custom-cards').children].map(c=>c.id)),order);
    for(const [id,patch] of [
@@ -90,7 +102,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    // Navigation remains functional after the banners have been moved.
    await feed({config_load_warning:'Review pressure limit'});
    await slot.locator('#config-load-warn-banner a').click();await page.waitForURL('**/controllers.html*');
-   await page.goto(base+'/index.html');await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});await feed({});
+   await page.goto(base+'/index.html');await ready();await feed({});
    // Old layouts retain warnings above their saved cards. Stale hidden/minimal
    // preferences must not conceal alarms, even when restored from storage.
    await page.evaluate(()=>{
@@ -98,7 +110,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
     localStorage.setItem('ot_dashboard_hidden_cards_v1',JSON.stringify(['dashboard-warnings-card','p2-card']));
     localStorage.setItem('ot_dashboard_card_views_v1',JSON.stringify({'dashboard-warnings-card':{detail:'minimal',size:'small'}}));
    });
-   await page.reload();await page.waitForSelector('#n1-card .dashboard-drag-handle',{state:'attached'});await feed({config_storage_fault:true});
+   await page.reload();await ready();await feed({config_storage_fault:true});
    await slot.waitFor({state:'visible',timeout:5000});await slot.locator('#config-storage-banner').waitFor({state:'visible',timeout:5000});
    assert.ok(await slot.isVisible());assert.ok(await slot.locator('#config-storage-banner').isVisible());
    assert.equal(await slot.getAttribute('data-dashboard-detail'),'normal');assert.equal(await slot.getAttribute('data-dashboard-size'),'wide');
@@ -109,7 +121,14 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    await slot.screenshot({path:`artifacts/v255-dashboard/${engine}-${packaged?'packaged':'source'}-edit.png`});
    await page.locator('#dashboard-reset-btn').click();
    assert.ok(await page.evaluate(()=>!!(document.querySelector('#dashboard-warnings-card').compareDocumentPosition(document.querySelector('#n1-card'))&Node.DOCUMENT_POSITION_FOLLOWING)));
-   await page.locator('#dashboard-card-edit-btn').click();await slot.waitFor({state:'hidden',timeout:5000});assert.equal(await slot.isVisible(),false);
+   await page.locator('#dashboard-card-edit-btn').click();
+   try { await slot.waitFor({state:'hidden',timeout:5000}); }
+   catch(error) {
+    console.error('Reset/edit diagnostic:',await page.evaluate(()=>({editing:document.body.classList.contains('dashboard-card-editing'),pressed:document.querySelector('#dashboard-card-edit-btn')?.getAttribute('aria-pressed'),banners:[...document.querySelector('#dashboard-warnings-content').children].map(n=>({id:n.id,display:n.style.display,hidden:n.hidden,text:n.innerText.slice(0,250)}))})));
+    await page.screenshot({path:`artifacts/v255-dashboard/${engine}-${packaged?'packaged':'source'}-reset-failure.png`,fullPage:true});
+    throw error;
+   }
+   assert.equal(await slot.isVisible(),false);
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[],'Dashboard layout must not modify the ECU');
    assert.equal(await slot.locator('#captive-banner').count(),0,'Browser connection guidance remains in its global location');
    console.log(`${engine} ${packaged?'packaged':'source'}: thin edit slot, pointer/keyboard saved order, 11 warning lifecycles, links, old preferences, reset and 4 viewport widths passed; no ECU writes.`);
