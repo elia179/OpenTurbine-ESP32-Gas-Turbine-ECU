@@ -1135,6 +1135,7 @@ window.applyData = function(d) {
     cancelCalibrationActuatorWorkers('Engine mode or STOP input changed. Restart calibration manually.');
   d = live;
   updateAdcSwitchLive(d);
+  updateCalibrationCoverage(d);
   const hasFuelPress = fittedFromTelemetryOrHardware(d, 'fuel_press', 'has_fuel_press');
   const hasP1 = fittedFromTelemetryOrHardware(d, 'p1', 'has_p1');
   const hasP2 = fittedFromTelemetryOrHardware(d, 'p2', 'has_p2');
@@ -1190,7 +1191,7 @@ window.applyData = function(d) {
   }
 
   setText('cal-oil-raw', adcMvText(d.oil_raw, 'oil_pressure'));
-  setText('cal-oil',     d.oil !== undefined ? Number(d.oil).toFixed(3) + ' bar' : '—');
+  setText('cal-oil',     d.oil !== undefined && d.oil_healthy !== false ? Number(d.oil).toFixed(3) + ' bar' : '—');
   setText('fp-min-saved', d.fuel_pump_min_pct !== undefined ? Number(d.fuel_pump_min_pct).toFixed(1) : '—');
   setText('cal-oil-pct', d.oil_pct !== undefined ? d.oil_pct + ' %' : '—');
   setText('cal-oil-h',   d.oil_healthy ? 'OK' : 'fault');
@@ -1428,6 +1429,29 @@ function adcMv(raw, channel) {
 }
 function adcMvText(raw, channel) {
   return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw)) ? Math.round(adcMv(raw,channel)) + ' mV' : '—';
+}
+const calibrationCoverageRows = [
+  ['oil-press', 'oil_pressure', 'oil'], ['fuelpress', 'fuel_pressure', 'fuel_press'],
+  ['p1', 'p1_pressure', 'p1'], ['p2', 'p2_pressure', 'p2'], ['oiltemp', 'oil_temperature', 'oil_temp'],
+  ['battvolt', 'battery_voltage', 'batt_voltage'], ['torque', 'torque', 'torque'],
+  ['thrust', 'thrust', 'thrust'], ['fuelflow', 'fuel_flow', 'fuel_flow'],
+  ['glow-current', 'glow_current', 'glow_current'], ['igniter-current', 'igniter_current', 'igniter_current'],
+  ['igniter2-current', 'igniter2_current', 'igniter2_current'], ['oilpump-current', 'oil_pump_current', 'oil_pump_current']
+];
+function updateCalibrationCoverage(data) {
+  for (const [row, purpose, field] of calibrationCoverageRows) {
+    const container = document.querySelector(`#${row}-cal-row > .sensor-vals`);
+    const channel = sensorCalibrationChannel(data.registry_inputs, purpose);
+    const saved = registryInputById(channel?.id || purpose);
+    let sample = channel && { ...saved, ...channel };
+    if (!channel && !saved && purpose === 'oil_pressure') {
+      const poly = cfg.calibration?.oil_poly;
+      if (poly && [poly.a, poly.b, poly.c].some(coefficient => Number(coefficient))) {
+        sample = {role:'pressure', raw:data.oil_raw, cal_range:[poly.x_min, poly.x_max]};
+      }
+    }
+    renderCalibrationCoverage(container, sample, channel?.healthy ?? data[field + '_healthy'], raw => adcMvText(raw, saved || purpose));
+  }
 }
 function adcRawFromMv(mv, channel) {
   const reference = adcReferenceMv(channel);

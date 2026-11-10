@@ -732,8 +732,34 @@ function openSensorRange(key, trigger) {
   dialog.querySelector('.sensor-range-error').textContent = '';
   dialog.showModal();
 }
-function renderSensorView(card, key, name, value, healthy, kind, sample, reference = 0, canvasId = '', limit = 0, shutdownEnabled = false) {
+function sensorCalibrationRange(channel) {
+  if (!channel || ['generic','operator','flame'].includes(String(channel.role))) return null;
+  const points=channel.calibration_points;
+  const range=channel.cal_range || (Array.isArray(points)&&points.length>=2?[points[0].raw,points[points.length-1].raw]:null);
+  return Array.isArray(range)&&range.length===2&&range.every(v=>Number.isFinite(Number(v)))&&Number(range[1])>Number(range[0])
+    ? range.map(Number):null;
+}
+function sensorCalibrationChannel(channels, purpose) {
+  const matches = (channels || []).filter(channel => channel.installed !== false && channel.purpose === purpose);
+  return matches.length === 1 ? matches[0] : null;
+}
+function renderCalibrationCoverage(container, channel, healthy, formatRaw = null) {
+  if (!container) return;
+  let note=container.querySelector(':scope > .calibration-coverage-note');
+  const range=sensorCalibrationRange(channel), raw=Number(channel?.raw);
+  const outside=range&&healthy===true&&channel?.raw!=null&&Number.isFinite(raw)&&(raw<range[0]||raw>range[1]);
+  if (!range||(!outside&&!formatRaw)) {
+    note?.remove();return;
+  }
+  if(!note){note=document.createElement('div');note.className='calibration-coverage-note';container.appendChild(note);}
+  note.textContent=formatRaw?`Calibrated: ${formatRaw(range[0])} – ${formatRaw(range[1])}${outside?' · estimated':''}`
+    :'Outside calibrated range · estimated';
+  note.title=outside?'Continues the end of the calibration curve as a straight line. Check against a known reference.'
+    :'Range covered by the saved calibration points.';
+}
+function renderSensorView(card, key, name, value, healthy, kind, sample, reference = 0, canvasId = '', limit = 0, shutdownEnabled = false, channel = null) {
   if (!card) return;
+  renderCalibrationCoverage(card,channel,healthy);
   const arr = registryInputSparkSeries('view:' + key);
   const valid = healthy !== false && value !== null && value !== undefined && Number.isFinite(Number(value));
   if (!valid) arr.length = 0; // Never carry a plausible line through a sensor fault.
@@ -808,8 +834,13 @@ function renderAdditionalSensorViews(d,sample) {
     const card = document.getElementById(id);
     if (!card || !d[fitted]) return;
     const trip={p1:['p1_trip_bar',1],p2:['p2_trip_bar',2],torque:['torque_trip_nm',4]}[key];
+    const purpose={oil:'oil_pressure','oil-temp':'oil_temperature',p1:'p1_pressure',p2:'p2_pressure',
+      'fuel-press':'fuel_pressure',batt:'battery_voltage',torque:'torque',thrust:'thrust',
+      'fuel-flow':'fuel_flow','glow-current':'glow_current','igniter-current':'igniter_current',
+      'igniter2-current':'igniter2_current','oilpump-current':'oil_pump_current'}[key];
+    const channel=sensorCalibrationChannel(d.registry_inputs,purpose);
     renderSensorView(card,key,name,d[field],d[health],kind,sample,reference?Number(d[reference]):0,canvas,
-      trip?Number(d[trip[0]]||0):0,trip?!!(Number(d.trip_enabled||0)&trip[1]):false);
+      trip?Number(d[trip[0]]||0):0,trip?!!(Number(d.trip_enabled||0)&trip[1]):false,channel);
     if (d[health] === false) {
       const value = card.querySelector('.value');
       if (value) { value.textContent = '—'; value.style.color = ''; }
@@ -3171,7 +3202,7 @@ function renderRegistryInputCards(d, sampleSparklines = false) {
     const display = registryInputDisplay(ch);
     const card = document.getElementById('registry-card-' + safeId);
     renderSensorView(card,'registry:'+String(ch.id),registryDisplayName(ch,'Input'),
-      display.numeric,ch.healthy,String(ch.role || 'generic'),sampleSparklines,0,'regin-spark-'+safeId);
+      display.numeric,ch.healthy,String(ch.role || 'generic'),sampleSparklines,0,'regin-spark-'+safeId,0,false,ch);
     if (ch.healthy === false) card.querySelector('.value').textContent = '—';
   });
   return cardRows.length;

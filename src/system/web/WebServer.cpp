@@ -2783,6 +2783,12 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["pulldown"] = c.pulldown;
             ch["invert"] = c.inverted;
             ch["raw"] = ed.registryInputRaw[i];
+            if (c.calibrationPointCount >= 2 && strcmp(c.role, "generic") &&
+                strcmp(c.role, "operator") && strcmp(c.role, "flame")) {
+                auto range = ch["cal_range"].to<JsonArray>();
+                range.add(c.calibrationRaw[0]);
+                range.add(c.calibrationRaw[c.calibrationPointCount - 1]);
+            }
             ch["value"] = (float)(int)(ed.registryInputValue[i] * 1000) / 1000.0f;
             ch["healthy"] = ed.registryInputHealthy[i];
         }

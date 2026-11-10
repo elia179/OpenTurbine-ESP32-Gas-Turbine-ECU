@@ -99,7 +99,24 @@ int main() {
     r.inputCount=2;
     Wire.tla[2]=0; // reset removes the appended ID; driver must recover it.
     tick(50); assert(Wire.tla[2]==0x10);
-    std::cout << "TLA2528 retained-configuration recovery, channel-ID isolation and reset recovery passed\n";
+    // Calibration coverage must not cap a physical pressure, while operator
+    // curves retain saturation at their saved endpoint commands.
+    for(unsigned i=0;i<2;i++) {
+        auto& c=r.inputs[i];c.calibrationPointCount=2;
+        c.calibrationRaw[0]=200;c.calibrationRaw[1]=1000;
+        c.calibrationValue[0]=i?.2f:0;c.calibrationValue[1]=i?.8f:1.6f;
+        std::strcpy(c.role,i?"operator":"pressure");
+    }
+    Wire=FakeWire{};Wire.tlaPresent=true;
+    I2CDeviceManager::begin(true,21,22,-1,100000,r);tick(100);
+    for(unsigned i=0;i<2;i++) {
+        float v;int32_t raw;uint32_t seq,ms;
+        assert(I2CDeviceManager::input(i,v,raw,seq,ms));
+        assert(raw==1500+500*(int)i);
+        assert(std::fabs(v-(i?.8f:2.6f))<.001f);
+        r.inputs[i].calibrationPointCount=0;
+    }
+    std::cout << "TLA2528 retained-configuration recovery, channel-ID isolation, reset recovery, physical extrapolation and operator saturation passed\n";
 
     r.inputCount = 1;
     auto& analog = r.inputs[0];

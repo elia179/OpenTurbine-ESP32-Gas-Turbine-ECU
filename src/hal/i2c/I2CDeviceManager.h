@@ -770,11 +770,14 @@ private:
                         _adcDigitalState[i]);
                     physical = AdcThreshold::logicalValue(_adcDigitalState[i], c.activeHigh);
                 } else if (c.calibrationPointCount >= 2) {
-                    physical = PiecewiseCalibration::apply((float)raw, c.calibrationPointCount,
-                                                            c.calibrationRaw, c.calibrationValue);
                     if (!strcmp(c.role, "generic") || !strcmp(c.role, "operator") || !strcmp(c.role, "flame")) {
+                        physical = PiecewiseCalibration::applyClamped((float)raw, c.calibrationPointCount,
+                                                                      c.calibrationRaw, c.calibrationValue);
                         physical = constrain(physical, 0.0f, 1.0f);
                         if (c.inverted) physical = 1.0f - physical;
+                    } else {
+                        physical = PiecewiseCalibration::apply((float)raw, c.calibrationPointCount,
+                                                               c.calibrationRaw, c.calibrationValue);
                     }
                 } else if (!strcmp(c.role, "generic") || !strcmp(c.role, "operator") || !strcmp(c.role, "flame")) {
                     const float span = c.maxValue - c.minValue;

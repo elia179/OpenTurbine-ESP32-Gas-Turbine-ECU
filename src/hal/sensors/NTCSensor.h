@@ -54,8 +54,8 @@ public:
         if (raw <= 0.0f || raw >= 4095.0f) return -999.0f;
 
         if (_cal.useRawPoly) {
-            raw = constrain(raw, _cal.polyXMin, _cal.polyXMax);
-            return ((_cal.a * raw + _cal.b) * raw + _cal.c) * raw + _cal.d;
+            return CalibrationMath::polynomial(raw, _cal.a, _cal.b, _cal.c, _cal.d,
+                                               _cal.polyXMin, _cal.polyXMax);
         }
 
         float r = _cal.fixedPullup
@@ -70,7 +70,7 @@ public:
 
     bool isHealthy() override {
         float value = getValue();
-        return _calValid() && _railCheck() && _avg.avg() > 0 && isfinite(value);
+        return _calValid() && _railCheck() && _avg.avg() > 0 && _avg.avg() < 4095 && isfinite(value);
     }
 
 private:

@@ -158,6 +158,7 @@ def main() -> int:
             ("status_indicator_behavior", [str(ROOT / "dev" / "host" / "status_indicator_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32"]),
             ("status_indicator_behavior_s3", [str(ROOT / "dev" / "host" / "status_indicator_behavior.cpp"),str(ROOT / "src/engine/EngineData.cpp")], ["-DOT_PLATFORM_ESP32S3"]),
             ("sensor_driver_behavior", [str(ROOT / "dev" / "host" / "sensor_driver_behavior.cpp")], []),
+            ("sensor_calibration_behavior", [str(ROOT / "dev" / "host" / "sensor_calibration_behavior.cpp")], []),
         ]
         for name, sources, extra_flags in tests:
             # Windows Application Control classifies the generic

@@ -513,13 +513,14 @@ namespace Hardware {
         if (!strcmp(c.role, "temperature") && c.temperatureInterface == 4 &&
             (rawCounts <= 0.0f || rawCounts >= 4095.0f)) return NAN;
         if (c.calibrationPointCount >= 2) {
-            float calibrated = PiecewiseCalibration::apply(rawCounts, c.calibrationPointCount,
-                                                            c.calibrationRaw, c.calibrationValue);
             if (!strcmp(c.role, "generic") || !strcmp(c.role, "operator") || !strcmp(c.role, "flame")) {
+                float calibrated = PiecewiseCalibration::applyClamped(rawCounts, c.calibrationPointCount,
+                                                                      c.calibrationRaw, c.calibrationValue);
                 calibrated = constrain(calibrated, 0.0f, 1.0f);
                 return c.inverted ? 1.0f - calibrated : calibrated;
             }
-            return calibrated;
+            return PiecewiseCalibration::apply(rawCounts, c.calibrationPointCount,
+                                                c.calibrationRaw, c.calibrationValue);
         }
         if (!strcmp(c.role, "generic") || !strcmp(c.role, "operator") || !strcmp(c.role, "flame"))
             return c.inverted ? 1.0f - registryMappedInput(rawCounts, c) : registryMappedInput(rawCounts, c);
@@ -1138,6 +1139,7 @@ namespace Hardware {
                 ed.registryInputHealthy[i] = isfinite(ed.registryInputValue[i]) &&
                     (operatorPot ? OperatorAdc::healthy(raw, c.minValue, c.maxValue)
                                  : raw >= c.minValue && raw <= c.maxValue);
+                if (!isfinite(ed.registryInputValue[i])) ed.registryInputValue[i] = 0.0f;
                 ed.registryInputSampleSeq[i] = ed.registryInputSampleSeq[i] + 1U;
                 ed.registryInputSampleMs[i] = now;
             } else if (c.driver == ChannelRegistry::Pulse) {
@@ -2463,7 +2465,7 @@ namespace Hardware {
             ed.oilHealthy = ed.registryInputHealthy[oilPressAnalog];
         } else if (hw.hasOilPress) {
             g_sensorOilPress.update();
-            ed.oilPressure    = g_sensorOilPress.getValue();
+            ed.oilPressure    = g_sensorOilPress.finiteValue();
             ed.oilPressureRaw = g_sensorOilPress.rawCounts();
             ed.oilHealthy     = g_sensorOilPress.isHealthy();
         }
@@ -2551,6 +2553,7 @@ namespace Hardware {
             ed.oilTemp        = g_pSensorOilTemp->getValue();
             ed.oilTempRaw     = (strcmp(hw.oilTempChip, "ntc") == 0) ? g_sensorOilTempNtc.rawCounts() : 0;
             ed.oilTempHealthy = g_pSensorOilTemp->isHealthy();
+            if (!isfinite(ed.oilTemp)) ed.oilTemp = 0.0f;
             // The normal NTC beta equation stays the zero-setup default.  If
             // the canonical registry card has a measured/datasheet table,
             // that table is authoritative while retaining the NTC driver's
@@ -2576,7 +2579,7 @@ namespace Hardware {
             if (ed.battHealthy && ed.battVoltage > ed.maxBattVoltage) ed.maxBattVoltage = ed.battVoltage;
         } else if (hw.hasBattVoltage) {
             g_sensorBattVolt.update();
-            ed.battVoltage  = g_sensorBattVolt.getValue();
+            ed.battVoltage  = g_sensorBattVolt.finiteValue();
             ed.battVoltageRaw = g_sensorBattVolt.rawCounts();
             ed.battHealthy  = g_sensorBattVolt.isHealthy();
             if (ed.battHealthy && ed.battVoltage > ed.maxBattVoltage) ed.maxBattVoltage = ed.battVoltage;
@@ -2604,7 +2607,7 @@ namespace Hardware {
                 }
             } else {
                 g_sensorTorque.update();
-                ed.torque        = g_sensorTorque.getValue();
+                ed.torque        = g_sensorTorque.finiteValue();
                 ed.torqueRaw     = g_sensorTorque.rawCounts();
                 ed.torqueHealthy = g_sensorTorque.isHealthy();
                 const uint32_t seq = g_sensorTorque.sampleSequence();
@@ -2649,7 +2652,7 @@ namespace Hardware {
                 ed.fuelFlowHealthy = g_sensorFuelFlowPulse.isHealthy();
             } else {
                 g_sensorFuelFlow.update();
-                ed.fuelFlow = g_sensorFuelFlow.getValue();
+                ed.fuelFlow = g_sensorFuelFlow.finiteValue();
                 ed.fuelFlowRaw = g_sensorFuelFlow.rawCounts();
                 ed.fuelFlowHealthy = g_sensorFuelFlow.isHealthy();
             }
@@ -2664,7 +2667,7 @@ namespace Hardware {
             }
         } else if (hw.hasP1) {
             g_sensorP1.update();
-            ed.p1 = g_sensorP1.getValue();
+            ed.p1 = g_sensorP1.finiteValue();
             ed.p1Raw = g_sensorP1.rawCounts();
             ed.p1Healthy = g_sensorP1.isHealthy();
             const uint32_t seq = g_sensorP1.sampleSequence();
@@ -2684,7 +2687,7 @@ namespace Hardware {
             }
         } else if (hw.hasP2) {
             g_sensorP2.update();
-            ed.p2 = g_sensorP2.getValue();
+            ed.p2 = g_sensorP2.finiteValue();
             ed.p2Raw = g_sensorP2.rawCounts();
             ed.p2Healthy = g_sensorP2.isHealthy();
             const uint32_t seq = g_sensorP2.sampleSequence();
@@ -2700,14 +2703,14 @@ namespace Hardware {
             ed.fuelPressHealthy = ed.registryInputHealthy[fuelPressAnalog];
         } else if (hw.hasFuelPress) {
             g_sensorFuelPress.update();
-            ed.fuelPressure     = g_sensorFuelPress.getValue();
+            ed.fuelPressure     = g_sensorFuelPress.finiteValue();
             ed.fuelPressRaw     = g_sensorFuelPress.rawCounts();
             ed.fuelPressHealthy = g_sensorFuelPress.isHealthy();
         }
         if (hw.hasGlowCurrentSensor) {
             g_sensorGlowCurrent.update();
-            ed.glowCurrentAmps = g_sensorGlowCurrent.getValue();
-            ed.glowCurrentHealthy = g_sensorGlowCurrent.railHealthy();
+            ed.glowCurrentAmps = g_sensorGlowCurrent.finiteValue();
+            ed.glowCurrentHealthy = g_sensorGlowCurrent.isHealthy();
             // Plug is hot when current has dropped below threshold and plug is
             // powered. A disconnected/railed ADC must not read as ready.
             ed.glowPlugHot = ed.glowCurrentHealthy &&
@@ -2716,18 +2719,18 @@ namespace Hardware {
         }
         if (hw.hasIgniterCurrentSensor) {
             g_sensorIgniterCurrent.update();
-            ed.igniterCurrentAmps = g_sensorIgniterCurrent.getValue();
-            ed.igniterCurrentHealthy = g_sensorIgniterCurrent.railHealthy();
+            ed.igniterCurrentAmps = g_sensorIgniterCurrent.finiteValue();
+            ed.igniterCurrentHealthy = g_sensorIgniterCurrent.isHealthy();
         }
         if (hw.hasIgniter2CurrentSensor) {
             g_sensorIgniter2Current.update();
-            ed.igniter2CurrentAmps = g_sensorIgniter2Current.getValue();
-            ed.igniter2CurrentHealthy = g_sensorIgniter2Current.railHealthy();
+            ed.igniter2CurrentAmps = g_sensorIgniter2Current.finiteValue();
+            ed.igniter2CurrentHealthy = g_sensorIgniter2Current.isHealthy();
         }
         if (hw.hasOilPumpCurrentSensor) {
             g_sensorOilPumpCurrent.update();
-            ed.oilPumpCurrentAmps = g_sensorOilPumpCurrent.getValue();
-            ed.oilPumpCurrentHealthy = g_sensorOilPumpCurrent.railHealthy();
+            ed.oilPumpCurrentAmps = g_sensorOilPumpCurrent.finiteValue();
+            ed.oilPumpCurrentHealthy = g_sensorOilPumpCurrent.isHealthy();
             ed.oilPumpOvercurrent = ed.oilPumpCurrentHealthy && (hw.oilPumpCurrentMaxAmps > 0.0f)
                                     && (ed.oilPumpCurrentAmps > hw.oilPumpCurrentMaxAmps);
         }

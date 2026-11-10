@@ -53,8 +53,10 @@ int main() {
     const float valueUp[] = {0.0f, 1.0f, 5.0f, 10.0f};
     assert(PiecewiseCalibration::valid(4, rawUp, valueUp));
     assert(near(PiecewiseCalibration::apply(1800, 4, rawUp, valueUp), 3.0f));
-    assert(near(PiecewiseCalibration::apply(0, 4, rawUp, valueUp), 0.0f));
-    assert(near(PiecewiseCalibration::apply(4095, 4, rawUp, valueUp), 10.0f));
+    assert(near(PiecewiseCalibration::apply(0, 4, rawUp, valueUp), -0.25f));
+    assert(near(PiecewiseCalibration::apply(4095, 4, rawUp, valueUp), 10.0f + 295.0f / 240.0f));
+    assert(near(PiecewiseCalibration::applyClamped(0, 4, rawUp, valueUp), 0.0f));
+    assert(near(PiecewiseCalibration::applyClamped(4095, 4, rawUp, valueUp), 10.0f));
     const uint16_t rawDown[] = {100, 2000, 4000};
     const float valueDown[] = {100.0f, 50.0f, 0.0f};
     assert(PiecewiseCalibration::valid(3, rawDown, valueDown));

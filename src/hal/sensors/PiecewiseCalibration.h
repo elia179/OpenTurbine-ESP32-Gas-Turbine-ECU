@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include "CalibrationMath.h"
 
 // Small, deterministic calibration helper for ordinary analog sensors.
 // Raw points are ordered ADC counts. Values may consistently rise or fall,
@@ -25,15 +26,23 @@ inline bool valid(uint8_t count, const uint16_t* raw, const float* value) {
     return true;
 }
 
-inline float apply(float input, uint8_t count, const uint16_t* raw, const float* value) {
-    if (count < 2 || !raw || !value) return NAN;
-    if (input <= raw[0]) return value[0];
-    if (input >= raw[count - 1]) return value[count - 1];
-    for (uint8_t i = 1; i < count; ++i) {
-        if (input > raw[i]) continue;
-        const float fraction = (input - raw[i - 1]) / (float)(raw[i] - raw[i - 1]);
-        return value[i - 1] + fraction * (value[i] - value[i - 1]);
-    }
-    return value[count - 1];
+// Physical measurements continue using the nearest end segment. Calibration
+// coverage is not an electrical validity window; callers still check that.
+inline float apply(float input, uint8_t count, const uint16_t* raw, const float* value,
+                   bool clampEndpoints = false) {
+    if (!isfinite(input) || count < 2 || !valid(count, raw, value)) return NAN;
+    if (clampEndpoints) input = fminf(fmaxf(input, raw[0]), raw[count - 1]);
+    uint8_t upper = 1;
+    while (upper < count - 1 && input > raw[upper]) ++upper;
+    const float fraction = (input - raw[upper - 1]) / (float)(raw[upper] - raw[upper - 1]);
+    const float result = input == raw[upper] ? value[upper] :
+        value[upper - 1] + fraction * (value[upper] - value[upper - 1]);
+    return (clampEndpoints ? isfinite(result) : CalibrationMath::validMeasurement(result)) ? result : NAN;
+}
+
+// Operator/flame mappings retain endpoint saturation, including curves whose
+// saved endpoint values intentionally cover less than the full 0..1 command.
+inline float applyClamped(float input, uint8_t count, const uint16_t* raw, const float* value) {
+    return apply(input, count, raw, value, true);
 }
 } // namespace PiecewiseCalibration

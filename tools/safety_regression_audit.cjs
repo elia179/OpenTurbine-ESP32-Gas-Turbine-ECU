@@ -197,7 +197,7 @@ expect('live governor tuning cannot transfer between fuel and pitch authority',
 expect('registry oil pressure takes precedence over the legacy ADC adapter',
   hardware.indexOf('if (oilPressAnalog >= 0)') < hardware.indexOf('g_sensorOilPress.update()') &&
   hardware.includes('ed.oilPressureRaw = ed.registryInputRaw[oilPressAnalog]'));
-expect('ordinary analog calibration is bounded and shared by local and I2C inputs',
+expect('physical calibration and bounded command curves share the local and I2C calibration helpers',
   piecewiseCalibration.includes('MAX_POINTS = 6') &&
   piecewiseCalibration.includes('raw[i] <= raw[i - 1]') &&
   piecewiseCalibration.includes('direction != stepDirection') &&

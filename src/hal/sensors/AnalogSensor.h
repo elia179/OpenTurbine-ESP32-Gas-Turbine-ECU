@@ -1,6 +1,7 @@
 #pragma once
 #include "ISensor.h"
 #include <Arduino.h>
+#include "CalibrationMath.h"
 
 // ============================================================
 //  Analog sensor variants — all share an ADC rolling average
@@ -69,6 +70,10 @@ public:
 
     int         rawCounts()  const { return (int)_avg.avg(); }
     bool        railHealthy() const { return _railCheck(); }
+    float finiteValue() {
+        const float value = getValue();
+        return isfinite(value) ? value : 0.0f;
+    }
     const char* name()       override { return _name; }
     uint32_t sampleSequence() override { return _sampleSeq; }
     uint32_t sampleTimestampMs() override { return _lastMs; }
@@ -109,11 +114,10 @@ public:
     void setCal(const PolyCal& cal) { _cal = cal; }
 
     float getValue() override {
-        float x = _avg.avg();
-        x = constrain(x, _cal.xMin, _cal.xMax);
-        return _cal.a*x*x*x + _cal.b*x*x + _cal.c*x + _cal.d;
+        return CalibrationMath::polynomial(_avg.avg(), _cal.a, _cal.b, _cal.c, _cal.d,
+                                           _cal.xMin, _cal.xMax);
     }
-    bool isHealthy() override { return _railCheck(); }
+    bool isHealthy() override { return _railCheck() && isfinite(getValue()); }
 
 private:
     PolyCal _cal;
@@ -133,15 +137,13 @@ public:
 
     float getValue() override {
         float raw = _avg.avg();
-        if (_cal.rawMax <= _cal.rawMin) return 0;
-        // Clamp to the calibrated electrical range — outside it the line is
-        // extrapolation, not measurement, so a railed or drifted input would
-        // read as a plausible physical value. Matches AnalogPolySensor.
-        raw = constrain(raw, _cal.rawMin, _cal.rawMax);
+        if (!isfinite(_cal.rawMin) || !isfinite(_cal.rawMax) ||
+            !isfinite(_cal.valMin) || !isfinite(_cal.valMax) || _cal.rawMax <= _cal.rawMin) return NAN;
         float t = (raw - _cal.rawMin) / (_cal.rawMax - _cal.rawMin);
-        return _cal.valMin + t * (_cal.valMax - _cal.valMin);
+        const float result = _cal.valMin + t * (_cal.valMax - _cal.valMin);
+        return CalibrationMath::validMeasurement(result) ? result : NAN;
     }
-    bool isHealthy() override { return _railCheck(); }
+    bool isHealthy() override { return _railCheck() && isfinite(getValue()); }
 
 private:
     LinearCal _cal;

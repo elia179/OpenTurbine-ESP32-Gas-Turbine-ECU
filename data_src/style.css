@@ -1110,6 +1110,7 @@ body[data-page="tools"] main { max-width: 1180px; }
   font-size: 0.84rem;
 }
 .sv-item { display: flex; flex-direction: column; gap: 0.1rem; }
+.calibration-coverage-note { color:var(--dim); font-size:.72rem; line-height:1.4; overflow-wrap:anywhere; }
 .sv-label { font-size: 0.62rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--font-ui); }
 .sv-val   { font-size: 1.05rem; font-weight: 600; font-family: var(--font-mono); }
 

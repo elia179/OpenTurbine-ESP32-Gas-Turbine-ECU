@@ -10,6 +10,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.7.3] — 2026-11-10
+
+- Extend physical analog readings beyond saved calibration points using the nearest segment. Show when readings are estimated and retain electrical validity checks and normalized command limits.
+
 ## [2.7.2] — 2026-11-10
 
 - Add a browser-local Appearance option to keep search and save controls compact until explicitly opened, with one behavior across Hardware, Controllers, System and Sequence.
