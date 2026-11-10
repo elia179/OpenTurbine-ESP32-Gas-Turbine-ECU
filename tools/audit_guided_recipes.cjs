@@ -80,15 +80,13 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await page.getByRole('button',{name:'Shutdown',exact:true}).click();
     for(const title of ['Immediate Fuel and Ignition Cut','Wait for Rotor to Slow','Cooldown','Wait for Complete Stop'])await add('shutdown',title);
     assert.equal(await page.locator('#list-shutdown > .block-card').count(),4);
-    await clickSaveControls(page,'#save-btn');
-    const notice=page.locator('.ot-dialog-overlay.show');await notice.waitFor();
-    assert.match(await notice.innerText(),/SafetyHold present but no Spool/,'known explicit-command advisory is documented, not silently ignored');
     const sequenceWritten=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/config'&&response.request().method()==='PATCH',{timeout:30000});sequenceWritten.catch(()=>{});
-    await notice.getByRole('button',{name:'Save anyway',exact:true}).click();await sequenceWritten;
+    await clickSaveControls(page,'#save-btn');await sequenceWritten;
+    assert.equal(await page.locator('.ot-dialog-overlay.show').count(),0,'explicit starter cut and Final Startup Checks save without a misleading Spool advisory');
     await page.waitForFunction(()=>document.querySelector('#save-status')?.textContent.includes('Saved'));
     await page.reload();assert.equal(await page.locator('#list-startup > .block-card').count(),10);
     saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.hardware.shutdown_seq.length,4);assert.equal(saved.hardware.startup_enter_actions[7][0].value,0);
-    console.log('Both paths saved and reloaded, including explicit starter cut and the documented explicit-command advisory.');
+    console.log('Both paths saved and reloaded, including explicit starter cut without a misleading Spool advisory.');
     // Build 2/3 field recipes start at their explicit cumulative hardware baseline.
     const second=guidedFixture(initial,2);second.settings.dynamic_idle.fuel_mode=1;second.hardware.controllers.dynamic_idle=false;second.settings.rules[0].output_min=e.fuel_idle_pct/100;
     Object.assign(second.settings.safety,{p1_trip_enabled:false,p1_trip_bar:0});

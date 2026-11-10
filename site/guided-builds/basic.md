@@ -267,7 +267,7 @@ On **Shutdown**, add **Immediate Fuel and Ignition Cut → Wait for Rotor to Slo
 
 <h3 id="sequence-review">7.3 · Save and review both paths</h3>
 
-Save and reopen both paths. **If the editor warns “SafetyHold present but no Spool block”:** this recipe uses Final Startup Checks and explicit fuel/starter actions instead of Accelerate to Idle. Before confirming that warning, verify the Starter 0% action is before the second Final Startup Checks and the final preview shows Starter 0%. Correct any missing starter cut or sensor evidence first. Check the handover to Main Fuel on entering Running; the Shutdown preview must show combustion off and the intended oil behavior.
+Save and reopen both paths. This recipe uses Final Startup Checks and explicit fuel/starter actions instead of Accelerate to Idle. Verify that the Starter 0% action is before the second Final Startup Checks and the final preview shows Starter 0%. Check the handover to Main Fuel on entering Running; the Shutdown preview must show combustion off and the intended oil behavior.
 
 <h2 id="verify">8 · Prove the setup and save it</h2>
 
