@@ -929,7 +929,10 @@ expect('cooldown defaults agree at sixty seconds',
   sequenceHtml.includes("def:60000, configKey:'cooldown_timeout_ms'"));
 expect('configuration warnings describe actual startup and cooldown ordering',
   configHtml.includes('later spool stage may already be satisfied') &&
-  configHtml.includes('Validate the actual named oil loops, not obsolete global mapping fields') &&
+  configHtml.includes('function oilPressureTargetWarnings()') &&
+  configHtml.includes('hwCfg.controllers?.oil_loop===true ? configuredOilPressureLoops() : []') &&
+  configHtml.includes('Number(loop.low_pressure_response ?? 2)>0') &&
+  configHtml.includes("hasStartupWarningStep('StarterSpin') && hasStartupWarningStep('Spool')") &&
   sequenceHtml.includes('Cooldown may complete immediately while the turbine is still hot'));
 expect('custom controllers disclose single ownership and safety authority',
   configHtml.includes('Only one active controller per output') &&

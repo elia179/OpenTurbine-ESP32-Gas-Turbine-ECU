@@ -848,11 +848,15 @@ function workflowCard(title, detail, state) {
     </div>
   </div>`;
 }
+let _busDiagnosticLinkRevealed=false;
 function renderBusSummary() {
   const box = document.getElementById('hardware-buses-summary');
   const editor = document.getElementById('hardware-buses-editor');
   if (!box || !editor || !cfg) return;
+  const diagnosticJump=location.hash==='#hardware-buses-editor'&&!_busDiagnosticLinkRevealed;
+  if(diagnosticJump){_workflowEditOpen.add('buses');_busDiagnosticLinkRevealed=true;}
   const editing = _workflowEditOpen.has('buses');
+  if(diagnosticJump)requestAnimationFrame(()=>editor.scrollIntoView({behavior:'smooth',block:'center'}));
   editor.style.display = editing ? '' : 'none';
   box.style.display = editing ? 'none' : '';
   if (editing) return;

@@ -81,12 +81,16 @@ function sequenceIssueDestination(issue) {
     'P1 Pullback':'pb_p1e', 'P2 Pullback':'pb_p2e', 'Torque Pullback':'pb_tqe',
     'N2 Pullback':'pb_n2e', 'N2 Overspeed':'n2_rpm_limit', Overspeed:'rpm_limit',
     Overtemp:'eg_src', DynamicIdle:'di_src',
-    AutoRelight:'rl_en', 'Windmill Oil':'so_en', 'Oil Safety':'oil_rm',
+    AutoRelight:'rl_en', 'Windmill Oil':'so_en',
     'Oil Temp':'sf_ot', 'Fuel Pressure':'sf_fp', Battery:'sf_bv',
     'Startup Temperature':'sf_sg_en', 'Hot Start':'sf_hs', Flameout:'sf_fs', Surge:'sf_sg'
   };
-  if (/no .*sensor|no .*input|not configured in Hardware|no compatible fitted|selected output.*missing/i.test(issue.msg || '') &&
-      !/Hard Trip$/.test(issue.block || '')) return '/hardware.html';
+  if (!/Hard Trip$/.test(issue.block || '')) {
+    if (/selected output.*missing/i.test(issue.msg || '')) return '/hardware.html#hardware-outputs-panel';
+    if (/no .*sensor|no .*input/i.test(issue.msg || '')) return '/hardware.html#hardware-inputs-panel';
+    if (/not configured in Hardware|no compatible fitted/i.test(issue.msg || '')) return '/hardware.html';
+  }
+  if (issue.block==='Oil Safety') return '/controllers.html#oil-pressure-protection';
   if (fields[issue.block]) return '/controllers.html#cf-' + fields[issue.block];
   if (['Governor','N2 Governor','N2 speed control'].includes(issue.block)) return '/controllers.html#controller-overview';
   if (issue.block === 'N2 Cluster Warning') return '/system.html#cf-cl_n2';
@@ -98,7 +102,7 @@ function sequenceIssueDestination(issue) {
   if (!BLOCKS[issue.block]) return '/hardware.html';
   const tab = AFTERBURNER_BLOCKS.includes(issue.block) || AB_SHUT_BLOCKS.includes(issue.block)
     ? 'afterburner' : SHUTDOWN_BLOCKS.includes(issue.block) ? 'shutdown' : 'startup';
-  return '#tab-' + tab;
+  return '#step-' + tab + '-' + encodeURIComponent(issue.block);
 }
 
 function _applySeqValidation(d) {

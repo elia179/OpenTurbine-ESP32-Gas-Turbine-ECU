@@ -745,6 +745,9 @@ function installedBrowser() {
     results.push('fault scenario exposes the current diagnosis and direct investigation routes');
 
     await scenario(page, 'full');
+    // This segment exercises the general oil reference, not a named pressure
+    // controller's separately owned threshold.
+    await page.request.patch(`${base}/api/hardware`, { data: { controllers:{oil_loop:false} } });
     await page.request.post(`${base}/__sim/data`, { data: { mode:'STANDBY', config_locked:false } });
     await page.goto(`${base}/controllers.html`);
     await page.waitForSelector('#cf-tot_limit', {state:'attached'});
@@ -1054,7 +1057,7 @@ function installedBrowser() {
     await page.waitForSelector('#appearance-picker .ot-tile');
     assert.equal(await page.locator('#appearance-picker .ot-tile').count(), 6);
     assert.equal(await page.locator('#ot-dashboard-simple').isChecked(), false);
-    assert.match(await text(page, '.ot-dashboard-accent-option'), /Show simple, clean dashboard.*Turn this off to show accents/is);
+    assert.match(await text(page, '.ot-dashboard-accent-option:has(#ot-dashboard-simple)'), /Show simple, clean dashboard.*Turn this off to show accents/is);
     await page.locator('#ot-dashboard-simple').check();
     await page.waitForFunction(() => document.documentElement.getAttribute('data-dashboard-accents') === null);
     await page.waitForFunction(async () => (await (await fetch('/__sim/state')).json()).settings.dashboard_accents === false);

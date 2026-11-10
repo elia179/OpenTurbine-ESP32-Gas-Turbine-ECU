@@ -1669,6 +1669,18 @@
       "text": "- Block name/type identifies the behavior. - Condition is what must become true before a “while” block exits. - Demand / duty / percent is the normalized actuator command. - Threshold / target is the sensor value the block is trying to reach or cross. - Timeout is the maximum wait. Read whether expiry causes continue, abort or fault; these are intentionally different outcomes. - Run on entry/exit side actions switch selected actuators when a sequence or block boundary is crossed. - Custom block steps either set a fitted actuator or delay. A custom condition compares a fitted input with a threshold. Keep custom blocks small enough to reason about. Run the full startup and shutdown sequence repeatedly with no fuel and ignition energy disabled. Back to contents"
     },
     {
+      "title": "Finding oil-pressure settings",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#finding-oil-pressure-settings",
+      "text": "Oil pressure has three separate jobs. Change the setting for the job you need: | What you want to change | Where to find it | | --- | --- | | Pressure the pump aims for while running | Controllers → your oil pump → Oil Pressure Control → Pressure target. A mapped target has low and high targets. | | Pressure below which a running oil circuit warns or shuts down | Controllers → Shutdown & Protection → Oil circuit pressure protection → your pump → Low-pressure threshold. The pump card links here; the protection card links back. With no named pressure controller, use Oil Pressure Safety → Oil pressure protection → Low-Pressure Limit instead. | | Pressure required before ignition | Sequence → Startup → Build Oil Pressure or Set Starter → Minimum pressure before ignition. These two fields share one value. | The Dashboard oil card links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. Disabled controllers and retained legacy target values do not produce that warning. The target is compared only with that circuit's enabled pressure protection. A removed startup step does not activate its retained pressure settings. Warning links open the affected pump or sequence card; following a link within the current editor preserves unsaved edits. Final Startup Checks → Require oil pressure is an additional startup completion check, configured in that sequence block."
+    },
+    {
+      "title": "Keeping page controls compact",
+      "context": "OpenTurbine user guide and reference",
+      "url": "/user-guide/#keeping-page-controls-compact",
+      "text": "In System → Appearance or Tools → Appearance, turn off Automatically show controls while scrolling. Search and save controls then stay compact until you press the bottom Show controls button. Press Hide controls to compact them again. The button shows whether there are unsaved changes, even while the full save bar is hidden. This preference applies across settings pages in the current browser; it does not alter ECU settings. Closed settings cards show a warning count without reopening while you type. Following a warning link still opens the relevant card and highlights its setting."
+    },
+    {
       "title": "Part 13: Use custom controllers",
       "context": "OpenTurbine user guide and reference",
       "url": "/user-guide/#part-13-use-custom-controllers",

@@ -1298,15 +1298,7 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
                  totCooldownTarget, totLimit);
         appendLoadWarning(warnBuf);
     }
-    // Oil target (oilMapMin) below the low-oil fault (oilRunningMin) makes the
-    // pump aim beneath the shutdown line -> nuisance low-oil trips.
-    if (oilRunningMin > 0.0f && oilMapMin > 0.0f && oilMapMin < oilRunningMin) {
-        snprintf(warnBuf, sizeof(warnBuf),
-                 "oil target %.1f is below low-oil fault %.1f bar - nuisance shutdowns likely",
-                 (double)oilMapMin, (double)oilRunningMin);
-        appendLoadWarning(warnBuf);
-    }
-
+    // Oil target conflicts are evaluated against active named loops in live telemetry.
     // Full engine-file restore parses Settings before applying its Hardware.
     // Defer all topology cleanup along with rule resolution in that staging
     // path; its caller sanitizes once the uploaded hardware is authoritative.

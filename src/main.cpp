@@ -1356,18 +1356,6 @@ static void validateSequences(bool report) {
         ed.seqHasStructuralErrors = true;
     }
 
-    // ── Oil calibration sanity ────────────────────────────────
-    // The default profile enables oil pressure, but the factory polynomial
-    // is all-zero: the ADC reads healthy while the value is a constant
-    // 0 bar, so OilPrime/SafetyHold/low-oil abort every start. Tell the
-    // user the real cause instead of letting them chase oil-pressure
-    // faults on an uncalibrated sensor. Warn-only by design.
-    if (hw.hasOilPress
-        && Config::oilPolyA == 0.0f && Config::oilPolyB == 0.0f
-        && Config::oilPolyC == 0.0f && Config::oilPolyD == 0.0f) {
-        addIssue("Oil Sensor", "Oil pressure is uncalibrated (reads 0 bar) - calibrate it or expect low-oil aborts", false);
-    }
-
     for (int i = 0; i < _shutdownCount; i++) {
         const char* nm = _shutdownBlocks[i]->name();
         checkCommonBlockHardware(nm);
@@ -1557,7 +1545,7 @@ static void validateSequences(bool report) {
     };
     if (hw.safetyLowOil && !hw.hasOilPress && !hasOilSafetySwitch("low_oil_switch") && !hasOilSafetySwitch("oil_zero_switch"))
         addIssue("Oil Safety", "Oil-pressure protection requires an oil pressure sensor or switch", true);
-    if (hw.safetyLowOil && hw.hasOilPress && Config::oilRunningMin <= 0.0f)
+    if (hw.safetyLowOil && !hw.hasOilLoop && hw.hasOilPress && Config::oilRunningMin <= 0.0f)
         addIssue("Oil Safety", "Running oil minimum is 0 - low-oil shutdown is disabled", false);
     if (hw.safetyFlameout) {
         int flameoutSrc = Config::flameoutSource;

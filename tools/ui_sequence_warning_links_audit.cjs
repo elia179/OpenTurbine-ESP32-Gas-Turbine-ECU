@@ -51,11 +51,11 @@ const { chromium } = require('playwright');
     assert.match(await trip.textContent(), /switch off Fault shutdown/);
     assert.doesNotMatch(await trip.textContent(), /limit to 0/);
     assert.equal(await page.locator('#seq-validation-banner img, #seq-validation-banner script').count(), 0);
-    assert.match(await warnings.nth(1).getAttribute('href'), /^\/hardware\.html(?:\?v=\w+)?$/);
+    assert.match(await warnings.nth(1).getAttribute('href'), /^\/hardware\.html(?:\?v=\w+)?#hardware-inputs-panel$/);
     assert.match(await page.locator('.seq-val-start-blocked').getAttribute('href'), /#cf-sf_p2t$/);
     await page.evaluate(() => { history.replaceState(null, '', '/sequence.html'); hwCfg.startup_delay_ms=[...(hwCfg.startup_delay_ms||[]),151]; markSequenceDirty(); });
     await warnings.nth(2).click();
-    await page.waitForFunction(() => location.hash === '#tab-startup');
+    await page.waitForFunction(() => location.hash === '#step-startup-StarterSpin');
     assert.equal(await page.evaluate(() => _seqDirty), true);
     assert.equal(await page.locator('#ot-dialog-cancel').isVisible(), false);
     await page.evaluate(() => markSequenceDirty());
@@ -84,6 +84,16 @@ const { chromium } = require('playwright');
         if (liveBase && target.id === 'cf-ab_mo' &&
             !await page.locator('#cf-ab_mo').count()) {
           console.log('Live profile has no afterburner field; its destination is covered by the full-profile mock audit.');
+          continue;
+        }
+        if (pathname === '/controllers.html' && target.id==='oil-pressure-protection') {
+          await page.evaluate(hash=>{location.hash=hash;},target.id);
+          await page.waitForFunction(()=>document.querySelector('.deep-link-target'));
+          continue;
+        }
+        if (pathname === '/sequence.html' && target.id.startsWith('step-')) {
+          await page.evaluate(hash=>{location.hash=hash;},target.id);
+          await page.locator('#tab-'+target.id.split('-')[1]).waitFor({state:'visible'});
           continue;
         }
         if (pathname === '/sequence.html' && ['starter-target','starter-assist','oil-arm-min'].includes(target.id)) {

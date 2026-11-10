@@ -433,7 +433,18 @@
         finish(false);
         if (route) {
           const destination = new URL(route, location.href);
-          if (destination.origin === location.origin) location.assign(destination.href);
+          if (destination.origin === location.origin) {
+            // Use the normal warning-link path: same-page links reveal the
+            // field without reloading drafts; cross-page links retain the
+            // existing unsaved-change guard.
+            const anchor=document.createElement('a');anchor.href=destination.href;anchor.setAttribute('data-ot-warning-link','');
+            document.body.appendChild(anchor);anchor.click();anchor.remove();
+          }
+          return;
+        }
+        if (selector.startsWith('#') && typeof window.revealConfigDeepLink==='function') {
+          if(location.hash===selector)window.dispatchEvent(new Event('hashchange'));
+          else location.hash=selector;
           return;
         }
         setTimeout(() => {
@@ -496,8 +507,8 @@
     [/Pulsed Starter/i,'/sequence.html#starter-assist','Starter assist in Sequence'],
     [/relight/i,'#cf-rl_en','Automatic relight'],
     [/Oil Arm|startup oil-pressure minimum/i,'/sequence.html#oil-arm-min','Startup oil pressure in Sequence'],
-    [/Normal Running Oil Pressure|Running Oil \(/i,'#cf-oil_mm','Normal running oil pressure'],
-    [/Running Low-Pressure (?:Limit|Shutdown)|Running Oil Min|oil pressure fault/i,'#cf-oil_rm','Running low-pressure limit'],
+    [/Normal Running Oil Pressure|Running Oil \(/i,'/controllers.html#oil-pressure-control','Normal running oil pressure'],
+    [/Low-Pressure Limit|Running Low-Pressure (?:Limit|Shutdown)|Running Oil Min|oil pressure fault|General oil pressure protection/i,'/controllers.html#oil-pressure-protection','Running low-pressure limit'],
     [/Pre-Start EGT/i,'#cf-sf_hs','Pre-start temperature'],
     [/STARTUP EGT limit|startup hard EGT/i,'#cf-sf_st','STARTUP EGT limit'],
     [/EGT Soft/i,'#cf-tot_safe_margin','Temperature warning margin'],
@@ -513,9 +524,9 @@
   ];
   const relatedRoutes = [
     [/Pulsed Starter Assist threshold/i,'/sequence.html#starter-target','StarterSpin N1 target in Sequence'],
-    [/Startup oil-pressure minimum.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
-    [/Normal Running Oil Pressure.*Full-Throttle Oil Pressure/i,'#cf-oil_mx','Full-throttle oil pressure'],
-    [/Normal Running Oil Pressure.*Running Low-Pressure (?:Limit|Shutdown)/i,'#cf-oil_rm','Running low-pressure limit'],
+    [/Startup oil-pressure minimum.*Running Low-Pressure (?:Limit|Shutdown)/i,'/controllers.html#oil-pressure-protection','Running low-pressure limit'],
+    [/Normal Running Oil Pressure.*Full-Throttle Oil Pressure/i,'/controllers.html#oil-pressure-control','Full-throttle oil pressure'],
+    [/Normal Running Oil Pressure.*Running Low-Pressure (?:Limit|Shutdown)/i,'/controllers.html#oil-pressure-protection','Running low-pressure limit'],
     [/Governor target plus/i,'#controller-overview','N2 controller']
   ];
   window.OTValidationLinks = messages => {

@@ -15,7 +15,7 @@ const {chromium,firefox,webkit}=require('playwright');
     const cases=[{name:'all',inputs:purposes},{name:'none',inputs:[]},{name:'removed',inputs:[],remove:true},{name:'unassigned channels',inputs:[],invalid:true},...purposes.map(p=>({name:p,inputs:[p]})),
      {name:'TOT and TIT / TOT selected',inputs:['tot','tit'],source:1},{name:'TOT and TIT / TIT selected',inputs:['tot','tit'],source:2},
      {name:'no outputs',inputs:purposes,noOutputs:true},{name:'low oil switch only',inputs:['low_oil_switch']},{name:'zero oil switch only',inputs:['oil_zero_switch']},
-     {name:'second oil pump monitored',inputs:['oil_flow'],secondFlow:true}];
+     {name:'general oil pressure protection',inputs:purposes,oilLoop:false},{name:'second oil pump monitored',inputs:['oil_flow'],secondFlow:true}];
     const expectedFields=ALL_CONFIG_SCHEMA.filter(s=>WORKSPACE_GROUPS.find(g=>g.id==='safety').sections.includes(s.title)).flatMap(s=>s.fields.map(f=>f.key));
     const check=(condition,message)=>{if(!condition)throw Error(message);};
     let checks=0;
@@ -27,12 +27,14 @@ const {chromium,firefox,webkit}=require('playwright');
      if(item.invalid)hwCfg.channel_registry.inputs.forEach(r=>Object.assign(r,{installed:true,pin:-1,spi_clk:-1,spi_cs:-1,spi_miso:-1,i2c_address:0,device_channel:-1}));
      hwCfg.channel_registry.outputs.forEach(r=>{r.installed=!item.noOutputs&&item.name!=='none'&&item.name!=='removed';r.has_flow_monitor=false;});
      if(item.secondFlow)hwCfg.channel_registry.outputs.push({id:'second_oil',name:'Second oil pump',purpose:'oil_pump',driver:5,pin:22,installed:true,has_flow_monitor:true});
+     if(item.oilLoop===false)hwCfg.controllers.oil_loop=false;
      cfg.safety.egt_source=item.source||0;
      for(const field of ALL_CONFIG_SCHEMA.flatMap(s=>s.fields))if(field.key.startsWith('pb_')&&field.key.endsWith('e'))setPath(cfg,field.path,1);
      renderForm(true);refreshFeatureCachesFromHardware();_applyAllVisibility();
      for(const mode of ['configured','explore']){
       setWorkspaceFilter(mode);const group=document.querySelector('[data-group="safety"]');group.open=true;group.querySelectorAll('details').forEach(d=>d.open=true);
-      for(const key of expectedFields){check(document.querySelectorAll('#cf-'+key).length===1,item.name+': missing/duplicate '+key);checks++;}
+      const pressureOwned=hwCfg.controllers.oil_loop===true&&item.inputs.includes('oil_pressure')&&!item.noOutputs;
+      for(const key of expectedFields){const expectedCount=key==='oil_rm'&&pressureOwned?0:1;check(document.querySelectorAll('#cf-'+key).length===expectedCount,item.name+': missing/duplicate or ignored field '+key);checks++;}
       const fitted=p=>item.inputs.includes(p);
       const expected={n1:fitted('n1_speed'),n2:fitted('n2_speed'),egt:fitted('tot')||fitted('tit'),p1:fitted('p1_pressure'),p2:fitted('p2_pressure'),torque:fitted('torque')};
       for(const [key,available] of Object.entries(expected)){

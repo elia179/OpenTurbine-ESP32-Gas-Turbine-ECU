@@ -1540,7 +1540,42 @@ function applyData(d) {
   if (cfgLoadWarnBanner && d.config_load_warning !== undefined) {
     const warn = d.config_load_warning;
     if (warn) setText('config-load-warn-text', warn);
+    const links = document.getElementById('config-load-warn-links');
+    if (links) {
+      links.replaceChildren();
+      const routes = [
+        [/\bn2_rpm_limit\b/, '/controllers.html#cf-n2_rpm_limit', 'N2 speed limit'],
+        [/\brpm_limit\b/, '/controllers.html#cf-rpm_limit', 'N1 speed limit'],
+        [/\btot_limit\b/, '/controllers.html#cf-tot_limit', 'TOT limit'],
+        [/\btit_limit_c\b/, '/controllers.html#cf-sf_tit', 'TIT limit'],
+        [/\boil_temp_limit_c\b/, '/controllers.html#cf-sf_ot', 'Oil-temperature limit'],
+        [/\btot_cooldown_target\b/, '/sequence.html#step-shutdown-CooldownSpin', 'Cooldown step']
+      ].filter(([pattern])=>pattern.test(String(warn || '')));
+      if (!routes.length) routes.push([null, '/controllers.html#engine-limits', 'Review limits']);
+      routes.forEach(([,url,label],index)=>{
+        if(index)links.append(' · ');
+        const a=document.createElement('a');a.href=url;a.textContent=label+' →';a.setAttribute('data-ot-warning-link','');a.style.marginLeft='.5rem';links.append(a);
+      });
+    }
     cfgLoadWarnBanner.style.display = (warn && !window._cfgLoadWarnDismissed) ? 'flex' : 'none';
+  }
+
+  // Live oil conflicts link both settings; no hidden legacy target is used.
+  const oilWarnings = document.getElementById('oil-config-warnings');
+  if (oilWarnings && Array.isArray(d.oil_config_conflicts)) {
+    oilWarnings.replaceChildren();
+    d.oil_config_conflicts.forEach(w => {
+      if (!Number.isInteger(w.loop) || w.loop < 0 || w.loop >= 6) return;
+      const row = document.createElement('p');
+      row.textContent = String(w.pump || 'Oil pump') + ': running pressure target ' + toDispPress(Number(w.target_bar)).toFixed(1) +
+        ' is below the low-pressure ' + (w.shutdown ? 'shutdown' : 'warning') + ' limit ' + toDispPress(Number(w.limit_bar)).toFixed(1) + ' ' + dispPressUnit() + '. ';
+      [['Pressure target', '/controllers.html#oil-loop-controller-'], ['Low-pressure protection', '/controllers.html#oil-loop-protection-']].forEach(([label, path], i) => {
+        if (i) row.append(' · ');
+        const link = document.createElement('a'); link.textContent = label; link.href = path + w.loop; row.append(link);
+      });
+      oilWarnings.append(row);
+    });
+    oilWarnings.hidden = !oilWarnings.childElementCount;
   }
 
   // Stop switch warning below start button
@@ -1589,7 +1624,7 @@ function applyData(d) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
       if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261109a';
+        link.href = '/sequence.html?v=20261109b';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1634,7 +1669,12 @@ function applyData(d) {
       if (hardwareLink) hardwareLink.hidden = !context;
       for (const id of ['fault-calibration-link','fault-tools-link']) { const link=document.getElementById(id);if(link)link.hidden=!!context; }
       const limitsLink=document.getElementById('fault-limits-link');
-      if(limitsLink){limitsLink.hidden=!!context&&!context.oil;limitsLink.textContent=context?.oil?'Review oil protection':'Review limits';limitsLink.href=context?.oil?'/controllers.html#protection-low_oil':'/controllers.html';}
+      if(limitsLink){
+        const destination=faultSettingsDestination(d,context);
+        limitsLink.hidden=!!context&&!context.oil;
+        limitsLink.textContent=destination.label;
+        limitsLink.href=destination.url;
+      }
       setText('fault-desc-text', hasFaultDesc ? faultDescriptionText(d) :
         ('Cannot start normally: ' + (d.limited_start_sensor || 'a required sensor') +
          ' feedback is unavailable.'));
@@ -3271,6 +3311,25 @@ function inputFaultContext(data) {
   if(!legacy)return null;
   const channel=data?.di_channels?.[Number(legacy[1])-1];
   return {name:channel?.label||('Digital input '+legacy[1]),oil:['oil_zero_switch','low_oil_switch'].includes(channel?.role),pin:channel?.pin};
+}
+function faultSettingsDestination(data,context) {
+  if(context?.oil)return {url:'/controllers.html#protection-low_oil',label:'Review oil-switch protection'};
+  const raw=String(data?.fault_description || ''),code=raw.split(':',1)[0];
+  const index=Number.isInteger(data?.oil_fault_loop)&&data.oil_fault_loop>=0&&data.oil_fault_loop<6?data.oil_fault_loop:null;
+  if(code==='OIL_PRESSURE_LOW'||code==='OIL_FEEDBACK_LOST')return {
+    url:index!==null?'/controllers.html#oil-loop-'+(code==='OIL_FEEDBACK_LOST'?'controller-':'protection-')+index:'/controllers.html#oil-pressure-protection',
+    label:code==='OIL_FEEDBACK_LOST'?'Review oil feedback settings':'Review oil protection'};
+  if(code==='STARTUP_ABORT')return {url:'/sequence.html#step-startup-'+encodeURIComponent(raw.slice(raw.indexOf(':')+1).trim()),label:'Review affected startup step'};
+  const fields={OVERSPEED:'rpm_limit',N2_OVERSPEED:'n2_rpm_limit',P1_HIGH:'sf_p1t',P2_HIGH:'sf_p2t',TORQUE_HIGH:'sf_tqt',
+    OVERTEMP:selectedEgtKey(data)==='tit'?'sf_tit':'tot_limit',TIT_OVERTEMP:'sf_tit',OIL_TEMP_HIGH:'sf_ot',FUEL_PRESS_LOW:'sf_fp',BATT_LOW:'sf_bv',
+    UNDERSPEED:'min_rpm',FLAMEOUT:'sf_fo',RELIGHT_FAILED:'rl_en',HOT_START:'sf_hs',SURGE:'sf_sg',
+    STARTUP_OVERTEMP:'sf_st',STARTUP_TEMP_DWELL:'sf_sd',OIL_FLOW_LOW:'oil_ufd'};
+  if(fields[code])return {url:'/controllers.html#cf-'+fields[code],label:'Review '+(code.startsWith('STARTUP_')?'startup protection':'fault setting')};
+  if(code==='LOW_OIL'||code==='OIL_ZERO')return {url:'/controllers.html#protection-low_oil',label:'Review general oil protection'};
+  if(code==='PCB_OUTPUT_STAGE_FAULT')return {url:'/hardware.html#hardware-buses-editor',label:'Check PCB devices'};
+  if(code==='OUTPUT_OVERCURRENT')return {url:'/hardware.html#hardware-outputs-panel',label:'Check output hardware'};
+  if(code==='STARTUP_TEMP_SENSOR'||code==='MULTIPLE_SENSOR_FAILURE'||data?.limited_start_allowed)return {url:'/hardware.html#hardware-inputs-panel',label:'Check input hardware'};
+  return {url:'/controllers.html#controller-overview',label:'Review controllers'};
 }
 function faultDescriptionText(data) {
   const input=inputFaultContext(data);

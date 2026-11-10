@@ -1148,8 +1148,14 @@ async function fetchJsonWithRetry(url, attempts = 5) {
 function revealConfigDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
-  const target = document.getElementById(id);
+  // Stable oil links survive the move from legacy fields to named pump cards.
+  const aliases = {
+    'oil-pressure-control': document.querySelector('[id^="oil-loop-controller-"]') || document.querySelector('[data-purpose="oil_pump"]') || document.getElementById('controller-overview'),
+    'oil-pressure-protection': (activeOilPressureLoops()[0] ? document.getElementById('oil-loop-protection-'+activeOilPressureLoops()[0].index) : null) || document.getElementById('protection-low_oil')
+  };
+  const target = aliases[id] || document.getElementById(id);
   if (!target) return;
+  if (_searchQuery) { const search = document.getElementById('cfg-search'); if (search) search.value = ''; setConfigSearch(''); }
   const field = target.closest('.cfg-field');
   const revealTarget = field || target;
   const section = revealTarget.closest('.cfg-section');

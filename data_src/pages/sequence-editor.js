@@ -1344,12 +1344,12 @@ function _validateSequence(blocks) {
     warnings.push('Timer-based light-up cannot confirm combustion. When a temperature or flame sensor is configured, replace the ignition hold TimedDelay with TempConfirm or FlameConfirm before live engine testing.');
   }
   // Should have oil priming - running without it risks bearing damage
-  if (!manualFuelWorkflow && !has('OilPrime')) {
-    warnings.push('No OilPrime block. Oil lubrication is not guaranteed before ignition. Add OilPrime early in the sequence to protect engine bearings.');
+  if (actuatorEnabled('oil_pump') && !manualFuelWorkflow && !has('OilPrime') && !has('OilPumpOn')) {
+    warnings.push('An oil pump is fitted, but startup has no oil-priming step. If this engine needs pre-lubrication, add Build Oil Pressure before ignition or explicitly command and verify the oil supply.');
   }
   // Spool without a SafetyHold means no final RPM/oil sanity check before RUNNING
   if (has('Spool') && !has('SafetyHold')) {
-    warnings.push('Spool block present but no SafetyHold. Consider adding SafetyHold after Spool to verify N1 and oil pressure before entering RUNNING.');
+    warnings.push('Accelerate to Idle has no Final Startup Checks step. Add one if you need verified sensor checks before Running; enable only the checks this engine requires.');
   }
   // FuelOpen before StarterSpin risks unspun fuel ingestion
   if (has('FuelOpen') && has('StarterSpin')) {
@@ -1358,10 +1358,6 @@ function _validateSequence(blocks) {
     if (fuelIdx < startIdx) {
       warnings.push('Open Main Fuel Shutoff appears before Set Starter. Fuel may enter before rotor airflow is established, risking unburned fuel pooling. Move the starter block before main fuel opens.');
     }
-  }
-  // SafetyHold without Spool - valid but unusual
-  if (has('SafetyHold') && !has('Spool')) {
-    warnings.push('SafetyHold present but no Spool block. Without Spool the starter keeps running indefinitely. This may be intentional for air-start configurations.');
   }
   return warnings;
 }

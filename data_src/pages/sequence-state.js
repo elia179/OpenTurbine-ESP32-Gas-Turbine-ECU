@@ -171,10 +171,30 @@ function switchTab(tab) {
     if (el) el.style.display = t === tab ? '' : 'none';
   });
 }
+function showMissingSequenceLink(tab) {
+  const container=document.getElementById('tab-'+tab);if(!container)return;
+  const notice=document.createElement('p');notice.id='sequence-link-notice';notice.className='protection-dashboard-note';notice.setAttribute('role','status');
+  notice.textContent='This setting is not used by a step in the current '+tab+' sequence. Review the steps below; retained values do not add a step or activate its checks.';
+  container.prepend(notice);notice.scrollIntoView({behavior:'smooth',block:'center'});
+}
 function revealSequenceDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
-  const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
+  document.getElementById('sequence-link-notice')?.remove();
+  const stepMatch = /^step-(startup|shutdown|afterburner)-(.+)$/.exec(id);
+  if (stepMatch) {
+    switchTab(stepMatch[1]);
+    const card = Array.from(document.querySelectorAll('#list-'+stepMatch[1]+' .block-card')).find(el=>el.dataset.block===stepMatch[2]);
+    if (card) {
+      card.querySelector('.block-params')?.classList.add('open');
+      card.classList.add('deep-link-target');
+      requestAnimationFrame(()=>card.scrollIntoView({behavior:'smooth',block:'center'}));
+      return;
+    }
+    showMissingSequenceLink(stepMatch[1]);return;
+  }
+  const fieldKey = {'oil-running-min':['oil_running_min'],
+                    'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
                     'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm'],
                     'starter-target':['pre_ign_rpm']}[id];
   if (fieldKey) {
@@ -186,7 +206,7 @@ function revealSequenceDeepLink() {
       requestAnimationFrame(() => field.scrollIntoView({behavior:'smooth', block:'center'}));
       return;
     }
-    document.getElementById('tab-startup')?.scrollIntoView({behavior:'smooth', block:'start'});
+    showMissingSequenceLink('startup');
     return;
   }
   const tab = id.startsWith('tab-') ? id.slice(4) : '';

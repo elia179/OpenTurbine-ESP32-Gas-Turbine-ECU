@@ -109,13 +109,23 @@
   }
 
   /* ── Appearance strip (Tools page bottom) ── */
+  function autoScrollControls() {
+    try { return localStorage.getItem('ot_auto_scroll_controls') !== '0'; } catch (e) { return true; }
+  }
+  function setAutoScrollControls(enabled) {
+    try { localStorage.setItem('ot_auto_scroll_controls', enabled ? '1' : '0'); } catch (e) {}
+    if (window.OTScrollControls) window.OTScrollControls.refresh();
+  }
   function renderPicker(el) {
     if (!el) return;
     el.innerHTML = '<div class="ot-appx-label">Appearance</div><div class="ot-appx-grid">' +
       THEMES.map(tile).join('') + '</div>' +
       '<label class="ot-dashboard-accent-option cfg-field" data-search="simple clean dashboard accents"><input id="ot-dashboard-simple" type="checkbox" ' +
       (!dashboardAccents ? 'checked ' : '') + 'oninput="event.stopPropagation()" onchange="event.stopPropagation();OTTheme.setSimpleDashboard(this.checked)">' +
-      '<span><b class="cfg-label">Show simple, clean dashboard</b><small>Remove decorative group lines and card highlights. Turn this off to show accents from the selected theme.</small></span></label>';
+      '<span><b class="cfg-label">Show simple, clean dashboard</b><small>Remove decorative group lines and card highlights. Turn this off to show accents from the selected theme.</small></span></label>' +
+      '<label class="ot-dashboard-accent-option cfg-field" data-search="scroll automatic compact search save controls"><input id="ot-auto-scroll-controls" type="checkbox" ' +
+      (autoScrollControls() ? 'checked ' : '') + 'oninput="event.stopPropagation()" onchange="event.stopPropagation();OTTheme.setAutoScrollControls(this.checked)">' +
+      '<span><b class="cfg-label">Automatically show controls while scrolling</b><small>Off: keep search and save controls compact until you press the bottom Show controls button. Applies to all settings pages in this browser.</small></span></label>';
     markActive(get());
   }
 
@@ -166,7 +176,7 @@
 
   window.OTTheme = {
     get: get, set: set, apply: apply, setDashboardAccents: setDashboardAccents,
-    setSimpleDashboard: setSimpleDashboard,
+    setSimpleDashboard: setSimpleDashboard, setAutoScrollControls: setAutoScrollControls,
     renderPicker: renderPicker, maybeFirstRun: maybeFirstRun, finishFirstRun: finishFirstRun,
     THEMES: THEMES
   };
@@ -419,7 +429,9 @@
     var modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
     var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
     function dirty() { return bar.classList.contains('is-dirty') || (!/\bno unsaved\b/i.test(bar.textContent) && /\bunsaved\b|save to apply/i.test(bar.textContent)); }
+    var manualOpen = false;
     function reveal() {
+      if (!autoScrollControls()) return;
       document.body.classList.remove('ot-controls-collapsed');
       revealedUntil = Date.now()+800; distance=0;
     }
@@ -441,12 +453,20 @@
       return Array.from(document.querySelectorAll(modalSelector)).some(function(el){return el.getClientRects().length && getComputedStyle(el).visibility!=='hidden';});
     }
     function update() {
-      var short = window.innerHeight <= 1000;
+      var manual = !autoScrollControls();
+      var short = manual || window.innerHeight <= 1000;
       saveHandle.textContent = dirty() ? 'Unsaved changes · Show save controls' : 'Show save controls';
+      if (manual) saveHandle.textContent = manualOpen ? 'Hide controls' : (dirty() ? 'Unsaved changes · Show controls' : 'No unsaved changes · Show controls');
+      saveHandle.setAttribute('aria-expanded', String(manual ? manualOpen : !document.body.classList.contains('ot-controls-collapsed')));
+      document.body.classList.toggle('ot-manual-controls',manual);
       document.body.classList.toggle('ot-short-controls',short);
       document.body.classList.toggle('ot-has-unsaved',dirty());
       document.body.classList.toggle('ot-save-attention',needsAttention());
       document.documentElement.style.setProperty('--ot-save-space',(bar.offsetHeight+16)+'px');
+      if (manual) {
+        document.body.classList.toggle('ot-controls-collapsed', !manualOpen);
+        return;
+      }
       if (!short || pinned() || window.scrollY<32) {
         document.body.classList.remove('ot-controls-collapsed');distance=0;
       }
@@ -457,11 +477,14 @@
       if (next!==direction) {distance=0;direction=next;}
       distance+=Math.abs(delta);
       update();
-      if (distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=1000 && y>80) {
+      if (autoScrollControls() && distance>=48 && Date.now()>revealedUntil && !pinned() && window.innerHeight<=1000 && y>80) {
         document.body.classList.toggle('ot-controls-collapsed',direction>0); distance=0;
       }
     }
-    saveHandle.onclick=function(){reveal();bar.setAttribute('tabindex','-1');bar.focus({preventScroll:true});};
+    saveHandle.onclick=function(){
+      if (!autoScrollControls()) { manualOpen=!manualOpen; update(); return; }
+      reveal();bar.setAttribute('tabindex','-1');bar.focus({preventScroll:true});
+    };
     document.addEventListener('focusin',function(e){if(bar.contains(e.target)||workspace&&workspace.contains(e.target))reveal();else if(e.target.closest(modalSelector))update();});
     window.addEventListener('scroll',scroll,{passive:true});
     window.addEventListener('resize',function(){reveal();last=window.scrollY;update();},{passive:true});
@@ -469,7 +492,9 @@
     document.querySelectorAll(modalSelector).forEach(function(el){new MutationObserver(update).observe(el,{attributes:true,attributeFilter:['style','class']});});
     if(window.ResizeObserver)new ResizeObserver(update).observe(bar);
     new MutationObserver(update).observe(bar,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','disabled']});
-    window.OTScrollControls={reveal:reveal}; update();
+    window.OTScrollControls={reveal:reveal,refresh:function(){manualOpen=false;update();}};
+    window.addEventListener('storage',function(e){if(e.key==='ot_auto_scroll_controls'){manualOpen=false;update();}});
+    update();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initializeScrollControls,{once:true});
   else initializeScrollControls();

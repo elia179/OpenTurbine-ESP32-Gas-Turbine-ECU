@@ -592,6 +592,9 @@ async function optionDisabled(page, selector, value) {
     await page.locator('#unit-temp-btn').click();
     assert.equal(await value(page, '#cf-tot_limit'), firstTotLimit);
     assert.equal(await value(page, '#cf-sf_ef'), firstFallRate);
+    // General oil-pressure reference is editable only when named regulation
+    // does not own protection. Exercise its pressure units in that mode.
+    await page.evaluate(()=>{hwCfg.controllers.oil_loop=false;renderForm(true);_applyAllVisibility();});
     await page.locator('#unit-press-btn').click();
     const firstOilMin = await value(page, '#cf-oil_rm');
     assert.ok(['1.2', '17.405'].includes(firstOilMin), `unexpected displayed oil min ${firstOilMin}`);

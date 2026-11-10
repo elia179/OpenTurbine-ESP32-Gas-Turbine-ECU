@@ -10,6 +10,16 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.7.2] — 2026-11-10
+
+- Add a browser-local Appearance option to keep search and save controls compact until explicitly opened, with one behavior across Hardware, Controllers, System and Sequence.
+- Compare oil-pressure targets only with the enabled protection belonging to the active, valid pump controller. Remove warnings based on dormant legacy targets, preserve independent windmilling control, and clear resolved Dashboard warnings on the next telemetry update.
+- Make warning and fault links open the affected setting, pump circuit, startup step or Hardware diagnostics. Reveal filtered or closed destinations while preserving same-page drafts and cross-page unsaved-change confirmation.
+- Keep cards closed while editing and show warning counts in their headings. Use the same temperature-warning policy in inline and save checks, including Celsius/Fahrenheit, enabled startup guards and disabled zero display limits.
+- Make retained oil-controller definitions with unavailable pumps removable and allocate unique IDs when controllers are recreated. Separate the general switch protection from named pump-pressure thresholds.
+- Remove misleading startup advice and the obsolete global-polynomial oil-calibration diagnostic. Runtime pressure and feedback-loss protections remain in place.
+- Correct PCB connector-guide list indentation and update the user guide's oil-setting paths and compact-controls instructions.
+
 ## [2.7.1] — 2026-11-09
 
 - Release an abandoned firmware-update session after its idle timeout even when the connection was lost between acknowledged chunks. Restore ordinary page access and allow a fresh update without restarting the ECU.

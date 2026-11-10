@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>document.documentElement.setAttribute('data-dashboard-accents','on');try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -84,12 +84,14 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <b>Recommended:</b> Go to <a href="/calibration.html" style="color:var(--yellow);text-decoration:underline">Calibration</a> and re-run sensor calibration, then verify all active controls and safety limits on <a href="/controllers.html" style="color:var(--yellow);text-decoration:underline">Controllers</a> before starting the engine.
   </div>
 
+  <div id="oil-config-warnings" class="oil-config-warnings" hidden></div>
+
   <!-- Config load warning — boot config carried out-of-normal-range safety limits.
        Load+warn philosophy: values are applied as-is, the user is informed.
        Dismiss lasts this page load only; reappears on reload while the warning persists. -->
   <div id="config-load-warn-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.6rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--yellow);align-items:center;justify-content:space-between">
     <span>&#9888; <span id="config-load-warn-text"></span>
-      <a href="/controllers.html" style="color:var(--yellow);text-decoration:underline;margin-left:.5rem">Review limits →</a></span>
+      <span id="config-load-warn-links"><a href="/controllers.html" style="color:var(--yellow);text-decoration:underline;margin-left:.5rem">Review limits →</a></span></span>
     <button onclick="this.parentElement.style.display='none';window._cfgLoadWarnDismissed=true" style="background:none;border:none;color:var(--yellow);font-size:1.2rem;cursor:pointer;margin-left:.8rem;line-height:1">&times;</button>
   </div>
 
@@ -228,6 +230,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label"><span id="lbl-oil">Oil Press</span> (<span data-unit="press">bar</span>) <span id="oil-health" class="dot"></span></div>
       <div class="value small" id="oil">—</div>
       <div class="oil-sub" id="oil-target-row" style="display:none">pressure target: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
+      <div class="oil-sub"><a href="/controllers.html#oil-pressure-control">Running pressure target</a> · <a href="/controllers.html#oil-pressure-protection">Low-pressure protection</a> · <a href="/sequence.html#oil-arm-min">Startup pressure</a></div>
       <div class="oil-sub" id="oil-min-bar-row" style="display:none">run minimum: <span id="oil-min-bar-val">—</span> <span data-unit="press">bar</span></div>
       <span id="oil-abs-label" class="gauge-abs-label">— / — bar</span>
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>

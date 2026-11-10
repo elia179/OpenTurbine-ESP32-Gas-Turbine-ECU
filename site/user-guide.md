@@ -482,6 +482,22 @@ Run the full startup and shutdown sequence repeatedly with no fuel and ignition 
 
 <p class="guide-return"><a href="#guide-contents">Back to contents</a></p>
 
+### Finding oil-pressure settings
+
+Oil pressure has three separate jobs. Change the setting for the job you need:
+
+| What you want to change | Where to find it |
+| --- | --- |
+| Pressure the pump aims for while running | **Controllers → your oil pump → Oil Pressure Control → Pressure target**. A mapped target has low and high targets. |
+| Pressure below which a running oil circuit warns or shuts down | **Controllers → Shutdown & Protection → Oil circuit pressure protection → your pump → Low-pressure threshold**. The pump card links here; the protection card links back. With no named pressure controller, use **Oil Pressure Safety → Oil pressure protection → Low-Pressure Limit** instead. |
+| Pressure required before ignition | **Sequence → Startup → Build Oil Pressure** or **Set Starter → Minimum pressure before ignition**. These two fields share one value. |
+
+The Dashboard oil card links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. Disabled controllers and retained legacy target values do not produce that warning. The target is compared only with that circuit's enabled pressure protection. A removed startup step does not activate its retained pressure settings. Warning links open the affected pump or sequence card; following a link within the current editor preserves unsaved edits. **Final Startup Checks → Require oil pressure** is an additional startup completion check, configured in that sequence block.
+
+### Keeping page controls compact
+
+In **System → Appearance** or **Tools → Appearance**, turn off **Automatically show controls while scrolling**. Search and save controls then stay compact until you press the bottom **Show controls** button. Press **Hide controls** to compact them again. The button shows whether there are unsaved changes, even while the full save bar is hidden. This preference applies across settings pages in the current browser; it does not alter ECU settings. Closed settings cards show a warning count without reopening while you type. Following a warning link still opens the relevant card and highlights its setting.
+
 ## Part 13: Use custom controllers
 
 Open **Controllers → Output controllers → + Create controller**, choose the fitted output or shutdown action, create the controller, and open its card. Give it a name that identifies its purpose; the same name appears in Sequence, command ownership and fault evidence. A new ordinary output controller starts with **Fixed output** at zero; it activates on entering Running and deactivates on entering Shutdown or Standby.

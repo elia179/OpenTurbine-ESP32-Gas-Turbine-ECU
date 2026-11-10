@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1220,8 +1220,12 @@ function renderControllerOverview() {
   const configuredCards = [...document.querySelectorAll('#simple-controls [data-controller-card]')];
   const configuredIds = new Set(rules.map(rule => String(rule.target || '')));
   const oilLoopOutputs = new Set((hwCfg.oil_loops || []).filter(loop => loop.enabled !== false).map(loop => String(loop.pump_output || '')));
+  // Retained definitions with removed hardware must remain removable rather
+  // than disappearing from the editor while still occupying a loop slot.
+  const orphanOilLoops = (hwCfg.oil_loops || []).map((loop,index)=>({loop,index})).filter(({loop})=>configuredIds.has(String(loop.pump_output)) || !outputs.some(channel=>String(channel.id)===String(loop.pump_output) && String(channel.purpose)==='oil_pump'));
+  const orphanOilCards = orphanOilLoops.map(({loop,index})=>`<details class="control-definition-card config-group" data-group="oil-orphan-${index}" data-always-visible="1"><summary><span class="group-heading"><span class="group-title">${esc(loop.id || 'Oil-pressure controller')}</span><span class="group-desc">${configuredIds.has(String(loop.pump_output))?'Pump has another output controller':`Pump output ${esc(loop.pump_output || 'not assigned')} is no longer available as an oil pump`}</span></span><span class="controller-summary-status disabled">Unavailable</span></summary><div class="controller-card-body"><p>This pressure controller has no available pump to control. Remove the unused definition to free its controller slot.</p><button type="button" class="danger" onclick="removeControllerOilLoop(${index})">Remove pressure controller</button></div></details>`).join('');
   const configuredOilOutputs = new Set((hwCfg.oil_loops || []).map(loop => String(loop.pump_output || '')));
-  const oilLoopCards = outputs.filter(channel => configuredOilOutputs.has(String(channel.id)) && !configuredIds.has(String(channel.id))).map(channel => {
+  const oilLoopCards = outputs.filter(channel => String(channel.purpose)==='oil_pump' && configuredOilOutputs.has(String(channel.id)) && !configuredIds.has(String(channel.id))).map(channel => {
     const loops = (hwCfg.oil_loops || []).filter(loop => String(loop.pump_output || '') === String(channel.id));
     const enabled = hwCfg.controllers?.oil_loop !== false ? loops.filter(loop => loop.enabled !== false).length : 0;
     const status = enabled === loops.length ? 'Enabled' : enabled ? `${enabled}/${loops.length} Enabled` : 'Disabled';
@@ -1249,7 +1253,7 @@ function renderControllerOverview() {
   ].join('');
   const needsSequence=(cfg.rules||[]).some(r=>r.enabled!==false&&window.OTControllerTiming?.status(r,hwCfg,cfg.rules)==='Sequence needs setup');
   const sequenceNotice=needsSequence?'<div class="controller-warning" role="status"><b>Sequence needs attention</b><span>Save controller changes, then place and save the required controller blocks. Affected controllers stay inactive until setup is complete, or disable the controller.</span><a href="/sequence.html">Open Sequence</a></div>':'';
-  root.innerHTML = `${sequenceNotice}<div class="control-overview-head"><div><h2>Output controllers</h2><p>User-owned normal control for fitted outputs. Only one active controller per output.</p></div></div><div id="configured-controller-cards" class="controller-definition-list"></div>${oilLoopCards}<div class="controller-create-wrap">${availableHtml}</div><div class="control-overview-head built-in-heading"><div><h2>Built-in turbine subsystems</h2><p>Optional ECU behaviors that temporarily command outputs during their defined sequence, protection, or relight state. They do not prevent a separate normal output controller.</p></div></div><div id="built-in-subsystems" class="controller-definition-list">${builtIns}</div>`;
+  root.innerHTML = `${sequenceNotice}<div class="control-overview-head"><div><h2>Output controllers</h2><p>User-owned normal control for fitted outputs. Only one active controller per output.</p></div></div><div id="configured-controller-cards" class="controller-definition-list"></div>${oilLoopCards}${orphanOilCards}<div class="controller-create-wrap">${availableHtml}</div><div class="control-overview-head built-in-heading"><div><h2>Built-in turbine subsystems</h2><p>Optional ECU behaviors that temporarily command outputs during their defined sequence, protection, or relight state. They do not prevent a separate normal output controller.</p></div></div><div id="built-in-subsystems" class="controller-definition-list">${builtIns}</div>`;
   const list = document.getElementById('configured-controller-cards');
   configuredCards.forEach(card => list?.appendChild(card));
   // Controller definitions are rendered in a temporary section so the normal
@@ -1324,7 +1328,7 @@ function _mountControllerLocalSettings(outputs) {
       <label class="cfg-field"><span class="cfg-label">If pressure feedback is lost</span><select onchange="updateControllerOilLoop(${loopIndex},'feedback_loss_response',+this.value)">${responseOptions(feedbackResponse,true)}</select><span class="cfg-desc">${feedbackResponse===3?'Stops all other outputs and holds this pump at its feedback-loss command for the pump-only time.':feedbackResponse===2?'Uses the feedback-loss pump command and requests fault shutdown.':feedbackResponse===1?'Uses the feedback-loss pump command and reports a warning.':'Uses the feedback-loss pump command without requesting a warning or shutdown.'}</span></label>
       ${feedbackResponse===3?number('immediate_pump_run_s','Pump-only time after immediate stop (s)',loop.immediate_pump_run_s??10,.5,0,120):''}
       ${feedbackResponse===3?'<div class="cfg-field"><span class="cfg-label">Immediate dry-oil behavior</span><span class="cfg-desc">All other outputs stop. This pump holds its feedback-loss command for the time above. Clear the fault before restarting.</span></div>':''}
-      <div class="cfg-field"><a href="#oil-loop-protection-${loopIndex}">Low-pressure protection → Shutdown &amp; Protection</a></div>
+      <div class="cfg-field"><span class="cfg-desc">This is the running pressure target. Startup pressure and the minimum before ignition are set in <a href="/sequence.html#oil-arm-min">Sequence → Build Oil Pressure / Set Starter</a>.</span><a href="#oil-loop-protection-${loopIndex}">Low-pressure protection → Shutdown &amp; Protection</a></div>
       <div class="cfg-field"><button type="button" class="danger" onclick="removeControllerOilLoop(${loopIndex})">Remove pressure controller</button></div>
     </div></div>`;
     host.appendChild(card);
@@ -1742,7 +1746,9 @@ function addControllerOilLoop(pumpOutputId = '', pressureInputId = '') {
     !used.has(String(row.id || '')) && (!pumpOutputId || String(row.id) === String(pumpOutputId)));
   const maxLoops = Math.max(1, Number(hwCfg?._capabilities?.max_oil_loops || 6));
   if (!pressure || !pump || hwCfg.oil_loops.length >= maxLoops) return;
-  hwCfg.oil_loops.push({enabled:true,id:`oil${hwCfg.oil_loops.length + 1}`,pressure_input:pressure.id,pump_output:pump.id,
+  const usedIds = new Set(hwCfg.oil_loops.map(loop=>String(loop.id || '')));
+  let nextId = 1; while (usedIds.has(`oil${nextId}`)) nextId++;
+  hwCfg.oil_loops.push({enabled:true,id:`oil${nextId}`,pressure_input:pressure.id,pump_output:pump.id,
     target_source:0,target_bar:2.5,target_high_bar:2.5,speed_min_rpm:0,speed_max_rpm:20000,
     deadband_bar:.2,response_gain:1.8,failsafe_delay_ms:1500,failsafe_demand:.6,min_demand:.18,max_demand:1,
     low_pressure_bar:1,low_pressure_confirm_ms:500,low_pressure_response:2,feedback_loss_response:2,immediate_pump_run_s:10});
@@ -2402,9 +2408,11 @@ function renderForm(preserveControllerOpenState = true) {
     const isProtection = sec.id === 'engine-limits';
     const displayTitle = isProtection ? 'Fuel Limiting & Hard Shutdowns' : sec.title;
     const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || []), ...SCHEMA.find(s=>s.title==='Combustion & Startup Protection').fields.filter(f=>f.key==='sf_hs')] : sec.fields;
+    const namedOilControl = oilPressureControlOwnsProtection();
+    const oilSwitches = controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length;
     const localSafety = {
       'Oil Pressure Safety': [
-        {key:'low_oil',label:'Oil pressure protection',available:controllerInputs('oil_pressure').length||controllerInputs('low_oil_switch').length||controllerInputs('oil_zero_switch').length,requirement:'Fit oil pressure or a low-oil switch',keys:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
+        {key:'low_oil',label:namedOilControl?'Oil-pressure switch protection':'Oil pressure protection',available:oilSwitches || (!namedOilControl && controllerInputs('oil_pressure').length),requirement:namedOilControl?'Analogue pressure protection is configured separately for each pump under Oil circuit pressure protection. This card is for an additional low-oil switch.':'Fit oil pressure or a low-oil switch',keys:namedOilControl?['sf_oil_modes','sf_lo_d']:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
         {label:'Low oil flow',configToggle:'oil_ufs',available:hasMonitoredOilFlowInputs(),requirement:'Fit a matching flow input and enable monitoring on an oil or scavenge pump in Hardware',keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
       ],
       'Combustion & Startup Protection': [
@@ -2428,6 +2436,7 @@ function renderForm(preserveControllerOpenState = true) {
       const sourcePurposes = {low_oil:['oil_pressure','low_oil_switch','oil_zero_switch'],oil_zero:['oil_pressure','oil_zero_switch'],
         flameout:['flame','n1_speed',...controllerTemperaturePurposes()],hot_start:controllerTemperaturePurposes(),
         oil_temp_high:['oil_temperature'],fuel_press_low:['fuel_pressure'],batt_low:['battery_voltage'],surge:['n1_speed']};
+      if (item.key==='low_oil' && namedOilControl) sourcePurposes.low_oil=['low_oil_switch','oil_zero_switch'];
       const fittedNames = controllerPurposeNames(sourcePurposes[item.key] || []);
       const fields = item.keys.map(key => sec.fields.find(field => field.key === key)).filter(Boolean);
       const toggle = item.key ? controllerSafetyToggle(item.key,item.label,item.available,item.requirement,isLocked) : item.configToggle?renderField(fields.find(f=>f.key===item.configToggle),sec,group):'';
@@ -2439,7 +2448,7 @@ function renderForm(preserveControllerOpenState = true) {
       const summaryState = item.key||item.configToggle?`<span class="protection-modes"><span data-enabled="${!!active}" data-state="${attention?'check':''}" ${item.configToggle?`data-config-safety="${item.configToggle}"`:''}>${item.key==='hot_start'?'Start interlock':'Fault shutdown'}: ${active?'ON':attention?'unavailable':'OFF'}${_escHtml(phaseSummary)}</span></span>`:'';
       return `<details id="protection-${item.key || item.configToggle || item.id || item.keys[0]}" class="protection-card" data-protection="${item.key || item.id || item.label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
         <summary><span><span class="protection-card-title">${item.label}</span><span class="protection-card-desc">${_escHtml(item.available ? item.desc : item.requirement)}${fittedNames ? ' · Fitted inputs: ' + _escHtml(fittedNames) : ''}</span>${summaryState}</span><span class="protection-card-chevron">›</span></summary>
-        <div class="protection-local-body"><div class="protection-local-toolbar">${toggle}</div>${item.key==='low_oil'?'<p class="protection-dashboard-note">For another oil circuit, <a href="#simple-controls">create a custom controller</a> with its named input and Request Fault Shutdown. Each controller has its own condition and activation settings.</p>':''}${['low_oil','oil_zero'].includes(item.key)&&!controllerInputs('oil_pressure').length?'<p class="protection-dashboard-note">Switch contacts have a built-in 20 ms debounce. Set any additional fault confirmation time below; 0 adds no delay. Switch polarity is set in Hardware. Analogue pressure limits do not apply to this switch.</p>':''}${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]&&(!['low_oil','oil_zero'].includes(item.key)||controllerInputs('oil_pressure').length)?`<p class="protection-dashboard-note">Dashboard colours use the retained <a href="#cf-${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]}">advisory limit</a> even when automatic shutdown is off. Also available from Dashboard → Edit cards → Edit limit &amp; safety.</p>`:''}<div class="cfg-grid">${fields.filter(field=>field.key!==item.configToggle).map(field => renderField(field, sec, group)).join('')}</div></div>
+        <div class="protection-local-body"><div class="protection-local-toolbar">${toggle}</div>${item.key==='low_oil'?'<p class="protection-dashboard-note">The startup minimum before ignition is set in <a href="/sequence.html#oil-arm-min">Sequence → Build Oil Pressure / Set Starter</a>. For another pressure-controlled pump, <a href="#controller-overview">create an oil-pressure controller</a> under Output controllers. A switch-only condition can use a custom controller with Request Fault Shutdown.</p>':''}${['low_oil','oil_zero'].includes(item.key)&&!controllerInputs('oil_pressure').length?'<p class="protection-dashboard-note">Switch contacts have a built-in 20 ms debounce. Set any additional fault confirmation time below; 0 adds no delay. Switch polarity is set in Hardware. Analogue pressure limits do not apply to this switch.</p>':''}${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]&&(!['low_oil','oil_zero'].includes(item.key)||(!namedOilControl&&controllerInputs('oil_pressure').length))?`<p class="protection-dashboard-note">Dashboard colours use the retained <a href="#cf-${({low_oil:'oil_rm',oil_zero:'oil_rm',oil_temp_high:'sf_ot',fuel_press_low:'sf_fp',batt_low:'sf_bv'})[item.key]}">advisory limit</a> even when automatic shutdown is off. Also available from Dashboard → Edit cards → Edit limit &amp; safety.</p>`:''}<div class="cfg-grid">${fields.filter(field=>field.key!==item.configToggle).map(field => renderField(field, sec, group)).join('')}</div></div>
       </details>`;
     }).join('')}</div>` : '';
     let fieldHtml = isProtection
@@ -2610,6 +2619,59 @@ function renderForm(preserveControllerOpenState = true) {
 }
 
 // Source: data_src/pages/config-validation-save.js
+// The same active-loop selection drives inline and save-dialog warnings.
+// Retained legacy values and disabled/missing controllers have no authority.
+function configuredOilPressureLoops() {
+  return (hwCfg.oil_loops || []).flatMap((loop,index)=>{
+    if (loop.enabled !== true) return [];
+    const pump = controllerOutputs('oil_pump').find(row=>String(row.id)===String(loop.pump_output));
+    const pressure = controllerInputs('oil_pressure').find(row=>String(row.id)===String(loop.pressure_input));
+    return pump && pressure ? [{loop,index,pump,pressure}] : [];
+  });
+}
+function activeOilPressureLoops() {
+  return hwCfg.controllers?.oil_loop===true ? configuredOilPressureLoops() : [];
+}
+function oilPressureControlOwnsProtection() {
+  return hwCfg.controllers?.oil_loop===true && controllerOutputs('oil_pump').length>0 && controllerInputs('oil_pressure').length>0;
+}
+function oilWarningCentiBar(value) {
+  // Hardware stores these settings as integer centibar after float32 parsing.
+  // Match that representation, including values typed between UI step points.
+  return Math.max(0,Math.min(2000,Math.trunc(Math.fround(Math.fround(Number(value))*100))));
+}
+function oilPressureTargetWarnings() {
+  return activeOilPressureLoops().flatMap(({loop,index,pump})=>{
+    if (!(Number(loop.low_pressure_response ?? 2)>0)) return [];
+    const target = oilWarningCentiBar(loop.target_bar ?? 2.5);
+    const minimumCenti = Number(loop.target_source || 0)===0 ? target : Math.min(target,oilWarningCentiBar(loop.target_high_bar ?? target/100));
+    const minimum = minimumCenti/100, limit = oilWarningCentiBar(loop.low_pressure_bar ?? 1)/100;
+    if (!(limit>0 && minimum<limit)) return [];
+    return [{index, msg:controllerChannelName(pump)+' running pressure target ('+minimum+' bar) is below its enabled low-pressure limit ('+limit+' bar).',
+      links:[{url:'/controllers.html#oil-loop-controller-'+index,label:'Open '+controllerChannelName(pump)+' pressure target'},
+             {url:'/controllers.html#oil-loop-protection-'+index,label:'Open '+controllerChannelName(pump)+' low-pressure protection'}]}];
+  });
+}
+function preStartTemperatureWarning(settings) {
+  if (!hwCfg.safety?.hot_start) return null;
+  const hasTot=hasRegistryInput('tot'),hasTit=hasRegistryInput('tit');
+  const preference=Number(settings.safety?.egt_source || 0);
+  const source=preference===1&&hasTot?1:preference===2&&hasTit?2:hasTot?1:hasTit?2:0;
+  if (!source) return null;
+  const startup=settings.sequence?.startup || {};
+  let trip=0,kind='normal';
+  if (startup.startup_egt_guard_enabled) {
+    if(startup.startup_egt_immediate_enabled){trip=Number(startup.startup_egt_limit_c)||0;kind='immediate';}
+    else if(startup.startup_egt_dwell_enabled){trip=Number(startup.startup_egt_dwell_c)||0;kind='dwell';}
+  } else if (hwCfg.safety?.overtemp) trip=Number(source===1?settings.engine?.tot_limit:settings.safety?.tit_limit_c)||0;
+  const preStart=Number(startup.pre_start_egt_limit_c)||0;
+  if (!(preStart>0 && trip>0 && preStart>=trip)) return null;
+  return {kind,msg:kind==='dwell'
+    ? 'Pre-Start EGT Maximum is at/above the enabled sustained-startup threshold. A start may enter its timed temperature guard immediately; review both limits and the allowed time.'
+    : 'Pre-Start EGT Maximum is at/above the enabled startup shutdown limit. A start may begin at its shutdown threshold; review both settings.'};
+}
+function hasStartupWarningStep(name) { return (hwCfg.startup_seq || []).includes(name); }
+
 // ── Cross-parameter inline validation warnings ────────────────
 // Called after renderForm() and after any field edit.
 // Reads values directly from the form inputs so they stay in sync.
@@ -2622,7 +2684,7 @@ const INLINE_WARNING_DESTINATIONS = {
   'warn-ab-main-fuel-floor':'#cf-ab_mo', 'warn-n2-pullback-trip':'#cf-pb_n2e',
   'warn-n2-governor-trip':'#controller-overview', 'warn-n2-cluster-trip':'/system.html#cf-cl_n2',
   'warn-prestart-egt-limit':'#cf-sf_hs', 'warn-tot-zero':'#cf-tot_limit',
-  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'#cf-oil_rm'
+  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'/controllers.html#oil-pressure-protection'
 };
 
 function runValidation() {
@@ -2652,7 +2714,7 @@ function runValidation() {
   const computedSpoolRpmTarget= startupCfg.rpm_target      ?? spoolRpmTarget;
 
   // 1. preIgnRpm > spoolRpmTarget
-  if (hasRegistryInput('n1_speed') && computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
+  if (hasStartupWarningStep('StarterSpin') && hasStartupWarningStep('Spool') && hasRegistryInput('n1_speed') && computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
       && computedPreIgnRpm > computedSpoolRpmTarget) {
     warnings.push({
       section: 'Engine Protection Limits',
@@ -2726,8 +2788,7 @@ function runValidation() {
           ? '⚠ The selected oil pump is missing or incompatible.'
           : '⚠ Fit an oil pump before enabling windmilling oil protection.'});
   } else if (standbyOilEnabledNow && standbyPump && (fv('so_fb') || 0) > 0) {
-    const matchingLoop = (hwCfg?.oil_loops || []).some(loop => loop?.enabled !== false &&
-      String(loop?.pump_output || '') === standbyPumpId && String(loop?.pressure_input || ''));
+    const matchingLoop = configuredOilPressureLoops().some(({loop})=>String(loop.pump_output)===standbyPumpId);
     if (!matchingLoop) warnings.push({section:'Windmilling Oil Protection', key:'warn-standby-oil-loop',
       msg:'⚠ This pressure target needs an enabled oil-pressure controller using the same pump. Otherwise use a fixed output.'});
   }
@@ -2774,22 +2835,30 @@ function runValidation() {
   const totLimitCanonical = totLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('tot_limit') || {}, totLimitVal) : undefined;
   const titLimitVal = fv('sf_tit');
   const titLimitCanonical = titLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('sf_tit') || {}, titLimitVal) : undefined;
-  const activeEgtLimit = effectiveEgt === 1 ? totLimitVal : (effectiveEgt === 2 ? titLimitVal : 0);
-  const startupEgtLimit = document.getElementById('cf-sf_sg_en')?.checked ? ((document.getElementById('cf-sf_st_en')?.checked?fv('sf_st'):0) || (document.getElementById('cf-sf_sd_en')?.checked?fv('sf_sd'):0) || 0) : activeEgtLimit || 0;
-  const preStartEgtLimit = fv('sf_hs') || 0;
-  if (hwCfg.safety?.hot_start && preStartEgtLimit > 0 && startupEgtLimit > 0 &&
-      preStartEgtLimit >= startupEgtLimit) {
-    warnings.push({section:'Combustion & Startup Protection', key:'warn-prestart-egt-limit',
-      msg:'⚠ Pre-start EGT maximum is at/above the STARTUP EGT limit. Lower the pre-start value so a hot engine is blocked before START.'});
-  }
-  if (effectiveEgt === 1 && totLimitCanonical !== undefined && Math.abs(totLimitCanonical) < 0.001) {
+  const canonical = key => {
+    const field=_fieldDef(key), value=fv(key);
+    return value===undefined ? getPath(cfg,field?.path || []) : _fieldFromDisplay(field || {},value);
+  };
+  const checked = (key,fallback) => document.getElementById('cf-'+key)?.checked ?? fallback;
+  const currentStartup=cfg.sequence?.startup || {};
+  const inlineTemperatureWarning=preStartTemperatureWarning({...cfg,
+    engine:{...cfg.engine,tot_limit:totLimitCanonical},
+    safety:{...cfg.safety,egt_source:egtSourceVal,tit_limit_c:titLimitCanonical},
+    sequence:{...cfg.sequence,startup:{...currentStartup,
+      pre_start_egt_limit_c:canonical('sf_hs'),
+      startup_egt_guard_enabled:checked('sf_sg_en',currentStartup.startup_egt_guard_enabled),
+      startup_egt_immediate_enabled:checked('sf_st_en',currentStartup.startup_egt_immediate_enabled),
+      startup_egt_dwell_enabled:checked('sf_sd_en',currentStartup.startup_egt_dwell_enabled),
+      startup_egt_limit_c:canonical('sf_st'),startup_egt_dwell_c:canonical('sf_sd')}}});
+  if(inlineTemperatureWarning)warnings.push({targetId:'protection-egt',key:'warn-prestart-egt-limit',msg:inlineTemperatureWarning.msg});
+  if (hwCfg.safety?.overtemp && effectiveEgt === 1 && totLimitCanonical !== undefined && Math.abs(totLimitCanonical) < 0.001) {
     warnings.push({
       section: 'Engine Protection Limits',
       key:     'warn-tot-zero',
       msg:     '⚠ TOT Limit is 0 - overtemperature protection is DISABLED for the selected engine temperature source.'
     });
   }
-  if (effectiveEgt === 2 && titLimitCanonical !== undefined && Math.abs(titLimitCanonical) < 0.001) {
+  if (hwCfg.safety?.overtemp && effectiveEgt === 2 && titLimitCanonical !== undefined && Math.abs(titLimitCanonical) < 0.001) {
     warnings.push({
       section: 'Engine Protection Limits',
       key:     'warn-tit-zero',
@@ -2799,7 +2868,7 @@ function runValidation() {
 
   // An enabled general oil-pressure protection needs a usable trip point.
   const oilRunningVal = fv('oil_rm');
-  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
+  if (!oilPressureControlOwnsProtection() && hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
@@ -2807,34 +2876,49 @@ function runValidation() {
     });
   }
 
+  oilPressureTargetWarnings().forEach(w=>warnings.push({key:'warn-oil-loop-'+w.index, msg:w.msg, targetId:'oil-loop-controller-'+w.index, links:w.links}));
+
   // Clear all existing inline warnings
-  document.querySelectorAll('.cfg-inline-warn').forEach(el => el.remove());
+  document.querySelectorAll('.cfg-inline-warn,[data-inline-warning-count]').forEach(el => el.remove());
+  const warningCounts=new Map();
 
   // Render each warning below the relevant section title
   warnings.forEach(w => {
     // Find the cfg-section whose cfg-title text matches the section name
     const sections = document.querySelectorAll('.cfg-section');
-    let targetSection = null;
+    let targetSection = w.targetId ? document.getElementById(w.targetId) : null;
     sections.forEach(sec => {
-      if (sec.dataset.section === w.section) {
+      if (!w.targetId && sec.dataset.section === w.section) {
         targetSection = sec;
       }
     });
     if (!targetSection) return;
-    const titleEl = targetSection.querySelector('.cfg-title');
+    const titleEl = targetSection.querySelector(w.targetId ? ':scope > summary' : '.cfg-title');
     if (!titleEl) return;
     // Avoid duplicate
     if (targetSection.querySelector('[data-warnkey="' + w.key + '"]')) return;
-    const div = document.createElement('a');
+    const div = document.createElement(w.links ? 'div' : 'a');
     div.className = 'cfg-inline-warn';
-    div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
+    if (!w.links) div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
     div.setAttribute('data-ot-warning-link', '');
     div.setAttribute('data-warnkey', w.key);
     div.style.cssText = 'display:block;font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
-    div.textContent = w.msg + ' Review configuration →';
+    div.textContent = w.msg + (w.links ? ' ' : ' Review configuration →');
+    if (w.links) w.links.forEach((link,index)=>{
+      if(index)div.append(' · ');
+      const a=document.createElement('a');a.href=link.url;a.textContent=link.label;a.setAttribute('data-ot-warning-link','');div.append(a);
+    });
     titleEl.insertAdjacentElement('afterend', div);
-    const group = targetSection.closest('.config-group');
-    if (group) group.open = true;
+    for(let parent=div.parentElement;parent;parent=parent.parentElement){
+      if(parent.matches('details.config-group,details.protection-card'))warningCounts.set(parent,(warningCounts.get(parent)||0)+1);
+    }
+  });
+  warningCounts.forEach((count,card)=>{
+    const summary=card.querySelector(':scope > summary');if(!summary)return;
+    const badge=document.createElement('span');badge.className='cfg-warning-count';badge.dataset.inlineWarningCount=String(count);
+    badge.textContent=count+(count===1?' warning':' warnings');badge.title='Open this card to review its settings warnings';
+    const end=summary.querySelector('.group-meta,.protection-card-chevron,.group-chevron');
+    if(end)end.before(badge);else summary.append(badge);
   });
 }
 
@@ -2890,8 +2974,7 @@ async function validateBeforeSave(cfg) {
       ? 'Windmilling Oil Protection: choose the fitted output this protection should command.'
       : 'Windmilling Oil Protection: choose a fitted output or turn this optional protection off.');
   if (windmillEnabled && windmillPump && Number(gv(cfg, 'standby_oil', 'feed_bar') || 0) > 0) {
-    const matchingLoop = (hwCfg?.oil_loops || []).some(loop => loop?.enabled !== false &&
-      String(loop?.pump_output || '') === windmillPumpId && String(loop?.pressure_input || ''));
+    const matchingLoop = configuredOilPressureLoops().some(({loop})=>String(loop.pump_output)===windmillPumpId);
     if (!matchingLoop)
       errors.push('Windmilling Oil Protection: its pressure target needs an enabled oil-pressure controller using the same pump. Use a fixed output or configure that loop.');
   }
@@ -3055,23 +3138,10 @@ async function validateBeforeSave(cfg) {
   if (standbyEnabled && standbySourceAvailable && standbyPct <= 0 && standbyBar <= 0)
     warns.push('Windmilling-oil protection commands neither pump output nor pressure. Set a protective pump percentage or pressure target, or it will run without delivering oil.');
 
-  // Validate the actual named oil loops, not obsolete global mapping fields.
   const hasOilPressure = hasRegistryInput('oil_pressure');
   const oilRunning = gv(cfg, 'oil', 'running_min');
-  if (hwCfg.controllers?.oil_loop !== false) for (const loop of hwCfg.oil_loops || []) {
-    if (loop.enabled === false) continue;
-    const pump = controllerOutputs('oil_pump').find(output=>String(output.id)===String(loop.pump_output));
-    if (!pump) continue;
-    const target = Number(loop.target_bar ?? 2.5);
-    const lowestTarget = Number(loop.target_source || 0) === 0 ? target : Math.min(target,Number(loop.target_high_bar ?? 2.5));
-    const loopLimit = Number(loop.low_pressure_bar ?? 1);
-    const primaryPressure = controllerInputs('oil_pressure')[0]?.id;
-    const generalLimit = String(loop.pressure_input)===String(primaryPressure) && hwCfg.safety?.low_oil && (Number(cfg.safety?.oil_pressure_modes ?? 4)&4) ? Number(cfg.oil?.running_min || 0) : 0;
-    const lowResponse = Number(loop.low_pressure_response ?? 2);
-    const limit = Math.max(lowResponse>0?loopLimit:0,generalLimit);
-    if (limit>0 && lowestTarget<=limit)
-      warns.push(controllerChannelName(pump)+' pressure target ('+lowestTarget+' bar) reaches or falls below an enabled low-pressure limit ('+limit+' bar). Raise its target or review oil pressure protection in Shutdown & Protection.');
-  }
+  const oilWarnings = oilPressureTargetWarnings();
+  warns.push(...oilWarnings.map(w=>w.msg));
 
   // EGT / temperature cross-checks
   const totLimit    = gv(cfg, 'engine', 'tot_limit');
@@ -3087,14 +3157,10 @@ async function validateBeforeSave(cfg) {
   const primaryLabel = sourcePref === 2 && hasTitHw ? 'TIT' :
                        sourcePref === 1 && hasTotHw ? 'TOT' :
                        hasTotHw ? 'TOT' : (hasTitHw ? 'TIT' : 'EGT');
-  if (primaryLimit !== undefined && totMargin !== undefined && totMargin >= primaryLimit)
+  if (Number(primaryLimit)>0 && totMargin !== undefined && totMargin >= primaryLimit)
     errors.push('EGT Soft Margin (' + totMargin + '°) must be less than selected ' + primaryLabel + ' limit (' + primaryLimit + '°).');
-  const preStartLimit = Number(gv(cfg, 'sequence', 'startup', 'pre_start_egt_limit_c') || 0);
-  const separateStartupLimit = Number(gv(cfg, 'sequence', 'startup', 'startup_egt_limit_c') || 0);
-  const effectiveStartupLimit = startup.startup_egt_guard_enabled ? (startup.startup_egt_immediate_enabled?separateStartupLimit:startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0) : Number(primaryLimit||0);
-  if (hwCfg.safety?.hot_start && preStartLimit > 0 && effectiveStartupLimit > 0 &&
-      preStartLimit >= effectiveStartupLimit)
-    warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the STARTUP EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
+  const temperatureWarning=preStartTemperatureWarning(cfg);
+  if(temperatureWarning)warns.push(temperatureWarning.msg);
 
   // AB pump range — backend rejects max < min; name the fields before submit
   const abPmn = gv(cfg, 'afterburner', 'pump_min_pct');
@@ -3125,7 +3191,7 @@ async function validateBeforeSave(cfg) {
 
   if (hwCfg.safety?.overtemp && primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' shutdown is enabled with a zero limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
-  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunning !== undefined && oilRunning === 0)
+  if (!oilPressureControlOwnsProtection() && hwCfg.safety?.low_oil && hasOilPressure && oilRunning !== undefined && oilRunning === 0)
     warns.push('General oil pressure protection is enabled with a zero Low-Pressure Limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
 
   if (hasActualAfterburnerHardware() &&
@@ -3144,7 +3210,7 @@ async function validateBeforeSave(cfg) {
   if (warns.length) {
     return await OTDialog.confirm('Warnings:\n\n' + warns.map(w => '• ' + w).join('\n'), {
       title:'Review safety warnings', confirmLabel:'Save anyway', danger:true,
-      links:OTValidationLinks(warns)
+      links:[...oilWarnings.flatMap(w=>w.links),...OTValidationLinks(warns)]
     });
   }
   return true;
@@ -4349,8 +4415,14 @@ async function fetchJsonWithRetry(url, attempts = 5) {
 function revealConfigDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
-  const target = document.getElementById(id);
+  // Stable oil links survive the move from legacy fields to named pump cards.
+  const aliases = {
+    'oil-pressure-control': document.querySelector('[id^="oil-loop-controller-"]') || document.querySelector('[data-purpose="oil_pump"]') || document.getElementById('controller-overview'),
+    'oil-pressure-protection': (activeOilPressureLoops()[0] ? document.getElementById('oil-loop-protection-'+activeOilPressureLoops()[0].index) : null) || document.getElementById('protection-low_oil')
+  };
+  const target = aliases[id] || document.getElementById(id);
   if (!target) return;
+  if (_searchQuery) { const search = document.getElementById('cfg-search'); if (search) search.value = ''; setConfigSearch(''); }
   const field = target.closest('.cfg-field');
   const revealTarget = field || target;
   const section = revealTarget.closest('.cfg-section');

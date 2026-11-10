@@ -1,3 +1,56 @@
+// The same active-loop selection drives inline and save-dialog warnings.
+// Retained legacy values and disabled/missing controllers have no authority.
+function configuredOilPressureLoops() {
+  return (hwCfg.oil_loops || []).flatMap((loop,index)=>{
+    if (loop.enabled !== true) return [];
+    const pump = controllerOutputs('oil_pump').find(row=>String(row.id)===String(loop.pump_output));
+    const pressure = controllerInputs('oil_pressure').find(row=>String(row.id)===String(loop.pressure_input));
+    return pump && pressure ? [{loop,index,pump,pressure}] : [];
+  });
+}
+function activeOilPressureLoops() {
+  return hwCfg.controllers?.oil_loop===true ? configuredOilPressureLoops() : [];
+}
+function oilPressureControlOwnsProtection() {
+  return hwCfg.controllers?.oil_loop===true && controllerOutputs('oil_pump').length>0 && controllerInputs('oil_pressure').length>0;
+}
+function oilWarningCentiBar(value) {
+  // Hardware stores these settings as integer centibar after float32 parsing.
+  // Match that representation, including values typed between UI step points.
+  return Math.max(0,Math.min(2000,Math.trunc(Math.fround(Math.fround(Number(value))*100))));
+}
+function oilPressureTargetWarnings() {
+  return activeOilPressureLoops().flatMap(({loop,index,pump})=>{
+    if (!(Number(loop.low_pressure_response ?? 2)>0)) return [];
+    const target = oilWarningCentiBar(loop.target_bar ?? 2.5);
+    const minimumCenti = Number(loop.target_source || 0)===0 ? target : Math.min(target,oilWarningCentiBar(loop.target_high_bar ?? target/100));
+    const minimum = minimumCenti/100, limit = oilWarningCentiBar(loop.low_pressure_bar ?? 1)/100;
+    if (!(limit>0 && minimum<limit)) return [];
+    return [{index, msg:controllerChannelName(pump)+' running pressure target ('+minimum+' bar) is below its enabled low-pressure limit ('+limit+' bar).',
+      links:[{url:'/controllers.html#oil-loop-controller-'+index,label:'Open '+controllerChannelName(pump)+' pressure target'},
+             {url:'/controllers.html#oil-loop-protection-'+index,label:'Open '+controllerChannelName(pump)+' low-pressure protection'}]}];
+  });
+}
+function preStartTemperatureWarning(settings) {
+  if (!hwCfg.safety?.hot_start) return null;
+  const hasTot=hasRegistryInput('tot'),hasTit=hasRegistryInput('tit');
+  const preference=Number(settings.safety?.egt_source || 0);
+  const source=preference===1&&hasTot?1:preference===2&&hasTit?2:hasTot?1:hasTit?2:0;
+  if (!source) return null;
+  const startup=settings.sequence?.startup || {};
+  let trip=0,kind='normal';
+  if (startup.startup_egt_guard_enabled) {
+    if(startup.startup_egt_immediate_enabled){trip=Number(startup.startup_egt_limit_c)||0;kind='immediate';}
+    else if(startup.startup_egt_dwell_enabled){trip=Number(startup.startup_egt_dwell_c)||0;kind='dwell';}
+  } else if (hwCfg.safety?.overtemp) trip=Number(source===1?settings.engine?.tot_limit:settings.safety?.tit_limit_c)||0;
+  const preStart=Number(startup.pre_start_egt_limit_c)||0;
+  if (!(preStart>0 && trip>0 && preStart>=trip)) return null;
+  return {kind,msg:kind==='dwell'
+    ? 'Pre-Start EGT Maximum is at/above the enabled sustained-startup threshold. A start may enter its timed temperature guard immediately; review both limits and the allowed time.'
+    : 'Pre-Start EGT Maximum is at/above the enabled startup shutdown limit. A start may begin at its shutdown threshold; review both settings.'};
+}
+function hasStartupWarningStep(name) { return (hwCfg.startup_seq || []).includes(name); }
+
 // ── Cross-parameter inline validation warnings ────────────────
 // Called after renderForm() and after any field edit.
 // Reads values directly from the form inputs so they stay in sync.
@@ -10,7 +63,7 @@ const INLINE_WARNING_DESTINATIONS = {
   'warn-ab-main-fuel-floor':'#cf-ab_mo', 'warn-n2-pullback-trip':'#cf-pb_n2e',
   'warn-n2-governor-trip':'#controller-overview', 'warn-n2-cluster-trip':'/system.html#cf-cl_n2',
   'warn-prestart-egt-limit':'#cf-sf_hs', 'warn-tot-zero':'#cf-tot_limit',
-  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'#cf-oil_rm'
+  'warn-tit-zero':'#cf-sf_tit', 'warn-oil-zero':'/controllers.html#oil-pressure-protection'
 };
 
 function runValidation() {
@@ -40,7 +93,7 @@ function runValidation() {
   const computedSpoolRpmTarget= startupCfg.rpm_target      ?? spoolRpmTarget;
 
   // 1. preIgnRpm > spoolRpmTarget
-  if (hasRegistryInput('n1_speed') && computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
+  if (hasStartupWarningStep('StarterSpin') && hasStartupWarningStep('Spool') && hasRegistryInput('n1_speed') && computedPreIgnRpm !== undefined && computedSpoolRpmTarget !== undefined
       && computedPreIgnRpm > computedSpoolRpmTarget) {
     warnings.push({
       section: 'Engine Protection Limits',
@@ -114,8 +167,7 @@ function runValidation() {
           ? '⚠ The selected oil pump is missing or incompatible.'
           : '⚠ Fit an oil pump before enabling windmilling oil protection.'});
   } else if (standbyOilEnabledNow && standbyPump && (fv('so_fb') || 0) > 0) {
-    const matchingLoop = (hwCfg?.oil_loops || []).some(loop => loop?.enabled !== false &&
-      String(loop?.pump_output || '') === standbyPumpId && String(loop?.pressure_input || ''));
+    const matchingLoop = configuredOilPressureLoops().some(({loop})=>String(loop.pump_output)===standbyPumpId);
     if (!matchingLoop) warnings.push({section:'Windmilling Oil Protection', key:'warn-standby-oil-loop',
       msg:'⚠ This pressure target needs an enabled oil-pressure controller using the same pump. Otherwise use a fixed output.'});
   }
@@ -162,22 +214,30 @@ function runValidation() {
   const totLimitCanonical = totLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('tot_limit') || {}, totLimitVal) : undefined;
   const titLimitVal = fv('sf_tit');
   const titLimitCanonical = titLimitVal !== undefined ? _fieldFromDisplay(_fieldDef('sf_tit') || {}, titLimitVal) : undefined;
-  const activeEgtLimit = effectiveEgt === 1 ? totLimitVal : (effectiveEgt === 2 ? titLimitVal : 0);
-  const startupEgtLimit = document.getElementById('cf-sf_sg_en')?.checked ? ((document.getElementById('cf-sf_st_en')?.checked?fv('sf_st'):0) || (document.getElementById('cf-sf_sd_en')?.checked?fv('sf_sd'):0) || 0) : activeEgtLimit || 0;
-  const preStartEgtLimit = fv('sf_hs') || 0;
-  if (hwCfg.safety?.hot_start && preStartEgtLimit > 0 && startupEgtLimit > 0 &&
-      preStartEgtLimit >= startupEgtLimit) {
-    warnings.push({section:'Combustion & Startup Protection', key:'warn-prestart-egt-limit',
-      msg:'⚠ Pre-start EGT maximum is at/above the STARTUP EGT limit. Lower the pre-start value so a hot engine is blocked before START.'});
-  }
-  if (effectiveEgt === 1 && totLimitCanonical !== undefined && Math.abs(totLimitCanonical) < 0.001) {
+  const canonical = key => {
+    const field=_fieldDef(key), value=fv(key);
+    return value===undefined ? getPath(cfg,field?.path || []) : _fieldFromDisplay(field || {},value);
+  };
+  const checked = (key,fallback) => document.getElementById('cf-'+key)?.checked ?? fallback;
+  const currentStartup=cfg.sequence?.startup || {};
+  const inlineTemperatureWarning=preStartTemperatureWarning({...cfg,
+    engine:{...cfg.engine,tot_limit:totLimitCanonical},
+    safety:{...cfg.safety,egt_source:egtSourceVal,tit_limit_c:titLimitCanonical},
+    sequence:{...cfg.sequence,startup:{...currentStartup,
+      pre_start_egt_limit_c:canonical('sf_hs'),
+      startup_egt_guard_enabled:checked('sf_sg_en',currentStartup.startup_egt_guard_enabled),
+      startup_egt_immediate_enabled:checked('sf_st_en',currentStartup.startup_egt_immediate_enabled),
+      startup_egt_dwell_enabled:checked('sf_sd_en',currentStartup.startup_egt_dwell_enabled),
+      startup_egt_limit_c:canonical('sf_st'),startup_egt_dwell_c:canonical('sf_sd')}}});
+  if(inlineTemperatureWarning)warnings.push({targetId:'protection-egt',key:'warn-prestart-egt-limit',msg:inlineTemperatureWarning.msg});
+  if (hwCfg.safety?.overtemp && effectiveEgt === 1 && totLimitCanonical !== undefined && Math.abs(totLimitCanonical) < 0.001) {
     warnings.push({
       section: 'Engine Protection Limits',
       key:     'warn-tot-zero',
       msg:     '⚠ TOT Limit is 0 - overtemperature protection is DISABLED for the selected engine temperature source.'
     });
   }
-  if (effectiveEgt === 2 && titLimitCanonical !== undefined && Math.abs(titLimitCanonical) < 0.001) {
+  if (hwCfg.safety?.overtemp && effectiveEgt === 2 && titLimitCanonical !== undefined && Math.abs(titLimitCanonical) < 0.001) {
     warnings.push({
       section: 'Engine Protection Limits',
       key:     'warn-tit-zero',
@@ -187,7 +247,7 @@ function runValidation() {
 
   // An enabled general oil-pressure protection needs a usable trip point.
   const oilRunningVal = fv('oil_rm');
-  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
+  if (!oilPressureControlOwnsProtection() && hwCfg.safety?.low_oil && hasOilPressure && oilRunningVal !== undefined && oilRunningVal === 0) {
     warnings.push({
       section: 'Oil Pressure Safety',
       key:     'warn-oil-zero',
@@ -195,34 +255,49 @@ function runValidation() {
     });
   }
 
+  oilPressureTargetWarnings().forEach(w=>warnings.push({key:'warn-oil-loop-'+w.index, msg:w.msg, targetId:'oil-loop-controller-'+w.index, links:w.links}));
+
   // Clear all existing inline warnings
-  document.querySelectorAll('.cfg-inline-warn').forEach(el => el.remove());
+  document.querySelectorAll('.cfg-inline-warn,[data-inline-warning-count]').forEach(el => el.remove());
+  const warningCounts=new Map();
 
   // Render each warning below the relevant section title
   warnings.forEach(w => {
     // Find the cfg-section whose cfg-title text matches the section name
     const sections = document.querySelectorAll('.cfg-section');
-    let targetSection = null;
+    let targetSection = w.targetId ? document.getElementById(w.targetId) : null;
     sections.forEach(sec => {
-      if (sec.dataset.section === w.section) {
+      if (!w.targetId && sec.dataset.section === w.section) {
         targetSection = sec;
       }
     });
     if (!targetSection) return;
-    const titleEl = targetSection.querySelector('.cfg-title');
+    const titleEl = targetSection.querySelector(w.targetId ? ':scope > summary' : '.cfg-title');
     if (!titleEl) return;
     // Avoid duplicate
     if (targetSection.querySelector('[data-warnkey="' + w.key + '"]')) return;
-    const div = document.createElement('a');
+    const div = document.createElement(w.links ? 'div' : 'a');
     div.className = 'cfg-inline-warn';
-    div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
+    if (!w.links) div.href = INLINE_WARNING_DESTINATIONS[w.key] || '#' + targetSection.id;
     div.setAttribute('data-ot-warning-link', '');
     div.setAttribute('data-warnkey', w.key);
     div.style.cssText = 'display:block;font-size:.75rem;color:var(--yellow);background:rgba(255,196,0,.08);border:1px solid rgba(255,196,0,.3);border-radius:5px;padding:.28rem .65rem;margin:.3rem 0 .4rem;line-height:1.4';
-    div.textContent = w.msg + ' Review configuration →';
+    div.textContent = w.msg + (w.links ? ' ' : ' Review configuration →');
+    if (w.links) w.links.forEach((link,index)=>{
+      if(index)div.append(' · ');
+      const a=document.createElement('a');a.href=link.url;a.textContent=link.label;a.setAttribute('data-ot-warning-link','');div.append(a);
+    });
     titleEl.insertAdjacentElement('afterend', div);
-    const group = targetSection.closest('.config-group');
-    if (group) group.open = true;
+    for(let parent=div.parentElement;parent;parent=parent.parentElement){
+      if(parent.matches('details.config-group,details.protection-card'))warningCounts.set(parent,(warningCounts.get(parent)||0)+1);
+    }
+  });
+  warningCounts.forEach((count,card)=>{
+    const summary=card.querySelector(':scope > summary');if(!summary)return;
+    const badge=document.createElement('span');badge.className='cfg-warning-count';badge.dataset.inlineWarningCount=String(count);
+    badge.textContent=count+(count===1?' warning':' warnings');badge.title='Open this card to review its settings warnings';
+    const end=summary.querySelector('.group-meta,.protection-card-chevron,.group-chevron');
+    if(end)end.before(badge);else summary.append(badge);
   });
 }
 
@@ -278,8 +353,7 @@ async function validateBeforeSave(cfg) {
       ? 'Windmilling Oil Protection: choose the fitted output this protection should command.'
       : 'Windmilling Oil Protection: choose a fitted output or turn this optional protection off.');
   if (windmillEnabled && windmillPump && Number(gv(cfg, 'standby_oil', 'feed_bar') || 0) > 0) {
-    const matchingLoop = (hwCfg?.oil_loops || []).some(loop => loop?.enabled !== false &&
-      String(loop?.pump_output || '') === windmillPumpId && String(loop?.pressure_input || ''));
+    const matchingLoop = configuredOilPressureLoops().some(({loop})=>String(loop.pump_output)===windmillPumpId);
     if (!matchingLoop)
       errors.push('Windmilling Oil Protection: its pressure target needs an enabled oil-pressure controller using the same pump. Use a fixed output or configure that loop.');
   }
@@ -443,23 +517,10 @@ async function validateBeforeSave(cfg) {
   if (standbyEnabled && standbySourceAvailable && standbyPct <= 0 && standbyBar <= 0)
     warns.push('Windmilling-oil protection commands neither pump output nor pressure. Set a protective pump percentage or pressure target, or it will run without delivering oil.');
 
-  // Validate the actual named oil loops, not obsolete global mapping fields.
   const hasOilPressure = hasRegistryInput('oil_pressure');
   const oilRunning = gv(cfg, 'oil', 'running_min');
-  if (hwCfg.controllers?.oil_loop !== false) for (const loop of hwCfg.oil_loops || []) {
-    if (loop.enabled === false) continue;
-    const pump = controllerOutputs('oil_pump').find(output=>String(output.id)===String(loop.pump_output));
-    if (!pump) continue;
-    const target = Number(loop.target_bar ?? 2.5);
-    const lowestTarget = Number(loop.target_source || 0) === 0 ? target : Math.min(target,Number(loop.target_high_bar ?? 2.5));
-    const loopLimit = Number(loop.low_pressure_bar ?? 1);
-    const primaryPressure = controllerInputs('oil_pressure')[0]?.id;
-    const generalLimit = String(loop.pressure_input)===String(primaryPressure) && hwCfg.safety?.low_oil && (Number(cfg.safety?.oil_pressure_modes ?? 4)&4) ? Number(cfg.oil?.running_min || 0) : 0;
-    const lowResponse = Number(loop.low_pressure_response ?? 2);
-    const limit = Math.max(lowResponse>0?loopLimit:0,generalLimit);
-    if (limit>0 && lowestTarget<=limit)
-      warns.push(controllerChannelName(pump)+' pressure target ('+lowestTarget+' bar) reaches or falls below an enabled low-pressure limit ('+limit+' bar). Raise its target or review oil pressure protection in Shutdown & Protection.');
-  }
+  const oilWarnings = oilPressureTargetWarnings();
+  warns.push(...oilWarnings.map(w=>w.msg));
 
   // EGT / temperature cross-checks
   const totLimit    = gv(cfg, 'engine', 'tot_limit');
@@ -475,14 +536,10 @@ async function validateBeforeSave(cfg) {
   const primaryLabel = sourcePref === 2 && hasTitHw ? 'TIT' :
                        sourcePref === 1 && hasTotHw ? 'TOT' :
                        hasTotHw ? 'TOT' : (hasTitHw ? 'TIT' : 'EGT');
-  if (primaryLimit !== undefined && totMargin !== undefined && totMargin >= primaryLimit)
+  if (Number(primaryLimit)>0 && totMargin !== undefined && totMargin >= primaryLimit)
     errors.push('EGT Soft Margin (' + totMargin + '°) must be less than selected ' + primaryLabel + ' limit (' + primaryLimit + '°).');
-  const preStartLimit = Number(gv(cfg, 'sequence', 'startup', 'pre_start_egt_limit_c') || 0);
-  const separateStartupLimit = Number(gv(cfg, 'sequence', 'startup', 'startup_egt_limit_c') || 0);
-  const effectiveStartupLimit = startup.startup_egt_guard_enabled ? (startup.startup_egt_immediate_enabled?separateStartupLimit:startup.startup_egt_dwell_enabled?Number(startup.startup_egt_dwell_c)||0:0) : Number(primaryLimit||0);
-  if (hwCfg.safety?.hot_start && preStartLimit > 0 && effectiveStartupLimit > 0 &&
-      preStartLimit >= effectiveStartupLimit)
-    warns.push('Pre-Start EGT Maximum (' + preStartLimit + '°) is at/above the STARTUP EGT limit (' + effectiveStartupLimit + '°). Lower it so a hot engine is blocked before START.');
+  const temperatureWarning=preStartTemperatureWarning(cfg);
+  if(temperatureWarning)warns.push(temperatureWarning.msg);
 
   // AB pump range — backend rejects max < min; name the fields before submit
   const abPmn = gv(cfg, 'afterburner', 'pump_min_pct');
@@ -513,7 +570,7 @@ async function validateBeforeSave(cfg) {
 
   if (hwCfg.safety?.overtemp && primaryLimit !== undefined && primaryLimit === 0)
     warns.push(primaryLabel + ' shutdown is enabled with a zero limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
-  if (hwCfg.safety?.low_oil && hasOilPressure && oilRunning !== undefined && oilRunning === 0)
+  if (!oilPressureControlOwnsProtection() && hwCfg.safety?.low_oil && hasOilPressure && oilRunning !== undefined && oilRunning === 0)
     warns.push('General oil pressure protection is enabled with a zero Low-Pressure Limit. Set its positive trip limit in Shutdown & Protection or switch that protection off.');
 
   if (hasActualAfterburnerHardware() &&
@@ -532,7 +589,7 @@ async function validateBeforeSave(cfg) {
   if (warns.length) {
     return await OTDialog.confirm('Warnings:\n\n' + warns.map(w => '• ' + w).join('\n'), {
       title:'Review safety warnings', confirmLabel:'Save anyway', danger:true,
-      links:OTValidationLinks(warns)
+      links:[...oilWarnings.flatMap(w=>w.links),...OTValidationLinks(warns)]
     });
   }
   return true;

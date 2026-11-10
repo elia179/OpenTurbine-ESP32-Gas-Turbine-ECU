@@ -70,7 +70,7 @@ function auditConfigStructure() {
   assert.match(configSource, /Only one active controller per output/, 'Controller ownership must be explicit');
   assert.match(configSource, /links:OTValidationLinks\(errors\)/,
     'blocking validation errors must expose direct setting links');
-  assert.match(configSource, /links:OTValidationLinks\(warns\)/,
+  assert.match(configSource, /OTValidationLinks\(warns\)/,
     'validation warnings must expose direct setting links');
   assert.match(dialogSource, /item\?\.target[\s\S]*scrollIntoView/,
     'the shared dialog must focus and reveal linked settings without unsafe HTML');
@@ -375,9 +375,9 @@ async function goto(page, route, waitSelector) {
       'Normal Running Oil Pressure is greater than Full-Throttle Oil Pressure.'
     ]));
     assert.deepEqual(validationRoutes.map(link => link.target || link.url), [
-      '#controller-overview', '/sequence.html#oil-arm-min', '#cf-oil_rm',
+      '#controller-overview', '/sequence.html#oil-arm-min', '/controllers.html#oil-pressure-protection',
       '/sequence.html#starter-assist', '/system.html#cf-cl_n2',
-      '#cf-di_tr', '#cf-oil_mm', '#cf-oil_mx'
+      '#cf-di_tr', '/controllers.html#oil-pressure-control'
     ]);
     assert.equal(await page.locator('#controller-overview').count(), 1);
     assert.ok(await page.locator('[data-controller-card]').count() >= 1,
@@ -482,6 +482,9 @@ async function goto(page, route, waitSelector) {
     const secondTot = await page.locator('#cf-tot_limit').inputValue();
     assert.notEqual(secondTot, firstTot);
     assert.ok(secondTot === '720' || secondTot === '1328');
+    // This is the general protection's units check. With named regulation
+    // owning pressure protection, that legacy reference is intentionally hidden.
+    await page.evaluate(()=>{hwCfg.controllers.oil_loop=false;renderForm(true);_applyAllVisibility();});
     await page.locator('#unit-press-btn').click();
     assert.equal(await page.locator('#cf-oil_rm').inputValue(), '17.405');
     const configFullHardware = await (await page.request.get(`${base}/api/hardware`)).json();

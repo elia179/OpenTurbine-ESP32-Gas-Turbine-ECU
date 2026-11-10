@@ -864,6 +864,20 @@ body.ot-short-controls.ot-save-attention .ot-managed-save .save-msg {
 .ot-short-controls.ot-controls-collapsed .seq-save-bar { transform:translateY(calc(100% + 8px)); opacity:0; visibility:hidden; pointer-events:none; transition-delay:0s,0s,.24s; }
 .ot-short-controls.ot-controls-collapsed .cfg-workspace { transform:translateY(calc(-100% - 64px)); opacity:0; visibility:hidden; pointer-events:none; transition-delay:0s,0s,.24s; }
 .ot-short-controls.ot-controls-collapsed.ot-has-unsaved .ot-save-handle { display:block; position:fixed; bottom:env(safe-area-inset-bottom,0px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:95; min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text); }
+body.ot-manual-controls { padding-bottom:calc(var(--ot-save-space,100px) + 52px); }
+body.ot-manual-controls.ot-controls-collapsed { padding-bottom:60px; }
+/* Compact from the top of a page as well: the hidden sticky header must not
+   leave its full-height placeholder above the first controller. */
+body.ot-manual-controls.ot-controls-collapsed .cfg-workspace {
+  position:fixed; top:48px; left:0; right:0; margin:0;
+}
+.ot-manual-controls .ot-save-handle {
+  display:block; position:fixed; bottom:calc(var(--ot-save-space,100px) + env(safe-area-inset-bottom,0px));
+  left:50%; transform:translateX(-50%); max-width:calc(100vw - 16px); z-index:95;
+  min-height:44px; white-space:normal; background:var(--surface); border-color:var(--accent); color:var(--text);
+}
+.ot-manual-controls.ot-controls-collapsed .ot-save-handle { bottom:env(safe-area-inset-bottom,0px); }
+.ot-manual-controls.ot-save-attention .ot-save-handle { border-color:var(--yellow); }
 @media(prefers-reduced-motion:reduce) {
   .ot-short-controls .ot-managed-save,
   .ot-short-controls .cfg-workspace { transition:none!important; }
@@ -2474,3 +2488,10 @@ body.dashboard-awaiting-snapshot #adv-act-section {
 .pcb-connection-guide th { color:var(--accent); }
 .pcb-connection-guide td:first-child { width:34%; }
 .pcb-connection-guide p,.pcb-connection-guide ul { margin:.75rem 0; }
+.pcb-connection-guide ul { padding-inline-start:1.4rem; }
+.pcb-connection-guide li { margin:.2rem 0; overflow-wrap:anywhere; }
+
+.oil-config-warnings { padding:.6rem 1rem; margin-bottom:.6rem; border:1px solid var(--yellow); border-radius:7px; color:var(--yellow); font-size:.82rem; }
+.oil-config-warnings p { margin:.25rem 0; }
+
+.cfg-warning-count { display:inline-flex; flex:0 0 auto; padding:.12rem .35rem; border:1px solid var(--yellow); border-radius:5px; color:var(--yellow); font-size:.66rem; line-height:1.3; white-space:nowrap; }

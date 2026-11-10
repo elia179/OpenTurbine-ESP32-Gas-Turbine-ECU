@@ -20,6 +20,17 @@ globalThis.OT_UI_SIM_I2C_DISCOVERY=discovery;
    const restored=await p.request.post(base+'/api/ecu_config',{data:fixture});assert(restored.ok(),await restored.text());await navigate('/hardware.html');
    await p.waitForFunction(expected=>document.querySelector('#hardware-board-summary')?.textContent.includes(expected),source.board.revision);
    assert.ok((await p.locator('#hardware-board-summary').innerText()).includes('OpenTurbine PCB v1.0'));
+   await p.evaluate(()=>{const guide=document.querySelector('.pcb-connection-guide');if(!guide)throw Error('Missing PCB connector guide');guide.open=true;for(let parent=guide.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;});
+   for(const width of [320,390,800,1280]){
+     await p.setViewportSize({width,height:900});
+     const indentation=await p.locator('.pcb-connection-guide ul').evaluate(ul=>({padding:parseFloat(getComputedStyle(ul).paddingInlineStart),font:parseFloat(getComputedStyle(ul).fontSize),left:ul.getBoundingClientRect().left,guideLeft:ul.closest('.pcb-connection-guide').getBoundingClientRect().left}));
+     assert.ok(indentation.padding>=indentation.font,'PCB bullet marker must have an indented gutter');
+     assert.ok(indentation.left+indentation.padding-indentation.font>=indentation.guideLeft-1,'PCB bullet gutter stays inside the card');
+     assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'PCB guide does not overflow the page');
+     if(engine===chromium&&!packed&&width===390){fs.mkdirSync('artifacts/272-ui',{recursive:true});await p.locator('.pcb-connection-guide ul').screenshot({path:'artifacts/272-ui/pcb-guide-list-390.png'});}
+   }
+   await p.setViewportSize({width:1280,height:900});
+
    await p.waitForFunction(()=>typeof _hardwareModelSnap!=='undefined'&&!!_hardwareModelSnap&&!_hwLoading&&!document.querySelector('main').inert);
    await p.evaluate(async()=>{
      const original=structuredClone(cfg);

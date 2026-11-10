@@ -16,7 +16,7 @@
 </style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109a',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109a');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -669,7 +669,7 @@ const BLOCKS = {
       {key:'rpm_timeout_ms',            label:'Timeout',                    unit:'ms', type:'int',   min:1000, max:120000, step:1000, def:12000, configKey:'rpm_timeout_ms'},
       {key:'oil_running_min',           label:'Running Low-Pressure Limit', unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Shared with Final Startup Checks and Controllers → Oil Pressure Safety; editing any of them changes the same value. It is a Dashboard advisory and becomes an automatic shutdown limit only when low-oil safety is enabled.'},
+        desc:'Shared with Final Startup Checks. Without a named oil-pressure controller, the general Oil pressure protection also uses this reference. Named pump controllers have their own running low-pressure thresholds under Shutdown & Protection → Oil circuit pressure protection.'},
       {key:'spool_cut_starter_on_exit', label:'Cut starter demand on exit',            type:'bool',                                  def:true,  configKey:'spool_cut_starter_on_exit'},
       {key:'spool_cut_starter_en_on_exit',label:'Cut starter enable output on exit',   type:'bool',                                  def:true,  configKey:'spool_cut_starter_en_on_exit',
         visibleIf: hw => actuatorEnabled('starter_en')},
@@ -704,7 +704,7 @@ const BLOCKS = {
       {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
       {key:'oil_running_min',label:'Running Low-Pressure Limit',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
         visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'The final-startup oil check uses this value only when Require oil pressure is on. Low-oil safety separately decides whether it causes a running shutdown; otherwise it is a Dashboard advisory. Also shown in Accelerate to Idle and Controllers → Oil Pressure Safety.'},
+        desc:'Required at startup completion only when Require oil pressure is on. Shared with Accelerate to Idle and the general oil-pressure reference. Named pump controllers use their own separate running low-pressure thresholds under Shutdown & Protection → Oil circuit pressure protection.'},
       {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
       {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
       {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
@@ -1277,14 +1277,14 @@ const BLOCK_INFO = {
     links: [
       { label: 'Minimum Reliable Fuel-Metering Output', url: '/calibration.html#fuelpump-min-cal-row' },
       { label: 'Throttle Open Speed', url: '/controllers.html#throttle' },
-      { label: 'Running Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
+      { label: 'Startup oil-pressure reference', url: '/sequence.html#oil-running-min' },
     ]
   },
   SafetyHold: {
     desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
-      { label: 'Running Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
+      { label: 'Startup oil-pressure reference', url: '/sequence.html#oil-running-min' },
     ]
   },
   CooldownSpin: {
@@ -1723,10 +1723,30 @@ function switchTab(tab) {
     if (el) el.style.display = t === tab ? '' : 'none';
   });
 }
+function showMissingSequenceLink(tab) {
+  const container=document.getElementById('tab-'+tab);if(!container)return;
+  const notice=document.createElement('p');notice.id='sequence-link-notice';notice.className='protection-dashboard-note';notice.setAttribute('role','status');
+  notice.textContent='This setting is not used by a step in the current '+tab+' sequence. Review the steps below; retained values do not add a step or activate its checks.';
+  container.prepend(notice);notice.scrollIntoView({behavior:'smooth',block:'center'});
+}
 function revealSequenceDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
   if (!id) return;
-  const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
+  document.getElementById('sequence-link-notice')?.remove();
+  const stepMatch = /^step-(startup|shutdown|afterburner)-(.+)$/.exec(id);
+  if (stepMatch) {
+    switchTab(stepMatch[1]);
+    const card = Array.from(document.querySelectorAll('#list-'+stepMatch[1]+' .block-card')).find(el=>el.dataset.block===stepMatch[2]);
+    if (card) {
+      card.querySelector('.block-params')?.classList.add('open');
+      card.classList.add('deep-link-target');
+      requestAnimationFrame(()=>card.scrollIntoView({behavior:'smooth',block:'center'}));
+      return;
+    }
+    showMissingSequenceLink(stepMatch[1]);return;
+  }
+  const fieldKey = {'oil-running-min':['oil_running_min'],
+                    'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
                     'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm'],
                     'starter-target':['pre_ign_rpm']}[id];
   if (fieldKey) {
@@ -1738,7 +1758,7 @@ function revealSequenceDeepLink() {
       requestAnimationFrame(() => field.scrollIntoView({behavior:'smooth', block:'center'}));
       return;
     }
-    document.getElementById('tab-startup')?.scrollIntoView({behavior:'smooth', block:'start'});
+    showMissingSequenceLink('startup');
     return;
   }
   const tab = id.startsWith('tab-') ? id.slice(4) : '';
@@ -3715,12 +3735,12 @@ function _validateSequence(blocks) {
     warnings.push('Timer-based light-up cannot confirm combustion. When a temperature or flame sensor is configured, replace the ignition hold TimedDelay with TempConfirm or FlameConfirm before live engine testing.');
   }
   // Should have oil priming - running without it risks bearing damage
-  if (!manualFuelWorkflow && !has('OilPrime')) {
-    warnings.push('No OilPrime block. Oil lubrication is not guaranteed before ignition. Add OilPrime early in the sequence to protect engine bearings.');
+  if (actuatorEnabled('oil_pump') && !manualFuelWorkflow && !has('OilPrime') && !has('OilPumpOn')) {
+    warnings.push('An oil pump is fitted, but startup has no oil-priming step. If this engine needs pre-lubrication, add Build Oil Pressure before ignition or explicitly command and verify the oil supply.');
   }
   // Spool without a SafetyHold means no final RPM/oil sanity check before RUNNING
   if (has('Spool') && !has('SafetyHold')) {
-    warnings.push('Spool block present but no SafetyHold. Consider adding SafetyHold after Spool to verify N1 and oil pressure before entering RUNNING.');
+    warnings.push('Accelerate to Idle has no Final Startup Checks step. Add one if you need verified sensor checks before Running; enable only the checks this engine requires.');
   }
   // FuelOpen before StarterSpin risks unspun fuel ingestion
   if (has('FuelOpen') && has('StarterSpin')) {
@@ -3729,10 +3749,6 @@ function _validateSequence(blocks) {
     if (fuelIdx < startIdx) {
       warnings.push('Open Main Fuel Shutoff appears before Set Starter. Fuel may enter before rotor airflow is established, risking unburned fuel pooling. Move the starter block before main fuel opens.');
     }
-  }
-  // SafetyHold without Spool - valid but unusual
-  if (has('SafetyHold') && !has('Spool')) {
-    warnings.push('SafetyHold present but no Spool block. Without Spool the starter keeps running indefinitely. This may be intentional for air-start configurations.');
   }
   return warnings;
 }
@@ -3821,12 +3837,16 @@ function sequenceIssueDestination(issue) {
     'P1 Pullback':'pb_p1e', 'P2 Pullback':'pb_p2e', 'Torque Pullback':'pb_tqe',
     'N2 Pullback':'pb_n2e', 'N2 Overspeed':'n2_rpm_limit', Overspeed:'rpm_limit',
     Overtemp:'eg_src', DynamicIdle:'di_src',
-    AutoRelight:'rl_en', 'Windmill Oil':'so_en', 'Oil Safety':'oil_rm',
+    AutoRelight:'rl_en', 'Windmill Oil':'so_en',
     'Oil Temp':'sf_ot', 'Fuel Pressure':'sf_fp', Battery:'sf_bv',
     'Startup Temperature':'sf_sg_en', 'Hot Start':'sf_hs', Flameout:'sf_fs', Surge:'sf_sg'
   };
-  if (/no .*sensor|no .*input|not configured in Hardware|no compatible fitted|selected output.*missing/i.test(issue.msg || '') &&
-      !/Hard Trip$/.test(issue.block || '')) return '/hardware.html';
+  if (!/Hard Trip$/.test(issue.block || '')) {
+    if (/selected output.*missing/i.test(issue.msg || '')) return '/hardware.html#hardware-outputs-panel';
+    if (/no .*sensor|no .*input/i.test(issue.msg || '')) return '/hardware.html#hardware-inputs-panel';
+    if (/not configured in Hardware|no compatible fitted/i.test(issue.msg || '')) return '/hardware.html';
+  }
+  if (issue.block==='Oil Safety') return '/controllers.html#oil-pressure-protection';
   if (fields[issue.block]) return '/controllers.html#cf-' + fields[issue.block];
   if (['Governor','N2 Governor','N2 speed control'].includes(issue.block)) return '/controllers.html#controller-overview';
   if (issue.block === 'N2 Cluster Warning') return '/system.html#cf-cl_n2';
@@ -3838,7 +3858,7 @@ function sequenceIssueDestination(issue) {
   if (!BLOCKS[issue.block]) return '/hardware.html';
   const tab = AFTERBURNER_BLOCKS.includes(issue.block) || AB_SHUT_BLOCKS.includes(issue.block)
     ? 'afterburner' : SHUTDOWN_BLOCKS.includes(issue.block) ? 'shutdown' : 'startup';
-  return '#tab-' + tab;
+  return '#step-' + tab + '-' + encodeURIComponent(issue.block);
 }
 
 function _applySeqValidation(d) {

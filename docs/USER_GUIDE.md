@@ -492,6 +492,22 @@ Use dry runs with fuel physically disconnected before a fueled test.
 
 The editor also supports entry conditions, per-step enter/exit side actions, afterburner sequences, and bounded custom blocks. A custom condition can require continuous stability or measure its threshold relative to the reading at block entry. The three compressor-pressure buttons create guided versions of those checks; place them deliberately around ignition and light-off. Red structural errors block START; yellow warnings describe arrangements that may be intentional but require review. Never use Bench Mode to make an invalid real-engine sequence appear acceptable.
 
+### Finding oil-pressure settings
+
+Oil pressure has three separate jobs. Change the setting for the job you need:
+
+| What you want to change | Where to find it |
+| --- | --- |
+| Pressure the pump aims for while running | **Controllers → your oil pump → Oil Pressure Control → Pressure target**. A mapped target has low and high targets. |
+| Pressure below which a running oil circuit warns or shuts down | **Controllers → Shutdown & Protection → Oil circuit pressure protection → your pump → Low-pressure threshold**. The pump card links here; the protection card links back. With no named pressure controller, use **Oil Pressure Safety → Oil pressure protection → Low-Pressure Limit** instead. |
+| Pressure required before ignition | **Sequence → Startup → Build Oil Pressure** or **Set Starter → Minimum pressure before ignition**. These two fields share one value. |
+
+The Dashboard oil card links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. Disabled controllers and retained legacy target values do not produce that warning. The target is compared only with that circuit's enabled pressure protection. A removed startup step does not activate its retained pressure settings. Warning links open the affected pump or sequence card; following a link within the current editor preserves unsaved edits. **Final Startup Checks → Require oil pressure** is an additional startup completion check, configured in that sequence block.
+
+### Keeping page controls compact
+
+In **System → Appearance** or **Tools → Appearance**, turn off **Automatically show controls while scrolling**. Search and save controls then stay compact until you press the bottom **Show controls** button. Press **Hide controls** to compact them again. The button shows whether there are unsaved changes, even while the full save bar is hidden. This preference applies across settings pages in the current browser; it does not alter ECU settings. Closed settings cards show a warning count without reopening while you type. Following a warning link still opens the relevant card and highlights its setting.
+
 ### 5. Custom controllers
 
 Oil-pressure calibration supports **Sensor only** using an external pressure source. Capture ambient and a known reference pressure; two points suffice for a straight-line sensor. No pump commands or pump-minimum settings are sent in this mode. Select **Include electric oil-pump control and minimum-output calibration** to retain the assisted workflow. A curved fit needs at least four points.

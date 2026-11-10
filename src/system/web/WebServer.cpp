@@ -2379,6 +2379,16 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     doc["ab_seq_block_total"]    = (int)ed.abSeqBlockTotal;
     doc["ab_seq_wait_reason"]    = ed.abSeqWaitReason[0] ? ed.abSeqWaitReason : nullptr;
     doc["fault_description"]     = ed.faultDescription;
+    doc["oil_fault_loop"] = nullptr;
+    if (!strncmp(ed.faultDescription, "OIL_PRESSURE_LOW:", 17) ||
+        !strncmp(ed.faultDescription, "OIL_FEEDBACK_LOST:", 18)) {
+        for (uint8_t i = 0; i < HardwareConfig::oilLoopCount; ++i) {
+            if (HardwareConfig::oilLoops[i].pumpOutputIndex == ed.dryOilPumpIndex) {
+                doc["oil_fault_loop"] = i;
+                break;
+            }
+        }
+    }
     doc["limp_override_sensor"]  =
         ed.limpOverrideSensor != FeedbackRequirements::NONE
             ? FeedbackRequirements::sensorName(ed.limpOverrideSensor) : nullptr;
@@ -2497,6 +2507,30 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["current_amps"] = (float)(int)(ed.registryOutputCurrentAmps[i] * 100) / 100.0f;
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
         }
+    }
+
+    // Use the actual running controller and its own protection. Legacy
+    // map_min/running_min values may be dormant after migration.
+    auto oilConflicts = doc["oil_config_conflicts"].to<JsonArray>();
+    for (uint8_t i = 0; HardwareConfig::hasOilLoop && i < HardwareConfig::oilLoopCount; ++i) {
+        const auto& loop = HardwareConfig::oilLoops[i];
+        if (!loop.enabled || loop.lowPressureResponse == HardwareConfig::OilFaultDisabled ||
+            !loop.lowPressureCentiBar ||
+            loop.pumpOutputIndex >= HardwareConfig::channelRegistry.outputCount ||
+            loop.pressureInputIndex >= HardwareConfig::channelRegistry.inputCount) continue;
+        const auto& pump = HardwareConfig::channelRegistry.outputs[loop.pumpOutputIndex];
+        const auto& pressure = HardwareConfig::channelRegistry.inputs[loop.pressureInputIndex];
+        if (!pump.installed || pump.mirrorOf[0] || strcmp(pump.purpose, "oil_pump") ||
+            !pressure.installed || strcmp(pressure.purpose, "oil_pressure")) continue;
+        const uint16_t minimumTarget = loop.targetSource == 0 ? loop.targetCentiBar :
+            min(loop.targetCentiBar, loop.targetHighCentiBar);
+        if (minimumTarget >= loop.lowPressureCentiBar) continue;
+        auto warning = oilConflicts.add<JsonObject>();
+        warning["loop"] = i;
+        warning["pump"] = pump.name[0] ? pump.name : pump.id;
+        warning["target_bar"] = minimumTarget / 100.0f;
+        warning["limit_bar"] = loop.lowPressureCentiBar / 100.0f;
+        warning["shutdown"] = loop.lowPressureResponse >= HardwareConfig::OilFaultShutdown;
     }
 
     // ── Slow fields — sent on connect + every ~30 s ───────────────────────
