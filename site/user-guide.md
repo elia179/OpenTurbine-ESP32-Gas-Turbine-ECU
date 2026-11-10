@@ -378,7 +378,7 @@ If a throttle potentiometer moves the command backwards, open **Hardware → Thr
 
 Direct digital flame detectors and switches need only the correct active electrical state. ADC-backed flame detectors and switches use one common condition model: active above/below, threshold, and hysteresis. For an ADC switch, capture its inactive and active states on Calibration; OpenTurbine calculates polarity, a midpoint threshold, and a noise-aware deadband. Hysteresis prevents vibration or electrical noise near the threshold from making the state chatter.
 
-Most analog voltage/current transmitters need only the normal two-point calibration. For a nonlinear resistive sender, open **Advanced sensor curve** on its Hardware card and enter 2–6 measured or datasheet points. Raw ADC points must increase; physical values may consistently increase or decrease. The ECU interpolates between points and continues the nearest segment as a straight line outside the saved range. These readings are estimates. Calibration shows the saved input range, and the Dashboard marks a healthy reading beyond it when the sensor is identifiable. Electrical validity checks still apply. Normalized command inputs retain their endpoint limits. NTC inputs normally use their resistance/beta model, but may use this curve when the manufacturer supplies a temperature table. Thermocouple, pulse/frequency, and load-cell inputs retain their dedicated calibration methods.
+Most analog voltage/current transmitters need only the normal two-point calibration. For a nonlinear resistive sender, open **Advanced sensor curve** on its Hardware card and enter 2–6 measured or datasheet points. Raw ADC points must increase; physical values may consistently increase or decrease. The ECU interpolates between points and continues the nearest segment as a straight line outside the saved range. Normalized command inputs retain their endpoint limits. NTC inputs normally use their resistance/beta model, but may use this curve when the manufacturer supplies a temperature table. Thermocouple, pulse/frequency, and load-cell inputs retain their dedicated calibration methods.
 
 1. Open **Calibration** and confirm it shows only fitted hardware.
 2. Start with raw readings and test deliberate signal loss. An unconnected ADC input can float while still appearing healthy; disable unfitted inputs and do not rely on its displayed value as open-wire detection.
@@ -386,6 +386,12 @@ Most analog voltage/current transmitters need only the normal two-point calibrat
 4. Apply a known high reference, capture/enter the high point, and record the physical value.
 5. Test one or more points between them. If the middle is wrong, the sensor may be nonlinear or the electrical type may be incorrect.
 6. Save, reboot, and repeat the check.
+
+<span id="outside-calibrated-range"></span>
+
+**Outside the calibrated range.** Calibration shows the saved ADC signal range for supported cards. A valid signal beyond it is marked **estimated** here and on the Dashboard when the Dashboard can identify the source. For example, oil pressure calibrated up to 3.6 bar can display 5.0 bar. Add a measured point if you need to verify that part of the range.
+
+**Maximum valid signal (mV)** on Hardware is the electrical health boundary. A signal above it is unhealthy. The low-pressure shutdown limit in Controllers sets when protection acts.
 
 Specific checks:
 

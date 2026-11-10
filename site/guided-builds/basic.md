@@ -115,6 +115,8 @@ For this circuit, zero is **{{ e.pressure_zero_mv }} mV** and sensitivity **{{ e
 
 **Check:** zero and at least two reference pressures agree with the gauge, returning to zero afterward. An incorrectly scaled reading is not ready for protection.
 
+If the card shows **estimated**, the signal is outside the saved calibration points. Check the reading against your gauge and add a measured point to cover that pressure. [See how calibration range and electrical limits differ.]({{ '/user-guide/#outside-calibrated-range' | relative_url }})
+
 Review **Minimum/Maximum valid signal** against the sensor and conditioning specifications. This voltage window checks plausibility; it is not the pressure range or a shutdown limit. A disconnected ADC can still look healthy, so test the actual loss-of-signal response.
 
 <h2 id="outputs">4 · Add and test the five outputs</h2>
