@@ -18,6 +18,7 @@ flash_fw.log
 .codex-*.err
 dist/
 tools/setup_tool/OpenTurbineSetupTool.exe
+tools/setup_tool/rsrc_windows_amd64.syso
 
 # Local hardware recovery snapshots created during bench qualification
 .codex-hardware-backups/

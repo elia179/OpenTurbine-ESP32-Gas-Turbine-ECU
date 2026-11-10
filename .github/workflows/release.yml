@@ -123,6 +123,10 @@ jobs:
           $text = Get-Content .\src\system\version.h -Raw
           $text -match '#define\s+OT_VERSION\s+"([^"]+)"' | Out-Null
           if ($manifest.version -ne $Matches[1]) { throw "Package firmware version mismatch" }
+          if ($manifest.source_dirty) {
+            git status --short
+            throw "Release package must identify an unchanged source checkout"
+          }
           $toolSource = Get-Content .\tools\setup_tool\main.go -Raw
           $toolSource -match 'appVersion\s+=\s+"([^"]+)"' | Out-Null
           if ($manifest.setup_tool_version -ne $Matches[1]) { throw "Package/setup-tool version mismatch" }
