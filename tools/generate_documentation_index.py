@@ -43,10 +43,11 @@ for p in sorted(SITE.rglob('*.md')):
     pages[url]={'title':title,'sections':sections}
 output=SITE/'_data/documentation.json'
 expected=json.dumps({'pages':pages,'search':search},ensure_ascii=False,indent=2)+'\n'
+expected_bytes=expected.encode('utf-8')
 if args.check:
-    if not output.is_file() or output.read_text(encoding='utf-8')!=expected:
+    if not output.is_file() or output.read_bytes()!=expected_bytes:
         raise SystemExit('Stale documentation index. Run python tools/generate_documentation_index.py.')
     print(f'Documentation index is current ({len(search)} page/section entries).')
 else:
-    output.write_text(expected,encoding='utf-8')
+    output.write_bytes(expected_bytes)
     print(f'Indexed {len(pages)} documentation pages and {len(search)} page/section entries.')
