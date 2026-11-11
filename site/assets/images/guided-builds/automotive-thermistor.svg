@@ -7,7 +7,7 @@
     <text x="350" y="168" font-size="29" text-anchor="middle">ECU 3.3 V</text>
     <text x="410" y="245" font-size="28">2.2 kΩ fixed resistor</text>
     <text x="646" y="333" font-size="28">ADC input</text>
-    <text x="646" y="369" font-size="23" fill="#b2c2ce">Example: Classic ESP32 GPIO 39</text>
+    <text x="646" y="369" font-size="23" fill="#b2c2ce">GPIO 39 (Classic ESP32)</text>
     <text x="418" y="448" font-size="28">Two-wire NTC sensor</text>
     <text x="350" y="565" font-size="27" text-anchor="middle">ECU sensor ground</text>
   </g>
