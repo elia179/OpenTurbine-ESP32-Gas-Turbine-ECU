@@ -5,7 +5,15 @@
   },
   "automatic-idle-off": {
     "width": 1257,
-    "height": 519
+    "height": 518
+  },
+  "automotive-thermistor-curve": {
+    "width": 1197,
+    "height": 957
+  },
+  "automotive-thermistor-settings": {
+    "width": 1248,
+    "height": 936
   },
   "battery-configured": {
     "width": 1248,
@@ -29,7 +37,7 @@
   },
   "controller-create": {
     "width": 1308,
-    "height": 333
+    "height": 332
   },
   "controller-mapping": {
     "width": 1308,
@@ -137,11 +145,11 @@
   },
   "main-fuel-controller": {
     "width": 1308,
-    "height": 1911
+    "height": 1844
   },
   "manual-tests": {
     "width": 1698,
-    "height": 1284
+    "height": 1100
   },
   "mavlink-monitoring": {
     "width": 1197,
@@ -157,7 +165,7 @@
   },
   "n1-warnings-configured": {
     "width": 1239,
-    "height": 1650
+    "height": 1652
   },
   "n2-configured": {
     "width": 1248,
@@ -165,11 +173,11 @@
   },
   "n2-governor": {
     "width": 1308,
-    "height": 1677
+    "height": 1611
   },
   "n2-protection": {
     "width": 1239,
-    "height": 1263
+    "height": 1265
   },
   "oil-circuit-protection": {
     "width": 1239,
@@ -185,7 +193,7 @@
   },
   "oil-pressure-protection": {
     "width": 1239,
-    "height": 879
+    "height": 534
   },
   "oil-pump-configured": {
     "width": 1248,
@@ -233,11 +241,11 @@
   },
   "sequence-engine-shutdown": {
     "width": 1308,
-    "height": 864
+    "height": 825
   },
   "sequence-engine-startup": {
     "width": 1308,
-    "height": 1529
+    "height": 1373
   },
   "sequence-feedback-wait": {
     "width": 1440,
@@ -257,7 +265,7 @@
   },
   "spi-configured": {
     "width": 1248,
-    "height": 260
+    "height": 258
   },
   "start-configured": {
     "width": 1248,
@@ -277,11 +285,11 @@
   },
   "switch-fault-controller": {
     "width": 1308,
-    "height": 1598
+    "height": 1530
   },
   "temperature-warnings-configured": {
     "width": 1239,
-    "height": 2838
+    "height": 2840
   },
   "throttle-calibration": {
     "width": 1308,
@@ -297,7 +305,7 @@
   },
   "thrust-configured": {
     "width": 1248,
-    "height": 1050
+    "height": 1178
   },
   "tool-settings": {
     "width": 1260,

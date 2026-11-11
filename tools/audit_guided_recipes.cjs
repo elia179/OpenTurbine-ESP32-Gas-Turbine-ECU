@@ -63,7 +63,7 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     const field=(node,label)=>node.locator('.param-field').filter({has:page.locator('.param-label').filter({hasText:new RegExp('^(?:.* — )?'+label+'(?: \\(|$)')})}).first().locator('input,select').first();
     const oil=await add('startup','Build Oil Pressure','UNTIL');await fill(field(oil,'Oil pressure target'),e.oil_target_bar);await fill(field(oil,'Minimum pressure before ignition'),e.oil_min_bar);await fill(field(oil,'Timeout'),e.prime_timeout_ms);
     const crank=await add('startup','Set Starter','UNTIL');await fill(field(crank,'Starter demand'),e.starter_pct);await fill(field(crank,'Pre-ignition N1 target'),e.n1_crank_rpm);await fill(field(crank,'Timeout'),e.crank_timeout_ms);
-    for(const [title,value]of [['Set Igniter','1'],['Set Fuel Shutoff','1'],['Set Main Fuel Metering',e.fuel_idle_pct]]){
+    for(const [title,value]of [['Set Igniter','1'],['Set Main Fuel Metering',e.fuel_idle_pct]]){
       const node=await add('startup',title,'ACTION'),control=field(node,title==='Set Main Fuel Metering'?'Demand':'Command');
       if(title==='Set Main Fuel Metering')await fill(control,value);else await control.selectOption(value);
     }
@@ -72,11 +72,11 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await field(checks,'Require N1').check();await fill(field(checks,'Minimum accepted N1'),e.n1_final_min_rpm);await field(checks,'Require oil pressure').check();await fill(field(checks,'Running Low-Pressure Limit'),e.oil_min_bar);await field(checks,'Require engine temperature').check();await fill(field(checks,'Minimum accepted EGT'),e.tot_lightoff_c);await fill(field(checks,'Stable time required'),e.stable_ms);await fill(field(checks,'Overall timeout'),e.stable_timeout_ms);
     for(const title of ['Set Starter','Set Igniter']){const node=await add('startup',title,'ACTION');if(title==='Set Starter')await fill(field(node,'Demand'),0);else await field(node,'Command').selectOption('0');}
     await add('startup','Final Startup Checks','CHECK');
-    assert.equal(await page.locator('#list-startup > .block-card').count(),10);
+    assert.equal(await page.locator('#list-startup > .block-card').count(),9);
     // Read-only inspection: compare the ordinary UI's edited state with the guide.
     let result=await page.evaluate(()=>({blocks:hwCfg.startup_seq,settings:cfg,actions:hwCfg.startup_enter_actions,errors:validateSequenceHardwareForSave()}));
-    assert.deepEqual(result.errors,[]);assert.equal(result.settings.oil.startup_min_bar,e.oil_min_bar);assert.equal(result.actions[4][0].value,e.fuel_idle_pct/100);assert.equal(result.actions[7][0].value,0);
-    console.log('Build 1 ten-block Startup reproduced through the block picker and visible fields.');
+    assert.deepEqual(result.errors,[]);assert.equal(result.settings.oil.startup_min_bar,e.oil_min_bar);assert.equal(result.actions[3][0].value,e.fuel_idle_pct/100);assert.equal(result.actions[6][0].value,0);
+    console.log('Build 1 nine-block Startup reproduced through the block picker and visible fields.');
     await page.getByRole('button',{name:'Shutdown',exact:true}).click();
     for(const title of ['Immediate Fuel and Ignition Cut','Wait for Rotor to Slow','Cooldown','Wait for Complete Stop'])await add('shutdown',title);
     assert.equal(await page.locator('#list-shutdown > .block-card').count(),4);
@@ -84,8 +84,8 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await clickSaveControls(page,'#save-btn');await sequenceWritten;
     assert.equal(await page.locator('.ot-dialog-overlay.show').count(),0,'explicit starter cut and Final Startup Checks save without a misleading Spool advisory');
     await page.waitForFunction(()=>document.querySelector('#save-status')?.textContent.includes('Saved'));
-    await page.reload();assert.equal(await page.locator('#list-startup > .block-card').count(),10);
-    saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.hardware.shutdown_seq.length,4);assert.equal(saved.hardware.startup_enter_actions[7][0].value,0);
+    await page.reload();assert.equal(await page.locator('#list-startup > .block-card').count(),9);
+    saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.hardware.shutdown_seq.length,4);assert.equal(saved.hardware.startup_enter_actions[6][0].value,0);
     console.log('Both paths saved and reloaded, including explicit starter cut without a misleading Spool advisory.');
     // Build 2/3 field recipes start at their explicit cumulative hardware baseline.
     const second=guidedFixture(initial,2);second.settings.dynamic_idle.fuel_mode=1;second.hardware.controllers.dynamic_idle=false;second.settings.rules[0].output_min=e.fuel_idle_pct/100;

@@ -14,7 +14,7 @@
 <rect x="755" y="145" width="220" height="140" rx="10" fill="#1c2b38" stroke="#566a7c" stroke-width="2"/>
 <text x="865.0" y="177" class="" text-anchor="middle">Driven load</text>
 <text x="775" y="220" class="small" text-anchor="start">Coupling / gearing</text>
-<text x="775" y="253" class="small" text-anchor="start">Defined load envelope</text>
+<text x="775" y="253" class="small" text-anchor="start">Operating limits</text>
 <polyline points="305,205 405,205" class="net heavy" stroke="#ff9276"/>
 <text x="315" y="180" class="small" text-anchor="start">Gas flow</text>
 <polyline points="655,205 755,205" class="net heavy" stroke="#b6c4d2"/>

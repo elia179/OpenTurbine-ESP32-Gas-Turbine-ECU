@@ -55,9 +55,9 @@ current:
   - [Ground, Amplifier GND and load supply −, ECU reference GND at return point, The high-current path does not go through the ECU board.]
   - [Measurement, Amplifier OUT, Current sensor ADC GPIO, Gain 20 times 0.1 Ω gives nominal 2 V/A; calibrate actual zero and sensitivity.]
 switch:
-  - [Signal, Chosen input GPIO, One dry-contact terminal, A dry contact supplies no voltage of its own.]
+  - [Signal, Chosen input GPIO, One switch terminal, Use a switch with no voltage on its terminals.]
   - [Bias, Internal pull-up enabled in Hardware, Chosen input GPIO, Open contact reads high; closed contact reads low. Use an external pull-up on pins without internal bias.]
-  - [Return, Other dry-contact terminal, ECU GND, Configure active-low if closed should mean active.]
+  - [Return, Other switch terminal, ECU GND, Configure active-low if closed should mean active.]
 temperature:
   - [Supply, ECU 3.3 V, DS18B20 VDD, Use externally powered three-wire mode for this example.]
   - [Data, OneWire GPIO, DS18B20 DQ, This is separate from the SPI thermocouple bus.]

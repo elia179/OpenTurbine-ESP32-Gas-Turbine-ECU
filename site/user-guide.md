@@ -161,10 +161,10 @@ Measure the conditioned output before attaching it to the GPIO. ESP32 GPIO uses 
 <span id="52-typical-wiring-by-electrical-type"></span>
 ### 6.2 Typical wiring by electrical type
 
-Click or tap this diagram to enlarge it. These four patterns cover conditioned pressure, pulse speed, a dry-contact switch and a thermocouple converter. They use the same terminal labels and colors as the Guided Builds; replace each generic GPIO label with the pin saved on Hardware.
+Click or tap this diagram to enlarge it. These four patterns cover conditioned pressure, pulse speed, a simple switch and a thermocouple converter. They use the same terminal labels and colors as the Guided Builds; replace each generic GPIO label with the pin saved on Hardware.
 
 <figure>
-  <img class="system-diagram" src="{{ '/assets/images/sensor-switch-wiring.svg' | relative_url }}" width="2000" height="1200" alt="Four wiring patterns showing a conditioned pressure input, Hall pulse input, active-low dry contact and MAX31855 thermocouple converter">
+  <img class="system-diagram" src="{{ '/assets/images/sensor-switch-wiring.svg' | relative_url }}?v={{ site.time | date: '%s' }}" width="2000" height="1200" alt="Four wiring patterns showing a conditioned pressure input, Hall pulse input, active-low switch and MAX31855 thermocouple converter">
   <figcaption>Input patterns: coral is power, grey is ground and green is signal. Confirm every voltage from the actual component datasheet before connecting the ESP32.</figcaption>
 </figure>
 
@@ -402,7 +402,7 @@ Specific checks:
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
 - A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
 - **Main fuel/oil/starter proportional outputs:** test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig.
-- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/basic/#fuel-minimum' | relative_url }}).
+- **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/control/#fuel-minimum' | relative_url }}).
 
 <span id="part-10-configure-controllers-and-system"></span>
 ## Part 11: Configure Controllers and System
@@ -422,7 +422,7 @@ Never copy “typical”, example or preset values into a fueled turbine without
 <span id="102-complete-source-matched-field-reference"></span>
 ### 11.2 Complete source-matched field reference
 
-For an illustrated example, follow [creating a controller]({{ '/guided-builds/control/#custom' | relative_url }}). The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
+For an illustrated example, follow [creating a controller]({{ '/guided-builds/instruments/#second-oil-switch' | relative_url }}). The expandable sections below document every field rendered by Controllers and System. This list is generated from their shared source schema rather than maintained as a second handwritten list. If a field is unavailable, Hardware has not provided its prerequisite.
 
 <div class="field-filter" data-field-filter hidden><label for="field-query">Find a Controllers or System field</label><input id="field-query" type="search" placeholder="Type the field name or a keyword"><p class="quiet" data-field-status role="status" aria-live="polite"></p></div>
 {% include generated-config-fields.html %}
@@ -544,7 +544,7 @@ Switch contacts have fixed **20 ms debounce**. A controller's additional **Condi
 
 {% include build-screen.html file="switch-fault-controller" step="A named switch shutdown" alt="Binary switch condition, fault-shutdown action, separate confirmation time and activation events." caption="Choose the logical switch state. Input polarity belongs in Hardware; the condition confirmation belongs here." %}
 
-Save and reopen the card, then dry-test input movement, output direction and bounds, activation, deactivation to the Hardware safe state, sensor loss, STOP and reboot. The [bench-light walkthrough]({{ '/guided-builds/control/#custom' | relative_url }}) demonstrates a non-engine output. A displayed demand is not proof that a physical actuator responded.
+Save and reopen the card, then dry-test input movement, output direction and bounds, activation, deactivation to the Hardware safe state, sensor loss, STOP and reboot. The [bench-light walkthrough]({{ '/guided-builds/instruments/#light-dimming' | relative_url }}) demonstrates a non-engine output. A displayed demand is not proof that a physical actuator responded.
 
 
 ### Control settings and protection settings

@@ -1,8 +1,8 @@
 ---
 layout: document
 title: Build 3 Add a free power turbine
-description: Extend the same turbojet with a separate N2 shaft, a feedback governor, independent overspeed protection and optional instruments.
-lede: Keep the gas generator you understand. Add the second shaft and its control deliberately.
+description: Configure N2 speed, a governor, and independent overspeed protection for a free power turbine.
+lede: Set up speed measurement, governing, and overspeed protection for a free power turbine.
 permalink: /guided-builds/extend/
 build_level: 3
 ---
@@ -38,11 +38,11 @@ Reuse the [conditioned N1 pulse-input pattern]({{ '/guided-builds/basic/#n1' | r
 
 <h2 id="limits">2 · Give N2 its own protection</h2>
 
-Open **Controllers → Shutdown & Protection → N2 Power Shaft protection**. Set **Maximum N2 Speed = {{ e.n2_trip_rpm }} RPM** for the teaching dataset, then turn **N2 overspeed shutdown ON**. Keep the independent N1 and engine-temperature protections from Build 2.
+Open **Controllers → Shutdown & Protection → N2 Power Shaft protection**. Set **Maximum N2 Speed = {{ e.n2_trip_rpm }} RPM** for the example, then turn **N2 overspeed shutdown ON**. Keep the independent N1 and engine-temperature protections from Build 2.
 
 {% include build-screen.html file="n2-protection" step="Set the separate N2 overspeed protection" alt="N2 safety card showing its retained maximum speed and enabled overspeed shutdown." caption="Use the power shaft's own verified limit. The teaching trip is 24000 RPM; it is independent of N1's limit." %}
 
-If using N2 fuel limiting, its gradual-reduction band must sit below this trip with operating margin around the normal target. Start with the **Simple** method and review its reduction authority. Predictive uses acceleration as well and requires separate validation. Use the enable switch to turn automatic shutdown off while keeping the reference limit.
+If using N2 fuel limiting, its gradual-reduction band must sit below this trip with operating margin around the normal target. Start with the **Simple** method and review how much fuel it can cut. Predictive uses acceleration as well and requires separate validation. Use the enable switch to turn automatic shutdown off while keeping the reference limit.
 
 **Check:** apply suitable test feedback approaching and exceeding the limit. Confirm instrument colour/status, actual commanded fuel cut and the named fault. Repeat with N1 held steady to distinguish the two sources. The governor is ordinary regulation; its existence does not replace independent overspeed protection.
 
@@ -61,11 +61,11 @@ Open the existing **Main Fuel** controller and change its method to **Hold a fee
 | Feedback signal | N2 Power Shaft |
 | How is the target selected? | Fixed value |
 | Target | {{ e.n2_target_rpm }} RPM |
-| Minimum / maximum output | {{ e.fuel_idle_pct }}% / {{ e.fuel_max_pct }}% teaching fuel authority |
+| Minimum / maximum output | {{ e.fuel_idle_pct }}% / {{ e.fuel_max_pct }}% example fuel range |
 | Activate when | Entering Running |
 | Deactivate when | Entering Shutdown and Entering Standby |
 
-{% include build-screen.html file="n2-governor" step="One fuel owner holding N2" alt="Main Fuel N2 Governor uses N2 feedback, a fixed target and explicit fuel authority and activation events." caption="The previous throttle-to-fuel mapping has been replaced. There is one normal fuel owner." %}
+{% include build-screen.html file="n2-governor" step="Configure the N2 governor" alt="Main Fuel N2 Governor uses N2 feedback, a fixed target and fuel limits and activation events." caption="The governor takes over fuel control when the ECU enters Running." %}
 
 Open **Response tuning** and set **Target deadband**, **Immediate response**, **Correction rate** and **Feedback-loss output** for the test setup. Gains are expressed per measured unit: RPM feedback uses a different numerical scale from pressure feedback. Record the units and resulting command change as you tune.
 
@@ -89,12 +89,12 @@ Startup first establishes lubrication, gas-generator speed and combustion. Start
 
 1. In **Sequence → Startup**, review the existing fuel commands and N1 checks against the new load. Keep all evidence waits finite.
 2. Open **Final Startup Checks**. If startup must establish a minimum N2 before Running, select **Require N2**, enter that verified minimum and review the overall timeout. Use a startup minimum distinct from the normal governed target.
-3. With the governor activated on Entering Running, Sequence controls startup fuel until that handover. Check its entry command and authority for an unwanted fuel step.
+3. With the governor activated on Entering Running, Sequence controls startup fuel until that handover. Check its starting command and output limits for an unwanted fuel step.
 4. Review **Shutdown**: governor deactivation releases fuel to its safe demand, the cut block isolates combustion, and the required oil systems continue while shafts slow. Gas-generator N1 reaching zero does not prove the free turbine is stopped.
 
-If a controller must take over before Running, use the **sequencer activation** procedure from [Build 2]({{ '/guided-builds/control/#handover' | relative_url }}). While it owns an output, conflicting discrete sequence commands are ghosted. Place deactivation before a later discrete command that needs that output.
+If a controller must take over before Running, follow the [sequence activation example]({{ '/guided-builds/instruments/#handover' | relative_url }}). While it owns an output, conflicting discrete sequence commands are ghosted. Place deactivation before a later discrete command that needs that output.
 
-| Phase | Fuel authority | Checks to retain |
+| Phase | What controls fuel | Checks to retain |
 | --- | --- | --- |
 | Startup | Explicit sequence commands until chosen activation event | Oil, light-off, acceleration, finite timeout |
 | Running | Main Fuel N2 Governor, bounded by protections | N1, N2, temperature, oil and sensor health |
@@ -115,23 +115,12 @@ Keep hazardous energy isolated for command tests; use suitable test signals. Rec
 
 At this point, you should be able to identify every measurement, controller and protection without following a different recipe for each one. That is the transferable skill: **check the interface → add Hardware → calibrate → define control → test normal and failed behavior → back up**.
 
-{% include build-screen.html file="engine-backup-restore" step="Save the Build 3 milestone" alt="System maintenance backup controls for downloading the complete engine configuration." caption="Keep this free-turbine configuration and its test notes separate from the earlier turbojet backups." %}
+{% include build-screen.html file="engine-backup-restore" step="Save your Build 3 backup" alt="System maintenance backup controls for downloading the complete engine configuration." caption="Keep this free-turbine configuration and its test notes separate from the earlier turbojet backups." %}
 
-<h2 id="instruments">Optional instruments after Build 3</h2>
+<h2 id="instruments">Additional setup examples</h2>
 
-**The core Build 3 path ends at the backup above.** Add only what helps your installation. These are independent [optional workshops]({{ '/guided-builds/instruments/' | relative_url }}), not requirements for finishing this build:
-
-| Addition | What you learn |
-| --- | --- |
-| Oil temperature and cooling fan | Temperature input, hysteresis, activation and fault-safe behavior |
-| Battery voltage / current | Conditioned analogue measurements, zero and sensitivity |
-| Cover-status switch | Digital polarity and the difference between status and an actual interlock |
-| Shaft torque | Two pickups on the **same** torque-carrying shaft, running zero and calibrated twist |
-| Thrust | I²C discovery, load-cell zero, known reference and force units |
-
-For torque and shaft-power measurement, use pickups on the same torque-carrying shaft and calibrate that instrument as described in its workshop.
+Build 3 is complete once you save the backup. Use the [setup examples]({{ '/guided-builds/instruments/' | relative_url }}) whenever you want to add a device such as a temperature sensor, cooling fan or load cell.
 
 <span id="voltage"></span><span id="current"></span><span id="fan"></span><span id="switch"></span><span id="challenge"></span><span id="thrust"></span><span id="finish"></span>
-Looking for an earlier instrument section? Its full instructions are now in [Optional instruments and bench workshops]({{ '/guided-builds/instruments/' | relative_url }}).
 
-<p class="document-nav"><a href="{{ '/guided-builds/control/' | relative_url }}">← Build 2</a><a href="{{ '/guided-builds/instruments/' | relative_url }}">Optional workshops</a><a href="{{ '/user-guide/' | relative_url }}">Detailed reference</a></p>
+<p class="document-nav"><a href="{{ '/guided-builds/control/' | relative_url }}">← Build 2</a><a href="{{ '/guided-builds/instruments/' | relative_url }}">Setup examples</a><a href="{{ '/user-guide/' | relative_url }}">Detailed reference</a></p>

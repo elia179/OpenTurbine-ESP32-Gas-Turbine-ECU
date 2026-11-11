@@ -1,7 +1,7 @@
 ---
 layout: document
 title: Guided-build parts, connections and engine worksheet
-description: Prepare one cumulative development-board installation, with separate Classic and S3 pin plans and a worksheet separating measured engine data from teaching assumptions.
+description: Prepare a Classic ESP32 development board, check the pin assignments, and record the values for your engine.
 lede: Identify your parts and record their actual interfaces before following the three builds.
 permalink: /guided-builds/parts/
 ---
@@ -16,8 +16,8 @@ Choose components by their documented electrical interface. A bare chip, a break
 
 | Part / interface | Establish before connection |
 | --- | --- |
-| Supported Classic ESP32 ≥4 MB or ESP32-S3 ≥8 MB, USB data cable | Exact module, exposed pins, supply and correct firmware target |
-| Physical Start and Stop momentary dry contacts | Separate GPIOs, active-low wiring and appropriate bias |
+| Classic ESP32-WROOM-32 development board with at least 4 MB flash, USB data cable | Exact module, exposed pins, supply and correct firmware target |
+| Separate momentary Start and Stop buttons | One GPIO per button, with active-low wiring and pull-up enabled |
 | Conditioned N1 pickup | Clean 3.3 V-compatible pulses, actual PPR, speed bandwidth and mounting |
 | K-type probe and matching MAX31855 module | Probe location, polarity, compatible supply/logic and SPI terminals |
 | 10 kΩ linear throttle potentiometer | Ends at 3.3 V/GND, identified wiper and ADC1 input |
@@ -25,7 +25,6 @@ Choose components by their documented electrical interface. A bare chip, a break
 | Electric starter and compatible ESC/driver | Pulse interface, endpoints, arming, safe disengagement and stall/current requirements |
 | Fuel pump, oil pump and separate rated PWM drivers | Supply, command frequency, reliable minimum, polarity and physical off behavior |
 | Spark ignition system and command driver | Rated isolation, suppression and correct command polarity |
-| Fuel shutoff and driver | Plumbing suitability, command direction and physical de-energized state |
 | Fused supplies, physical energy-removing stop, meter and test loads | Separate power paths and deliberate signal references; suitable load protection |
 
 ### Add these only when you reach a later build
@@ -33,36 +32,32 @@ Choose components by their documented electrical interface. A bare chip, a break
 | Build | Additional part / interface | Establish before connection |
 | --- | --- | --- |
 | 2 | Combustor-pressure transducer and conditioner | Separate sensor/tap; pressure and temperature rating; named gauge/absolute reference |
-| 2 optional | Second-circuit dry pressure switch | Meaning of ON, safe wiring and desired monitoring phases |
 | 3 | Free turbine, suitable load and conditioned N2 pickup | Independent mechanical ratings, lubrication, PPR and any gear ratio |
 
 For initial output checks, use suitable low-power dummy loads or observe the command signal without starter/fuel/ignition energy. For an open-drain pulse-input bench exercise, a [DRV5033](https://www.ti.com/lit/ds/symlink/drv5033.pdf), 100 nF bypass and suitable pull-up illustrate the circuit; they do not qualify a rotor target or high-speed installation. See [MAX31855 documentation](https://www.analog.com/en/products/max31855.html) for the thermocouple interface. A generic board pin labelled 5 V is not a suitable substitute for 3.3 V signal wiring.
 
-<h2 id="pin-plan">One pin plan, two board columns</h2>
+<h2 id="pin-plan">Classic ESP32 pin assignments</h2>
 
-Main recipes use signal names. Pick **one column** and keep it throughout. These plans apply only to development boards exposing the listed pins: a **Classic ESP32-WROOM-32 without PSRAM**, or **ESP32-S3-WROOM-1 with 8 MB flash and no PSRAM**. Other modules can reserve pins internally. Check the exact board schematic and Hardware validation before copying assignments. GPIO numbers are not physical header positions.
+The guides and screenshots use a **Classic ESP32-WROOM-32 development board without PSRAM**. Verify that your board exposes the listed pins. GPIO numbers refer to the labels on the board. Other boards need their own pin assignments.
 
-| First used | Signal / displayed name | Classic GPIO | S3 GPIO |
-| --- | --- | --- | --- |
-| Start / Stop | 13 / 14 | 9 / 10 |
-| N1 Speed | 27 | 6 |
-| SPI SCK / MISO | 18 / 19 | 12 / 13 |
-| Main TOT chip select | 23 | 14 |
+| Signal / displayed name | Classic GPIO |
+| --- | --- |
+| Start / Stop | 13 / 14 |
+| N1 Speed | 27 |
+| SPI SCK / MISO | 18 / 19 |
+| Main TOT chip select | 23 |
 | Throttle Input, ADC1 | 34 |
-| Oil Pressure, ADC1 | 35 | 2 |
-| Starter ESC command | 32 | 15 |
-| Main Fuel Metering PWM | 25 | 16 |
-| Igniter command | 33 | 17 |
-| Oil Pump PWM | 26 | 21 |
-| Fuel Shutoff command | 21 | 18 |
-| 2 | Combustor Pressure, ADC1 | 36 | 3 |
-| 2 optional | Oil circuit 2 switch | 4 | 35 |
-| 3 | N2 Power Shaft | 22 | 40 |
+| Oil Pressure, ADC1 | 35 |
+| Starter ESC command | 32 |
+| Main Fuel Metering PWM | 25 |
+| Igniter command | 33 |
+| Oil Pump PWM | 26 |
+| Combustor Pressure, ADC1 (Build 2) | 36 |
+| N2 Power Shaft (Build 3) | 22 |
 
 The Classic analogue inputs are ADC1 for Wi-Fi compatibility. GPIO34–39 are input-only and have no internal pull-up/down; the Start/Stop and optional switch use other pins. A named PCB profile uses its own labelled ports rather than these raw GPIO numbers. See [target restrictions]({{ '/hardware/#adc-restrictions' | relative_url }}) and your board documentation.
 
 <span id="an-optional-cumulative-pin-plan"></span>
-Screenshots use the S3 column. The electrical function and configuration order are the same on Classic; substitute its column when assigning pins.
 
 <h2 id="engine-worksheet">The shared engine worksheet</h2>
 
@@ -78,7 +73,7 @@ Use this as a record, not an installation preset. **Operating anchors** come fro
 | Nominal oil target | {{ e.oil_target_bar }} bar | Midpoint example; validate supply, flow and bearing requirements |
 | N1 idle / maximum trip | {{ e.n1_idle_rpm }} / {{ e.n1_trip_rpm }} RPM | Assumed teaching values; establish actual stable idle and permissible limit independently |
 | Normal TOT / running trip | {{ e.tot_normal_c }} / {{ e.tot_trip_c }} °C | Assumed; identify exact probe location and actual engine limits |
-| Separate startup trip / sustained threshold | {{ e.tot_start_trip_c }} °C / {{ e.tot_start_dwell_c }} °C for {{ e.tot_start_dwell_ms }} ms | Assumed transient envelope; justify before using |
+| Separate startup trip / sustained threshold | {{ e.tot_start_trip_c }} °C / {{ e.tot_start_dwell_c }} °C for {{ e.tot_start_dwell_ms }} ms | Example only. Use your engine's startup temperature limits. |
 | Pre-start maximum / light-off confirmation | {{ e.tot_prestart_c }} / {{ e.tot_lightoff_c }} °C | Assumed; different jobs, not interchangeable |
 | Reliable fuel minimum / idle / full command | {{ e.fuel_min_pct }} / {{ e.fuel_idle_pct }} / {{ e.fuel_max_pct }}% | Assumed pump results, not transferable flow or power percentages |
 | Pre-ignition N1 / starter demand | {{ e.n1_crank_rpm }} RPM / {{ e.starter_pct }}% | Assumed; verify actual airflow, starter and coupling |
@@ -103,21 +98,18 @@ For a documented 0.5–4.5 V, 0–10 bar gauge transducer, the 15 kΩ upper / 10
 
 ADC zero is {{ e.pressure_zero_mv }} mV and sensitivity {{ e.pressure_mv_per_bar }} mV/bar. The sensor's 10 bar span, the oil controller's 4.5 bar target and a low-pressure fault limit are three different settings. Measure and calibrate the actual circuit. A resistor divider alone does not provide installation-level fault or transient protection.
 
-<h2 id="optional-instruments">Optional workshop connections</h2>
+<h2 id="optional-instruments">Example device connections</h2>
 
-The [optional workshops]({{ '/guided-builds/instruments/' | relative_url }}) use this additional **S3-only** pin plan, reserved alongside the S3 core column above. They do not imply that every accessory fits on a Classic board simultaneously. On Classic, allocate and validate the spare pins or supported expansion interface needed for your chosen accessory.
+The [setup examples]({{ '/guided-builds/instruments/' | relative_url }}) use spare Classic ESP32 pins. Try each example independently. If two devices need the same pin, move one to another compatible free pin or use a supported expansion interface.
 
-| Accessory | Example S3 connection / part |
+| Device | Example Classic ESP32 connection |
 | --- | --- |
-| Brightness knob / bench light | ADC GPIO8 / PWM GPIO38; separate low-power learning circuit |
-| Battery voltage | ADC GPIO4; protected/conditioned input; bounded bench divider lesson uses 68 kΩ / 12 kΩ and 100 nF |
-| Oil-pump current | ADC GPIO5; bounded INA180A1/0.1 Ω shunt exercise, not a high-power pump shunt design |
-| Oil temperature | GPIO7, DS18B20 three-wire, external 4.7 kΩ pull-up |
-| Cooling fan | Output GPIO39 to a suitable driver |
-| Cover-status switch | GPIO35 if not used by the optional oil-circuit switch; choose one or reserve another valid pin |
-| Torque reference / phase | GPIO41 / 42; matching conditioned pickups on one shaft |
-| Shared I²C SDA / SCL | GPIO11 / 47; NAU7802 bridge amplifier for thrust |
+| Battery voltage, current sensing, thermistor, or brightness knob | ADC1 GPIO39, one input at a time |
+| DS18B20 temperature sensor, cover switch, or second oil-pressure switch | GPIO4, one input at a time. The DS18B20 uses an external 4.7 kΩ pull-up. |
+| Cooling fan, fuel shutoff solenoid, or bench light | GPIO21, one driver command at a time |
+| Shaft torque pickups | GPIO16 reference and GPIO17 phase |
+| NAU7802 thrust sensor | I²C SDA GPIO16 and SCL GPIO17. Use different pins if the torque pickups use this pair. |
 
-Check [DS18B20 documentation](https://www.analog.com/en/products/ds18b20.html) and [INA180 documentation](https://www.ti.com/lit/ds/symlink/ina180.pdf) for the actual parts. Repeat the pin-conflict check whenever adding a workshop. An input can feed several software relationships, but the physical pin should only be assigned once.
+Check [DS18B20 documentation](https://www.analog.com/en/products/ds18b20.html) and [INA180 documentation](https://www.ti.com/lit/ds/symlink/ina180.pdf) for the actual parts. Repeat the pin-conflict check whenever adding a device. An input can feed several software relationships, but the physical pin should only be assigned once.
 
 <p class="document-nav"><a href="{{ '/guided-builds/basic/' | relative_url }}">Begin Build 1 →</a><a href="{{ '/hardware/' | relative_url }}">Electrical reference</a></p>

@@ -76,15 +76,17 @@ def main():
     d.text(705,395,'Device power +');d.wire([(600,405),(685,405)],POWER)
     d.wire([(600,468),(650,468),(650,268)],GROUND);d.dot(650,268,GROUND)
     d.text(30,519,'For an ESC, motor power and any BEC connection follow that controller’s documentation.','small');d.save('servo')
-    d=Drawing('Dry-contact input with internal pull-up','Enable Pull-up and active-low in Hardware. Closed contact connects GPIO to GND.')
-    d.box(35,115,280,350,'ESP32 ECU'); d.box(685,115,280,350,'Dry contact')
+    d=Drawing('Switch input with internal pull-up','Enable Pull-up and active-low in Hardware. Closing the switch connects GPIO to GND.')
+    d.box(35,115,280,350,'ESP32 ECU'); d.box(685,115,280,350,'Switch or pushbutton')
     d.text(130,190,'3.3 V','','middle'); d.wire([(130,200),(130,225)],POWER)
     d.resistor(130,225,'Internal'); d.wire([(130,267),(130,305),(315,305)])
     d.text(55,355,'Pull-up enabled','small'); d.text(295,294,'GPIO','','end')
-    d.text(705,294,'Contact A'); d.wire([(315,305),(685,305)])
-    d.dot(130,305); d.text(295,389,'GND','','end'); d.text(705,389,'Contact B')
-    d.wire([(315,400),(685,400)],GROUND)
-    d.text(350,480,'Pins without internal bias need an external pull-up.','small'); d.save('switch')
+    d.text(705,294,'Terminal A'); d.wire([(315,305),(890,305),(890,331)])
+    d.dot(130,305); d.text(295,389,'GND','','end'); d.text(705,389,'Terminal B')
+    d.wire([(315,400),(890,400),(890,376)],GROUND)
+    d.wire([(890,376),(865,342)],GROUND)
+    d.dot(890,331,SIGNAL); d.dot(890,376,GROUND)
+    d.text(350,480,'Use an external pull-up if the GPIO has no internal pull-up.','small'); d.save('switch')
     d=Drawing('DS18B20 temperature input','Use externally powered three-wire mode with an external 4.7 kΩ data pull-up.')
     d.box(35,115,280,350,'ESP32 ECU'); d.box(685,115,280,350,'DS18B20')
     for y,left,right,color in [(190,'3.3 V','VDD',POWER),(310,'OneWire GPIO','DQ / data',SIGNAL),(410,'GND','GND',GROUND)]:
@@ -235,15 +237,16 @@ def main():
         svg=svg.replace('viewBox="0 0 1000 600"',f'x="{x}" y="{y}" width="1000" height="600" viewBox="0 0 1000 600"')
         svg=svg.replace('id="title"',f'id="title-{n}"').replace('id="desc"',f'id="desc-{n}"').replace('aria-labelledby="title desc"',f'aria-labelledby="title-{n} desc-{n}"')
         panels.append(svg)
-    (OUT.parent/'sensor-switch-wiring.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1200" role="img" aria-label="Conditioned pressure, Hall speed, dry contact and thermocouple wiring patterns">'+''.join(panels)+'</svg>\n', encoding='utf-8')
+    (OUT.parent/'sensor-switch-wiring.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1200" role="img" aria-label="Conditioned pressure, Hall speed, switch and thermocouple wiring patterns">'+''.join(panels)+'</svg>\n', encoding='utf-8')
 
     for level in (1,2):
-        d=Drawing(f'Build {level}: the same basic turbojet','Signal map — oil delivery and shutoff are present from Build 1. Orange marks the new input.')
+        title, description = ('Build 1: basic turbojet', 'ECU inputs and outputs for the basic bench setup.') if level == 1 else ('Build 2: control and protection', 'Combustor pressure is the additional input, shown in orange.')
+        d=Drawing(title, description)
         d.box(360,115,280,370,'OpenTurbine ECU')
         d.text(500,260,'Hardware', '', 'middle');d.text(500,308,'Controllers + protection','','middle');d.text(500,356,'Sequence + calibration','','middle')
-        d.text(500,415,'Physical Start / Stop','','middle')
+        d.text(500,415,'Start and Stop buttons','','middle')
         inputs=[('N1 speed',1),('Main TOT',1),('Throttle input',1),('Oil pressure',1),('Combustor pressure',2)]
-        outputs=[('Starter ESC command',1),('Spark ignition command',1),('Fuel pump PWM',1),('Oil pump PWM',1),('Fuel shutoff command',1)]
+        outputs=[('Starter ESC command',1),('Spark ignition command',1),('Fuel pump PWM',1),('Oil pump PWM',1)]
         for column,items in ((0,inputs),(1,outputs)):
             for i,(label,added) in enumerate(items):
                 if added>level:continue
@@ -262,7 +265,7 @@ def main():
     d.text(425,253,'Check its own oil supply','small')
     d.box(755,145,220,140,'Driven load')
     d.text(775,220,'Coupling / gearing','small')
-    d.text(775,253,'Defined load envelope','small')
+    d.text(775,253,'Operating limits','small')
     d.wire([(305,205),(405,205)],POWER,True)
     d.text(315,180,'Gas flow','small')
     d.wire([(655,205),(755,205)],GROUND,True)

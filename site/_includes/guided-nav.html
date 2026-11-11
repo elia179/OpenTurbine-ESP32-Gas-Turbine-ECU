@@ -4,6 +4,6 @@
   <a href="{{ '/guided-builds/basic/' | relative_url }}"{% if page.build_level == 1 %} aria-current="page"{% endif %}>1 · Basic turbojet</a>
   <a href="{{ '/guided-builds/control/' | relative_url }}"{% if page.build_level == 2 %} aria-current="page"{% endif %}>2 · Control</a>
   <a href="{{ '/guided-builds/extend/' | relative_url }}"{% if page.build_level == 3 %} aria-current="page"{% endif %}>3 · Free turbine</a>
-  <a href="{{ '/guided-builds/instruments/' | relative_url }}"{% if page.url == '/guided-builds/instruments/' %} aria-current="page"{% endif %}>Workshops</a>
+  <a href="{{ '/guided-builds/instruments/' | relative_url }}"{% if page.url == '/guided-builds/instruments/' %} aria-current="page"{% endif %}>Setup examples</a>
 </nav>
-{% if page.build_level %}<p class="build-screen-note">Select images to enlarge. Screenshots use S3; follow <a href="{{ '/guided-builds/parts/#pin-plan' | relative_url }}">your board's pin column</a>. Diagrams show connections, not physical pin order.</p>{% endif %}
+{% if page.build_level %}<p class="build-screen-note">Select images to enlarge. Screenshots use Classic ESP32; see <a href="{{ '/guided-builds/parts/#pin-plan' | relative_url }}">the pin assignments</a>. Diagrams show connections, not physical pin order.</p>{% endif %}

@@ -76,7 +76,7 @@ input protection and load-driving capability still need to suit the installation
 | **MAX6675** | K-type thermocouple for TOT, TIT or oil temperature | Shared SPI clock/data with one unique CS per module. Read-only interface; no MOSI required. |
 | **MAX31855** | K-type thermocouple for TOT, TIT or oil temperature | Shared SPI clock/data with one unique CS per module. Read-only interface; no MOSI required. |
 | **MAX31856** | K, J, N, T, E, R, S or B thermocouple for TOT, TIT or oil temperature | Shared SPI plus MOSI so the ECU can configure and verify the converter; one unique CS per module. |
-| **NTC thermistor** | Oil, coolant, intake or ambient temperature | Native ADC divider with beta/resistance model or calibrated nonlinear curve. Not offered for turbine-gas temperature. |
+| **NTC thermistor** | Oil, coolant, intake or ambient temperature | Native ADC divider with beta/resistance model or calibrated nonlinear curve. The ECU offers this interface for low-temperature channels. See the [wiring and calibration example]({{ '/guided-builds/instruments/#automotive-thermistor' | relative_url }}). |
 | **DS18B20** | Oil, coolant, intake or ambient temperature | Dedicated OneWire GPIO, external 4.7 kΩ pull-up to 3.3 V, selectable 9–12-bit resolution. Not offered for turbine-gas temperature. |
 | **TCA9554** | Eight I²C on/off inputs or low-current logic outputs per chip | Addresses `0x20–0x27`; optional shared open-drain interrupt for inputs. Use external rated drivers for real loads. A disconnected expander cannot be forced to change its retained output latch. |
 | **TLA2528** | Eight I²C analog inputs or analog-threshold switches per chip | Addresses `0x10–0x17`; configurable reference/supply scaling, valid-voltage window, engineering range and filtering. |
@@ -101,7 +101,7 @@ Choose the electrical pattern first, then assign the actual board pin. Each link
 | Analog pressure | [Conditioning and calibration]({{ '/guided-builds/control/#pressure' | relative_url }}) |
 | Operator demand | [Potentiometer input]({{ '/guided-builds/basic/#throttle' | relative_url }}) |
 | Actuator command | [Servo / ESC]({{ '/guided-builds/basic/#starter' | relative_url }}) · [PWM driver]({{ '/guided-builds/basic/#fuel' | relative_url }}) · [Relay module]({{ '/guided-builds/basic/#ignition' | relative_url }}) |
-| Auxiliary sensing | [DS18B20]({{ '/guided-builds/extend/#fan' | relative_url }}) · [Dry contact]({{ '/guided-builds/extend/#switch' | relative_url }}) · [Voltage]({{ '/guided-builds/extend/#voltage' | relative_url }}) · [Current]({{ '/guided-builds/extend/#current' | relative_url }}) |
+| Auxiliary sensing | [DS18B20]({{ '/guided-builds/instruments/#fan' | relative_url }}) · [Switch input]({{ '/guided-builds/instruments/#switch' | relative_url }}) · [Voltage]({{ '/guided-builds/instruments/#voltage' | relative_url }}) · [Current]({{ '/guided-builds/instruments/#current' | relative_url }}) |
 
 ## Power supply
 

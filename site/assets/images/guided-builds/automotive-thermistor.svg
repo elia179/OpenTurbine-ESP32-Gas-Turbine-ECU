@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600" role="img" aria-labelledby="title">
+  <title id="title">Two-wire NTC thermistor voltage divider</title>
+  <rect width="1000" height="600" rx="22" fill="#111922"/>
+  <g fill="#edf4f9" font-family="system-ui, sans-serif">
+    <text x="45" y="65" font-size="38" font-weight="700">Automotive NTC thermistor</text>
+    <text x="45" y="109" font-size="25" fill="#b2c2ce">Connect the junction of the two resistors to the ADC input.</text>
+    <text x="350" y="168" font-size="29" text-anchor="middle">ECU 3.3 V</text>
+    <text x="410" y="245" font-size="28">2.2 kΩ fixed resistor</text>
+    <text x="646" y="333" font-size="28">ADC input</text>
+    <text x="646" y="369" font-size="23" fill="#b2c2ce">Example: Classic ESP32 GPIO 39</text>
+    <text x="418" y="448" font-size="28">Two-wire NTC sensor</text>
+    <text x="350" y="565" font-size="27" text-anchor="middle">ECU sensor ground</text>
+  </g>
+  <g fill="none" stroke="#72e0d1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M350 183v28m0 68v118m0 67v41m0-180h268"/>
+    <rect x="331" y="211" width="38" height="68"/>
+    <rect x="331" y="397" width="38" height="67"/>
+    <path d="M318 453v-15l67-26M328 505h44m-36 10h28m-20 10h12"/>
+    <circle cx="618" cy="325" r="6"/>
+  </g>
+  <circle cx="350" cy="325" r="8" fill="#72e0d1"/>
+</svg>

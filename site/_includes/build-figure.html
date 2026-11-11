@@ -1,5 +1,5 @@
 <figure class="build-figure">
-  <div class="build-diagram-viewport" role="region" aria-label="Wiring diagram" tabindex="0"><img src="{{ '/assets/images/guided-builds/' | append: include.file | append: '.svg' | relative_url }}" width="1000" height="600" loading="lazy" alt="{{ include.alt | escape }}"></div>
+  <div class="build-diagram-viewport" role="region" aria-label="Wiring diagram" tabindex="0"><img src="{{ '/assets/images/guided-builds/' | append: include.file | append: '.svg' | relative_url }}?v={{ site.time | date: '%s' }}" width="1000" height="600" loading="lazy" alt="{{ include.alt | escape }}"></div>
   <figcaption>{{ include.caption }}{% unless page.build_level %} Terminal labels describe connections, not physical pin order.{% endunless %}</figcaption>
 </figure>
 {% assign wire_rows = site.data.build_wiring[include.file] %}

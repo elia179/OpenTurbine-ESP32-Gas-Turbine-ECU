@@ -182,6 +182,7 @@ const finder = document.querySelector('[data-doc-search]');
 if (finder) {
   finder.hidden = false;
   const input = finder.querySelector('input');
+  input.value = new URLSearchParams(location.search).get('q') || '';
   const list = finder.querySelector('[data-search-results]');
   const status = finder.querySelector('[data-search-status]');
   let records = [];

@@ -9,3 +9,10 @@
     </nav>
   </div>
 </header>
+{% unless page.url == '/reference/' %}
+<form class="shell site-search" role="search" aria-label="Documentation" action="{{ '/reference/' | relative_url }}" method="get">
+  <label class="sr-only" for="site-search-query">Search documentation</label>
+  <input id="site-search-query" name="q" type="search" placeholder="Search documentation" required>
+  <button class="button secondary" type="submit">Search</button>
+</form>
+{% endunless %}

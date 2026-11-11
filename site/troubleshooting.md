@@ -47,7 +47,7 @@ Join the board Wi-Fi and browse directly to `http://192.168.4.1`. Keep only one 
 
 ## A fitted output is missing from Create controller
 
-Check that the output was saved in Hardware, has the intended electrical driver and is not already claimed by a controller or dedicated subsystem. A display-name change does not change its stable ID or release ownership. Review the existing owner before deleting or disabling anything. See the [controller creation screenshots]({{ '/guided-builds/control/#custom' | relative_url }}).
+Check that the output was saved in Hardware, has the intended electrical driver and is not already claimed by a controller or dedicated subsystem. A display-name change does not change its stable ID or release ownership. Review the existing owner before deleting or disabling anything. See the [controller creation screenshots]({{ '/guided-builds/instruments/#second-oil-switch' | relative_url }}).
 
 ## A setting is unavailable or a save is blocked
 
