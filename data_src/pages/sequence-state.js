@@ -67,6 +67,7 @@ function seqRound(value) {
 }
 
 function seqDisplayValue(p, value) {
+  if (p.optional && value == null) return '';
   if (p.zeroOff && Number(value) === 0) return '0';
   if (p.unitType === 'temp') return seqRound(toDispTemp(Number(value ?? 0)));
   if (p.unitType === 'duration_ms_as_s') return seqRound(Number(value ?? 0) / 1000);
@@ -74,6 +75,7 @@ function seqDisplayValue(p, value) {
 }
 
 function seqStoredValue(p, rawVal) {
+  if (p.optional && rawVal === '') return null;
   const parsed = p.type === 'float' ? parseFloat(rawVal) : parseInt(rawVal);
   if (!Number.isFinite(parsed)) return undefined;
   if (p.zeroOff && parsed === 0) return 0;
@@ -89,6 +91,7 @@ function seqDisplayAttr(p, value) {
 }
 
 function seqDisplayStep(p) {
+  if (p.step === 'any') return 'any';
   if (p.unitType === 'duration_ms_as_s') return seqRound(Number(p.step || 100) / 1000);
   if (p.unitType === 'temp') {
     return seqRound(tempUnit() === 'F' ? Number(p.step || 1) * 9 / 5 : Number(p.step || 1));
@@ -195,7 +198,8 @@ function revealSequenceDeepLink() {
   }
   if (id === 'oil-running-min') {
     switchTab('startup');
-    const link = document.querySelector('#tab-startup [data-shared-oil-limit]');
+    const link = Array.from(document.querySelectorAll('#tab-startup [data-shared-oil-limit]'))
+      .find(anchor => !anchor.closest('[hidden]'));
     if (link) {
       link.closest('.block-params')?.classList.add('open');
       link.classList.add('deep-link-target');
@@ -392,6 +396,7 @@ async function loadAll() {
     migrateLegacyDeviceTargets();
     buildParamVals();
     await refreshSequenceLiveData();
+    renderStartupOilProtection();
     render('startup', lastIdleRaw);
     render('shutdown', lastIdleRaw);
     render('afterburner', lastIdleRaw);
@@ -465,8 +470,6 @@ function setConfigVal(key, val) {
         if (!control || control === document.activeElement) return;
         if (param.type === 'bool') {
           control.checked = !!val;
-          const label = field.querySelector('label');
-          if (label) label.textContent = val ? 'Yes' : 'No';
         } else {
           control.value = String(param.type === 'select' ? val : seqDisplayValue(param, val));
         }
@@ -561,6 +564,31 @@ function _openBlockKeys(tab) {
     .map(card => `${card.dataset.block}:${card.dataset.idx}`));
 }
 
+function renderStartupOilProtection() {
+  const notice = document.getElementById('startup-oil-protection');
+  const limit = Number(cfg?.oil?.running_min ?? 2.8);
+  const monitorsStartup = hwCfg.safety?.low_oil && (Number(cfg?.safety?.oil_pressure_modes ?? 4) & 2);
+  const analog = !hwCfg.controllers?.oil_loop && sensorEnabled('oil_press') && limit > 0;
+  const isOilSwitch = role => role === 'low_oil_switch' || role === 'oil_zero_switch';
+  const switchFitted = (hwCfg.channel_registry?.inputs || []).some(input =>
+    registryChannelInstalled(input) && isOilSwitch((input.purpose && input.purpose !== 'generic') ? input.purpose : input.role)) ||
+    (hwCfg.di_channels || []).some(input => Number(input.pin ?? -1) >= 0 && isOilSwitch(input.role));
+  notice.hidden = !monitorsStartup || (!analog && !switchFitted);
+  notice.replaceChildren();
+  if (notice.hidden) return;
+  const link = document.createElement('a');
+  link.className = 'seq-val-warn';
+  link.href = '/controllers.html#protection-low_oil';
+  const conditions = [];
+  if (analog) conditions.push(`Pressure below ${seqRound(limit)} bar`);
+  if (switchFitted) conditions.push(analog ? 'oil-pressure switch active' : 'Oil-pressure switch active');
+  const confirmMs = Number(cfg?.safety?.low_oil_confirm_ms ?? 500);
+  const condition = conditions.join(' or ');
+  link.textContent = `Startup oil-pressure shutdown · ${condition}` +
+    (confirmMs > 0 ? ` for ${seqRound(confirmMs / 1000)} s` : '');
+  notice.append(link);
+}
+
 function render(tab, idleRaw, openKeys = new Set()) {
   const key = seqKey(tab);
   const seq  = hwCfg[key] || [];
@@ -576,6 +604,7 @@ function render(tab, idleRaw, openKeys = new Set()) {
     if (openKeys.has(`${bname}:${idx}`)) card.querySelector('.block-params')?.classList.add('open');
     list.appendChild(card);
   });
+  refreshStarterRampPreviews(tab);
   const ownership=window.OTControllerTiming?.plan(cfg.rules,hwCfg,tab)||[];
   for(const issue of ownership){
     if(issue.index<0)continue;

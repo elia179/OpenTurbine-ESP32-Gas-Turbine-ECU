@@ -2093,6 +2093,18 @@ select option.pin-inonly { color: #5ba3e0; }
 .param-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.55rem; }
 .param-field { display: flex; flex-direction: column; gap: 0.2rem; }
 .param-label { font-size: 0.61rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-ui); }
+.seq-param-check {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  padding: .3rem 0;
+  cursor: pointer;
+}
+.seq-param-check input { flex: 0 0 auto; margin: .02rem 0 0; }
+.seq-param-check .param-label { line-height: 1.4; }
+.seq-param-check-help { margin-left: 1.4rem; font-size: .65rem; color: var(--dim); line-height: 1.35; }
+.seq-final-check-grid .param-input { margin-top: auto; }
+.seq-final-oil-reference { margin-top: .9rem; }
 .param-unit  { font-size: 0.61rem; color: var(--dim); font-family: var(--font-ui); }
 .param-input {
   font-family: var(--font-mono); font-size: 0.84rem;

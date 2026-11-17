@@ -867,13 +867,14 @@ function installedBrowser() {
     results.push('flame calibration makes igniter-off capture explicit and oil datasheet calibration creates a saveable curve');
 
     assert.deepEqual(await page.locator('#p1-zero-reference option').allTextContents(), [
-      'Gauge (ambient = 0 bar)',
-      'Absolute (ambient ≈ 1.013 bar)'
+      'Gauge (ambient = 0 PSI)',
+      'Absolute (ambient ≈ 14.696 PSI)'
     ]);
     await page.evaluate(() => {
       window.applyData({ has_p1:true, p1_raw:1241, p1:1.01325 });
       document.getElementById('p1-zero-reference').value = '1.01325';
-      _p12State.p1 = { mode:'physical', zeroRaw:620, refRaw:3102, refBar:5 };
+      document.getElementById('p1-ref-bar').value = toDispPress(5);
+      _p12State.p1 = { mode:'physical', zeroRaw:620, ambientBar:1.01325, refRaw:3102, refBar:5 };
       _fluidCaptureBoot.p1 = calibrationFrameBoot;
       p12Save('p1');
     });
@@ -1192,6 +1193,78 @@ function installedBrowser() {
     });
     assert.ok((await page.content()).includes('OTWaitForPageTelemetryIdle(2500)'));
     results.push('each proportional Set Starter command stores its own speed-change time and zero keeps instant behavior');
+    const starterRampPreview = await page.evaluate(() => {
+      const snapshot = JSON.parse(JSON.stringify(hwCfg));
+      const tab = 'startup';
+      const starter = getEnabledActuators().find(action => action.key === 'starter' && action.mode === 'pct');
+      const enterKey = actionKey(tab, 'enter');
+      const delayKey = delaySeqKey(tab);
+      const setRamp = value => [{act:starter.actuator, target:starter.target, value, transition_ms:5000}];
+      const preview = index => {
+        const card = document.querySelector(`#list-startup .block-card[data-idx="${index}"]`);
+        const previous = card.querySelector('[data-starter-ramp-previous]');
+        const explanation = card.querySelector('[data-starter-ramp-explanation]');
+        return {
+          text:card.querySelector('[data-starter-ramp-preview]').textContent,
+          overlap:!card.querySelector('[data-starter-ramp-warning]').hidden,
+          warning:card.querySelector('[data-starter-ramp-warning]').textContent,
+          previous:previous.textContent,
+          previousColor:previous.style.color,
+          explanation:explanation.hidden ? '' : explanation.textContent
+        };
+      };
+      try {
+        hwCfg.startup_seq = ['SetOutput', 'TimedDelay', 'SetOutput'];
+        hwCfg[enterKey] = [setRamp(.5), [], setRamp(1)];
+        hwCfg[actionKey(tab, 'exit')] = [];
+        hwCfg[delayKey] = [0, 1000, 0];
+        render(tab, lastIdleRaw);
+        const first = preview(0);
+        const partial = preview(2);
+        const firstCard = document.querySelector('#list-startup .block-card');
+        const infoPanel = firstCard.querySelector('.block-info-panel');
+        const params = firstCard.querySelector('.block-params');
+        const compact = !params.textContent.includes('immediate change') &&
+          params.querySelectorAll('.param-grid .param-field[title]').length === 3;
+        firstCard.querySelector('.bip-btn').click();
+        const help = !infoPanel.hidden && infoPanel.textContent.includes('immediate change');
+        firstCard.querySelector('.bip-btn').click();
+        const delayField = document.querySelector('#list-startup .block-card[data-idx="1"] input[type="number"]');
+        delayField.value = '5';
+        delayField.dispatchEvent(new Event('input', {bubbles:true}));
+        const complete = preview(2);
+        hwCfg.startup_seq[1] = 'WaitForInput';
+        render(tab, lastIdleRaw);
+        const conditional = preview(2);
+        hwCfg.startup_seq.splice(1, 1);
+        hwCfg[enterKey].splice(1, 1);
+        render(tab, lastIdleRaw);
+        const direct = preview(1);
+        hwCfg[enterKey][0][0].transition_ms = 0;
+        updateSetOutput(tab, 1, null, '0');
+        const falling = preview(1);
+        return {first, partial, complete, conditional, direct, falling, compact, help};
+      } finally {
+        hwCfg = snapshot;
+        render(tab, lastIdleRaw);
+      }
+    });
+    const {first, partial, complete, conditional, direct, falling, compact, help} = starterRampPreview;
+    assert.match(first.text, /Start ≈0% · Rate \+10 pp\/s/);
+    assert.equal(partial.text, 'Start ≈10% · Rate +18 pp/s');
+    assert.equal(partial.previous, 'Previous target 50% over 5 s · ≈4 s left');
+    assert.equal(partial.previousColor, 'var(--yellow)');
+    assert.match(partial.explanation, /continues from the demand the previous ramp reached/);
+    assert.match(partial.warning, /≈4 s left/);
+    assert.match(complete.text, /Start ≈50% · Rate \+10 pp\/s/);
+    assert.equal(complete.previousColor, '');
+    assert.equal(complete.explanation, '');
+    assert.match(conditional.text, /Start depends on the preceding wait/);
+    assert.match(direct.warning, /≈5 s left/);
+    assert.match(falling.text, /Start ≈50% · Rate -10 pp\/s/);
+    assert.deepEqual([first, partial, complete, conditional, direct, falling].map(result => result.overlap), [false, true, false, false, true, false]);
+    assert.ok(compact && help);
+    results.push('starter ramp preview updates during editing and flags only overlap on a fixed timeline');
     for (const viewport of [{width:1000,height:800}, {width:390,height:844}]) {
       await page.setViewportSize(viewport);
       assert.equal(await page.locator('#block-picker-list').evaluate(list =>

@@ -1,6 +1,19 @@
 // Sequence persistence only. Custom running controllers belong to Controllers.
 function validateSequenceHardwareForSave() {
   const errors = [];
+  if (hwCfg.startup_seq?.includes('SafetyHold')) {
+    for (const [sensor, ...fields] of finalCheckParameterGroups()) {
+      if (!paramVals['SafetyHold.' + sensor.key]) continue;
+      const [lower, upper] = fields.filter(p => p.optional);
+      if (!lower) continue;
+      const sharedOil = sensor === finalCheckSensors.oil && paramVals['SafetyHold.final_check_oil_use_shared_min'];
+      const min = sharedOil ? Number(cfg.oil?.running_min ?? 2.8) : paramVals['SafetyHold.' + lower.key];
+      const max = paramVals['SafetyHold.' + upper.key];
+      if (min != null && max != null && min > max) {
+        errors.push(`Final Startup Checks · ${sequenceParamLabel(sensor)}: the maximum must be at least the minimum.`);
+      }
+    }
+  }
   const tabs = [['Startup','startup'],['Shutdown','shutdown'],['Afterburner','afterburner'],['Afterburner shutdown','ab-shut']];
   tabs.forEach(([label, tab]) => (hwCfg[seqKey(tab)] || []).forEach((name, index) => {
     const def = BLOCKS[name] || customBlocks[name];
@@ -145,6 +158,10 @@ async function _saveSequenceChanges() {
       result = await window.OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu());
     }
     const rebooting = result?.data.reboot === true;
+    if (result?.data.applying === true && !rebooting) {
+      setSaveStatus('Saved — applying…');
+      await confirmSequenceSettingsApplied(settingsPatch);
+    }
     if (result) window.OTSetup?.mark('sequence', result.response);
     clearSequenceDirty(rebooting ? 'Saved — rebooting…' : 'Saved');
     if (rebooting) startRebootCountdown();
@@ -156,6 +173,30 @@ async function _saveSequenceChanges() {
     setSaveStatus('Warning: ' + error.message);
     if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
   }
+}
+
+async function confirmSequenceSettingsApplied(patch) {
+  const deadline = Date.now() + 8000;
+  const read = async path => {
+    const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(1500)});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  };
+  const matches = (settings, changes) => Object.entries(changes).every(([key, value]) => {
+    const current = settings?.[key];
+    if (value !== null && typeof value === 'object') return matches(current, value);
+    if (typeof value === 'number' && typeof current === 'number')
+      return Math.abs(current - value) <= Math.max(1e-6, Math.abs(value) * 1e-6);
+    return current === value;
+  });
+  while (Date.now() < deadline) {
+    try {
+      const status = await read('/api/status');
+      if (status.config_apply_busy === false && matches(await read('/api/config'), patch)) return;
+    } catch (_) {} // The ECU can drop status polls while applying settings.
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  throw new Error('The ECU acknowledged the save, but applying the new settings could not be confirmed. Reload Sequence and verify the saved values before starting.');
 }
 
 function startRebootCountdown() {

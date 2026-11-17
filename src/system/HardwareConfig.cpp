@@ -1687,22 +1687,27 @@ bool validatePlatformPins(const JsonDocument& doc,
                strcmp(chip, "max31856") == 0;
     };
     const char* spiSensors[] = { "tot", "tit" };
+    const auto temperatureUsesRegistryWiring = [&](const char* purpose) {
+        const auto* channel = registryInputForPurpose(purpose);
+        return registryInputUsesI2c(purpose) ||
+            (channel && channel->driver == ChannelRegistry::Analog &&
+             channel->temperatureInterface == 0);
+    };
     validationStage("platform thermocouple SPI wiring");
     for (const char* key : spiSensors) {
         JsonVariantConst item = sensors[key];
-        const bool remoteI2c = registryInputUsesI2c(key);
+        if (!enabled(item) || temperatureUsesRegistryWiring(key)) continue;
         const char* chip = item["chip"] | "max6675";
-        if (enabled(item) && !remoteI2c &&
-            (!validTcChip(chip) ||
+        if (!validTcChip(chip) ||
              !requiredPinAllowed(item, "clk", outputGpioAllowed) ||
              !requiredPinAllowed(item, "cs", outputGpioAllowed) ||
-             !requiredPinAllowed(item, "miso", gpioAllowed))) return false;
+             !requiredPinAllowed(item, "miso", gpioAllowed)) return false;
         // MAX31856 needs MOSI: the driver writes CR0/CR1 and readback-verifies;
         // without MOSI configuration fails and the sensor is permanently
         // unhealthy — reject rather than let the save look complete.
-        if (enabled(item) && !remoteI2c && strcmp(chip, "max31856") == 0) {
+        if (strcmp(chip, "max31856") == 0) {
             if (!requiredPinAllowed(item, "mosi", outputGpioAllowed)) return false;
-        } else if (enabled(item) && !remoteI2c) {
+        } else {
             if (!optionalPinAllowed(item, "mosi", outputGpioAllowed)) return false;
         }
     }
@@ -2080,7 +2085,7 @@ bool validatePlatformPins(const JsonDocument& doc,
 
     for (const char* key : spiSensors) {
         JsonVariantConst item = sensors[key];
-        if (!enabled(item)) continue;
+        if (!enabled(item) || temperatureUsesRegistryWiring(key)) continue;
         if (!addPin(jsonPin(item, "clk"), 1) ||
             !addPin(jsonPin(item, "miso"), 2) ||
             !addPin(jsonPin(item, "mosi"), 3) ||

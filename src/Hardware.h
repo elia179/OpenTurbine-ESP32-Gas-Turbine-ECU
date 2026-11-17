@@ -1838,6 +1838,17 @@ namespace Hardware {
         g_blkSafetyHold.finalCheckP1         = Config::safetyHoldFinalP1;
         g_blkSafetyHold.finalCheckP2         = Config::safetyHoldFinalP2;
         g_blkSafetyHold.finalCheckEgt        = Config::safetyHoldFinalEgt;
+        g_blkSafetyHold.maxN1                = Config::safetyHoldMaxN1;
+        g_blkSafetyHold.maxN2                = Config::safetyHoldMaxN2;
+        g_blkSafetyHold.maxP1                = Config::safetyHoldMaxP1;
+        g_blkSafetyHold.maxP2                = Config::safetyHoldMaxP2;
+        g_blkSafetyHold.maxEgt               = Config::safetyHoldMaxEgt;
+        g_blkSafetyHold.minOil               = Config::safetyHoldMinOil;
+        g_blkSafetyHold.maxOil               = Config::safetyHoldMaxOil;
+        g_blkSafetyHold.minBattery           = Config::safetyHoldMinBattery;
+        g_blkSafetyHold.maxBattery           = Config::safetyHoldMaxBattery;
+        g_blkSafetyHold.checkBattery         = Config::safetyHoldCheckBattery;
+        g_blkSafetyHold.oilUseSharedMin      = Config::safetyHoldOilUseSharedMin;
         g_blkSafetyHold.runningOilMin        = Config::oilRunningMin;
         g_blkSafetyHold.turnOffStarterOnExit  = Config::safetyHoldTurnOffStarter;
         g_blkSafetyHold.turnOffStarterEnOnExit= Config::safetyHoldTurnOffStarterEn;

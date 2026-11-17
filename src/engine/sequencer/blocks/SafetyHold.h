@@ -18,6 +18,8 @@ public:
     float finalCheckP1 = 0.0f;
     float finalCheckP2 = 0.0f;
     float finalCheckEgt = 0.0f;
+    float maxN1 = NAN, maxN2 = NAN, maxP1 = NAN, maxP2 = NAN, maxEgt = NAN;
+    float minOil = NAN, maxOil = NAN, minBattery = NAN, maxBattery = NAN;
     float runningOilMin = 2.8f;
     bool checkN1 = true;
     bool checkN2 = false;
@@ -26,10 +28,12 @@ public:
     bool checkOil = false;
     bool checkEgt = false;
     bool checkFlame = false;
+    bool checkBattery = false;
+    bool oilUseSharedMin = true;
 
-    bool turnOffStarterOnExit = false;
-    bool turnOffStarterEnOnExit = false;
-    bool turnOffIgniterOnExit = false;
+    bool turnOffStarterOnExit = true;
+    bool turnOffStarterEnOnExit = true;
+    bool turnOffIgniterOnExit = true;
 
     const char* name() override { return "SafetyHold"; }
 
@@ -62,26 +66,33 @@ public:
                 return;
             if ((!installed || !passed) && !failed) failed = label;
         };
+        const auto within = [](float value, float lower, float upper) {
+            return isfinite(value) && (isnan(lower) || value >= lower) &&
+                (isnan(upper) || value <= upper);
+        };
         require(checkN1, HardwareConfig::hasN1Rpm, ed.n1Healthy,
-                ed.n1Healthy && ed.n1Rpm >= finalCheckRpm,
+                ed.n1Healthy && within(ed.n1Rpm, finalCheckRpm, maxN1),
                 FeedbackRequirements::N1, "N1");
         require(checkN2, HardwareConfig::hasN2Rpm, ed.n2Healthy,
-                ed.n2Healthy && ed.n2Rpm >= finalCheckN2Rpm,
+                ed.n2Healthy && within(ed.n2Rpm, finalCheckN2Rpm, maxN2),
                 FeedbackRequirements::N2, "N2");
         require(checkP1, HardwareConfig::hasP1, ed.p1Healthy,
-                ed.p1Healthy && ed.p1 >= finalCheckP1,
+                ed.p1Healthy && within(ed.p1, finalCheckP1, maxP1),
                 FeedbackRequirements::P1, "P1 pressure");
         require(checkP2, HardwareConfig::hasP2, ed.p2Healthy,
-                ed.p2Healthy && ed.p2 >= finalCheckP2,
+                ed.p2Healthy && within(ed.p2, finalCheckP2, maxP2),
                 FeedbackRequirements::P2, "P2 pressure");
         require(checkOil, HardwareConfig::hasOilPress, ed.oilHealthy,
-                ed.oilHealthy && ed.oilPressure >= runningOilMin,
+                ed.oilHealthy && within(ed.oilPressure, oilUseSharedMin ? runningOilMin : minOil, maxOil),
                 FeedbackRequirements::OIL_PRESSURE, "oil pressure");
         const bool egtInstalled = Config::effectiveEgtSource() != 0;
         const bool egtHealthy = Config::primaryEgtHealthy(ed);
         require(checkEgt, egtInstalled, egtHealthy,
-                egtHealthy && Config::primaryEgtC(ed) >= finalCheckEgt,
+                egtHealthy && within(Config::primaryEgtC(ed), finalCheckEgt, maxEgt),
                 FeedbackRequirements::EGT, "engine temperature");
+        require(checkBattery, HardwareConfig::hasBattVoltage, ed.battHealthy,
+                ed.battHealthy && within(ed.battVoltage, minBattery, maxBattery),
+                FeedbackRequirements::BATTERY, "battery voltage");
         require(checkFlame, HardwareConfig::hasFlame, ed.flameHealthy,
                 ed.flameHealthy && ed.flameDetected,
                 FeedbackRequirements::FLAME, "flame");

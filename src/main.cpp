@@ -182,7 +182,8 @@ private:
                 _stepIdx++;
                 continue;
             }
-            RulesEngine::applyActuatorDemand(step.actuator, step.value);
+            if (RulesEngine::applyActuatorDemand(step.actuator, step.value))
+                trackStartupIgnitionDemand(step.targetId, step.actuator, step.value);
             _stepIdx++;
         }
         clearWaitReason();
@@ -1113,7 +1114,7 @@ static void validateSequences(bool report) {
         else if (strcmp(nm, "SafetyHold") == 0) {
             const bool anyFinalCheck = Config::safetyHoldCheckN1 || Config::safetyHoldCheckN2 ||
                 Config::safetyHoldCheckP1 || Config::safetyHoldCheckP2 || Config::safetyHoldCheckOil ||
-                Config::safetyHoldCheckEgt || Config::safetyHoldCheckFlame;
+                Config::safetyHoldCheckEgt || Config::safetyHoldCheckFlame || Config::safetyHoldCheckBattery;
             if (!anyFinalCheck)
                 addIssue(nm, "No Final Startup Check is enabled - choose at least one installed sensor", true);
             if (Config::safetyHoldMs <= 0 || Config::safetyHoldTimeoutMs <= 0 ||
@@ -1126,6 +1127,10 @@ static void validateSequences(bool report) {
             if (Config::safetyHoldCheckOil && !hw.hasOilPress) addIssue(nm, "Oil check is enabled but oil pressure is not configured", true);
             if (Config::safetyHoldCheckEgt && Config::effectiveEgtSource() == 0) addIssue(nm, "EGT check is enabled but no engine temperature source is selected", true);
             if (Config::safetyHoldCheckFlame && !hw.hasFlame) addIssue(nm, "Flame check is enabled but the flame sensor is not configured", true);
+            if (Config::safetyHoldCheckBattery && !hw.hasBattVoltage) addIssue(nm, "Battery voltage check is enabled but its sensor is not configured", true);
+            if (Config::safetyHoldCheckOil && Config::safetyHoldOilUseSharedMin &&
+                isfinite(Config::safetyHoldMaxOil) && Config::safetyHoldMaxOil < Config::oilRunningMin)
+                addIssue(nm, "Final oil pressure maximum is below the shared minimum", true);
         }
         else if (strcmp(nm, "FlameConfirm") == 0) {
             if (!hw.hasFlame)

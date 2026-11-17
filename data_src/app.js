@@ -1685,7 +1685,7 @@ function applyData(d) {
       if (Number(d.startup_seq_count) !== 0 &&
           (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode))) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261117g';
+        link.href = '/sequence.html?v=20261117s';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }

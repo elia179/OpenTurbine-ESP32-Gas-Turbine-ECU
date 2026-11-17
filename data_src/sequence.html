@@ -16,7 +16,7 @@
 </style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 .seq-val-error:hover, .seq-val-warn:hover { text-decoration: underline; }
 .seq-val-error:focus-visible, .seq-val-warn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seq-val-action { display: block; margin-top: .2rem; font-weight: 600; }
+#startup-oil-protection { margin-bottom: .6rem; }
 .seq-val-text  { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; word-break: normal; white-space: normal; }
 .seq-val-start-blocked {
   display: block; text-decoration: none;
@@ -106,6 +107,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 <p class="seq-card-hint">Steps run from top to bottom. Select a card to see what it does and edit its settings; use the grip to reorder it.</p>
 
 <div id="tab-startup">
+  <div id="startup-oil-protection" hidden></div>
   <div class="block-list" id="list-startup"></div>
   <div class="add-row" style="margin-top:.75rem">
     <select id="add-startup-sel" hidden aria-label="Startup block to add" title="Available startup blocks."></select>
@@ -330,7 +332,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 <div class="save-bar seq-save-bar" id="sequence-save-bar">
   <div class="save-status" id="save-status">Loading configuration…</div>
   <button id="seq-discard-btn" onclick="discardSequenceChanges()" disabled>Discard</button>
-  <button class="save-btn" id="save-btn" onclick="saveAll()" disabled>Save &amp; Reboot</button>
+  <button class="save-btn" id="save-btn" onclick="saveAll()" disabled>Save</button>
 </div>
 </main>
 
@@ -498,6 +500,30 @@ document.addEventListener('DOMContentLoaded', function () {
 // ------ Block definitions ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // type: 'while'=waits for condition  'action'=instant  'wait'=timer  'check'=verify+fault
 // timeout_action: 'fault'|'abort'|'continue'|null
+function finalCheckBounds(lowerKey, upperKey, label, sensor, unit, min, max, lowerDefault, lowerVisible = () => true) {
+  return [[lowerKey, 'Minimum', lowerDefault], [upperKey, 'Maximum', null]].map(([key, limit, def]) => ({
+    key, label:`${limit} accepted ${label}`, type:'float', min, max, step:'any', def,
+    ...(unit === 'temp' ? {unitType:'temp'} : {unit}),
+    configKey:key, optional:true, visibleIf:sensor.visibleIf,
+    showWhen:vals => !!vals['SafetyHold.' + sensor.key] && (key !== lowerKey || lowerVisible(vals))
+  }));
+}
+
+const finalCheckSensors = Object.fromEntries([
+  ['n1', 'Require N1', ['n1_rpm'], true],
+  ['n2', 'Require N2', ['n2_rpm']],
+  ['p1', 'Require P1 pressure', ['p1']],
+  ['p2', 'Require P2 pressure', ['p2']],
+  ['oil', 'Require oil pressure', ['oil_press']],
+  ['egt', 'Require engine temperature', ['tot', 'tit']],
+  ['battery', 'Require battery voltage', ['batt_voltage']],
+  ['flame', 'Require flame detected', ['flame']]
+].map(([name, label, keys, def = false]) => {
+  const key = `final_check_${name}_enabled`;
+  return [name, {key, label, type:'bool', def, configKey:key, visibleIf:() => keys.some(sensorEnabled)}];
+}));
+const anyFinalCheckSensorFitted = () => Object.values(finalCheckSensors).some(p => p.visibleIf());
+
 const BLOCKS = {
   SetOutput: {
     label:'Set Output', type:'action', badgeClass:'badge-action',
@@ -674,39 +700,41 @@ const BLOCKS = {
   },
   SafetyHold: {
     label:'Final Startup Checks', type:'check', badgeClass:'badge-check',
-    visibleIf: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') || sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') || sensorEnabled('tit') || sensorEnabled('flame'),
+    visibleIf: anyFinalCheckSensorFitted,
     condition: hw => `Stable for ${hw.safety_hold_ms ?? 1000} ms`,
     timeout_action:'fault',
-    desc:'Requires every enabled check to remain continuously valid for the stable time before RUNNING. A failed or unhealthy sensor resets the stable timer; the overall timeout causes a fault shutdown. Starter state is not treated as proof of engine health.',
+    desc:'Use this near the end of startup to confirm the engine is ready for Running. Select the fitted sensors that must pass before the sequence moves on.',
     hwWarnings:[
-      { check: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') ||
-          sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') ||
-          sensorEnabled('tit') || sensorEnabled('flame'),
+      { check: anyFinalCheckSensorFitted,
         level: 'error',
         msg: 'No fitted sensor is available for Final Startup Checks. Fit a sensor, remove this block, or use Bench Mode for timer-only testing.' },
     ],
     params:[
       {key:'safety_hold_ms', label:'Stable time required',unit:'ms', type:'int', min:100, max:10000, step:100, def:1000, configKey:'safety_hold_ms'},
       {key:'safety_hold_timeout_ms', label:'Overall timeout',unit:'ms', type:'int', min:100, max:120000, step:500, def:15000, configKey:'safety_hold_timeout_ms'},
-      {key:'final_check_n1_enabled',label:'Require N1',type:'bool',def:true,configKey:'final_check_n1_enabled',visibleIf:hw=>sensorEnabled('n1_rpm')},
-      {key:'final_check_rpm',label:'Minimum accepted N1', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:31000, configKey:'final_check_rpm',
-        visibleIf: hw => sensorEnabled('n1_rpm'), showWhen: vals => !!vals['SafetyHold.final_check_n1_enabled'],
-        desc:'N1 must remain at or above this value for the full stable time.'},
-      {key:'final_check_n2_enabled',label:'Require N2',type:'bool',def:false,configKey:'final_check_n2_enabled',visibleIf:hw=>sensorEnabled('n2_rpm')},
-      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm'),showWhen:vals=>!!vals['SafetyHold.final_check_n2_enabled']},
-      {key:'final_check_p1_enabled',label:'Require P1 pressure',type:'bool',def:false,configKey:'final_check_p1_enabled',visibleIf:hw=>sensorEnabled('p1')},
-      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1'),showWhen:vals=>!!vals['SafetyHold.final_check_p1_enabled']},
-      {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
-      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
-      {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
-      {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
-      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
-      {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
-      {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:false, configKey:'safety_turn_off_starter'},
-      {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:false, configKey:'safety_turn_off_starter_en',
+      finalCheckSensors.n1,
+      ...finalCheckBounds('final_check_rpm','final_check_n1_max_rpm','N1',finalCheckSensors.n1,'rpm',0,1e9,31000),
+      finalCheckSensors.n2,
+      ...finalCheckBounds('final_check_n2_rpm','final_check_n2_max_rpm','N2',finalCheckSensors.n2,'rpm',0,1e9,0),
+      finalCheckSensors.p1,
+      ...finalCheckBounds('final_check_p1_bar','final_check_p1_max_bar','P1',finalCheckSensors.p1,'bar',-1000,1000,0),
+      finalCheckSensors.p2,
+      ...finalCheckBounds('final_check_p2_bar','final_check_p2_max_bar','P2',finalCheckSensors.p2,'bar',-1000,1000,0),
+      finalCheckSensors.oil,
+      {key:'final_check_oil_use_shared_min',label:'Use shared minimum',type:'bool',def:true,configKey:'final_check_oil_use_shared_min',visibleIf:finalCheckSensors.oil.visibleIf,showWhen:vals=>!!vals['SafetyHold.final_check_oil_enabled']},
+      ...finalCheckBounds('final_check_oil_min_bar','final_check_oil_max_bar','oil pressure',finalCheckSensors.oil,'bar',-1000,1000,null,vals=>!vals['SafetyHold.final_check_oil_use_shared_min']),
+      finalCheckSensors.egt,
+      ...finalCheckBounds('final_check_egt_c','final_check_egt_max_c','EGT',finalCheckSensors.egt,'temp',-273.15,100000,0),
+      finalCheckSensors.battery,
+      ...finalCheckBounds('final_check_battery_min_v','final_check_battery_max_v','battery voltage',finalCheckSensors.battery,'V',0,1000,null),
+      finalCheckSensors.flame,
+      {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:true, configKey:'safety_turn_off_starter',
+        visibleIf: () => actuatorEnabled('starter')},
+      {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:true, configKey:'safety_turn_off_starter_en',
         visibleIf: hw => actuatorEnabled('starter_en')},
-      {key:'safety_turn_off_igniter',    label:'Release sequence ignition on exit',    type:'bool', def:false, configKey:'safety_turn_off_igniter',
-        desc:'Turns off only ignition devices energized by dedicated ignition blocks in this sequence.'},
+      {key:'safety_turn_off_igniter',    label:'Turn off startup igniters on exit',    type:'bool', def:true, configKey:'safety_turn_off_igniter',
+        visibleIf: hasIgnitionOutput,
+        desc:'Turns off the igniters and glow plugs energized by the startup sequence.'},
     ]
   },
   AirstarterOn: {
@@ -1137,18 +1165,8 @@ const CONFIG_SECTIONS = {
   rpm_timeout_ms:          {sec:'sequence.startup', key:'rpm_timeout_ms'},
   safety_hold_ms:          {sec:'sequence.startup', key:'safety_hold_ms'},
   safety_hold_timeout_ms:  {sec:'sequence.startup', key:'safety_hold_timeout_ms'},
-  final_check_n1_enabled:  {sec:'sequence.startup', key:'final_check_n1_enabled'},
-  final_check_n2_enabled:  {sec:'sequence.startup', key:'final_check_n2_enabled'},
-  final_check_p1_enabled:  {sec:'sequence.startup', key:'final_check_p1_enabled'},
-  final_check_p2_enabled:  {sec:'sequence.startup', key:'final_check_p2_enabled'},
-  final_check_oil_enabled: {sec:'sequence.startup', key:'final_check_oil_enabled'},
-  final_check_egt_enabled: {sec:'sequence.startup', key:'final_check_egt_enabled'},
-  final_check_flame_enabled:{sec:'sequence.startup', key:'final_check_flame_enabled'},
-  final_check_n2_rpm:      {sec:'sequence.startup', key:'final_check_n2_rpm'},
-  final_check_p1_bar:      {sec:'sequence.startup', key:'final_check_p1_bar'},
-  final_check_p2_bar:      {sec:'sequence.startup', key:'final_check_p2_bar'},
-  final_check_egt_c:       {sec:'sequence.startup', key:'final_check_egt_c'},
-  final_check_rpm:         {sec:'sequence.startup', key:'final_check_rpm'},
+  ...Object.fromEntries(BLOCKS.SafetyHold.params.filter(p => p.key.startsWith('final_check_')).map(p =>
+    [p.key, {sec:'sequence.startup', key:p.key}])),
   // shutdown params (doc.sequence.shutdown.*)
   rpm_drop_threshold:      {sec:'sequence.shutdown', key:'rpm_drop_threshold'},
   rpm_drop_timeout_ms:     {sec:'sequence.shutdown', key:'rpm_drop_timeout_ms'},
@@ -1283,7 +1301,7 @@ const BLOCK_INFO = {
     ]
   },
   SafetyHold: {
-    desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
+    desc: 'All selected sensors must be healthy and meet their criteria at the same time. The stable timer restarts when any check fails. The overall timeout never restarts and faults startup if the card has not passed. The oil pressure check uses the shared low-pressure limit. Starter and ignition exit actions are separate from the checks. When used in a sequence more than once, this card shares its settings across copies. In Bench Mode, the card waits for the stable time with sensor checks bypassed.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
       { label: 'Shared Oil Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
@@ -1386,16 +1404,21 @@ function showBlockInfo(bname, trigger) {
 
   hideBlockInfo();
   const def = BLOCKS[bname] || {};
-  const info = BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
+  const starter = !!card.querySelector('[data-starter-ramp-preview]');
+  const info = bname === 'SetOutput' ? {
+    desc: `<p>${def.desc} For proportional outputs, 0% is off and 100% is the configured full output.</p>` +
+      (starter ? '<p>Speed change time sets how long the starter command takes to reach its new target. Set it to 0 for an immediate change. STOP and faults still cut starter demand immediately.</p><p>Rate is in percentage points per second (pp/s). If a new command arrives before the previous ramp finishes, it starts from the demand reached so far. After a condition wait, the starting demand depends on when the wait ends.</p>' :
+        '<p>Hardware sets the output level and any ramp for an on/off ignition command.</p>')
+  } : BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
   const infoLinks = info.links || [];
   const linksHtml = infoLinks.length
     ? `<div class="bip-links-label">Related settings:</div><div class="bip-links">` +
       infoLinks.map(l => `<a class="bip-link" href="${l.url}">${l.label}</a>`).join('') +
       '</div>'
-    : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';
+    : bname === 'SetOutput' ? '' : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';
   panel.innerHTML = `
     <div class="bip-header">
-      <span class="bip-name">${def.label ?? bname}</span>
+      <span class="bip-name">${esc(card.querySelector('.block-name')?.textContent || def.label || bname)}</span>
       <button type="button" class="bip-close" aria-label="Close block explanation" onclick="hideBlockInfo(this.closest('.block-info-panel'))">Close</button>
     </div>
     <div class="bip-desc">${info.desc}</div>
@@ -1503,9 +1526,9 @@ function resolveSequenceActions(tab, sequence) {
     if(name==='OilPrime'&&param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',0,'exit');
     if(name==='ABFlameConfirm'||name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
     if(name==='SafetyHold'){
-      if(param(name,'safety_turn_off_starter',false))set('starter',0,'exit');
-      if(param(name,'safety_turn_off_starter_en',false))set('starter_en',0,'exit');
-      if(param(name,'safety_turn_off_igniter',false))clearIgnition();
+      if(param(name,'safety_turn_off_starter',true))set('starter',0,'exit');
+      if(param(name,'safety_turn_off_starter_en',true))set('starter_en',0,'exit');
+      if(param(name,'safety_turn_off_igniter',true))clearIgnition();
     }
     if(name==='CooldownSpin'){
       if(param(name,'cooldown_use_starter',true)){
@@ -1543,6 +1566,86 @@ function sequenceActionValue(meta,value) {
   if(typeof value==='string')return value;
   if(meta.mode==='pct')return `${Math.round(value*100)}%`;
   return (['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)||['fuel_shutoff','air_starter','ab_valve','bleed_valve','drain_valve'].includes(meta.purpose))?value>=.5?'OPEN':'CLOSED':value>=.5?'ON':'OFF';
+}
+
+function refreshStarterRampPreviews(tab) {
+  const list = document.getElementById('list-' + tab);
+  if (!list?.querySelector('[data-starter-ramp-preview]')) return;
+  const sequence = hwCfg[seqKey(tab)] || [];
+  const commands = resolveSequenceActions(tab, sequence);
+  let demand = tab === 'startup' ? 0 : null;
+  let previous = null;
+
+  sequence.forEach((name, index) => {
+    const card = list.children[index];
+    const preview = card?.querySelector('[data-starter-ramp-preview]');
+    const starterWrites = commands[index].filter(row => row.meta.key === 'starter');
+    if (!preview) {
+      // Other blocks can replace the starter demand or hand it to a controller.
+      if (starterWrites.length) {
+        previous = null;
+        demand = null;
+      } else if (previous && name === 'TimedDelay') {
+        previous.elapsed += Number(timedDelayValue(tab, index));
+      } else if (previous && BLOCKS[name]?.type !== 'action') {
+        previous.variable = true;
+      }
+      return;
+    }
+
+    const action = hwCfg[actionKey(tab, 'enter')][index][0];
+    const warning = card.querySelector('[data-starter-ramp-warning]');
+    const target = (Number(action.value) || 0) * 100;
+    const duration = Math.max(0, Number(action.transition_ms) || 0);
+    const details = [];
+    let remaining = 0;
+    if (previous) {
+      if (previous.duration && previous.from !== previous.target) {
+        remaining = Math.max(0, previous.duration - previous.elapsed);
+      }
+      demand = previous.target;
+      if (remaining) {
+        demand = previous.variable || previous.from === null ? null
+          : previous.target + (previous.from - previous.target) * remaining / previous.duration;
+      }
+    }
+
+    if (demand !== null) {
+      details.push(`Start ≈${seqRound(demand)}%`);
+      if (duration) {
+        const rate = (target - demand) * 1000 / duration;
+        const roundedRate = seqRound(rate);
+        details.push(`Rate ${Number(roundedRate) > 0 ? '+' : ''}${roundedRate} pp/s`);
+      }
+    } else if (remaining && previous.variable) {
+      details.push('Start depends on the preceding wait');
+    } else {
+      details.push('Starts at current demand');
+    }
+
+    const overlap = remaining > 0 && !previous.variable;
+    const previousLine = card.querySelector('[data-starter-ramp-previous]');
+    previousLine.hidden = !previous;
+    previousLine.style.color = overlap ? 'var(--yellow)' : '';
+    if (previous) {
+      previousLine.textContent = `Previous target ${seqRound(previous.target)}%` +
+        (previous.duration ? ` over ${seqRound(previous.duration / 1000)} s` : '') +
+        (overlap ? ` · ≈${seqRound(remaining / 1000)} s left` : '');
+    }
+    preview.textContent = details.join(' · ');
+    if (overlap) warning.textContent = `Ramp overlap · ≈${seqRound(remaining / 1000)} s left`;
+    warning.hidden = !overlap;
+    card.querySelector('[data-starter-ramp-explanation]').hidden = !overlap;
+
+    // Only a single starter write on this card gives the following card a
+    // reliable target. A disabled primary action contributes no write.
+    if (action.enabled === false || starterWrites.length !== 1) {
+      previous = null;
+      demand = null;
+    } else {
+      previous = {from:demand, target, duration, elapsed:0, variable:false};
+    }
+  });
 }
 
 function buildResolvedActionsHtml(name,index,tab) {
@@ -1627,6 +1730,7 @@ function seqRound(value) {
 }
 
 function seqDisplayValue(p, value) {
+  if (p.optional && value == null) return '';
   if (p.zeroOff && Number(value) === 0) return '0';
   if (p.unitType === 'temp') return seqRound(toDispTemp(Number(value ?? 0)));
   if (p.unitType === 'duration_ms_as_s') return seqRound(Number(value ?? 0) / 1000);
@@ -1634,6 +1738,7 @@ function seqDisplayValue(p, value) {
 }
 
 function seqStoredValue(p, rawVal) {
+  if (p.optional && rawVal === '') return null;
   const parsed = p.type === 'float' ? parseFloat(rawVal) : parseInt(rawVal);
   if (!Number.isFinite(parsed)) return undefined;
   if (p.zeroOff && parsed === 0) return 0;
@@ -1649,6 +1754,7 @@ function seqDisplayAttr(p, value) {
 }
 
 function seqDisplayStep(p) {
+  if (p.step === 'any') return 'any';
   if (p.unitType === 'duration_ms_as_s') return seqRound(Number(p.step || 100) / 1000);
   if (p.unitType === 'temp') {
     return seqRound(tempUnit() === 'F' ? Number(p.step || 1) * 9 / 5 : Number(p.step || 1));
@@ -1755,7 +1861,8 @@ function revealSequenceDeepLink() {
   }
   if (id === 'oil-running-min') {
     switchTab('startup');
-    const link = document.querySelector('#tab-startup [data-shared-oil-limit]');
+    const link = Array.from(document.querySelectorAll('#tab-startup [data-shared-oil-limit]'))
+      .find(anchor => !anchor.closest('[hidden]'));
     if (link) {
       link.closest('.block-params')?.classList.add('open');
       link.classList.add('deep-link-target');
@@ -1952,6 +2059,7 @@ async function loadAll() {
     migrateLegacyDeviceTargets();
     buildParamVals();
     await refreshSequenceLiveData();
+    renderStartupOilProtection();
     render('startup', lastIdleRaw);
     render('shutdown', lastIdleRaw);
     render('afterburner', lastIdleRaw);
@@ -2025,8 +2133,6 @@ function setConfigVal(key, val) {
         if (!control || control === document.activeElement) return;
         if (param.type === 'bool') {
           control.checked = !!val;
-          const label = field.querySelector('label');
-          if (label) label.textContent = val ? 'Yes' : 'No';
         } else {
           control.value = String(param.type === 'select' ? val : seqDisplayValue(param, val));
         }
@@ -2121,6 +2227,31 @@ function _openBlockKeys(tab) {
     .map(card => `${card.dataset.block}:${card.dataset.idx}`));
 }
 
+function renderStartupOilProtection() {
+  const notice = document.getElementById('startup-oil-protection');
+  const limit = Number(cfg?.oil?.running_min ?? 2.8);
+  const monitorsStartup = hwCfg.safety?.low_oil && (Number(cfg?.safety?.oil_pressure_modes ?? 4) & 2);
+  const analog = !hwCfg.controllers?.oil_loop && sensorEnabled('oil_press') && limit > 0;
+  const isOilSwitch = role => role === 'low_oil_switch' || role === 'oil_zero_switch';
+  const switchFitted = (hwCfg.channel_registry?.inputs || []).some(input =>
+    registryChannelInstalled(input) && isOilSwitch((input.purpose && input.purpose !== 'generic') ? input.purpose : input.role)) ||
+    (hwCfg.di_channels || []).some(input => Number(input.pin ?? -1) >= 0 && isOilSwitch(input.role));
+  notice.hidden = !monitorsStartup || (!analog && !switchFitted);
+  notice.replaceChildren();
+  if (notice.hidden) return;
+  const link = document.createElement('a');
+  link.className = 'seq-val-warn';
+  link.href = '/controllers.html#protection-low_oil';
+  const conditions = [];
+  if (analog) conditions.push(`Pressure below ${seqRound(limit)} bar`);
+  if (switchFitted) conditions.push(analog ? 'oil-pressure switch active' : 'Oil-pressure switch active');
+  const confirmMs = Number(cfg?.safety?.low_oil_confirm_ms ?? 500);
+  const condition = conditions.join(' or ');
+  link.textContent = `Startup oil-pressure shutdown · ${condition}` +
+    (confirmMs > 0 ? ` for ${seqRound(confirmMs / 1000)} s` : '');
+  notice.append(link);
+}
+
 function render(tab, idleRaw, openKeys = new Set()) {
   const key = seqKey(tab);
   const seq  = hwCfg[key] || [];
@@ -2136,6 +2267,7 @@ function render(tab, idleRaw, openKeys = new Set()) {
     if (openKeys.has(`${bname}:${idx}`)) card.querySelector('.block-params')?.classList.add('open');
     list.appendChild(card);
   });
+  refreshStarterRampPreviews(tab);
   const ownership=window.OTControllerTiming?.plan(cfg.rules,hwCfg,tab)||[];
   for(const issue of ownership){
     if(issue.index<0)continue;
@@ -2467,11 +2599,12 @@ function buildCard(bname, idx, tab) {
     <span class="block-name">${esc(sequenceBlockLabel(bname, tab, idx))}</span>
     ${condHtml}
     ${toPill}
+    ${bname === 'SetOutput' ? '<span class="timeout-pill abort" data-starter-ramp-warning hidden>Starter ramp overlap</span>' : ''}
     ${hardwareMissing ? `<span class="block-hardware-pill">${def ? 'Missing hardware' : 'Unknown block'}</span>` : ''}
     <div class="block-actions" onclick="event.stopPropagation()">
       <button type="button" class="blk-btn drag-handle" title="Drag to reorder; arrow keys also work" aria-label="Drag to reorder block; use up and down arrow keys"><span class="drag-grip" aria-hidden="true"></span></button>
       ${customBlocks[bname] ? `<button class="blk-btn" onclick="editCustomBlock('${bname}','${tab}')">Edit</button>` : ''}
-      <button type="button" class="blk-btn bip-btn" aria-label="Explain ${esc(def?.label ?? bname)}" aria-expanded="false" title="Explain this block" onclick="showBlockInfo('${bname}',this)">?</button>
+      <button type="button" class="blk-btn bip-btn" aria-label="Explain ${esc(sequenceBlockLabel(bname, tab, idx))}" aria-expanded="false" title="Explain this block" onclick="showBlockInfo('${bname}',this)">?</button>
       <button class="blk-btn del" title="Remove this sequence block" aria-label="Remove this sequence block" onclick="removeBlock('${tab}',${idx})">Remove</button>
     </div>
   </div>
@@ -2532,10 +2665,21 @@ function buildSideActionsHtml(tab, idx) {
   const acts = getEnabledActuators();
   const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const addButton = (phase, label, enabled = true) =>
+    `<button class="blk-btn" type="button" onclick="addSideAction('${tab}',${idx},'${phase}')" ${enabled ? '' : 'disabled'}>${label}</button>`;
+  const primaryActions = hwCfg[seqKey(tab)]?.[idx] === 'SetOutput' ? 1 : 0;
+  const compact = (hwCfg[actionKey(tab, 'enter')]?.[idx]?.length || 0) <= primaryActions &&
+    !hwCfg[actionKey(tab, 'exit')]?.[idx]?.length;
+  if (compact) {
+    return `<div class="side-actions" style="display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.55rem">
+      ${addButton('enter', '+ Start action')}
+      ${addButton('exit', '+ End action')}
+    </div>`;
+  }
   const phaseHtml = (phase, title) => {
     const key = actionKey(tab, phase);
     const allRows = hwCfg[key]?.[idx] || [];
-    const offset = phase === 'enter' && hwCfg[seqKey(tab)]?.[idx] === 'SetOutput' ? 1 : 0;
+    const offset = phase === 'enter' ? primaryActions : 0;
     const rows = allRows.map((a, ai) => ({a, ai})).filter(row => row.ai >= offset && actionAllowed(row.a));
     const rowHtml = rows.map(row => {
       const a = row.a;
@@ -2565,9 +2709,9 @@ function buildSideActionsHtml(tab, idx) {
     return `<div style="margin-top:.55rem">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.25rem">
         <span class="param-label">${title}</span>
-        <button class="blk-btn" type="button" onclick="addSideAction('${tab}',${idx},'${phase}')" ${canAdd?'':'disabled'}>+ Action</button>
+        ${addButton(phase, '+ Action', canAdd)}
       </div>
-      ${rowHtml || `<div style="font-size:.68rem;color:var(--dim)">No simultaneous output actions.</div>`}
+      ${rowHtml}
     </div>`;
   };
   return `<div class="side-actions">
@@ -2618,7 +2762,10 @@ function updateSideAction(tab, idx, phase, actionIdx, newAct, newValue) {
     row.value = actionStoredValue(row, newValue);
   }
   if (needsRender) renderFast(tab);
-  else markSequenceDirty('Sequence edited — save to apply');
+  else {
+    markSequenceDirty('Sequence edited — save to apply');
+    refreshStarterRampPreviews(tab);
+  }
 }
 
 // Flatten relevant hw/config values for condition labels
@@ -2809,9 +2956,13 @@ function buildParamsHtml(bname, idx, tab) {
       ? `<div style="font-size:.7rem;color:#f06060;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.55);border-radius:5px;padding:.35rem .65rem;margin-bottom:.4rem;line-height:1.5">This block cannot run with the current Hardware inventory. Restore its required device or remove this block before saving.</div>`
       : '';
   const warningHtml = unavailableHtml + _buildHwWarningHtml(def);
-  const sideHtml = `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>` + buildSideActionsHtml(tab, idx);
+  const resolvedHtml = bname === 'SafetyHold' ? '' :
+    `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>`;
+  const sideHtml = resolvedHtml + buildSideActionsHtml(tab, idx);
+  if (bname === 'SetOutput') {
+    return `<div class="block-params">${warningHtml}${buildSetOutputHtml(tab, idx)}${sideHtml}</div>`;
+  }
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
-  const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
   if (def?._custom) {
     return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}${sideHtml}</div>`;
   }
@@ -2835,29 +2986,27 @@ function buildParamsHtml(bname, idx, tab) {
     const settingsLinks = def?.settingsInControllers ? BLOCK_INFO[bname]?.links : null;
     const noParams = settingsLinks?.length
       ? `<div class="bip-links">${settingsLinks.map(({url,label})=>`<a class="bip-link" href="${esc(url)}">${esc(label)}</a>`).join('')}</div>`
-      : bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
-    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
+      : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${noParams}${sideHtml}</div>`;
   }
-  const inputs = def.params.map(p => {
+  const renderInput = p => {
     // visibleIf - skip this param if hw condition is false
     if (p.visibleIf && !p.visibleIf(hwCfg)) return '';
     const vk  = bname + '.' + p.key;
     const perSlotDelay = bname === 'TimedDelay' && p.key === 'timed_delay_ms';
-    const val = perSlotDelay ? timedDelayValue(tab, idx) : (paramVals[vk] ?? p.def);
+    const val = perSlotDelay ? timedDelayValue(tab, idx) : (paramVals[vk] === undefined ? p.def : paramVals[vk]);
     // showWhen - compute initial visibility
     const isVisible = !p.showWhen || p.showWhen(paramVals, bname);
     const hiddenStyle = isVisible ? '' : ' style="display:none"';
     if (p.type === 'bool') {
       const checked = val ? 'checked' : '';
-      const displayVal = val ? 'Yes' : 'No';
-      const boolDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
+      const boolDescHtml = p.desc ? `<span class="param-desc seq-param-check-help">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
-        ${boolDescHtml}<div style="display:flex;align-items:center;gap:.45rem;padding:.32rem 0">
+        <label class="seq-param-check">
           <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked}
             onchange="onParamChangeBool('${bname}','${p.key}','${p.configKey??''}',this.checked)">
-          <label for="p-${tab}-${idx}-${bname}-${p.key}" style="font-size:.78rem;color:var(--dim);cursor:pointer">${displayVal}</label>
-        </div>
+          <span class="param-label">${esc(sequenceParamLabel(p))}</span>
+        </label>${boolDescHtml}
       </div>`;
     }
     if (p.type === 'select') {
@@ -2878,16 +3027,55 @@ function buildParamsHtml(bname, idx, tab) {
       <span class="param-label">${esc(sequenceParamLabel(p))}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
       ${descHtml}<input class="param-input" type="number" id="p-${tab}-${idx}-${bname}-${p.key}"
         min="${seqDisplayAttr(p, p.min)}" max="${seqDisplayAttr(p, p.max)}" step="${seqDisplayStep(p)}" value="${displayVal}"
-        oninput="onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
+        ${p.optional ? 'placeholder="No limit" title="Leave blank for no limit"' : ''}
+        oninput="if (!this.validity.badInput) onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
     </div>`;
-  }).join('');
+  };
   const oilLimit = ['Spool','SafetyHold'].includes(bname) && sensorEnabled('oil_press')
     ? `<div class="bip-links"><a class="bip-link" data-shared-oil-limit href="/controllers.html#cf-oil_rm">Shared Oil Low-Pressure Limit · ${seqRound(cfg?.oil?.running_min ?? 2.8)} bar</a></div>`
     : '';
+  if (bname === 'SafetyHold') {
+    const timerParams = def.params.filter(p => p.key.startsWith('safety_hold_'));
+    const exitParams = def.params.filter(p => p.key.startsWith('safety_turn_off_') && p.visibleIf(hwCfg));
+    const grid = params => `<div class="param-grid seq-final-check-grid">${params.map(renderInput).join('')}</div>`;
+    const group = (title, content) => `<div style="margin-bottom:.8rem"><div class="param-label" style="margin-bottom:.35rem">${title}</div>${content}</div>`;
+    return `<div class="block-params">
+      <div class="block-desc">${esc(def.desc)}</div>${warningHtml}
+      ${group('Sensor checks', `<p class="block-desc" data-final-check-status aria-live="polite">${finalCheckSelectionText()}</p>
+        <p class="block-desc">Limits include the entered values. Leave a limit blank to leave that side open.</p>
+        ${finalCheckParameterGroups().map(grid).join('')}
+        ${oilLimit ? `<div class="seq-final-oil-reference" ${finalCheckUsesSharedOilLimit() ? '' : 'hidden'}>${oilLimit}</div>` : ''}`)}
+      ${group('Timing', `<p class="block-desc">All selected checks must pass together for the stable time. A failed check restarts that timer. The overall timeout keeps counting from when this card begins and triggers a fault if it expires.</p>${grid(timerParams)}`)}
+      ${exitParams.length ? group('Optional output actions on exit', grid(exitParams)) : ''}
+      ${sideHtml}
+    </div>`;
+  }
   return `<div class="block-params">
     <div class="block-desc">${esc(def.desc ?? '')}</div>
-    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${oilLimit}${sideHtml}
+    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${def.params.map(renderInput).join('')}</div>${oilLimit}${sideHtml}
   </div>`;
+}
+
+function finalCheckSelectionText() {
+  const count = Object.values(finalCheckSensors).filter(p =>
+    p.visibleIf() && (paramVals['SafetyHold.' + p.key] ?? p.def)).length;
+  return count ? `${count} sensor ${count === 1 ? 'check' : 'checks'} selected.`
+    : 'No sensor checks selected. Enable at least one fitted sensor check for a normal start.';
+}
+
+function finalCheckUsesSharedOilLimit() {
+  return !!paramVals['SafetyHold.final_check_oil_enabled'] &&
+    paramVals['SafetyHold.final_check_oil_use_shared_min'] !== false;
+}
+
+function finalCheckParameterGroups() {
+  const groups = [];
+  for (const param of BLOCKS.SafetyHold.params) {
+    if (!param.key.startsWith('final_check_') || !param.visibleIf()) continue;
+    if (param.key.endsWith('_enabled')) groups.push([]);
+    groups[groups.length - 1].push(param);
+  }
+  return groups;
 }
 
 function setWaitInputField(tab, idx, field, value) {
@@ -2915,22 +3103,26 @@ function buildSetOutputHtml(tab, idx) {
   const missingOption = missingTarget ? `<option value="${esc(missingTarget)}" selected disabled>Missing output: ${esc(missingTarget)}</option>` : '';
   const options = missingOption + acts.map(item => `<option value="${esc(item.target)}" ${meta && String(item.target)===String(meta.target)?'selected':''}>${esc(item.label)}</option>`).join('');
   const display = actionDisplayValue(row, row.value);
+  const demandHelp = meta?.mode === 'pct' ? '0% is off. 100% is the configured full output.'
+    : meta?.ignition ? 'Turns ignition on or off. Hardware sets its output level and ramp-up time.' : 'Turns the output on or off.';
   const demand = !meta
     ? `<input class="param-input" type="text" value="Unavailable until an output is selected" disabled>`
     : meta.mode === 'pct'
-    ? `<div style="display:flex;align-items:center;gap:.35rem"><input class="param-input" type="number" min="0" max="100" step="1" value="${display}" oninput="updateSetOutput('${tab}',${idx},null,this.value)"><span class="param-unit">%</span></div>`
-    : `<select class="param-input" onchange="updateSetOutput('${tab}',${idx},null,this.value)"><option value="1" ${display?'selected':''}>ON</option><option value="0" ${!display?'selected':''}>OFF</option></select>`;
+    ? `<div style="display:flex;align-items:center;gap:.35rem"><input class="param-input" type="number" min="0" max="100" step="1" value="${display}" aria-label="Output demand in percent" oninput="updateSetOutput('${tab}',${idx},null,this.value)"><span class="param-unit">%</span></div>`
+    : `<select class="param-input" aria-label="Output command" onchange="updateSetOutput('${tab}',${idx},null,this.value)"><option value="1" ${display?'selected':''}>ON</option><option value="0" ${!display?'selected':''}>OFF</option></select>`;
   const starterTransition = meta?.key === 'starter' && meta.mode === 'pct'
-    ? `<div class="param-field"><span class="param-label">Speed change time <span class="param-unit">(s)</span></span>
+    ? `<div class="param-field" title="Time to reach the new starter demand. Set 0 for an immediate change."><span class="param-label">Speed change time <span class="param-unit">(s)</span></span>
         <input class="param-input" type="number" min="0" max="60" step="0.1" value="${Math.max(0, Number(row.transition_ms) || 0) / 1000}"
-          oninput="updateSetOutput('${tab}',${idx},null,null,this.value)">
-        <span class="param-desc">Time to move smoothly from the current starter demand to the requested demand. Set 0 for an immediate change. STOP and faults remain immediate.</span></div>`
+          aria-label="Speed change time in seconds" oninput="updateSetOutput('${tab}',${idx},null,null,this.value)"></div>`
     : '';
-  return `<div class="param-grid">
-    <div class="param-field"><span class="param-label">Output device</span><select class="param-input" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select><span class="param-desc">Any fitted output may be selected. Hardware driver limits are always respected.</span></div>
-    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : meta.ignition ? 'On/Off command. Hardware sets the output level and ramp-up time.' : 'Binary relay or switch output.'}</span></div>
+  const previousRamp = starterTransition
+    ? `<p class="block-desc" style="margin:0 0 .35rem" data-starter-ramp-previous hidden></p>
+       <p class="block-desc" style="margin:0 0 .55rem;color:var(--yellow)" data-starter-ramp-explanation hidden>This ramp continues from the demand the previous ramp reached. No extra wait is required.</p>` : '';
+  return `${previousRamp}<div class="param-grid">
+    <div class="param-field" title="Select which fitted output this card commands."><span class="param-label">Output device</span><select class="param-input" aria-label="Output device" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select></div>
+    <div class="param-field" title="${esc(demandHelp)}"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}</div>
     ${starterTransition}
-  </div>`;
+  </div>${starterTransition ? '<p class="block-desc" style="margin:.55rem 0 0" data-starter-ramp-preview></p>' : ''}`;
 }
 
 function updateSetOutput(tab, idx, newTarget, newValue, newTransitionSeconds = null) {
@@ -2957,6 +3149,7 @@ function updateSetOutput(tab, idx, newTarget, newValue, newTransitionSeconds = n
     row.value = actionStoredValue(row, newValue);
   }
   markSequenceDirty('Sequence edited — save to apply');
+  refreshStarterRampPreviews(tab);
 }
 
 function toggleParams(header) {
@@ -2977,6 +3170,7 @@ function onParamChange(bname, pkey, configKey, rawVal, tab, idx) {
     const summary = card?.querySelector('.block-cond');
     if (summary) summary.textContent = `Wait ${seqRound(val / 1000)} s`;
     markSequenceDirty('Sequence edited — save to apply');
+    refreshStarterRampPreviews(tab);
     return;
   }
   const vk  = bname + '.' + pkey;
@@ -2998,6 +3192,12 @@ function refreshParamVisibility(bname) {
     const card=holder.closest('.block-card');
     holder.innerHTML=buildResolvedActionsHtml(card.dataset.block,Number(card.dataset.idx),card.dataset.tab);
   });
+  Object.keys(SEQ_ACTION_KEYS).forEach(refreshStarterRampPreviews);
+  if (bname === 'SafetyHold') {
+    const status = finalCheckSelectionText();
+    document.querySelectorAll('[data-final-check-status]').forEach(el => { el.textContent = status; });
+    document.querySelectorAll('.seq-final-oil-reference').forEach(el => { el.hidden = !finalCheckUsesSharedOilLimit(); });
+  }
   const def = BLOCKS[bname] || customBlocks[bname];
   if (!def) return;
   def.params.forEach(p => {
@@ -3011,12 +3211,10 @@ function refreshParamVisibility(bname) {
 function onParamChangeBool(bname, pkey, configKey, checked) {
   const vk = bname + '.' + pkey;
   paramVals[vk] = checked;
-  // Shared setting: sync checkbox + label in every card showing this param (ids are per tab+card)
+  // Shared setting: sync checkboxes in every card showing this parameter.
   document.querySelectorAll(`.param-field[data-bname="${bname}"][data-pkey="${pkey}"]`).forEach(pf => {
     const cb  = pf.querySelector('input[type="checkbox"]');
-    const lbl = pf.querySelector('label');
     if (cb)  cb.checked = checked;
-    if (lbl) lbl.textContent = checked ? 'Yes' : 'No';
   });
   if (configKey) setConfigVal(configKey, checked);
 
@@ -3914,6 +4112,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Sequence persistence only. Custom running controllers belong to Controllers.
 function validateSequenceHardwareForSave() {
   const errors = [];
+  if (hwCfg.startup_seq?.includes('SafetyHold')) {
+    for (const [sensor, ...fields] of finalCheckParameterGroups()) {
+      if (!paramVals['SafetyHold.' + sensor.key]) continue;
+      const [lower, upper] = fields.filter(p => p.optional);
+      if (!lower) continue;
+      const sharedOil = sensor === finalCheckSensors.oil && paramVals['SafetyHold.final_check_oil_use_shared_min'];
+      const min = sharedOil ? Number(cfg.oil?.running_min ?? 2.8) : paramVals['SafetyHold.' + lower.key];
+      const max = paramVals['SafetyHold.' + upper.key];
+      if (min != null && max != null && min > max) {
+        errors.push(`Final Startup Checks · ${sequenceParamLabel(sensor)}: the maximum must be at least the minimum.`);
+      }
+    }
+  }
   const tabs = [['Startup','startup'],['Shutdown','shutdown'],['Afterburner','afterburner'],['Afterburner shutdown','ab-shut']];
   tabs.forEach(([label, tab]) => (hwCfg[seqKey(tab)] || []).forEach((name, index) => {
     const def = BLOCKS[name] || customBlocks[name];
@@ -4058,6 +4269,10 @@ async function _saveSequenceChanges() {
       result = await window.OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu());
     }
     const rebooting = result?.data.reboot === true;
+    if (result?.data.applying === true && !rebooting) {
+      setSaveStatus('Saved — applying…');
+      await confirmSequenceSettingsApplied(settingsPatch);
+    }
     if (result) window.OTSetup?.mark('sequence', result.response);
     clearSequenceDirty(rebooting ? 'Saved — rebooting…' : 'Saved');
     if (rebooting) startRebootCountdown();
@@ -4069,6 +4284,30 @@ async function _saveSequenceChanges() {
     setSaveStatus('Warning: ' + error.message);
     if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
   }
+}
+
+async function confirmSequenceSettingsApplied(patch) {
+  const deadline = Date.now() + 8000;
+  const read = async path => {
+    const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(1500)});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  };
+  const matches = (settings, changes) => Object.entries(changes).every(([key, value]) => {
+    const current = settings?.[key];
+    if (value !== null && typeof value === 'object') return matches(current, value);
+    if (typeof value === 'number' && typeof current === 'number')
+      return Math.abs(current - value) <= Math.max(1e-6, Math.abs(value) * 1e-6);
+    return current === value;
+  });
+  while (Date.now() < deadline) {
+    try {
+      const status = await read('/api/status');
+      if (status.config_apply_busy === false && matches(await read('/api/config'), patch)) return;
+    } catch (_) {} // The ECU can drop status polls while applying settings.
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  throw new Error('The ECU acknowledged the save, but applying the new settings could not be confirmed. Reload Sequence and verify the saved values before starting.');
 }
 
 function startRebootCountdown() {

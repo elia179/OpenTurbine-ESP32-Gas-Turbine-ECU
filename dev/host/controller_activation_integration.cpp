@@ -22,6 +22,7 @@ ChannelRegistry& HardwareConfig::channelRegistry = registry;
 HardwareConfig::DiChannel HardwareConfig::diCh[HardwareConfig::MAX_DI] = {};
 Config::Rule Config::rules[Config::MAX_RULES] = {};
 int Config::ruleCount = 0;
+bool Config::safetyHoldTurnOffStarter = true;
 namespace ConfigInternal { int8_t ruleSourceHandle(const char*) { return -1; } }
 int HardwareConfig::abInputPin = {};
 bool HardwareConfig::hasMAVLink=true;
@@ -417,4 +418,28 @@ int main() {
     std::cout<<"Production RulesEngine: continuous pot tracking, ownership, event handover, safe shutdown, inactive no-op, disable/re-enable, fault, servo park and protective ignition passed.\n";
     testAfterburnerConfirmation();
     testStarterSpinHandoff();
+    class FinalCheckExit : public IBlock {
+    public:
+        const char* name() override { return "SafetyHold"; }
+        BlockResult tick() override { return BlockResult::Complete; }
+        void onExit() override { EngineData::instance().starterDemand = 0; }
+    } finalCheck;
+    Config::ruleCount = 0;
+    ed.mode = SysMode::STARTUP;
+    ed.starterDemand = 0;
+    HardwareConfig::hasStarter = true;
+    RulesEngine::modeEntered(ed.mode);
+    HardwareConfig::SeqSideAction starterRamp[1][HardwareConfig::MAX_SEQ_SIDE_ACTIONS] = {};
+    starterRamp[0][0].enabled = true;
+    starterRamp[0][0].actuator = RulesEngine::STARTER;
+    starterRamp[0][0].value = 1;
+    starterRamp[0][0].transitionMs = 5000;
+    IBlock* finalChecks[] = {&finalCheck};
+    fakeMillisClock() = 100;
+    sequence.startSequence(finalChecks, 1, starterRamp);
+    fakeMillisClock() = 1000;
+    sequence.tick();
+    fakeMillisClock() = 2000;
+    sequence.tick();
+    near(ed.starterDemand, 0);
 }

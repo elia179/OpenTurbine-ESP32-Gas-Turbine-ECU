@@ -55,6 +55,17 @@ bool  Config::safetyHoldCheckP2       = false;
 bool  Config::safetyHoldCheckOil      = false;
 bool  Config::safetyHoldCheckEgt      = false;
 bool  Config::safetyHoldCheckFlame    = false;
+bool Config::safetyHoldCheckBattery = false;
+bool Config::safetyHoldOilUseSharedMin = true;
+float Config::safetyHoldMaxN1 = NAN;
+float Config::safetyHoldMaxN2 = NAN;
+float Config::safetyHoldMaxP1 = NAN;
+float Config::safetyHoldMaxP2 = NAN;
+float Config::safetyHoldMaxEgt = NAN;
+float Config::safetyHoldMinOil = NAN;
+float Config::safetyHoldMaxOil = NAN;
+float Config::safetyHoldMinBattery = NAN;
+float Config::safetyHoldMaxBattery = NAN;
 float Config::safetyHoldFinalN2Rpm    = 0.0f;
 float Config::safetyHoldFinalP1       = 0.0f;
 float Config::safetyHoldFinalP2       = 0.0f;
@@ -262,9 +273,9 @@ float    Config::throttleSetPct          = 10.0f;
 float    Config::oilPumpOnPct            = 100.0f;
 
 bool     Config::flameConfirmTurnOffIgniter  = true;
-bool     Config::safetyHoldTurnOffStarter    = false;
-bool     Config::safetyHoldTurnOffStarterEn  = false;
-bool     Config::safetyHoldTurnOffIgniter    = false;
+bool     Config::safetyHoldTurnOffStarter    = true;
+bool     Config::safetyHoldTurnOffStarterEn  = true;
+bool     Config::safetyHoldTurnOffIgniter    = true;
 bool     Config::spoolCutStarterOnExit       = true;
 bool     Config::spoolCutStarterEnOnExit     = true;
 
@@ -623,13 +634,21 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validInt(su["flame_required_count"], 1, 1000) ||
         !validInt(su["wait_for_input_ch"], 0, 3) ||
         !validBool(su["wait_for_input_state"])) return false;
+    const auto validFinalRange = [&](const char* lowerKey, const char* upperKey, float min, float max) {
+        const auto lower = su[lowerKey];
+        const auto upper = su[upperKey];
+        return validNumber(lower, min, max) && validNumber(upper, min, max) &&
+            (lower.isNull() || upper.isNull() || lower.as<float>() <= upper.as<float>());
+    };
+    if (!validFinalRange("final_check_rpm", "final_check_n1_max_rpm", 0, 1e9f) ||
+        !validFinalRange("final_check_n2_rpm", "final_check_n2_max_rpm", 0, 1e9f) ||
+        !validFinalRange("final_check_p1_bar", "final_check_p1_max_bar", -1000, 1000) ||
+        !validFinalRange("final_check_p2_bar", "final_check_p2_max_bar", -1000, 1000) ||
+        !validFinalRange("final_check_egt_c", "final_check_egt_max_c", -273.15f, 100000) ||
+        !validFinalRange("final_check_oil_min_bar", "final_check_oil_max_bar", -1000, 1000) ||
+        !validFinalRange("final_check_battery_min_v", "final_check_battery_max_v", 0, 1000)) return false;
     if (!validNumber(su["pre_ign_rpm"], 0.0f, 1000000000.0f) ||
         !validNumber(su["rpm_target"], 0.0f, 1000000000.0f) ||
-        !validNumber(su["final_check_rpm"], 0.0f, 1000000000.0f) ||
-        !validNumber(su["final_check_n2_rpm"], 0.0f, 1000000000.0f) ||
-        !validNumber(su["final_check_p1_bar"], 0.0f, 1000.0f) ||
-        !validNumber(su["final_check_p2_bar"], 0.0f, 1000.0f) ||
-        !validNumber(su["final_check_egt_c"], 0.0f, 100000.0f) ||
         !validNumber(su["starter_demand"], 0.0f, 100.0f) ||
         !validNumber(su["temp_confirm_target"], 0.0f, 100000.0f) ||
         !validNumber(su["wait_tot_target"], 0.0f, 100000.0f) ||
@@ -653,6 +672,8 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validBool(su["final_check_p2_enabled"]) ||
         !validBool(su["final_check_oil_enabled"]) ||
         !validBool(su["final_check_egt_enabled"]) ||
+        !validBool(su["final_check_battery_enabled"]) ||
+        !validBool(su["final_check_oil_use_shared_min"]) ||
         !validBool(su["final_check_flame_enabled"]) ||
         !validBool(su["safety_turn_off_starter"]) ||
         !validBool(su["safety_turn_off_starter_en"]) ||
@@ -1255,7 +1276,7 @@ void Config::load() {
         _applyDefaults();
         strncpy(profileId, HardwareConfig::profileId, sizeof(profileId) - 1);
         profileId[sizeof(profileId) - 1] = '\0';
-        inhibitStartForProfileMismatch();
+        if (!ed.configLocked) inhibitStartForProfileMismatch();
         return;
     }
 

@@ -179,6 +179,15 @@ async function capture(page, route, file, selector, scrollToSelector = false) {
     await capture(page, 'system.html', 'system-page.png', '.cfg-workspace-card');
     await capture(page, 'calibration.html', 'calibration-page.png', '#throttle-cal-row');
     await capture(page, 'sequence.html', 'sequence-page.png', '#list-startup');
+    const finalChecks = page.locator('#list-startup [data-block="SafetyHold"]');
+    await finalChecks.locator('.block-header').click();
+    await finalChecks.locator('[data-pkey="final_check_egt_enabled"] input').check();
+    await finalChecks.locator('[data-pkey="final_check_egt_c"] input').fill('400');
+    await finalChecks.locator('[data-pkey="final_check_egt_max_c"] input').fill('600');
+    await finalChecks.screenshot({
+      path:path.join(output, 'sequence-final-startup-checks.png'),
+      style:'#sequence-save-bar, .ot-save-handle { visibility: hidden !important; }'
+    });
     await setRunState(page, { mode: 'STANDBY', last_event: 'STANDBY', uptime_s: 0, n1: 0, tot: 24, oil: 0, oil_raw: 500, oil_temp: 24, throttle_demand: 0, throttle_input_us: 1000, throttle_input_norm: 0, rc_throttle_norm: 0, idle_input_type: 'none', idle_input_us: 0, oil_pct: 0, flame: false });
     await capture(page, 'tools.html', 'tools-page.png', '#tool-area');
     const heroData = fs.readFileSync(path.join(output, 'hero-dashboard.png')).toString('base64');

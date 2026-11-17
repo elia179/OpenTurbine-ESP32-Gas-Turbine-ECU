@@ -22,6 +22,30 @@ document.addEventListener('DOMContentLoaded', function () {
 // ------ Block definitions ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // type: 'while'=waits for condition  'action'=instant  'wait'=timer  'check'=verify+fault
 // timeout_action: 'fault'|'abort'|'continue'|null
+function finalCheckBounds(lowerKey, upperKey, label, sensor, unit, min, max, lowerDefault, lowerVisible = () => true) {
+  return [[lowerKey, 'Minimum', lowerDefault], [upperKey, 'Maximum', null]].map(([key, limit, def]) => ({
+    key, label:`${limit} accepted ${label}`, type:'float', min, max, step:'any', def,
+    ...(unit === 'temp' ? {unitType:'temp'} : {unit}),
+    configKey:key, optional:true, visibleIf:sensor.visibleIf,
+    showWhen:vals => !!vals['SafetyHold.' + sensor.key] && (key !== lowerKey || lowerVisible(vals))
+  }));
+}
+
+const finalCheckSensors = Object.fromEntries([
+  ['n1', 'Require N1', ['n1_rpm'], true],
+  ['n2', 'Require N2', ['n2_rpm']],
+  ['p1', 'Require P1 pressure', ['p1']],
+  ['p2', 'Require P2 pressure', ['p2']],
+  ['oil', 'Require oil pressure', ['oil_press']],
+  ['egt', 'Require engine temperature', ['tot', 'tit']],
+  ['battery', 'Require battery voltage', ['batt_voltage']],
+  ['flame', 'Require flame detected', ['flame']]
+].map(([name, label, keys, def = false]) => {
+  const key = `final_check_${name}_enabled`;
+  return [name, {key, label, type:'bool', def, configKey:key, visibleIf:() => keys.some(sensorEnabled)}];
+}));
+const anyFinalCheckSensorFitted = () => Object.values(finalCheckSensors).some(p => p.visibleIf());
+
 const BLOCKS = {
   SetOutput: {
     label:'Set Output', type:'action', badgeClass:'badge-action',
@@ -198,39 +222,41 @@ const BLOCKS = {
   },
   SafetyHold: {
     label:'Final Startup Checks', type:'check', badgeClass:'badge-check',
-    visibleIf: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') || sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') || sensorEnabled('tit') || sensorEnabled('flame'),
+    visibleIf: anyFinalCheckSensorFitted,
     condition: hw => `Stable for ${hw.safety_hold_ms ?? 1000} ms`,
     timeout_action:'fault',
-    desc:'Requires every enabled check to remain continuously valid for the stable time before RUNNING. A failed or unhealthy sensor resets the stable timer; the overall timeout causes a fault shutdown. Starter state is not treated as proof of engine health.',
+    desc:'Use this near the end of startup to confirm the engine is ready for Running. Select the fitted sensors that must pass before the sequence moves on.',
     hwWarnings:[
-      { check: hw => sensorEnabled('n1_rpm') || sensorEnabled('n2_rpm') || sensorEnabled('p1') ||
-          sensorEnabled('p2') || sensorEnabled('oil_press') || sensorEnabled('tot') ||
-          sensorEnabled('tit') || sensorEnabled('flame'),
+      { check: anyFinalCheckSensorFitted,
         level: 'error',
         msg: 'No fitted sensor is available for Final Startup Checks. Fit a sensor, remove this block, or use Bench Mode for timer-only testing.' },
     ],
     params:[
       {key:'safety_hold_ms', label:'Stable time required',unit:'ms', type:'int', min:100, max:10000, step:100, def:1000, configKey:'safety_hold_ms'},
       {key:'safety_hold_timeout_ms', label:'Overall timeout',unit:'ms', type:'int', min:100, max:120000, step:500, def:15000, configKey:'safety_hold_timeout_ms'},
-      {key:'final_check_n1_enabled',label:'Require N1',type:'bool',def:true,configKey:'final_check_n1_enabled',visibleIf:hw=>sensorEnabled('n1_rpm')},
-      {key:'final_check_rpm',label:'Minimum accepted N1', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:31000, configKey:'final_check_rpm',
-        visibleIf: hw => sensorEnabled('n1_rpm'), showWhen: vals => !!vals['SafetyHold.final_check_n1_enabled'],
-        desc:'N1 must remain at or above this value for the full stable time.'},
-      {key:'final_check_n2_enabled',label:'Require N2',type:'bool',def:false,configKey:'final_check_n2_enabled',visibleIf:hw=>sensorEnabled('n2_rpm')},
-      {key:'final_check_n2_rpm',label:'Minimum accepted N2',unit:'rpm',type:'float',min:0,max:200000,step:500,def:0,configKey:'final_check_n2_rpm',visibleIf:hw=>sensorEnabled('n2_rpm'),showWhen:vals=>!!vals['SafetyHold.final_check_n2_enabled']},
-      {key:'final_check_p1_enabled',label:'Require P1 pressure',type:'bool',def:false,configKey:'final_check_p1_enabled',visibleIf:hw=>sensorEnabled('p1')},
-      {key:'final_check_p1_bar',label:'Minimum accepted P1',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p1_bar',visibleIf:hw=>sensorEnabled('p1'),showWhen:vals=>!!vals['SafetyHold.final_check_p1_enabled']},
-      {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
-      {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
-      {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
-      {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
-      {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
-      {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
-      {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:false, configKey:'safety_turn_off_starter'},
-      {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:false, configKey:'safety_turn_off_starter_en',
+      finalCheckSensors.n1,
+      ...finalCheckBounds('final_check_rpm','final_check_n1_max_rpm','N1',finalCheckSensors.n1,'rpm',0,1e9,31000),
+      finalCheckSensors.n2,
+      ...finalCheckBounds('final_check_n2_rpm','final_check_n2_max_rpm','N2',finalCheckSensors.n2,'rpm',0,1e9,0),
+      finalCheckSensors.p1,
+      ...finalCheckBounds('final_check_p1_bar','final_check_p1_max_bar','P1',finalCheckSensors.p1,'bar',-1000,1000,0),
+      finalCheckSensors.p2,
+      ...finalCheckBounds('final_check_p2_bar','final_check_p2_max_bar','P2',finalCheckSensors.p2,'bar',-1000,1000,0),
+      finalCheckSensors.oil,
+      {key:'final_check_oil_use_shared_min',label:'Use shared minimum',type:'bool',def:true,configKey:'final_check_oil_use_shared_min',visibleIf:finalCheckSensors.oil.visibleIf,showWhen:vals=>!!vals['SafetyHold.final_check_oil_enabled']},
+      ...finalCheckBounds('final_check_oil_min_bar','final_check_oil_max_bar','oil pressure',finalCheckSensors.oil,'bar',-1000,1000,null,vals=>!vals['SafetyHold.final_check_oil_use_shared_min']),
+      finalCheckSensors.egt,
+      ...finalCheckBounds('final_check_egt_c','final_check_egt_max_c','EGT',finalCheckSensors.egt,'temp',-273.15,100000,0),
+      finalCheckSensors.battery,
+      ...finalCheckBounds('final_check_battery_min_v','final_check_battery_max_v','battery voltage',finalCheckSensors.battery,'V',0,1000,null),
+      finalCheckSensors.flame,
+      {key:'safety_turn_off_starter',    label:'Turn off starter on exit',             type:'bool', def:true, configKey:'safety_turn_off_starter',
+        visibleIf: () => actuatorEnabled('starter')},
+      {key:'safety_turn_off_starter_en', label:'Turn off starter enable output on exit',type:'bool', def:true, configKey:'safety_turn_off_starter_en',
         visibleIf: hw => actuatorEnabled('starter_en')},
-      {key:'safety_turn_off_igniter',    label:'Release sequence ignition on exit',    type:'bool', def:false, configKey:'safety_turn_off_igniter',
-        desc:'Turns off only ignition devices energized by dedicated ignition blocks in this sequence.'},
+      {key:'safety_turn_off_igniter',    label:'Turn off startup igniters on exit',    type:'bool', def:true, configKey:'safety_turn_off_igniter',
+        visibleIf: hasIgnitionOutput,
+        desc:'Turns off the igniters and glow plugs energized by the startup sequence.'},
     ]
   },
   AirstarterOn: {
@@ -661,18 +687,8 @@ const CONFIG_SECTIONS = {
   rpm_timeout_ms:          {sec:'sequence.startup', key:'rpm_timeout_ms'},
   safety_hold_ms:          {sec:'sequence.startup', key:'safety_hold_ms'},
   safety_hold_timeout_ms:  {sec:'sequence.startup', key:'safety_hold_timeout_ms'},
-  final_check_n1_enabled:  {sec:'sequence.startup', key:'final_check_n1_enabled'},
-  final_check_n2_enabled:  {sec:'sequence.startup', key:'final_check_n2_enabled'},
-  final_check_p1_enabled:  {sec:'sequence.startup', key:'final_check_p1_enabled'},
-  final_check_p2_enabled:  {sec:'sequence.startup', key:'final_check_p2_enabled'},
-  final_check_oil_enabled: {sec:'sequence.startup', key:'final_check_oil_enabled'},
-  final_check_egt_enabled: {sec:'sequence.startup', key:'final_check_egt_enabled'},
-  final_check_flame_enabled:{sec:'sequence.startup', key:'final_check_flame_enabled'},
-  final_check_n2_rpm:      {sec:'sequence.startup', key:'final_check_n2_rpm'},
-  final_check_p1_bar:      {sec:'sequence.startup', key:'final_check_p1_bar'},
-  final_check_p2_bar:      {sec:'sequence.startup', key:'final_check_p2_bar'},
-  final_check_egt_c:       {sec:'sequence.startup', key:'final_check_egt_c'},
-  final_check_rpm:         {sec:'sequence.startup', key:'final_check_rpm'},
+  ...Object.fromEntries(BLOCKS.SafetyHold.params.filter(p => p.key.startsWith('final_check_')).map(p =>
+    [p.key, {sec:'sequence.startup', key:p.key}])),
   // shutdown params (doc.sequence.shutdown.*)
   rpm_drop_threshold:      {sec:'sequence.shutdown', key:'rpm_drop_threshold'},
   rpm_drop_timeout_ms:     {sec:'sequence.shutdown', key:'rpm_drop_timeout_ms'},
@@ -807,7 +823,7 @@ const BLOCK_INFO = {
     ]
   },
   SafetyHold: {
-    desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
+    desc: 'All selected sensors must be healthy and meet their criteria at the same time. The stable timer restarts when any check fails. The overall timeout never restarts and faults startup if the card has not passed. The oil pressure check uses the shared low-pressure limit. Starter and ignition exit actions are separate from the checks. When used in a sequence more than once, this card shares its settings across copies. In Bench Mode, the card waits for the stable time with sensor checks bypassed.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
       { label: 'Shared Oil Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
@@ -910,16 +926,21 @@ function showBlockInfo(bname, trigger) {
 
   hideBlockInfo();
   const def = BLOCKS[bname] || {};
-  const info = BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
+  const starter = !!card.querySelector('[data-starter-ramp-preview]');
+  const info = bname === 'SetOutput' ? {
+    desc: `<p>${def.desc} For proportional outputs, 0% is off and 100% is the configured full output.</p>` +
+      (starter ? '<p>Speed change time sets how long the starter command takes to reach its new target. Set it to 0 for an immediate change. STOP and faults still cut starter demand immediately.</p><p>Rate is in percentage points per second (pp/s). If a new command arrives before the previous ramp finishes, it starts from the demand reached so far. After a condition wait, the starting demand depends on when the wait ends.</p>' :
+        '<p>Hardware sets the output level and any ramp for an on/off ignition command.</p>')
+  } : BLOCK_INFO[bname] || { desc: def.desc || 'This block is configured entirely within the sequence.', links: [] };
   const infoLinks = info.links || [];
   const linksHtml = infoLinks.length
     ? `<div class="bip-links-label">Related settings:</div><div class="bip-links">` +
       infoLinks.map(l => `<a class="bip-link" href="${l.url}">${l.label}</a>`).join('') +
       '</div>'
-    : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';
+    : bname === 'SetOutput' ? '' : '<div class="bip-links-label" style="color:var(--dim)">No external settings - all parameters are set directly on this block.</div>';
   panel.innerHTML = `
     <div class="bip-header">
-      <span class="bip-name">${def.label ?? bname}</span>
+      <span class="bip-name">${esc(card.querySelector('.block-name')?.textContent || def.label || bname)}</span>
       <button type="button" class="bip-close" aria-label="Close block explanation" onclick="hideBlockInfo(this.closest('.block-info-panel'))">Close</button>
     </div>
     <div class="bip-desc">${info.desc}</div>

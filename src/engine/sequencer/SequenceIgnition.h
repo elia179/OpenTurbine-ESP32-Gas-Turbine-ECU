@@ -12,6 +12,20 @@ inline void setSequenceIgnitionTracked(int8_t outputIndex, bool active) {
     else ed.sequenceIgnitionMask &= (uint16_t)~bit;
 }
 
+inline void trackStartupIgnitionDemand(const char* targetId, uint8_t actuator, float demand) {
+    if (EngineData::instance().mode != SysMode::STARTUP) return;
+    const auto& registry = HardwareConfig::channelRegistry;
+    for (uint8_t i = 0; i < registry.outputCount; ++i) {
+        const auto& output = registry.outputs[i];
+        if (strcmp(output.purpose, "igniter") && strcmp(output.purpose, "ab_igniter") &&
+            strcmp(output.purpose, "glow_plug")) continue;
+        if (targetId[0] ? strcmp(targetId, output.id) != 0 :
+            HardwareConfig::outputActuatorForId(output.id) != actuator) continue;
+        setSequenceIgnitionTracked(i, demand > 0.0f);
+        return;
+    }
+}
+
 inline void clearSequenceIgnitionOutputs() {
     auto& ed = EngineData::instance();
     const uint16_t mask = ed.sequenceIgnitionMask;

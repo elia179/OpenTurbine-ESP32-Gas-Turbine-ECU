@@ -5,6 +5,7 @@
 #include "RulesEngine.h"
 #include "hardware_profile.h"
 #include <cstring>
+#include <cmath>
 #if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
 #include <LittleFS.h>
 #endif
@@ -274,13 +275,25 @@ const ConfigField<bool> STARTER_CONTROL_BOOL_FIELDS[] = {
     CONFIG_FIELD(starterAssistEnabled, "pulsed_assist_enabled"),
 };
 
-const ConfigField<float> STARTUP_FLOAT_FIELDS[] = {
-    CONFIG_FIELD(preIgnRpm, "pre_ign_rpm"), CONFIG_FIELD(spoolRpmTarget, "rpm_target"),
+const ConfigField<float> FINAL_CHECK_BOUNDS[] = {
     CONFIG_FIELD(safetyHoldFinalRpm, "final_check_rpm"),
     CONFIG_FIELD(safetyHoldFinalN2Rpm, "final_check_n2_rpm"),
     CONFIG_FIELD(safetyHoldFinalP1, "final_check_p1_bar"),
     CONFIG_FIELD(safetyHoldFinalP2, "final_check_p2_bar"),
     CONFIG_FIELD(safetyHoldFinalEgt, "final_check_egt_c"),
+    CONFIG_FIELD(safetyHoldMaxN1, "final_check_n1_max_rpm"),
+    CONFIG_FIELD(safetyHoldMaxN2, "final_check_n2_max_rpm"),
+    CONFIG_FIELD(safetyHoldMaxP1, "final_check_p1_max_bar"),
+    CONFIG_FIELD(safetyHoldMaxP2, "final_check_p2_max_bar"),
+    CONFIG_FIELD(safetyHoldMaxEgt, "final_check_egt_max_c"),
+    CONFIG_FIELD(safetyHoldMinOil, "final_check_oil_min_bar"),
+    CONFIG_FIELD(safetyHoldMaxOil, "final_check_oil_max_bar"),
+    CONFIG_FIELD(safetyHoldMinBattery, "final_check_battery_min_v"),
+    CONFIG_FIELD(safetyHoldMaxBattery, "final_check_battery_max_v"),
+};
+
+const ConfigField<float> STARTUP_FLOAT_FIELDS[] = {
+    CONFIG_FIELD(preIgnRpm, "pre_ign_rpm"), CONFIG_FIELD(spoolRpmTarget, "rpm_target"),
     CONFIG_FIELD(starterDemand, "starter_demand"), CONFIG_FIELD(tempConfirmTarget, "temp_confirm_target"),
     CONFIG_FIELD(modifiedIdleMultiplier, "modified_idle_multiplier"),
     CONFIG_FIELD(waitTotCoolTarget, "wait_tot_target"), CONFIG_FIELD(throttleSetPct, "throttle_set_pct"),
@@ -315,6 +328,8 @@ const ConfigField<bool> STARTUP_BOOL_FIELDS[] = {
     CONFIG_FIELD(safetyHoldCheckOil, "final_check_oil_enabled"),
     CONFIG_FIELD(safetyHoldCheckEgt, "final_check_egt_enabled"),
     CONFIG_FIELD(safetyHoldCheckFlame, "final_check_flame_enabled"),
+    CONFIG_FIELD(safetyHoldCheckBattery, "final_check_battery_enabled"),
+    CONFIG_FIELD(safetyHoldOilUseSharedMin, "final_check_oil_use_shared_min"),
     CONFIG_FIELD(waitForInputExpected, "wait_for_input_state"),
     CONFIG_FIELD(flameConfirmTurnOffIgniter, "flame_turn_off_igniter"),
     CONFIG_FIELD(safetyHoldTurnOffStarter, "safety_turn_off_starter"),
@@ -541,6 +556,10 @@ void Config::_applyDefaults() {
     safetyHoldCheckP2 = false; safetyHoldCheckOil = false; safetyHoldCheckEgt = false;
     safetyHoldCheckFlame = false; safetyHoldFinalN2Rpm = 0.0f;
     safetyHoldFinalP1 = 0.0f; safetyHoldFinalP2 = 0.0f; safetyHoldFinalEgt = 0.0f;
+    safetyHoldCheckBattery = false;
+    safetyHoldOilUseSharedMin = true;
+    safetyHoldMaxN1 = safetyHoldMaxN2 = safetyHoldMaxP1 = safetyHoldMaxP2 = safetyHoldMaxEgt = NAN;
+    safetyHoldMinOil = safetyHoldMaxOil = safetyHoldMinBattery = safetyHoldMaxBattery = NAN;
     starterDemand = 60.0f; starterTimeoutMs = 8000;
     tempConfirmTarget = 200.0f; tempConfirmTimeoutMs = 10000;
     waitForInputChannel = 0; waitForInputExpected = true; waitForInputTimeoutMs = 0;
@@ -549,7 +568,7 @@ void Config::_applyDefaults() {
     waitTotCoolTarget = 150.0f; waitTotCoolTimeoutMs = 120000;
     throttleSetPct = 10.0f; oilPumpOnPct = 100.0f;
     flameConfirmTurnOffIgniter = true;
-    safetyHoldTurnOffStarter = false; safetyHoldTurnOffStarterEn = false; safetyHoldTurnOffIgniter = false;
+    safetyHoldTurnOffStarter = true; safetyHoldTurnOffStarterEn = true; safetyHoldTurnOffIgniter = true;
     spoolCutStarterOnExit = true; spoolCutStarterEnOnExit = true;
     preStartEgtLimitC = 150.0f; startupEgtLimitC = 0.0f;
     startupEgtGuardEnabled=false;startupEgtDwellC=0;startupEgtDwellMs=1000; finalStopOilScavengeMs = 0;
@@ -733,6 +752,10 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
 
     auto su = doc["sequence"]["startup"];
     readConfigFields(su, STARTUP_FLOAT_FIELDS);
+    for (const auto& field : FINAL_CHECK_BOUNDS) {
+        const JsonVariantConst value = su[field.key];
+        if (!value.isUnbound()) *field.value = value.isNull() ? NAN : value.as<float>();
+    }
     readConfigFields(su, STARTUP_INT_FIELDS);
     readConfigFields(su, STARTUP_BOOL_FIELDS);
 
@@ -1021,9 +1044,6 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (spoolRpmTarget < 0.0f) spoolRpmTarget = 0.0f;
     if (safetyHoldFinalRpm < 0.0f) safetyHoldFinalRpm = 0.0f;
     if (safetyHoldFinalN2Rpm < 0.0f) safetyHoldFinalN2Rpm = 0.0f;
-    if (safetyHoldFinalP1 < 0.0f) safetyHoldFinalP1 = 0.0f;
-    if (safetyHoldFinalP2 < 0.0f) safetyHoldFinalP2 = 0.0f;
-    if (safetyHoldFinalEgt < 0.0f) safetyHoldFinalEgt = 0.0f;
     if (waitTotCoolTarget < 0.0f) waitTotCoolTarget = 0.0f;
     if (shutdownRpmDropThreshold < 0.0f) shutdownRpmDropThreshold = 0.0f;
     if (rpmZeroThreshold < 0.0f) rpmZeroThreshold = 0.0f;
@@ -1335,6 +1355,10 @@ void Config::_writeDoc(JsonObject doc) {
 
     auto su = doc["sequence"]["startup"].to<JsonObject>();
     writeConfigFields(su, STARTUP_FLOAT_FIELDS);
+    for (const auto& field : FINAL_CHECK_BOUNDS) {
+        if (std::isfinite(*field.value)) su[field.key] = *field.value;
+        else su[field.key] = nullptr;
+    }
     writeConfigFields(su, STARTUP_INT_FIELDS);
     writeConfigFields(su, STARTUP_BOOL_FIELDS);
 

@@ -458,9 +458,17 @@ Do not copy this blindly; make it match the engine. A common logic pattern is:
 4. **Set Output for fuel admission:** commands the selected fitted fuel device. If the engine deliberately requires a bounded priming pulse, construct it from explicit output and delay actions; Fuel Pulse is not a separate picker entry.
 5. **Confirm Combustion:** uses FlameConfirm or TempConfirm; never leave light-off unverified merely because a timer expired.
 6. **Spool / Modified Idle / Fuel Pump Idle:** increases fuel toward the idle-entry condition.
-7. **Verify Stable Idle (SafetyHold):** confirms RPM/oil conditions before RUNNING.
+7. **Final Startup Checks (SafetyHold)** waits until the selected fitted sensors pass together for the stable time. A failed check restarts the stable timer. If the overall timeout expires first, startup faults.
+
+Enable the checks this engine needs. Numeric checks accept minimum and maximum limits, and either can be left blank. The starter, fitted starter-enable output, and ignition used by the startup sequence default to turning off when the card exits on a new setup.
+
+<figure><img class="screenshot" src="{{ '/assets/images/sequence-final-startup-checks.png' | relative_url }}" width="872" height="664" loading="lazy" alt="Final Startup Checks with an N1 minimum, temperature range, timing and output shutoff options"><figcaption>Simulated Final Startup Checks with an example temperature range.</figcaption></figure>
 
 See the [block picker and expanded action/wait screenshots]({{ '/guided-builds/basic/#sequence' | relative_url }}) before building your first path. The picker uses friendly names such as Set Starter or Set Igniter; read the ACTION/UNTIL explanation when labels are similar.
+
+Proportional **Set Starter** action cards can ramp from the current demand to a new demand over a selected time. A following starter action takes over from the demand already reached. On a fixed timeline the editor flags an overlap and estimates the new ramp rate in percentage points per second.
+
+Select **Save** after editing. On ESP32-S3, settings-only edits show **Saved** once the ECU confirms they are active. Changes to the sequence structure reboot the ECU automatically.
 
 Use **Timed Delay** only when time itself is the correct requirement. **Wait For Input** is for an installed permission switch. Use **Set Output** for ordinary device commands; the add list presents one professionally named action for each fitted output and the card remains editable afterward. Purpose-specific blocks remain only where the ECU must perform real turbine logic rather than merely command an output.
 
@@ -500,7 +508,7 @@ Oil pressure has three separate jobs. Change the setting for the job you need:
 | Pressure below which a running oil circuit warns or shuts down | **Controllers → Shutdown & Protection → Oil circuit pressure protection → your pump → Low-pressure threshold**. The pump card links here; the protection card links back. With no named pressure controller, use **Oil Pressure Safety → Oil pressure protection → Low-Pressure Limit** instead. |
 | Pressure required before ignition | **Sequence → Startup → Build Oil Pressure** or **Set Starter → Minimum pressure before ignition**. These two fields share one value. |
 
-Click the Dashboard oil-pressure card to reveal links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. The target is compared only with that circuit's enabled pressure protection. Warning links open the affected pump or sequence card and preserve unsaved edits within the current editor. **Final Startup Checks → Require oil pressure** enables the optional completion check. Edit its pressure threshold in **Controllers → Shutdown & Protection → Shared Oil Low-Pressure Limit**. Accelerate to Idle uses the same reference. Each named oil-pressure controller has its own protection threshold.
+Click the Dashboard oil-pressure card to reveal links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. The target is compared only with that circuit's enabled pressure protection. Warning links open the affected pump or sequence card and preserve unsaved edits within the current editor. When automatic oil-pressure shutdown monitors startup, Sequence shows the trip condition and confirmation time above the cards. **Final Startup Checks → Require oil pressure** enables a separate completion check. It uses the shared minimum by default, or you can set its own limits. Accelerate to Idle uses the shared minimum. Each named oil-pressure controller has its own protection threshold.
 
 ### Keeping page controls compact
 

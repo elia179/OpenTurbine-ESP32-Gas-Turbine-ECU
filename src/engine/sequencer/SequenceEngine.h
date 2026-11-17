@@ -1,5 +1,6 @@
 #pragma once
 #include "IBlock.h"
+#include "SequenceIgnition.h"
 #include "../EngineData.h"
 #include "../../system/FlightRecorder.h"
 #include "../../system/HardwareConfig.h"
@@ -117,6 +118,8 @@ public:
                 const char* completedBlock = _blocks[_idx]->name();
                 FlightRecorder::logBlockExit(_blocks[_idx]->name(), acceptedTimeout ? "timeout_continue" : "ok");
                 if (!RulesEngine::inactiveControllerBlock(_blocks[_idx]->name())) _blocks[_idx]->onExit();
+                if (_starterTransitionActive && Config::safetyHoldTurnOffStarter &&
+                    strcmp(completedBlock, "SafetyHold") == 0) _cancelStarterTransition();
                 if (_generation != operation) return;
                 _applyActions(_exitActions, _idx);
                 if (_generation != operation) return;
@@ -284,7 +287,8 @@ private:
                 _updateStarterTransition();
             } else {
                 if (a.actuator == RulesEngine::STARTER) _cancelStarterTransition();
-                RulesEngine::applyActuatorDemand(a.actuator, a.value);
+                if (RulesEngine::applyActuatorDemand(a.actuator, a.value))
+                    trackStartupIgnitionDemand(a.targetId, a.actuator, a.value);
             }
         }
     }

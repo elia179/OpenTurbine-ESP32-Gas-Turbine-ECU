@@ -83,9 +83,9 @@ function resolveSequenceActions(tab, sequence) {
     if(name==='OilPrime'&&param(name,'oil_prime_use_scavenge',false))set('oil_scavenge_pump',0,'exit');
     if(name==='ABFlameConfirm'||name==='FlameConfirm'&&param(name,'flame_turn_off_igniter',true))clearIgnition();
     if(name==='SafetyHold'){
-      if(param(name,'safety_turn_off_starter',false))set('starter',0,'exit');
-      if(param(name,'safety_turn_off_starter_en',false))set('starter_en',0,'exit');
-      if(param(name,'safety_turn_off_igniter',false))clearIgnition();
+      if(param(name,'safety_turn_off_starter',true))set('starter',0,'exit');
+      if(param(name,'safety_turn_off_starter_en',true))set('starter_en',0,'exit');
+      if(param(name,'safety_turn_off_igniter',true))clearIgnition();
     }
     if(name==='CooldownSpin'){
       if(param(name,'cooldown_use_starter',true)){
@@ -123,6 +123,86 @@ function sequenceActionValue(meta,value) {
   if(typeof value==='string')return value;
   if(meta.mode==='pct')return `${Math.round(value*100)}%`;
   return (['fuel_sol','airstarter_sol','ab_sol','bleed_valve','drain_valve'].includes(meta.key)||['fuel_shutoff','air_starter','ab_valve','bleed_valve','drain_valve'].includes(meta.purpose))?value>=.5?'OPEN':'CLOSED':value>=.5?'ON':'OFF';
+}
+
+function refreshStarterRampPreviews(tab) {
+  const list = document.getElementById('list-' + tab);
+  if (!list?.querySelector('[data-starter-ramp-preview]')) return;
+  const sequence = hwCfg[seqKey(tab)] || [];
+  const commands = resolveSequenceActions(tab, sequence);
+  let demand = tab === 'startup' ? 0 : null;
+  let previous = null;
+
+  sequence.forEach((name, index) => {
+    const card = list.children[index];
+    const preview = card?.querySelector('[data-starter-ramp-preview]');
+    const starterWrites = commands[index].filter(row => row.meta.key === 'starter');
+    if (!preview) {
+      // Other blocks can replace the starter demand or hand it to a controller.
+      if (starterWrites.length) {
+        previous = null;
+        demand = null;
+      } else if (previous && name === 'TimedDelay') {
+        previous.elapsed += Number(timedDelayValue(tab, index));
+      } else if (previous && BLOCKS[name]?.type !== 'action') {
+        previous.variable = true;
+      }
+      return;
+    }
+
+    const action = hwCfg[actionKey(tab, 'enter')][index][0];
+    const warning = card.querySelector('[data-starter-ramp-warning]');
+    const target = (Number(action.value) || 0) * 100;
+    const duration = Math.max(0, Number(action.transition_ms) || 0);
+    const details = [];
+    let remaining = 0;
+    if (previous) {
+      if (previous.duration && previous.from !== previous.target) {
+        remaining = Math.max(0, previous.duration - previous.elapsed);
+      }
+      demand = previous.target;
+      if (remaining) {
+        demand = previous.variable || previous.from === null ? null
+          : previous.target + (previous.from - previous.target) * remaining / previous.duration;
+      }
+    }
+
+    if (demand !== null) {
+      details.push(`Start ≈${seqRound(demand)}%`);
+      if (duration) {
+        const rate = (target - demand) * 1000 / duration;
+        const roundedRate = seqRound(rate);
+        details.push(`Rate ${Number(roundedRate) > 0 ? '+' : ''}${roundedRate} pp/s`);
+      }
+    } else if (remaining && previous.variable) {
+      details.push('Start depends on the preceding wait');
+    } else {
+      details.push('Starts at current demand');
+    }
+
+    const overlap = remaining > 0 && !previous.variable;
+    const previousLine = card.querySelector('[data-starter-ramp-previous]');
+    previousLine.hidden = !previous;
+    previousLine.style.color = overlap ? 'var(--yellow)' : '';
+    if (previous) {
+      previousLine.textContent = `Previous target ${seqRound(previous.target)}%` +
+        (previous.duration ? ` over ${seqRound(previous.duration / 1000)} s` : '') +
+        (overlap ? ` · ≈${seqRound(remaining / 1000)} s left` : '');
+    }
+    preview.textContent = details.join(' · ');
+    if (overlap) warning.textContent = `Ramp overlap · ≈${seqRound(remaining / 1000)} s left`;
+    warning.hidden = !overlap;
+    card.querySelector('[data-starter-ramp-explanation]').hidden = !overlap;
+
+    // Only a single starter write on this card gives the following card a
+    // reliable target. A disabled primary action contributes no write.
+    if (action.enabled === false || starterWrites.length !== 1) {
+      previous = null;
+      demand = null;
+    } else {
+      previous = {from:demand, target, duration, elapsed:0, variable:false};
+    }
+  });
 }
 
 function buildResolvedActionsHtml(name,index,tab) {

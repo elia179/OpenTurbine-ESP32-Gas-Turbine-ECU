@@ -61,6 +61,11 @@ public:
     static bool  safetyHoldCheckOil;
     static bool  safetyHoldCheckEgt;
     static bool  safetyHoldCheckFlame;
+    static bool safetyHoldCheckBattery;
+    static bool safetyHoldOilUseSharedMin;
+    static float safetyHoldMaxN1, safetyHoldMaxN2, safetyHoldMaxP1, safetyHoldMaxP2;
+    static float safetyHoldMaxEgt, safetyHoldMinOil, safetyHoldMaxOil;
+    static float safetyHoldMinBattery, safetyHoldMaxBattery;
     static float safetyHoldFinalN2Rpm;
     static float safetyHoldFinalP1;
     static float safetyHoldFinalP2;

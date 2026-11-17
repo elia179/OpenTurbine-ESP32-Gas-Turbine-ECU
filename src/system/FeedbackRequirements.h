@@ -194,7 +194,8 @@ namespace FeedbackRequirements {
         if (!allOilLoopFeedbackHealthy(ed)) failed |= OIL_PRESSURE;
         if (HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp && !ed.oilTempHealthy) failed |= OIL_TEMP;
         if (HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress && !ed.fuelPressHealthy) failed |= FUEL_PRESSURE;
-        if (HardwareConfig::safetyBattLow && HardwareConfig::hasBattVoltage && !ed.battHealthy) failed |= BATTERY;
+        if ((HardwareConfig::safetyBattLow || (startupHas("SafetyHold") && Config::safetyHoldCheckBattery)) &&
+            HardwareConfig::hasBattVoltage && !ed.battHealthy) failed |= BATTERY;
         if (flameForStart() && !ed.flameHealthy) failed |= FLAME;
         if (HardwareConfig::hasThrottleInput && !ed.throttleInputValid) failed |= THROTTLE;
         if (HardwareConfig::hasIdleInput &&

@@ -76,11 +76,12 @@ function buildCard(bname, idx, tab) {
     <span class="block-name">${esc(sequenceBlockLabel(bname, tab, idx))}</span>
     ${condHtml}
     ${toPill}
+    ${bname === 'SetOutput' ? '<span class="timeout-pill abort" data-starter-ramp-warning hidden>Starter ramp overlap</span>' : ''}
     ${hardwareMissing ? `<span class="block-hardware-pill">${def ? 'Missing hardware' : 'Unknown block'}</span>` : ''}
     <div class="block-actions" onclick="event.stopPropagation()">
       <button type="button" class="blk-btn drag-handle" title="Drag to reorder; arrow keys also work" aria-label="Drag to reorder block; use up and down arrow keys"><span class="drag-grip" aria-hidden="true"></span></button>
       ${customBlocks[bname] ? `<button class="blk-btn" onclick="editCustomBlock('${bname}','${tab}')">Edit</button>` : ''}
-      <button type="button" class="blk-btn bip-btn" aria-label="Explain ${esc(def?.label ?? bname)}" aria-expanded="false" title="Explain this block" onclick="showBlockInfo('${bname}',this)">?</button>
+      <button type="button" class="blk-btn bip-btn" aria-label="Explain ${esc(sequenceBlockLabel(bname, tab, idx))}" aria-expanded="false" title="Explain this block" onclick="showBlockInfo('${bname}',this)">?</button>
       <button class="blk-btn del" title="Remove this sequence block" aria-label="Remove this sequence block" onclick="removeBlock('${tab}',${idx})">Remove</button>
     </div>
   </div>
@@ -141,10 +142,21 @@ function buildSideActionsHtml(tab, idx) {
   const acts = getEnabledActuators();
   const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const addButton = (phase, label, enabled = true) =>
+    `<button class="blk-btn" type="button" onclick="addSideAction('${tab}',${idx},'${phase}')" ${enabled ? '' : 'disabled'}>${label}</button>`;
+  const primaryActions = hwCfg[seqKey(tab)]?.[idx] === 'SetOutput' ? 1 : 0;
+  const compact = (hwCfg[actionKey(tab, 'enter')]?.[idx]?.length || 0) <= primaryActions &&
+    !hwCfg[actionKey(tab, 'exit')]?.[idx]?.length;
+  if (compact) {
+    return `<div class="side-actions" style="display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.55rem">
+      ${addButton('enter', '+ Start action')}
+      ${addButton('exit', '+ End action')}
+    </div>`;
+  }
   const phaseHtml = (phase, title) => {
     const key = actionKey(tab, phase);
     const allRows = hwCfg[key]?.[idx] || [];
-    const offset = phase === 'enter' && hwCfg[seqKey(tab)]?.[idx] === 'SetOutput' ? 1 : 0;
+    const offset = phase === 'enter' ? primaryActions : 0;
     const rows = allRows.map((a, ai) => ({a, ai})).filter(row => row.ai >= offset && actionAllowed(row.a));
     const rowHtml = rows.map(row => {
       const a = row.a;
@@ -174,9 +186,9 @@ function buildSideActionsHtml(tab, idx) {
     return `<div style="margin-top:.55rem">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.25rem">
         <span class="param-label">${title}</span>
-        <button class="blk-btn" type="button" onclick="addSideAction('${tab}',${idx},'${phase}')" ${canAdd?'':'disabled'}>+ Action</button>
+        ${addButton(phase, '+ Action', canAdd)}
       </div>
-      ${rowHtml || `<div style="font-size:.68rem;color:var(--dim)">No simultaneous output actions.</div>`}
+      ${rowHtml}
     </div>`;
   };
   return `<div class="side-actions">
@@ -227,7 +239,10 @@ function updateSideAction(tab, idx, phase, actionIdx, newAct, newValue) {
     row.value = actionStoredValue(row, newValue);
   }
   if (needsRender) renderFast(tab);
-  else markSequenceDirty('Sequence edited — save to apply');
+  else {
+    markSequenceDirty('Sequence edited — save to apply');
+    refreshStarterRampPreviews(tab);
+  }
 }
 
 // Flatten relevant hw/config values for condition labels
@@ -418,9 +433,13 @@ function buildParamsHtml(bname, idx, tab) {
       ? `<div style="font-size:.7rem;color:#f06060;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.55);border-radius:5px;padding:.35rem .65rem;margin-bottom:.4rem;line-height:1.5">This block cannot run with the current Hardware inventory. Restore its required device or remove this block before saving.</div>`
       : '';
   const warningHtml = unavailableHtml + _buildHwWarningHtml(def);
-  const sideHtml = `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>` + buildSideActionsHtml(tab, idx);
+  const resolvedHtml = bname === 'SafetyHold' ? '' :
+    `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>`;
+  const sideHtml = resolvedHtml + buildSideActionsHtml(tab, idx);
+  if (bname === 'SetOutput') {
+    return `<div class="block-params">${warningHtml}${buildSetOutputHtml(tab, idx)}${sideHtml}</div>`;
+  }
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
-  const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
   if (def?._custom) {
     return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}${sideHtml}</div>`;
   }
@@ -444,29 +463,27 @@ function buildParamsHtml(bname, idx, tab) {
     const settingsLinks = def?.settingsInControllers ? BLOCK_INFO[bname]?.links : null;
     const noParams = settingsLinks?.length
       ? `<div class="bip-links">${settingsLinks.map(({url,label})=>`<a class="bip-link" href="${esc(url)}">${esc(label)}</a>`).join('')}</div>`
-      : bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
-    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
+      : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${noParams}${sideHtml}</div>`;
   }
-  const inputs = def.params.map(p => {
+  const renderInput = p => {
     // visibleIf - skip this param if hw condition is false
     if (p.visibleIf && !p.visibleIf(hwCfg)) return '';
     const vk  = bname + '.' + p.key;
     const perSlotDelay = bname === 'TimedDelay' && p.key === 'timed_delay_ms';
-    const val = perSlotDelay ? timedDelayValue(tab, idx) : (paramVals[vk] ?? p.def);
+    const val = perSlotDelay ? timedDelayValue(tab, idx) : (paramVals[vk] === undefined ? p.def : paramVals[vk]);
     // showWhen - compute initial visibility
     const isVisible = !p.showWhen || p.showWhen(paramVals, bname);
     const hiddenStyle = isVisible ? '' : ' style="display:none"';
     if (p.type === 'bool') {
       const checked = val ? 'checked' : '';
-      const displayVal = val ? 'Yes' : 'No';
-      const boolDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
+      const boolDescHtml = p.desc ? `<span class="param-desc seq-param-check-help">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
-        <span class="param-label">${esc(sequenceParamLabel(p))}</span>
-        ${boolDescHtml}<div style="display:flex;align-items:center;gap:.45rem;padding:.32rem 0">
+        <label class="seq-param-check">
           <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked}
             onchange="onParamChangeBool('${bname}','${p.key}','${p.configKey??''}',this.checked)">
-          <label for="p-${tab}-${idx}-${bname}-${p.key}" style="font-size:.78rem;color:var(--dim);cursor:pointer">${displayVal}</label>
-        </div>
+          <span class="param-label">${esc(sequenceParamLabel(p))}</span>
+        </label>${boolDescHtml}
       </div>`;
     }
     if (p.type === 'select') {
@@ -487,16 +504,55 @@ function buildParamsHtml(bname, idx, tab) {
       <span class="param-label">${esc(sequenceParamLabel(p))}${unitLabel ? ` <span class="param-unit">(${unitLabel})</span>` : ''}</span>
       ${descHtml}<input class="param-input" type="number" id="p-${tab}-${idx}-${bname}-${p.key}"
         min="${seqDisplayAttr(p, p.min)}" max="${seqDisplayAttr(p, p.max)}" step="${seqDisplayStep(p)}" value="${displayVal}"
-        oninput="onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
+        ${p.optional ? 'placeholder="No limit" title="Leave blank for no limit"' : ''}
+        oninput="if (!this.validity.badInput) onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
     </div>`;
-  }).join('');
+  };
   const oilLimit = ['Spool','SafetyHold'].includes(bname) && sensorEnabled('oil_press')
     ? `<div class="bip-links"><a class="bip-link" data-shared-oil-limit href="/controllers.html#cf-oil_rm">Shared Oil Low-Pressure Limit · ${seqRound(cfg?.oil?.running_min ?? 2.8)} bar</a></div>`
     : '';
+  if (bname === 'SafetyHold') {
+    const timerParams = def.params.filter(p => p.key.startsWith('safety_hold_'));
+    const exitParams = def.params.filter(p => p.key.startsWith('safety_turn_off_') && p.visibleIf(hwCfg));
+    const grid = params => `<div class="param-grid seq-final-check-grid">${params.map(renderInput).join('')}</div>`;
+    const group = (title, content) => `<div style="margin-bottom:.8rem"><div class="param-label" style="margin-bottom:.35rem">${title}</div>${content}</div>`;
+    return `<div class="block-params">
+      <div class="block-desc">${esc(def.desc)}</div>${warningHtml}
+      ${group('Sensor checks', `<p class="block-desc" data-final-check-status aria-live="polite">${finalCheckSelectionText()}</p>
+        <p class="block-desc">Limits include the entered values. Leave a limit blank to leave that side open.</p>
+        ${finalCheckParameterGroups().map(grid).join('')}
+        ${oilLimit ? `<div class="seq-final-oil-reference" ${finalCheckUsesSharedOilLimit() ? '' : 'hidden'}>${oilLimit}</div>` : ''}`)}
+      ${group('Timing', `<p class="block-desc">All selected checks must pass together for the stable time. A failed check restarts that timer. The overall timeout keeps counting from when this card begins and triggers a fault if it expires.</p>${grid(timerParams)}`)}
+      ${exitParams.length ? group('Optional output actions on exit', grid(exitParams)) : ''}
+      ${sideHtml}
+    </div>`;
+  }
   return `<div class="block-params">
     <div class="block-desc">${esc(def.desc ?? '')}</div>
-    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${oilLimit}${sideHtml}
+    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${def.params.map(renderInput).join('')}</div>${oilLimit}${sideHtml}
   </div>`;
+}
+
+function finalCheckSelectionText() {
+  const count = Object.values(finalCheckSensors).filter(p =>
+    p.visibleIf() && (paramVals['SafetyHold.' + p.key] ?? p.def)).length;
+  return count ? `${count} sensor ${count === 1 ? 'check' : 'checks'} selected.`
+    : 'No sensor checks selected. Enable at least one fitted sensor check for a normal start.';
+}
+
+function finalCheckUsesSharedOilLimit() {
+  return !!paramVals['SafetyHold.final_check_oil_enabled'] &&
+    paramVals['SafetyHold.final_check_oil_use_shared_min'] !== false;
+}
+
+function finalCheckParameterGroups() {
+  const groups = [];
+  for (const param of BLOCKS.SafetyHold.params) {
+    if (!param.key.startsWith('final_check_') || !param.visibleIf()) continue;
+    if (param.key.endsWith('_enabled')) groups.push([]);
+    groups[groups.length - 1].push(param);
+  }
+  return groups;
 }
 
 function setWaitInputField(tab, idx, field, value) {
@@ -524,22 +580,26 @@ function buildSetOutputHtml(tab, idx) {
   const missingOption = missingTarget ? `<option value="${esc(missingTarget)}" selected disabled>Missing output: ${esc(missingTarget)}</option>` : '';
   const options = missingOption + acts.map(item => `<option value="${esc(item.target)}" ${meta && String(item.target)===String(meta.target)?'selected':''}>${esc(item.label)}</option>`).join('');
   const display = actionDisplayValue(row, row.value);
+  const demandHelp = meta?.mode === 'pct' ? '0% is off. 100% is the configured full output.'
+    : meta?.ignition ? 'Turns ignition on or off. Hardware sets its output level and ramp-up time.' : 'Turns the output on or off.';
   const demand = !meta
     ? `<input class="param-input" type="text" value="Unavailable until an output is selected" disabled>`
     : meta.mode === 'pct'
-    ? `<div style="display:flex;align-items:center;gap:.35rem"><input class="param-input" type="number" min="0" max="100" step="1" value="${display}" oninput="updateSetOutput('${tab}',${idx},null,this.value)"><span class="param-unit">%</span></div>`
-    : `<select class="param-input" onchange="updateSetOutput('${tab}',${idx},null,this.value)"><option value="1" ${display?'selected':''}>ON</option><option value="0" ${!display?'selected':''}>OFF</option></select>`;
+    ? `<div style="display:flex;align-items:center;gap:.35rem"><input class="param-input" type="number" min="0" max="100" step="1" value="${display}" aria-label="Output demand in percent" oninput="updateSetOutput('${tab}',${idx},null,this.value)"><span class="param-unit">%</span></div>`
+    : `<select class="param-input" aria-label="Output command" onchange="updateSetOutput('${tab}',${idx},null,this.value)"><option value="1" ${display?'selected':''}>ON</option><option value="0" ${!display?'selected':''}>OFF</option></select>`;
   const starterTransition = meta?.key === 'starter' && meta.mode === 'pct'
-    ? `<div class="param-field"><span class="param-label">Speed change time <span class="param-unit">(s)</span></span>
+    ? `<div class="param-field" title="Time to reach the new starter demand. Set 0 for an immediate change."><span class="param-label">Speed change time <span class="param-unit">(s)</span></span>
         <input class="param-input" type="number" min="0" max="60" step="0.1" value="${Math.max(0, Number(row.transition_ms) || 0) / 1000}"
-          oninput="updateSetOutput('${tab}',${idx},null,null,this.value)">
-        <span class="param-desc">Time to move smoothly from the current starter demand to the requested demand. Set 0 for an immediate change. STOP and faults remain immediate.</span></div>`
+          aria-label="Speed change time in seconds" oninput="updateSetOutput('${tab}',${idx},null,null,this.value)"></div>`
     : '';
-  return `<div class="param-grid">
-    <div class="param-field"><span class="param-label">Output device</span><select class="param-input" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select><span class="param-desc">Any fitted output may be selected. Hardware driver limits are always respected.</span></div>
-    <div class="param-field"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}<span class="param-desc">${!meta ? 'Choose a fitted output to restore this block.' : meta.mode === 'pct' ? 'Zero is off; 100% is the configured full output.' : meta.ignition ? 'On/Off command. Hardware sets the output level and ramp-up time.' : 'Binary relay or switch output.'}</span></div>
+  const previousRamp = starterTransition
+    ? `<p class="block-desc" style="margin:0 0 .35rem" data-starter-ramp-previous hidden></p>
+       <p class="block-desc" style="margin:0 0 .55rem;color:var(--yellow)" data-starter-ramp-explanation hidden>This ramp continues from the demand the previous ramp reached. No extra wait is required.</p>` : '';
+  return `${previousRamp}<div class="param-grid">
+    <div class="param-field" title="Select which fitted output this card commands."><span class="param-label">Output device</span><select class="param-input" aria-label="Output device" onchange="updateSetOutput('${tab}',${idx},this.value,null)">${options}</select></div>
+    <div class="param-field" title="${esc(demandHelp)}"><span class="param-label">${meta?.mode === 'pct' ? 'Demand (0–100%)' : 'Command'}</span>${demand}</div>
     ${starterTransition}
-  </div>`;
+  </div>${starterTransition ? '<p class="block-desc" style="margin:.55rem 0 0" data-starter-ramp-preview></p>' : ''}`;
 }
 
 function updateSetOutput(tab, idx, newTarget, newValue, newTransitionSeconds = null) {
@@ -566,6 +626,7 @@ function updateSetOutput(tab, idx, newTarget, newValue, newTransitionSeconds = n
     row.value = actionStoredValue(row, newValue);
   }
   markSequenceDirty('Sequence edited — save to apply');
+  refreshStarterRampPreviews(tab);
 }
 
 function toggleParams(header) {
@@ -586,6 +647,7 @@ function onParamChange(bname, pkey, configKey, rawVal, tab, idx) {
     const summary = card?.querySelector('.block-cond');
     if (summary) summary.textContent = `Wait ${seqRound(val / 1000)} s`;
     markSequenceDirty('Sequence edited — save to apply');
+    refreshStarterRampPreviews(tab);
     return;
   }
   const vk  = bname + '.' + pkey;
@@ -607,6 +669,12 @@ function refreshParamVisibility(bname) {
     const card=holder.closest('.block-card');
     holder.innerHTML=buildResolvedActionsHtml(card.dataset.block,Number(card.dataset.idx),card.dataset.tab);
   });
+  Object.keys(SEQ_ACTION_KEYS).forEach(refreshStarterRampPreviews);
+  if (bname === 'SafetyHold') {
+    const status = finalCheckSelectionText();
+    document.querySelectorAll('[data-final-check-status]').forEach(el => { el.textContent = status; });
+    document.querySelectorAll('.seq-final-oil-reference').forEach(el => { el.hidden = !finalCheckUsesSharedOilLimit(); });
+  }
   const def = BLOCKS[bname] || customBlocks[bname];
   if (!def) return;
   def.params.forEach(p => {
@@ -620,12 +688,10 @@ function refreshParamVisibility(bname) {
 function onParamChangeBool(bname, pkey, configKey, checked) {
   const vk = bname + '.' + pkey;
   paramVals[vk] = checked;
-  // Shared setting: sync checkbox + label in every card showing this param (ids are per tab+card)
+  // Shared setting: sync checkboxes in every card showing this parameter.
   document.querySelectorAll(`.param-field[data-bname="${bname}"][data-pkey="${pkey}"]`).forEach(pf => {
     const cb  = pf.querySelector('input[type="checkbox"]');
-    const lbl = pf.querySelector('label');
     if (cb)  cb.checked = checked;
-    if (lbl) lbl.textContent = checked ? 'Yes' : 'No';
   });
   if (configKey) setConfigVal(configKey, checked);
 

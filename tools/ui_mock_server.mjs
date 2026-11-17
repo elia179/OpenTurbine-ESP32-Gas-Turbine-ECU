@@ -464,7 +464,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/api/data' || url.pathname === '/api/telemetry')) return sendJson(res, 200, state.data);
     if (req.method === 'GET' && url.pathname === '/api/status') return sendJson(res, 200, {
       ok: true, mode: state.data.mode, locked: !!state.data.config_locked,
-      dev_mode: !!state.data.dev_mode
+      dev_mode: !!state.data.dev_mode, config_apply_busy: false
     });
     if (req.method === 'GET' && url.pathname === '/api/session/status') {
       const hardware = state.hardware;

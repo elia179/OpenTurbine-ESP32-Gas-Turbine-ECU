@@ -16,10 +16,9 @@ function readConstExpression(source, marker, closing) {
   return Function(`return (${source.slice(start + marker.length, end + closing.length - 1).trim().replace(/;$/, '')})`)();
 }
 
-function auditConfigStructure() {
+async function auditConfigStructure(page) {
   const root = path.resolve(__dirname, '..');
   const configSource = fs.readFileSync(path.join(root, 'data_src', 'config.html'), 'utf8');
-  const sequenceSource = fs.readFileSync(path.join(root, 'data_src', 'sequence.html'), 'utf8');
   const logSource = fs.readFileSync(path.join(root, 'data_src', 'log.html'), 'utf8');
   const toolsSource = fs.readFileSync(path.join(root, 'data_src', 'tools.html'), 'utf8');
   const dialogSource = fs.readFileSync(path.join(root, 'data_src', 'ui_dialog.js'), 'utf8');
@@ -86,8 +85,9 @@ function auditConfigStructure() {
   assert.deepEqual(firmwareToolKeys.filter(key => !toolsUiKeys.has(key)), [],
     'Every firmware bench-test setting must remain editable from Tools');
 
-  const blocks = readConstExpression(sequenceSource, 'const BLOCKS = ', '\n};');
-  const mappings = readConstExpression(sequenceSource, 'const CONFIG_SECTIONS = ', '\n};');
+  await goto(page, 'sequence.html', '#list-startup');
+  const {blocks, mappings} = await page.evaluate(() =>
+    JSON.parse(JSON.stringify({blocks:BLOCKS, mappings:CONFIG_SECTIONS})));
   for (const [blockName, block] of Object.entries(blocks)) {
     for (const parameter of block.params || []) {
       const mapping = mappings[parameter.configKey];
@@ -162,7 +162,7 @@ async function goto(page, route, waitSelector) {
 
   const results = [];
   try {
-    auditConfigStructure();
+    await auditConfigStructure(page);
     results.push('Config keys, paths, labels, section ownership, Tools ownership, and shared Sequence ranges are unique and consistent');
     await reset(page);
 
