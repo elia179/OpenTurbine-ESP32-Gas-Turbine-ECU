@@ -18,9 +18,17 @@ const {chromium}=require('playwright');
    try{
     for(const body of ['{}','null','not JSON','{"ok":false,"error":"rejected"}','{"ok":true}']){
      cfg.profile_desc='edited draft';dirty();
-     window.fetch=async(url,options)=>options?.method==='PATCH'?(writes++,new Response(body,{status:200})):actualFetch(url,options);
+     window.fetch=async(url,options)=>{
+      if(options?.method!=='PATCH')return actualFetch(url,options);
+      if(new URL(url,location.href).searchParams.get('ecu_id')!=='0123456789ab')throw Error('Hardware save omitted its ECU');
+      writes++;
+      return new Response(body,{status:200});
+     };
      const pending=_doSave();if(!document.querySelector('main').inert||!document.getElementById('btn-discard').disabled)throw Error('pending editor not locked');await _doSave();await pending;if(_hwSavePending||document.querySelector('main').inert)throw Error('editor not restored');result.push({body,dirty:_hwDirty,status:document.getElementById('save-msg').textContent});
     }
+    OTSetup.scope(new Response('{}',{headers:{'X-OpenTurbine-ECU':'abcdef012345'}}));
+    cfg.profile_desc='draft from the original ECU';dirty();await _doSave();
+    if(!_hwDirty||!document.getElementById('save-msg').textContent.includes('Reload this page'))throw Error('Hardware did not keep the blocked draft');
     return {result,reboots,writes,messages};
    }finally{window.fetch=actualFetch;window.alert=actualAlert;}
   });assert.equal(result.reboots,1);assert.equal(result.writes,5);assert(result.result.slice(0,4).every(r=>r.dirty));assert.equal(result.result[4].dirty,false);assert(result.result.slice(0,3).every(r=>r.status.includes('unconfirmed')));

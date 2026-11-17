@@ -12,7 +12,26 @@ const {chromium,firefox,webkit}=require('playwright');
     const name=new URL(r.request().url()).pathname.slice(1);
     return r.fulfill({status:200,contentType:name.endsWith('html')?'text/html':name.endsWith('js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});
    });
-   await p.goto(base+'/calibration.html');await p.waitForFunction(()=>cfg?.hardware&&typeof operatorAdcRaw==='function');
+   await p.goto(base+'/calibration.html');await p.waitForFunction(()=>cfg?.hardware&&Number.isInteger(calibrationFrameBoot));
+   assert.equal(await p.locator('#btn-th-save').isDisabled(),true,'saved settings cannot be recaptured merely by reopening Calibration');
+   assert.equal(await p.locator('#btn-idle-save').isDisabled(),true);
+   const restart = await p.evaluate(() => OTWithTelemetryPaused(async () => {
+    const initial = _captureInputAverage;
+    _captureInputAverage = async () => 1100;
+    try {
+     await captureThMin();
+     await captureIdleMin();
+     const captured = [thMin,idleMin];
+     applyData({...live,snapshot_id:(calibrationSnapshotId || 0)+1,boot_count:calibrationFrameBoot+1});
+     const cleared = [thMin,idleMin];
+     _captureInputAverage = async () => 1900;
+     await captureThMax();
+     await captureIdleMax();
+     return {captured,cleared,recovered:[thMax,idleMax],
+      blocked:document.getElementById('btn-th-save').disabled && document.getElementById('btn-idle-save').disabled};
+    } finally {_captureInputAverage = initial;}
+   }));
+   assert.deepEqual(restart,{captured:[1100,1100],cleared:[null,null],recovered:[1900,1900],blocked:true});
    const result=await p.evaluate(async()=>{
     cfg.hardware.channel_registry={inputs:[{id:'pot_th',purpose:'throttle',role:'operator',driver:1,installed:true},{id:'pot_idle',purpose:'idle',role:'operator',driver:1,installed:true}]};
     const d={throttle_input_raw:157,idle_input_raw:157,registry_inputs:[{id:'pot_th',raw:4095,healthy:false},{id:'pot_idle',raw:0,healthy:false}]};
@@ -22,8 +41,8 @@ const {chromium,firefox,webkit}=require('playwright');
     nextCalibrationFrame=async()=>{await new Promise(r=>setTimeout(r,30));return d;};calibrationConnected=()=>true;
     const captured=[await _captureInputAverage('throttle_input_raw'),await _captureInputAverage('idle_input_raw')];
     let sent;
-    patchHardwareThenConfig=(hw,local,settings)=>{sent={hw,settings};};
-    throttleInputType='adc';thMin=0;thMax=4095;saveThrottle();
+    saveCalibrationPatch=(hw,local,settings,message,onOk,boot)=>{sent={hw,settings,boot};};
+    throttleInputType='adc';thMin=0;thMax=4095;_operatorCaptureBoot.throttle=calibrationFrameBoot;saveThrottle();
     const initialSent=sent, cases=[];
     for(const purpose of ['throttle','idle'])for(const type of ['adc','servo'])for(const reversed of [false,true]) {
       const a=type==='adc'?0:1000,b=type==='adc'?4095:2000;
@@ -41,6 +60,7 @@ const {chromium,firefox,webkit}=require('playwright');
         const prefix=purpose==='throttle'?'th':'idle';
         shown.push([parseFloat(document.getElementById('bar-'+prefix).style.width),document.getElementById('cal-'+prefix+'-pct').textContent]);
       }
+      _operatorCaptureBoot[purpose]=calibrationFrameBoot;
       if(purpose==='throttle'){thMin=minimum;thMax=maximum;throttleInputType=type;saveThrottle();}
       else{idleMin=minimum;idleMax=maximum;idleInputType=type;saveIdle();}
       cases.push({purpose,type,reversed,shown,patch:sent});
@@ -53,7 +73,7 @@ const {chromium,firefox,webkit}=require('playwright');
       window.applyData({...live,throttle_input_type:'adc',idle_input_type:'adc',registry_inputs:cfg.hardware.channel_registry.inputs.map(c=>({id:c.id,raw,healthy:true}))});
       i2cRendered.push(['cal-th-raw','cal-idle-raw','th-hi','idle-range-hi'].map(id=>document.getElementById(id).textContent));
     }
-    throttleInputType='adc';thMin=0;thMax=4095;saveThrottle();const i2cSaved=sent;
+    throttleInputType='adc';thMin=0;thMax=4095;_operatorCaptureBoot.throttle=calibrationFrameBoot;saveThrottle();const i2cSaved=sent;
     sent=initialSent;
     cfg.hardware.channel_registry.inputs.forEach(c=>c.driver=1);
     cfg.hardware.channel_registry.inputs.unshift({id:'retired',purpose:'throttle',driver:1,installed:false});
@@ -63,6 +83,7 @@ const {chromium,firefox,webkit}=require('playwright');
    });
    assert.deepEqual(result.rendered,['3300 mV','0 mV']);assert.deepEqual(result.physical,[4095,0]);assert.deepEqual(result.captured,[4095,0]);
    assert.equal(result.sent.settings.calibration.throttle_min_raw,82);assert.equal(result.sent.settings.calibration.throttle_max_raw,4054);
+   assert.ok(Number.isInteger(result.sent.boot));
    assert.equal(result.sent.hw.channel_registry_calibration.min,82);assert.equal(result.sent.hw.channel_registry_calibration.max,4054);
    assert.deepEqual(result.i2cRendered,[['0 mV','0 mV','5000 mV','5000 mV'],['2501 mV','2501 mV','5000 mV','5000 mV'],['5000 mV','5000 mV','5000 mV','5000 mV']]);
    assert.equal(result.i2cSaved.settings.calibration.throttle_min_raw,82);assert.equal(result.i2cSaved.settings.calibration.throttle_max_raw,4054);

@@ -405,7 +405,12 @@ function updateRegistryChannel(direction, index, key, value) {
   if (key === 'safe_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
   if (key === 'min_run_demand') value = Math.max(0, Math.min(1, Number(value) || 0));
   if (key === 'min' || key === 'max') value = Number.isFinite(Number(value)) ? Number(value) : 0;
-  c[key] = value;
+  if (key === 'force_safe_on_fault' && value === false &&
+      registryOriginalChannel(direction, index)?.force_safe_on_fault === undefined) {
+    delete c[key];
+  } else {
+    c[key] = value;
+  }
   if (key.startsWith('ignition_')) {
     // Once any device-local ignition field is edited, persist the complete
     // profile so the remaining values cannot silently fall back to globals.

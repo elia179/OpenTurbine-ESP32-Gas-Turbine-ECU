@@ -407,8 +407,8 @@ function installedBrowser() {
     });
     assert.equal(receiverCapture.pulse,1500);
     assert.equal(receiverCapture.adcZero,0);
-    assert.match(receiverCapture.missing,/No valid input samples/);
-    assert.match(receiverCapture.idleMissing,/No valid input samples/);
+    assert.match(receiverCapture.missing,/Too few valid input samples/);
+    assert.match(receiverCapture.idleMissing,/Too few valid input samples/);
     assert.deepEqual(errors,[]);
     console.log('Phase torque UI audit passed: subcards, explicit speed toggles, one-source conflicts, calibration, ordinary named switches and narrow/desktop layout.');
   } finally {

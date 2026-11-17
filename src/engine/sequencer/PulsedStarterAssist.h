@@ -38,6 +38,7 @@ public:
     constexpr bool pulseOn() const { return _phase == Phase::On; }
     constexpr bool complete() const { return _phase == Phase::Complete; }
     constexpr bool cancelled() const { return _phase == Phase::Cancelled; }
+    constexpr void cancel() { _phase = Phase::Cancelled; }
 
 private:
     Phase _phase = Phase::Complete;

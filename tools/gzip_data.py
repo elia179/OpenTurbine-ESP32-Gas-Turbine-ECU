@@ -3,7 +3,8 @@
 Compress web assets from data_src/ into data/ as .gz files.
 Run this after editing any HTML/JS/CSS file, then do: pio run -t uploadfs
 """
-import gzip, hashlib, os, re, subprocess
+import hashlib, os, re, subprocess
+from zopfli.gzip import compress
 
 from build_web_sources import main as build_web_sources
 
@@ -82,10 +83,10 @@ for fname in os.listdir(SRC):
         # the browser. Removing them keeps the approved UI within the Classic
         # ESP32 LittleFS working-space reserve.
         data = re.sub(rb"/\*.*?\*/", b"", data, flags=re.DOTALL)
+    # Zopfli produces ordinary gzip streams with a deterministic header and
+    # leaves more LittleFS space for configuration transactions and logs.
     with open(tmp_path, "wb") as raw_out:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_out,
-                           compresslevel=9, mtime=0) as f_out:
-            f_out.write(data)
+        raw_out.write(compress(data))
     os.replace(tmp_path, dst_path)
     src_kb = os.path.getsize(src_path) / 1024
     dst_kb = os.path.getsize(dst_path) / 1024

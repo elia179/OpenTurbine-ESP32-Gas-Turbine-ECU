@@ -158,12 +158,10 @@ public:
             pitchAdj          = constrain(pitchAdj, -maxStep, maxStep);
             float newPitch    = constrain(_pitchCurrent + pitchAdj, 0.0f, 1.0f);
 
-            // Apply only if pitch has authority in the required direction
-            if (fabsf(newPitch - _pitchCurrent) > 0.0001f) {
-                _pitchCurrent      = newPitch;
-                ed.propPitchDemand = newPitch;
-                return;  // pitch authority: skip throttle
-            }
+            _pitchCurrent = newPitch;
+            ed.propPitchDemand = newPitch;
+            const bool atPitchLimit = error > 0.0f ? newPitch <= 0.0f : newPitch >= 1.0f;
+            if (!atPitchLimit) return;
             // Pitch saturation is not permission for hidden normal fuel
             // governing. Separate N2 overspeed protection remains authoritative.
             strlcpy(ed.governorControllerState,

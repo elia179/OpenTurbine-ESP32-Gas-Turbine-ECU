@@ -71,7 +71,7 @@ public:
     void onExit() override {
         clearWaitReason();
         if (turnOffIgniterOnExit) {
-            // Flame is confirmed self-sustaining. Release only ignition
+            // The flame input was active. Release only ignition
             // devices energized by this sequence; unrelated RUNNING/custom
             // ignition control remains independent.
             clearSequenceIgnitionOutputs();

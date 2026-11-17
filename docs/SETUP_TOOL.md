@@ -72,6 +72,7 @@ both firmware targets and their LittleFS images:
 
 ```bash
 python tools/build_web_sources.py
+python -m pip install -r tools/requirements-web.txt
 python tools/gzip_data.py
 pio run -e esp32dev
 pio run -e esp32dev -t buildfs

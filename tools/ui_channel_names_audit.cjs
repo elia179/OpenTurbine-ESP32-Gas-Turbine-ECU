@@ -87,6 +87,7 @@ const {chromium} = require('playwright');
     assert.match(await page.locator('#oil-press-cal-row .wizard-title').textContent(),/oil_feed <test>/);
     assert.match(await page.locator('#oilpump-current-cal-row .sensor-name').textContent(),/bearing_feed <test>/);
 
+    await page.request.post(base+'/__sim/data',{data:{mode:'STANDBY',config_locked:false}});
     await page.goto(base+'/sequence.html');
     await page.waitForFunction(()=>typeof hwCfg!=='undefined' && !!hwCfg?.channel_registry);
     assert.equal(await page.evaluate(()=>registryLabel({id:'x',name:'generic_user_pressure'},'Input')),'generic_user_pressure');
@@ -111,6 +112,43 @@ const {chromium} = require('playwright');
     assert.match(summaries.missing,/Missing input: removed_input/);
     assert.match(summaries.missing,/Missing output: removed_output/);
     assert.equal(await page.locator('test').count(),0,'Custom step name was interpreted as HTML');
+    for (const [label, pressure, timeout] of [['Prime pressure gate',1.2,1800],['Idle pressure gate',2.4,3600]]) {
+      await page.evaluate(()=>openCustomBlockDialog('startup'));
+      await page.locator('#cblk-label').fill(label);
+      await page.locator('#cblk-type').selectOption('while');
+      await page.locator('#cblk-cond-sensor').selectOption('oil_press');
+      await page.locator('#cblk-cond-op').selectOption('>=');
+      await page.locator('#cblk-cond-val').fill('');
+      await page.locator('#cblk-confirm-btn').click();
+      assert.match(await page.locator('#ot-dialog-message').innerText(),/numeric threshold/);
+      await page.locator('#ot-dialog-confirm').click();
+      await page.locator('#cblk-cond-val').fill(String(pressure));
+      await page.locator('#cblk-dur').fill(String(timeout));
+      await page.locator('#cblk-stable-ms').fill('400');
+      await page.locator('#cblk-timeout-action').selectOption('fault');
+      await page.locator('#cblk-confirm-btn').click();
+      await page.waitForFunction(()=>_seqDirty&&!document.getElementById('save-btn').disabled);
+      const card = page.locator('.block-card').filter({has:page.getByText(label,{exact:true})});
+      await card.waitFor({state:'attached'});
+      assert.match(await card.textContent(),new RegExp(`${timeout} ms timeout`));
+      assert.equal(await card.locator('[data-pkey="timeout_ms"]').count(),0);
+    }
+    const gateIds = await page.evaluate(() => Object.keys(hwCfg.custom_blocks).filter(key => hwCfg.custom_blocks[key].label.endsWith('pressure gate')));
+    await page.evaluate(ids=>{
+      hwCfg.startup_seq=ids;
+      markSequenceDirty();
+      OTDialog.confirm=async()=>true;
+      OTDialog.alert=async message=>{window.gateSaveError=message;};
+    },gateIds);
+    await page.evaluate(()=>saveAll());
+    const gateSave=await page.evaluate(()=>({dirty:_seqDirty,error:window.gateSaveError,status:document.getElementById('save-status').textContent}));
+    assert.equal(gateSave.dirty,false,gateSave.error||gateSave.status);
+    await page.reload();
+    await page.waitForFunction(ids=>ids.every(id=>loadedHwCfg?.custom_blocks?.[id]),gateIds);
+    const gates=await page.evaluate(ids=>ids.map(id=>hwCfg.custom_blocks[id]),gateIds);
+    assert.deepEqual(gates.map(g=>[g.condition.op,g.condition.value,g.condition.stable_ms,g.timeout_ms,g.timeout_action]),[
+      ['>=',1.2,400,1800,'fault'],['>=',2.4,400,3600,'fault']
+    ]);
     await page.evaluate(()=>closeCustomBlockDialog());
     const channelLists = await page.evaluate(()=>({sensors:getEnabledSensors(),outputs:getEnabledActuators()}));
     for(const sensor of channelLists.sensors.filter(s=>s.source))

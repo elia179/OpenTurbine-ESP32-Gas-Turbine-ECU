@@ -230,7 +230,8 @@ async function loadHardware() {
   document.getElementById('btn-discard').disabled=true;
   document.getElementById('save-msg').textContent = 'Loading…';
   try {
-    cfg = await fetchHardwareJson('/api/hardware');
+    // Settings are used for dependency cleanup when available.
+    [cfg, settingsCfg] = await window.OTConfigEditor.load(['/api/hardware', '/api/config'], {optionalLastRead:true});
     // Live bus state has its own small endpoint; keep it out of the large,
     // mostly-static editor document and fetch it only after that response has
     // completed.
@@ -248,14 +249,6 @@ async function loadHardware() {
         ports.push(...(page.ports || []));
       }
       pcbProfile.ports = ports;
-    }
-    try {
-      // Hardware only needs the settings section for dependency cleanup. Do
-      // not fetch the much larger combined ECU document while the hardware
-      // response and PCB catalog pages may still be leaving the TCP stack.
-      settingsCfg = await fetchHardwareJson('/api/config');
-    } catch (_) {
-      settingsCfg = {};
     }
     _loadedProfileId = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
     GPIO_DB = cfg.platform === 'esp32s3' ? GPIO_DB_ESP32S3 : GPIO_DB_ESP32;

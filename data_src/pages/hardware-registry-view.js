@@ -1,5 +1,12 @@
 const _registryEditOpen = new Set();
 const _workflowEditOpen = new Set();
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.target.closest('a,button,input,select,textarea,label,summary') ||
+      window.getSelection()?.toString()) return;
+  const card = event.target.closest('[data-registry-direction],[data-workflow-key]');
+  const edit = card?.querySelector(':scope > .registry-card-summary [data-card-edit][aria-expanded="false"]');
+  if (edit && !edit.disabled) edit.click();
+});
 let _registrySnap = null;
 function registryEditKey(direction, index) { return direction + ':' + index; }
 function toggleRegistryEdit(direction, index) {
@@ -476,7 +483,7 @@ function registryCurrentUsers(direction, id) {
 function registryBlockLabel(block) {
   const labels = {
     OilPrime:'Build Oil Pressure', StarterSpin:'Set Starter',
-    FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor', TempConfirm:'Confirm Combustion by Temperature',
+    FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Wait for Flame Signal', TempConfirm:'Wait for Temperature Threshold',
     FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
     SafetyHold:'Final Startup Checks', OilPumpOn:'Oil Pump On', OilPumpOff:'Oil Pump Off',
     OilScavengeOn:'Scavenge On', OilScavengeOff:'Scavenge Off', StarterOff:'Starter Off',
@@ -771,7 +778,7 @@ function abTriggerWorkflowCard() {
     ${source===3 ? ((pcbProfileActive() || profileCommandInput) ? `<div class="hw-field"><span class="hw-label">Command input</span><span class="hw-desc">${profileCommandInput?'Uses the fitted Afterburner analog / RC command from Inputs. Its signal type and calibration live on that input card.':'Add an Afterburner analog / RC command under Inputs and choose its named PCB connection.'}</span></div><div class="hw-field"><span class="hw-label">Trigger threshold (%)</span><span class="hw-desc">Afterburner is requested when the normalized command rises above this percentage.</span><input class="${fieldClass('input_threshold')}" type="number" min="0" max="100" step="1" value="${Math.round(rawThreshold*100/4095)}" onchange="setAbProfileThreshold(this.value)"></div>` : `<div class="hw-field"><span class="hw-label">Command signal</span><select class="${fieldClass('input_rc_pwm')}" data-ab-trigger-field="input_rc_pwm" onchange="setAbInputType(this.value==='rc');renderHardwareWorkflowSummaries()"><option value="analog"${!abt.input_rc_pwm?' selected':''}>Analog 0-3.3 V</option><option value="rc"${abt.input_rc_pwm?' selected':''}>RC servo pulse</option></select></div><div class="hw-field"><span class="hw-label">Command-input GPIO</span><select class="${fieldClass('input_pin')}" data-ab-trigger-field="input_pin" onchange="setAbTrig('input_pin',+this.value).then(()=>renderHardwareWorkflowSummaries())">${buildPinOptions(abt.input_pin,pinMode)}</select></div><div class="hw-field"><span class="hw-label">Trigger threshold (${abt.input_rc_pwm?'%':'V'})</span><span class="hw-desc">Afterburner is requested when this command input rises above the threshold.</span><input class="${fieldClass('input_threshold')}" data-ab-trigger-field="input_threshold" type="number" min="0" max="${abt.input_rc_pwm?'100':'3.3'}" step="${abt.input_rc_pwm?'1':'0.01'}" value="${thresholdValue}" onchange="setAbWorkflowThreshold(this.value)"></div>${abt.input_rc_pwm?`<div class="hw-field"><span class="hw-label">RC pulse range (us)</span><span class="hw-desc">Pulse widths representing 0% and 100% command.</span><div style="display:flex;gap:.35rem"><input class="${fieldClass('input_min_us')}" data-ab-trigger-field="input_min_us" aria-label="RC pulse minimum" type="number" min="500" max="2500" value="${Number(abt.input_min_us ?? 1000)}" onchange="setAbTrigBool('input_min_us',+this.value)"><input class="${fieldClass('input_max_us')}" data-ab-trigger-field="input_max_us" aria-label="RC pulse maximum" type="number" min="500" max="2500" value="${Number(abt.input_max_us ?? 2000)}" onchange="setAbTrigBool('input_max_us',+this.value)"></div></div>`:''}`) : ''}
     ${source!==0 ? `<div class="hw-field"><span class="hw-label">Arming interlock</span><label class="hw-toggle"><input class="${fieldClass('requires_arm')}" data-ab-trigger-field="requires_arm" type="checkbox" ${abt.requires_arm?'checked':''} onchange="setAbTrigBool('requires_arm',this.checked);renderHardwareWorkflowSummaries()"><span></span> Require a separate arm switch</label></div>${abt.requires_arm&&!usesDiArm?(pcbProfileActive()?`<div class="hw-field"><span class="hw-label">Arm switch</span><span class="hw-desc">Add an Afterburner arm switch under Inputs and choose its named PCB connection.</span></div>`:`<div class="hw-field"><span class="hw-label">Arm-switch GPIO</span><select class="${fieldClass('arm_pin')}" data-ab-trigger-field="arm_pin" onchange="setAbTrig('arm_pin',+this.value).then(()=>renderHardwareWorkflowSummaries())">${buildPinOptions(abt.arm_pin,'in')}</select></div><div class="hw-field"><span class="hw-label">Arm polarity</span><label class="hw-toggle"><input class="${fieldClass('arm_active_h')}" data-ab-trigger-field="arm_active_h" type="checkbox" ${abt.arm_active_h?'checked':''} onchange="setAbTrigBool('arm_active_h',this.checked);renderHardwareWorkflowSummaries()"><span></span> Active high</label></div>`):''}` : ''}
   </div></div>` : '';
-  return `<div class="hw-item-card ${editing?'registry-card-open':''} ${triggerChanged?'field-change-parent field-changed':''}" id="hardware-ab-trigger" data-workflow-key="ab_trigger"><div class="registry-card-summary"><div><strong>Afterburner trigger and arm</strong><div class="hw-desc">${escapeHtmlText(sourceLabel + armDetail)}</div></div><div class="registry-card-actions"><span class="registry-status ${status==='Ready'?'registry-status-ok':'registry-status-error'}">${status}</span><button type="button" onclick="toggleWorkflowEditor('ab_trigger')">${editing?'Done':'Edit'}</button></div></div>${editor}</div>`;
+  return `<div class="hw-item-card ${editing?'registry-card-open':''} ${triggerChanged?'field-change-parent field-changed':''}" id="hardware-ab-trigger" data-workflow-key="ab_trigger"><div class="registry-card-summary"><div><strong>Afterburner trigger and arm</strong><div class="hw-desc">${escapeHtmlText(sourceLabel + armDetail)}</div></div><div class="registry-card-actions"><span class="registry-status ${status==='Ready'?'registry-status-ok':'registry-status-error'}">${status}</span><button type="button" data-card-edit aria-expanded="${editing}" onclick="toggleWorkflowEditor('ab_trigger')">${editing?'Done':'Edit'}</button></div></div>${editor}</div>`;
 }
 function renderBuiltinInputSummary() {
   const box = document.getElementById('builtin-inputs');
@@ -833,7 +840,7 @@ function renderBuiltinInputSummary() {
       <div><strong>${escapeHtmlText(row.title)}</strong><div class="hw-desc">${escapeHtmlText(row.detail)}</div></div>
       <div class="registry-card-actions">
         <span class="registry-status ${row.status === 'Ready' ? 'registry-status-ok' : 'registry-status-error'}">${escapeHtmlText(row.status)}</span>
-        ${row.target ? '' : `<button type="button" onclick="toggleWorkflowEditor('${row.key}')">${_workflowEditOpen.has(row.key) ? 'Done' : 'Edit'}</button>`}
+        ${row.target ? '' : `<button type="button" data-card-edit aria-expanded="${_workflowEditOpen.has(row.key)}" onclick="toggleWorkflowEditor('${row.key}')">${_workflowEditOpen.has(row.key) ? 'Done' : 'Edit'}</button>`}
       </div>
     </div>
     ${_workflowEditOpen.has(row.key) && !row.target ? digitalSwitchEditor(row) : ''}
@@ -890,7 +897,7 @@ function workflowFieldChanged(group, key) {
   return JSON.stringify((_workflowSnap?.[group] || {})[key]) !== JSON.stringify((cfg?.[group] || {})[key]);
 }
 function workflowDeviceObject(device) {
-  if (device === 'status_led') return cfg?.actuators?.status_led || {};
+  if (device === 'status_led' || device === 'fault_led') return cfg?.actuators?.[device] || {};
   return cfg?.[device] || {};
 }
 function workflowDeviceChanged(device) {
@@ -1251,9 +1258,9 @@ function renderCommsIndicatorSummary() {
       fault.enabled || pcbProfileActive() ? (pcbProfileActive() || Number(fault.pin??-1)>=0 ? 'Ready':'Pin missing'):'Disabled',
       pcbProfileActive() || !!fault.enabled,
       `<div class="registry-card-editor" style="display:block"><div class="hw-grid">${pcbProfileActive()?'<div class="hw-field"><span class="hw-desc">Fixed by the board profile. This LED handles fault blinking separately from the Status LED.</span></div>':`
-      <div class="hw-field"><label><input type="checkbox" ${fault.enabled?'checked':''} onchange="setAct('fault_led','enabled',this.checked);renderHardwareWorkflowSummaries()"> Enable Fault LED</label></div>
-      <div class="hw-field"><span class="hw-label">Fault LED GPIO</span><select onchange="setAct('fault_led','pin',+this.value);renderHardwareWorkflowSummaries()">${buildPinOptions(fault.pin??-1,'fault-led')}</select></div>
-      <div class="hw-field"><label><input type="checkbox" ${fault.active_h!==false?'checked':''} onchange="setAct('fault_led','active_h',this.checked)"> Active HIGH</label></div>`}</div></div>`) : '',
+      <div class="hw-field"><label class="hw-toggle"><input class="${workflowDeviceFieldClass('fault_led','enabled')}" type="checkbox" ${fault.enabled?'checked':''} onchange="setAct('fault_led','enabled',this.checked)"><span></span> Enable Fault LED</label></div>
+      <div class="hw-field"><span class="hw-label">Fault LED GPIO</span><select class="${workflowDeviceFieldClass('fault_led','pin')}" onchange="setAct('fault_led','pin',+this.value)">${buildPinOptions(fault.pin??-1,'fault-led')}</select></div>
+      <div class="hw-field"><label><input class="${workflowDeviceFieldClass('fault_led','active_h')}" type="checkbox" ${fault.active_h!==false?'checked':''} onchange="setAct('fault_led','active_h',this.checked)"> Active HIGH</label></div>`}</div></div>`) : '',
     profileAllows('buzzer') ? card('buzzer', 'Buzzer',
       buz.enabled ? (pcbProfileActive() ? 'Fixed PCB audible indicator' : `GPIO ${buz.pin ?? 'not set'}`) : 'Local audible indicator',
       buzStatus,
@@ -1287,7 +1294,7 @@ function registryContextLinks(direction, c) {
       n2_speed:['/controllers.html#cf-n2_rpm_limit','Set N2 protection'],
       tot:['/controllers.html#cf-tot_limit','Set TOT protection'],
       tit:['/controllers.html#cf-sf_tit','Set TIT protection'],
-      oil_pressure:['/controllers.html#cf-oil_rm','Set oil protection'],
+      oil_pressure:['/controllers.html#oil-pressure-protection','Set oil protection'],
       low_oil_switch:['/controllers.html#protection-low_oil','Set oil-pressure protection'],
       oil_zero_switch:['/controllers.html#protection-low_oil','Set oil-pressure protection'],
       p1_pressure:['/controllers.html#cf-sf_p1t','Set P1 protection'],
@@ -1359,6 +1366,11 @@ function registryContextLinks(direction, c) {
 }
 function renderRegistryInventory() {
   const r = registryRoot();
+  const openAdvancedOutputs = new Set(Array.from(
+    document.querySelectorAll('#registry-outputs .registry-output-advanced[open]'),
+    details => details.closest('[data-registry-id]').dataset.registryId));
+  const focusedOverride = document.activeElement?.matches('[data-registry-fault-override]')
+    ? document.activeElement.closest('[data-registry-id]').dataset.registryId : null;
   const render = (direction, target) => {
     const rows = r[direction + 's'];
     let visibleRows = rows.map((c, i) => ({c, i})).filter(({c}) => {
@@ -1418,7 +1430,7 @@ function renderRegistryInventory() {
           </div>
           <div class="registry-card-actions">
             <span class="registry-status registry-status-${status.kind}">${escapeHtmlText(status.text)}</span>
-            ${fixedProfileFunction ? '' : `<button type="button" onclick="toggleRegistryEdit('${direction}',${i})">${open ? 'Done' : 'Edit'}</button>
+            ${fixedProfileFunction ? '' : `<button type="button" data-card-edit aria-expanded="${open}" onclick="toggleRegistryEdit('${direction}',${i})">${open ? 'Done' : 'Edit'}</button>
              ${direction === 'output' ? `<button type="button" title="Add another physical output that follows this output's command. Its pin, driver, polarity, endpoints and protection are configured separately." onclick="duplicateRegistryChannel(${i})">Add mirrored output</button>` : ''}
              <button type="button" class="danger remove-action" onclick="removeRegistryChannel('${direction}',${i})">Remove</button>`}
           </div>
@@ -1444,7 +1456,7 @@ function renderRegistryInventory() {
           ${registryAnalogCurveEditor(direction, c, i)}
            ${!(direction==='input' && registryTemperatureIsSpi(c)) ? registryRangeEditor(direction, c, i) : ''}
            ${registryOutputSubcards(direction, c, i)}
-           ${direction==='output' ? `<details style="grid-column:1/-1"><summary>Advanced output settings</summary><div class="hw-grid" style="margin-top:.65rem">${registryPwmTimingEditor(c, i)}${profileChannel?'':registryDemandEditor(c, i)}${registryFaultSafeEditor(c, i)}</div></details>` : ''}
+           ${direction==='output' ? `<details class="registry-output-advanced" style="grid-column:1/-1"${openAdvancedOutputs.has(c.id) ? ' open' : ''}><summary>Advanced output settings</summary><div class="hw-grid" style="margin-top:.65rem">${registryPwmTimingEditor(c, i)}${profileChannel?'':registryDemandEditor(c, i)}${registryFaultSafeEditor(c, i)}</div></details>` : ''}
            ${registryContextLinks(direction, c)}
         </div>
         </div>
@@ -1452,6 +1464,9 @@ function renderRegistryInventory() {
       }).join('') : `<div class="registry-empty"><div>No installed ${direction} channels.</div></div>`);
   };
   render('input', 'registry-inputs'); render('output', 'registry-outputs'); renderRegistryBindings(); renderHardwareWorkflowSummaries();
+  if (focusedOverride && openAdvancedOutputs.has(focusedOverride))
+    document.querySelector(`#registry-outputs [data-registry-id="${CSS.escape(focusedOverride)}"] [data-registry-fault-override]`)
+      ?.focus({preventScroll:true});
 }
 
 function refreshRegistryDeviceStatuses() {

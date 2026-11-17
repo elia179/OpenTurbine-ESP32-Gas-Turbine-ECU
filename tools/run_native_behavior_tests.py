@@ -143,6 +143,7 @@ def main() -> int:
                 str(ROOT / "dev" / "host" / "session_files_behavior.cpp"),
                 str(ROOT / "src" / "system" / "SessionFiles.cpp"),
             ], []),
+            ("config_file_transaction_behavior", [str(ROOT / "dev" / "host" / "config_file_transaction_behavior.cpp")], []),
             ("controllers", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")], []),
             ("controllers_s3", [str(ROOT / "dev" / "host" / "controller_behavior.cpp")],
              ["-DOT_PLATFORM_ESP32S3"]),

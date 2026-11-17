@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -319,9 +319,9 @@ const ALL_CONFIG_SCHEMA = [
     { key:'oil_fd',  path:['oil','failsafe_delay_ms'],  label:'Pressure-Sensor Fault Delay (ms)', desc:'How long invalid oil-pressure feedback is tolerated before automatic pressure regulation stops and the fixed fallback output below takes over.', step:100, min:0 },
     { key:'oil_fp',  path:['oil','failsafe_pct'],       label:'Fixed Pump Output After Pressure-Sensor Failure (%)', desc:'Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection.', step:5, min:0, max:100 },
   ]},
-  { title: 'Oil Pressure Safety', id: 'oil-safety-section', sectionNote:'Independent oil-pressure, current, and flow protections. Startup oil requirements remain in the startup Sequence blocks where they act.', fields: [
-    { key:'oil_rm',  path:['oil','running_min'],        label:'Low-Pressure Limit', unitType:'press', desc:'Sets the Dashboard low-pressure advisory. Automatic fault shutdown uses this limit during the selected monitoring phases, after the confirmation time. Explicit oil-prime requirements in Sequence remain independent.', step:0.1, min:0, max:20, basic:true },
-    { key:'sf_oil_modes', path:['safety','oil_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START.' },
+  { title: 'Oil Pressure Safety', id: 'oil-safety-section', sectionNote:'Oil pressure and flow protections. Set the separate prime and starter thresholds in Sequence.', fields: [
+    { key:'oil_rm',  path:['oil','running_min'],        label:'Shared Oil Low-Pressure Limit', unitType:'press', desc:'Sets the oil-pressure reference during acceleration and the minimum for the optional oil check in Final Startup Checks. On setups without a named oil-pressure controller it also supplies the general low-pressure protection and Dashboard advisory. Build Oil Pressure and Set Starter have their own startup thresholds.', step:0.1, min:0, max:20, basic:true },
+    { key:'sf_oil_modes', path:['safety','oil_pressure_modes'], label:'Monitor during', type:'select', basic:true, options:[{v:4,l:'Running'},{v:2,l:'Startup'},{v:6,l:'Startup and Running'}], desc:'Choose when this protection monitors pressure. The general analog trip uses the running oil minimum in each selected phase. Oil Prime has its own target for advancing the sequence. The trip timer resets outside the selected phases.' },
     { key:'sf_lo_d', path:['safety','low_oil_confirm_ms'], label:'Fault Confirmation Time (ms)', desc:'The low-pressure condition or logical oil switch ON state must remain continuously active for this long before fault shutdown. Returning to normal resets the timer. Switch contact debounce is a separate built-in 20 ms; 0 means no additional confirmation delay.', step:1, min:0, max:60000, basic:true },
     { key:'oil_ufd', path:['oil_advanced','pump_underflow_delay_ms'], label:'Low Oil-Flow Confirmation Delay (ms)', desc:'How long a monitored main or scavenge pump may remain below its own Hardware minimum-flow value before the ECU confirms a flow fault.', step:100, min:100, max:60000 },
     { key:'oil_ufs', path:['oil_advanced','shutdown_on_underflow'], label:'Shutdown on Confirmed Low Oil Flow', type:'checkbox', protectionToggle:true, desc:'Off (default): report a warning and keep running. On: a confirmed low/no-flow fault requests an engine shutdown. Configure and test each pump flow meter in Hardware before enabling this.' },
@@ -465,9 +465,9 @@ const ALL_CONFIG_SCHEMA = [
   { title: 'Afterburner — Flame Confirmation', id: 'ab-flame-section', fields: [
     { key:'ab_fm',  path:['afterburner','flame_mode'],          label:'Light-up Evidence',    type:'select', options:[{v:0,l:'Verified flame sensor OFF → ON'},{v:1,l:'EGT-rise verification'},{v:2,l:'Timed assumption — unverified'},{v:3,l:'Externally conditioned flame level'}], desc:'Verified sensor mode rejects an input already ON before fuel. External level mode is for a separate flame controller whose asserted level is itself trusted. Timed mode provides no flame evidence.', basic:true },
     { key:'ab_tr',  path:['afterburner','tot_rise_deg_c'],      label:'EGT Rise', unitType:'temp_delta', desc:'Minimum selected EGT rise required to confirm ignition (EGT Rise mode). Typical: 20-50 C. Too low can false-confirm on noise/throttle changes; too high can reject a real light. Verify on a real start.', step:5, min:0 },
-    { key:'ab_tw',  path:['afterburner','tot_rise_window_ms'],  label:'EGT Rise Window (ms)',desc:'Time window in which the required EGT rise must occur (EGT Rise mode). Typical: 1500-3000 ms.', step:100, min:0 },
+    { key:'ab_tw',  path:['afterburner','tot_rise_window_ms'],  label:'EGT Rise Window (ms)',desc:'The required EGT rise must be measured within this time after the first afterburner fuel command. Zero uses the overall confirmation timeout.', step:100, min:0 },
     { key:'ab_ams', path:['afterburner','assume_ignited_ms'],   label:'Unverified Timed Delay (ms)',desc:'Delay before continuing without verifying flame. This is not flame confirmation. Typical starting point: 1000-2000 ms, verified on a restrained test setup.', step:100, min:0 },
-    { key:'ab_fto', path:['afterburner','flame_timeout_ms'],    label:'Confirmation Timeout (ms)', desc:'Overall deadline for flame confirmation. Exceeding this triggers an AB fault and shuts down the afterburner. Typical: 3000-5000 ms.', step:200, min:0, max:3600000 },
+    { key:'ab_fto', path:['afterburner','flame_timeout_ms'],    label:'Confirmation Timeout (ms)', desc:'Overall deadline from the first afterburner fuel command. It includes any sequence steps before the verification card. Exceeding it cuts afterburner fuel and ignition.', step:200, min:0, max:3600000 },
   ]},
   { title: 'Afterburner — Running', id: 'ab-run-section', fields: [
     { key:'ab_pcm', path:['afterburner','pump_control_mode'],     label:'Pump Command Source',   type:'select', options:[{v:0,l:'Fixed Max Output'},{v:1,l:'Follow Main Throttle'},{v:2,l:'Dedicated AB Input'}], desc:'Choose how AB pump flow is commanded while lit. Dedicated AB Input uses the analog, RC, PWM-duty, or registry/I2C AB command configured in Hardware.' },
@@ -1160,7 +1160,8 @@ function createControllerForOutput(outputId) {
 }
 
 function migrateLegacyControllerDefinitions() {
-  if (Number(cfg?.controller_schema || 0) >= 1) return false;
+  // A generic controller cannot preserve the built-in governor's pitch control.
+  if (Number(cfg?.controller_schema || 0) >= 1 || hwCfg.controllers?.governor) return false;
   const outputs = simpleControlOutputs();
   const inputs = simpleControlInputs();
   cfg.rules ||= [];
@@ -1171,33 +1172,9 @@ function migrateLegacyControllerDefinitions() {
     return matches.length === 1 ? matches[0] : null;
   };
   const mainFuel = uniquePurpose(outputs, 'main_fuel');
-  const propPitch = uniquePurpose(outputs, 'prop_pitch');
   const throttle = uniquePurpose(inputs, 'throttle');
-  const n2 = uniquePurpose(inputs, 'n2_speed');
-  let hardwareChanged = false;
 
-  if (hwCfg.controllers?.governor && n2) {
-    const usePitch = propPitch && Number(cfg?.governor?.pitch_kp || 0) > 0;
-    const output = usePitch ? propPitch : mainFuel;
-    if (output && !owns(output)) {
-      const rule = _defaultRuleForOutput(output);
-      rule.name = OTTruncateUtf8(`${controllerChannelName(output)} N2 control`,23);
-      rule.kind = 2;
-      rule.source = n2.id;
-      rule.target_source_type = throttle ? 2 : 0;
-      rule.target_source = throttle?.id || '';
-      rule.target_fixed = Number(cfg?.governor?.target_rpm || 0);
-      rule.target_input_min = 0;
-      rule.target_input_max = 1;
-      rule.target_low = Number(cfg?.governor?.target_rpm || 0);
-      rule.target_high = Number(cfg?.governor?.target_rpm || 0);
-      rule.response_gain = Math.max(0, Number(cfg?.governor?.kp || .00025));
-      rule.deadband = Math.max(0, Number(cfg?.governor?.band_rpm || 500));
-      cfg.rules.push(rule);
-    }
-    hwCfg.controllers.governor = false;
-    hardwareChanged = true;
-  } else if (mainFuel && throttle && !owns(mainFuel)) {
+  if (mainFuel && throttle && !owns(mainFuel)) {
     const rule = _defaultRuleForOutput(mainFuel);
     rule.name = 'Main Fuel';
     rule.kind = 1;
@@ -1207,7 +1184,6 @@ function migrateLegacyControllerDefinitions() {
 
   cfg.controller_schema = 1;
   _controllerRulesDirty = true;
-  if (hardwareChanged) _controllerHardwareDirty = true;
   return true;
 }
 
@@ -2393,7 +2369,7 @@ function renderForm(preserveControllerOpenState = true) {
       <div class="cfg-field-head"><div class="cfg-label">${_escHtml(fieldLabel)}${unitSuffix}</div>
         ${level === 'advanced' ? '<span class="field-level">Advanced</span>' : ''}</div>
       ${inp}
-      ${dashboardNote?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
+      ${dashboardNote && (f.key !== 'oil_rm' || !oilPressureControlOwnsProtection())?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
       <details class="cfg-help"><summary>About this setting</summary><div class="cfg-desc">${fieldDesc}</div></details>
     </div>`;
   };
@@ -2409,10 +2385,12 @@ function renderForm(preserveControllerOpenState = true) {
     const displayTitle = isProtection ? 'Fuel Limiting & Hard Shutdowns' : sec.title;
     const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || []), ...SCHEMA.find(s=>s.title==='Combustion & Startup Protection').fields.filter(f=>f.key==='sf_hs')] : sec.fields;
     const namedOilControl = oilPressureControlOwnsProtection();
+    const usesSequenceOilLimit = (hwCfg.startup_seq || []).some(block => ['Spool','SafetyHold'].includes(block));
     const oilSwitches = controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length;
     const localSafety = {
       'Oil Pressure Safety': [
         {key:'low_oil',label:namedOilControl?'Oil-pressure switch protection':'Oil pressure protection',available:oilSwitches || (!namedOilControl && controllerInputs('oil_pressure').length),requirement:namedOilControl?'Analogue pressure protection is configured separately for each pump under Oil circuit pressure protection. This card is for an additional low-oil switch.':'Fit oil pressure or a low-oil switch',keys:namedOilControl?['sf_oil_modes','sf_lo_d']:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
+        ...(namedOilControl && usesSequenceOilLimit ? [{id:'startup-oil-limit',label:'Startup oil-pressure limit',available:controllerInputs('oil_pressure').length,requirement:'Fit an oil pressure input',keys:['oil_rm'],desc:'Shared by Accelerate to Idle and the optional final startup oil check. Each pump has its own protection limit.'}] : []),
         {label:'Low oil flow',configToggle:'oil_ufs',available:hasMonitoredOilFlowInputs(),requirement:'Fit a matching flow input and enable monitoring on an oil or scavenge pump in Hardware',keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
       ],
       'Combustion & Startup Protection': [
@@ -3346,12 +3324,6 @@ function _cancelSaveRecap() {
   if (cb) cb.disabled = false;
 }
 
-// These page-owned Hardware writes also require an explicit acknowledgement.
-async function _saveConfigHardwarePatch(source, patch) {
-  const {data}=await window.OTSaveHardwarePatch(patch,source);
-  return data;
-}
-
 // OT_CONTROLLERS_ONLY_BEGIN
 async function _saveControllerChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
@@ -3370,17 +3342,8 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
       throw Error('Sequence changed since the review. Reload Controllers and review the changes again.');
     Object.assign(hardwarePatch,cleanup.patch);
   }
-  await _saveConfigHardwarePatch('controllers', hardwarePatch);
-  // Finish the Hardware reboot before sending the second page-owned write.
-  if (Object.keys(payload).length) {
-    saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
-    await window.OTWaitForSaveRestart();
-    if (typeof window.OTSaveConfigPatch !== 'function')
-      throw new Error('Shared save support did not load; reload this page and retry');
-    const {response: settingsResponse, data} = await window.OTSaveConfigPatch(payload);
-    if (!settingsResponse?.ok || data?.ok !== true)
-      throw new Error(data?.error || data?.reason || `Settings HTTP ${settingsResponse?.status || 0}`);
-  }
+  const {response} = await window.OTSaveHardwarePatch(hardwarePatch, 'controllers', payload, window.OTConfigEditor.requireEcu());
+  window.OTSetup?.mark('config', response);
   _clearDirty();
   saveMsg.textContent = '✓ Saved — ECU rebooting…';
   saveMsg.style.color = 'var(--green)';
@@ -3468,13 +3431,15 @@ async function _performConfigSave() {
   const sendSave = async () => {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
-    const { response, data } = await window.OTSaveConfigPatch(payload);
-    if (response?.ok && data?.ok === true) return data;
+    const { response, data } = await window.OTSaveConfigPatch(payload, window.OTConfigEditor.requireEcu());
+    if (response?.ok && data?.ok === true) return {response, data};
     throw new Error(data?.error || data?.reason || ('HTTP ' + (response?.status || 0)));
   };
-  const finishSave = () => sendSave().then(async d => {
+  const finishSave = () => sendSave().then(async ({response, data:d}) => {
     if (d.ok) {
-      if (window.OTSetup) OTSetup.mark('config');
+      if (CONFIG_SURFACE === 'controllers' && d.persist !== 'deferred_until_safe') {
+        window.OTSetup?.mark('config', response);
+      }
       // Firmware returns success after validation and queueing. Ordinary saves
       // are already durable; Developer-Mode live tuning is deliberately kept
       // out of flash until the engine reaches a safe mode.
@@ -4408,9 +4373,6 @@ function _escHtml(s) {
 async function fetchJsonWithTimeout(url, ms = 8000) {
   return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 5) {
-  return window.OTReadJson(url, {attempts});
-}
 
 function revealConfigDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
@@ -4454,9 +4416,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // These are the ECU's two largest configuration documents and share one
   // bounded transfer buffer. Read them in order so an ordinary page open never
   // has to recover from an expected HTTP 409 collision.
-  const loadedConfig = await fetchJsonWithRetry('/api/config');
-  const loadedHardware = await fetchJsonWithRetry('/api/hardware');
-  return [loadedConfig, loadedHardware];
+  return window.OTConfigEditor.load(['/api/config', '/api/hardware']);
 })()
   .then(([c, hw]) => {
     cfg   = c;

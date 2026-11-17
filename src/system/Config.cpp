@@ -9,6 +9,7 @@
 #include "RulesEngine.h"     // after Arduino.h — needs constrain()
 #include "FlightRecorder.h"
 #include "ConfigInternal.h"
+#include "ConfigFileTransaction.h"
 
 namespace ConfigInternal {
 int8_t ruleSourceHandle(const char* id) { return HardwareConfig::inputSensorForId(id); }
@@ -62,6 +63,7 @@ float Config::shutdownRpmDropThreshold= 5000;
 int   Config::shutdownRpmDropTimeoutMs= 15000;
 int   Config::shutdownCooldownTimeoutMs= 60000;  // 60 s default (was 200 s — unreachably long for typical engines)
 int   Config::shutdownFinalStopTimeoutMs=10000;
+int   Config::finalStopSpeedSource=0;
 
 float Config::throttleRampUpMs      = 1000;
 float Config::throttleRampDownMs    = 2000;
@@ -237,6 +239,7 @@ char     Config::manualRelightOutputId[20] = {};
 
 bool     Config::cooldownUseStarter         = true;
 bool     Config::cooldownUseOilPump         = true;
+bool     Config::cooldownKeepOilOnExit      = false;
 float    Config::cooldownStarterPct         = 40.0f;  // %
 float    Config::cooldownOilPct             = 30.0f;  // % (no pressure sensor)
 float    Config::cooldownOilPressureTarget  = 2.0f;   // bar
@@ -660,6 +663,7 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
 
     const char* shutdownMs[] = { "rpm_drop_timeout_ms", "cooldown_timeout_ms", "final_stop_timeout_ms", "oil_scavenge_ms" };
     if (!validMsFields(sd, shutdownMs, sizeof(shutdownMs) / sizeof(shutdownMs[0])) ||
+        !validInt(sd["final_stop_speed_source"], 0, 3) ||
         !validNumber(sd["rpm_drop_threshold"], 0.0f, 1000000000.0f) ||
         !validNumber(sd["rpm_zero_threshold"], 0.0f, 1000000000.0f) ||
         !validNumber(sd["cooldown_starter_pct"], 0.0f, 100.0f) ||
@@ -667,7 +671,8 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
         !validNumber(sd["cooldown_oil_pressure_bar"], 0.0f, 20.0f) ||
         !validBool(sd["cooldown_use_scavenge"]) ||
         !validBool(sd["cooldown_use_starter"]) ||
-        !validBool(sd["cooldown_use_oil"])) return false;
+        !validBool(sd["cooldown_use_oil"]) ||
+        !validBool(sd["cooldown_keep_oil_on_exit"])) return false;
     auto sequenceContains = [](char sequence[][24], int count, const char* name) {
         for (int i = 0; i < count; ++i) if (!strcmp(sequence[i], name)) return true;
         return false;
@@ -1143,13 +1148,23 @@ bool validateSettingsDoc(const JsonDocument& doc, bool validateHardwareDependenc
 // ── Load ──────────────────────────────────────────────────────
 void Config::load() {
     _applyDefaults();
-    EngineData::instance().configVersionMismatch = false;
+    auto& ed = EngineData::instance();
+    ed.configVersionMismatch = false;
 
-    static constexpr const char* BAK_PATH = "/ecu_config.bak";
-    if (!LittleFS.exists(PATH) && LittleFS.exists(BAK_PATH)) {
-        if (LittleFS.rename(BAK_PATH, PATH)) {
-            Serial.println("[Config] Recovered backup config");
-        }
+    // Hardware loads first. Preserve its diagnosis and the stored file if
+    // that load already established a storage fault.
+    if (ed.configStorageFault) {
+        profileMatch = false;
+        return;
+    }
+
+    if (!ConfigFileTransaction::recoverBackup(LittleFS, PATH)) {
+        ed.configStorageFault = true;
+        strlcpy(ed.faultDescription,
+                "Cannot start: the configuration backup could not be restored. The backup is retained.",
+                sizeof(ed.faultDescription));
+        profileMatch = false;
+        return;
     }
 
     if (!LittleFS.exists(PATH)) {
@@ -1172,7 +1187,7 @@ void Config::load() {
             "Cannot start: failed to open ecu_config.json.\n"
             "What to do: The config file may be missing or the filesystem is corrupt. "
             "Re-upload the filesystem image (pio run --target uploadfs) or use the web UI "
-            "Tools page to reset config to defaults.",
+            "System page to reset config to defaults.",
             sizeof(EngineData::instance().faultDescription) - 1);
         EngineData::instance().faultDescription[sizeof(EngineData::instance().faultDescription) - 1] = '\0';
         profileMatch = false;
@@ -1203,7 +1218,7 @@ void Config::load() {
         EngineData::instance().configStorageFault = true;
         strncpy(EngineData::instance().faultDescription,
             "Cannot start: ecu_config.json is corrupted (JSON parse error).\n"
-            "What to do: Use the web UI Tools page to reset config to defaults, "
+            "What to do: Use the web UI System page to restore a complete engine file or reset config to defaults, "
             "or re-upload the filesystem image.",
             sizeof(EngineData::instance().faultDescription) - 1);
         EngineData::instance().faultDescription[sizeof(EngineData::instance().faultDescription) - 1] = '\0';
@@ -1212,14 +1227,15 @@ void Config::load() {
     }
 
     if (!fullDoc[SECTION].is<JsonObject>()) {
-        Serial.println("[Config] Missing settings; adding defaults");
+        Serial.println("[Config] Stored engine file has no settings object - START inhibited");
         strncpy(profileId, HardwareConfig::profileId, sizeof(profileId) - 1);
         profileId[sizeof(profileId) - 1] = '\0';
-        if (!save()) {
-            inhibitStartForConfigWriteFailure();
-            return;
-        }
-        profileMatch = true;
+        strlcpy(ed.faultDescription,
+                "Cannot start: the saved engine file is missing its settings section. "
+                "Restore a complete engine file in System, or explicitly reset the configuration.",
+                sizeof(ed.faultDescription));
+        ed.configStorageFault = true;
+        profileMatch = false;
         return;
     }
     // The filtered document already owns the complete settings tree. Apply a
@@ -1251,16 +1267,9 @@ void Config::load() {
         EngineData::instance().configVersionMismatch = true;
     }
 
-    bool settingsIncomplete = false;
-    const char* requiredSections[] = {
-        "engine", "oil", "sequence", "throttle", "safety", "calibration"
-    };
-    for (const char* section : requiredSections) {
-        settingsIncomplete |= !workDoc[section].is<JsonObject>();
-    }
     _missingRequiredSections = false;
     _fromDoc(workDoc);
-    if (settingsIncomplete || _missingRequiredSections) {
+    if (_missingRequiredSections) {
         Serial.println("[Config] Filling missing settings sections");
         if (!save()) {
             inhibitStartForConfigWriteFailure();
@@ -1514,6 +1523,12 @@ void Config::requestSave() {
     s_configSaveFailures = 0;
     s_configSaveRetryAfterMs = 0;
     _savePending = true;
+}
+
+void Config::discardPendingSave() {
+    _savePending = false;
+    s_configSaveFailures = 0;
+    s_configSaveRetryAfterMs = 0;
 }
 
 bool Config::flushPendingSave() {
@@ -1808,7 +1823,6 @@ bool Config::copyStoredSettings(Print& destination) {
 bool Config::_saveSettingsJson(const char* settingsJson, size_t settingsLen,
                                bool writeRuntimeHardware) {
     static constexpr const char* TMP_PATH = "/ecu_config.tmp";
-    static constexpr const char* BAK_PATH = "/ecu_config.bak";
 #if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
     static constexpr const char* APPLY_PATH = "/config_apply.tmp";
     const bool hasStagedSettings = settingsLen > 0;
@@ -1818,6 +1832,13 @@ bool Config::_saveSettingsJson(const char* settingsJson, size_t settingsLen,
         return false;
     }
     ConfigStorageWriteRelease release;
+    // A Settings-only save cannot replace Hardware with defaults while the
+    // only committed engine file is an unrecovered backup.
+    if (!writeRuntimeHardware && !LittleFS.exists(PATH) &&
+        LittleFS.exists(ConfigFileTransaction::backupPath)) {
+        Serial.println("[Config] Settings save refused until configuration backup is recovered");
+        return false;
+    }
 
 #if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
     // Keep an exact, bounded copy for the ECU core. Mutable-buffer parsing is
@@ -1949,32 +1970,21 @@ bool Config::_saveSettingsJson(const char* settingsJson, size_t settingsLen,
         return false;
     }
 
-    // Keep the previous valid file available for recovery until replacement succeeds.
-    LittleFS.remove(BAK_PATH);
-    bool hadOriginal = LittleFS.exists(PATH);
-    if (hadOriginal && !LittleFS.rename(PATH, BAK_PATH)) {
+    const auto result = ConfigFileTransaction::install(LittleFS, TMP_PATH, PATH);
+    if (result != ConfigFileTransaction::InstallResult::Saved) {
         LittleFS.remove(TMP_PATH);
 #if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
         if (hasStagedSettings) LittleFS.remove(APPLY_PATH);
 #endif
-        Serial.println("[Config] failed to preserve previous ecu_config.json");
-        return false;
-    }
-    if (!LittleFS.rename(TMP_PATH, PATH)) {
-        Serial.println("[Config] rename ecu_config.tmp failed");
-        const bool restored = !hadOriginal || LittleFS.rename(BAK_PATH, PATH);
-        LittleFS.remove(TMP_PATH);
-#if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)
-        if (hasStagedSettings) LittleFS.remove(APPLY_PATH);
-#endif
-        if (!restored) {
-            // Keep ecu_config.bak: load() can recover it on a later boot once
-            // the filesystem is writable again.
+        if (result == ConfigFileTransaction::InstallResult::RollbackFailed) {
             Serial.println("[Config] rollback failed; preserving ecu_config.bak for boot recovery");
+        } else if (result == ConfigFileTransaction::InstallResult::PreserveFailed) {
+            Serial.println("[Config] failed to preserve previous ecu_config.json");
+        } else {
+            Serial.println("[Config] rename ecu_config.tmp failed");
         }
         return false;
     }
-    if (hadOriginal) LittleFS.remove(BAK_PATH);
     return true;
 }
 

@@ -91,6 +91,10 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
     const bounds=await slot.boundingBox();assert.ok(bounds.width>600,'Warnings span the full custom grid');
     await feed({});await slot.waitFor({state:'hidden',timeout:5000});
    }
+   await feed({config_storage_fault:true,profile_match:false,mode:'FAULT',fault_description:'The saved engine file is missing its settings section.'});
+   await slot.locator('#config-storage-banner').waitFor({state:'visible',timeout:5000});
+   assert.equal(await slot.locator('#profile-mismatch-banner').isVisible(),false,'a storage fault cannot establish an engine-name mismatch');
+   assert.match(await slot.locator('#config-storage-banner a').getAttribute('href'),/system\.html.*#system-backup-restore/);
    await feed({config_storage_fault:true,config_version_mismatch:true,surge_detected:true,mode:'FAULT',fault_description:'Bench fault test'});
    for(const width of [1366,768,390,320]){
     await page.setViewportSize({width,height:1024});

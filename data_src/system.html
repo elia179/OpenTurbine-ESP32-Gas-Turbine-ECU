@@ -69,7 +69,7 @@ main{max-width:1380px;padding:1.1rem 1.5rem 5.5rem}
 .field-changed{border-color:var(--accent)!important;box-shadow:none}
 </style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -1717,7 +1717,7 @@ function renderForm(preserveControllerOpenState = true) {
       <div class="cfg-field-head"><div class="cfg-label">${_escHtml(fieldLabel)}${unitSuffix}</div>
         ${level === 'advanced' ? '<span class="field-level">Advanced</span>' : ''}</div>
       ${inp}
-      ${dashboardNote?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
+      ${dashboardNote && (f.key !== 'oil_rm' || !oilPressureControlOwnsProtection())?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
       <details class="cfg-help"><summary>About this setting</summary><div class="cfg-desc">${fieldDesc}</div></details>
     </div>`;
   };
@@ -1733,10 +1733,12 @@ function renderForm(preserveControllerOpenState = true) {
     const displayTitle = isProtection ? 'Fuel Limiting & Hard Shutdowns' : sec.title;
     const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || []), ...SCHEMA.find(s=>s.title==='Combustion & Startup Protection').fields.filter(f=>f.key==='sf_hs')] : sec.fields;
     const namedOilControl = oilPressureControlOwnsProtection();
+    const usesSequenceOilLimit = (hwCfg.startup_seq || []).some(block => ['Spool','SafetyHold'].includes(block));
     const oilSwitches = controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length;
     const localSafety = {
       'Oil Pressure Safety': [
         {key:'low_oil',label:namedOilControl?'Oil-pressure switch protection':'Oil pressure protection',available:oilSwitches || (!namedOilControl && controllerInputs('oil_pressure').length),requirement:namedOilControl?'Analogue pressure protection is configured separately for each pump under Oil circuit pressure protection. This card is for an additional low-oil switch.':'Fit oil pressure or a low-oil switch',keys:namedOilControl?['sf_oil_modes','sf_lo_d']:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
+        ...(namedOilControl && usesSequenceOilLimit ? [{id:'startup-oil-limit',label:'Startup oil-pressure limit',available:controllerInputs('oil_pressure').length,requirement:'Fit an oil pressure input',keys:['oil_rm'],desc:'Shared by Accelerate to Idle and the optional final startup oil check. Each pump has its own protection limit.'}] : []),
         {label:'Low oil flow',configToggle:'oil_ufs',available:hasMonitoredOilFlowInputs(),requirement:'Fit a matching flow input and enable monitoring on an oil or scavenge pump in Hardware',keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
       ],
       'Combustion & Startup Protection': [
@@ -2382,38 +2384,17 @@ function _cancelSaveRecap() {
   if (cb) cb.disabled = false;
 }
 
-// These page-owned Hardware writes also require an explicit acknowledgement.
-async function _saveConfigHardwarePatch(source, patch) {
-  const {data}=await window.OTSaveHardwarePatch(patch,source);
-  return data;
-}
-
 // OT_SYSTEM_ONLY_BEGIN
 async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
   await new Promise(resolve => setTimeout(resolve, 150));
-  let settingsReboot = false;
-  if (_systemHardwareDirty) {
-    const hardwarePatch = {};
-    for (const path of _systemHardwareChangedPaths) {
-      const value = getPath(hwCfg, path.split('.'));
-      if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
-    }
-    await _saveConfigHardwarePatch('system', hardwarePatch);
+  const hardwarePatch = {};
+  for (const path of _systemHardwareChangedPaths) {
+    const value = getPath(hwCfg, path.split('.'));
+    if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
   }
-  if (Object.keys(payload).length) {
-    if (_systemHardwareDirty) {
-      saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
-      await window.OTWaitForSaveRestart();
-    }
-    if (typeof window.OTSaveConfigPatch !== 'function')
-      throw new Error('Shared save support did not load; reload this page and retry');
-    const {response, data} = await window.OTSaveConfigPatch(payload);
-    if (!response?.ok || data?.ok !== true)
-      throw new Error(data?.error || data?.reason || `Settings HTTP ${response?.status || 0}`);
-    settingsReboot = data?.reboot === true;
-  }
-  const rebooting = _systemHardwareDirty || settingsReboot;
+  const {data} = await window.OTSaveHardwarePatch(hardwarePatch, 'system', payload, window.OTConfigEditor.requireEcu());
+  const rebooting = data.reboot === true;
   const nextWifiName = _systemHardwareChangedPaths.has('profile_id')
     ? String(hwCfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine' : '';
   _clearDirty();
@@ -2506,13 +2487,15 @@ async function _performConfigSave() {
   const sendSave = async () => {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
-    const { response, data } = await window.OTSaveConfigPatch(payload);
-    if (response?.ok && data?.ok === true) return data;
+    const { response, data } = await window.OTSaveConfigPatch(payload, window.OTConfigEditor.requireEcu());
+    if (response?.ok && data?.ok === true) return {response, data};
     throw new Error(data?.error || data?.reason || ('HTTP ' + (response?.status || 0)));
   };
-  const finishSave = () => sendSave().then(async d => {
+  const finishSave = () => sendSave().then(async ({response, data:d}) => {
     if (d.ok) {
-      if (window.OTSetup) OTSetup.mark('config');
+      if (CONFIG_SURFACE === 'controllers' && d.persist !== 'deferred_until_safe') {
+        window.OTSetup?.mark('config', response);
+      }
       // Firmware returns success after validation and queueing. Ordinary saves
       // are already durable; Developer-Mode live tuning is deliberately kept
       // out of flash until the engine reaches a safe mode.
@@ -2805,10 +2788,11 @@ async function factoryReset() {
     .then(async r => {
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(d.error || d.reason || ('HTTP ' + r.status));
-      return d;
+      return {response:r, data:d};
     })
-    .then(d => {
+    .then(({response, data:d}) => {
       if (d.ok) {
+        window.OTSetup?.clear(response);
         if (msg) { msg.textContent = 'Reset sent — device rebooting…'; msg.style.color = 'var(--yellow)'; msg.style.display = ''; }
         window.OTShowRebootOverlay?.({returnPath:'/system.html'});
       } else {
@@ -2833,8 +2817,9 @@ function compactEngineFileForRestore(text) {
     temp_interface:0, spi_clk:-1, spi_cs:-1, spi_miso:-1, spi_mosi:-1,
     tc_type:'K', temp_resolution:10, ntc_beta:3950, ntc_r0:10000,
     ntc_r_fixed:10000, ntc_pullup:true,
-    safe_demand:0, force_safe_on_fault:false, min_run_demand:0,
-    pwm_freq_hz:5000, pwm_res_bits:10,
+    force_safe_on_fault:false, min_run_demand:0,
+    // Keep explicit safe demand and PWM timing. Omitting safe demand can
+    // change prop-pitch park, and key presence selects custom PWM timing.
     invert:false, pullup:false, pulldown:false,
     has_current:false, current_pin:-1, current_mv_a:100,
     current_zero_v:1.65, current_max_a:0,
@@ -2856,9 +2841,9 @@ async function backupConfig() {
     let lastError;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const cfgRes = await fetch('/api/ecu_config', { cache:'no-store' });
+        const cfgRes = await fetch('/api/ecu_config', {cache:'no-store', signal:AbortSignal.timeout(20000)});
         if (!cfgRes.ok) throw new Error('HTTP ' + cfgRes.status);
-        return JSON.parse(await cfgRes.text());
+        return await cfgRes.blob();
       } catch (error) {
         lastError = error;
         if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
@@ -2867,13 +2852,14 @@ async function backupConfig() {
     throw lastError || new Error('No response');
   };
   fetchEngineFile()
-    .then(async cfg => {
+    .then(async savedFile => {
+      const cfg = await savedFile.text().then(text => JSON.parse(text)).catch(() => null);
+      const complete = cfg && [cfg.hardware, cfg.settings].every(section =>
+        section && typeof section === 'object' && !Array.isArray(section));
+      if (!complete) return {blob:savedFile, profilePart:'recovery_', complete:false};
       // Live status only annotates the backup; losing it must not discard a
       // complete engine file that has already been read successfully.
-      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null);
-      return [cfg, live || {}];
-    })
-    .then(([cfg, live]) => {
+      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null) || {};
       cfg._backup_meta = {
         timestamp:    new Date().toISOString(),
         fw_version:   live.fw_version || 'unknown',
@@ -2881,10 +2867,13 @@ async function backupConfig() {
         uptime_s:     live.uptime_s  || 0
       };
       const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
-      const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const profile = String(cfg._backup_meta.profile || 'OpenTurbine')
         .replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'OpenTurbine';
       const profilePart = /^openturbine$/i.test(profile) ? '' : profile + '_';
+      return {blob, profilePart, complete:true};
+    })
+    .then(({blob, profilePart, complete}) => {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
@@ -2892,15 +2881,17 @@ async function backupConfig() {
       a.click();
       URL.revokeObjectURL(url);
       if (state) {
-        state.textContent = 'Download started';
-        state.className   = 'tool-state done';
+        state.textContent = complete ? 'Download started' : 'Recovery copy started';
+        state.className   = complete ? 'tool-state done' : 'tool-state fault';
       }
       if (msg) {
-        msg.textContent = 'Download started. Confirm the complete engine file appears in Downloads before relying on it.';
-        msg.style.color = 'var(--green)';
+        msg.textContent = complete
+          ? 'Download started. Confirm the complete engine file appears in Downloads before relying on it.'
+          : 'Recovery copy started. The saved engine file is damaged or incomplete. Keep this copy for diagnosis and use a complete engine file to restore the ECU.';
+        msg.style.color = complete ? 'var(--green)' : 'var(--yellow)';
         msg.style.display = '';
       }
-      setTimeout(() => {
+      if (complete) setTimeout(() => {
         // A restore may have started or failed after the backup download.
         // Never clear that newer operation's status or error message.
         if (state?.textContent !== 'Download started') return;
@@ -3013,10 +3004,11 @@ async function restoreConfig(input) {
           ? 'Engine description must fit within 63 UTF-8 bytes.' : d.detail;
         throw new Error((d.error || d.reason || ('HTTP ' + r.status)) + (detail ? ': ' + detail : ''));
       }
-      return d;
+      return {response:r, data:d};
     })
-    .then(d => {
+    .then(({response, data:d}) => {
       if (d.ok) {
+        window.OTSetup?.clear(response);
         if (state) {
           state.textContent = 'Done — rebooting…';
           state.className   = 'tool-state done';
@@ -3721,9 +3713,6 @@ function _escHtml(s) {
 async function fetchJsonWithTimeout(url, ms = 8000) {
   return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 5) {
-  return window.OTReadJson(url, {attempts});
-}
 
 function revealConfigDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
@@ -3942,9 +3931,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // These are the ECU's two largest configuration documents and share one
   // bounded transfer buffer. Read them in order so an ordinary page open never
   // has to recover from an expected HTTP 409 collision.
-  const loadedConfig = await fetchJsonWithRetry('/api/config');
-  const loadedHardware = await fetchJsonWithRetry('/api/hardware');
-  return [loadedConfig, loadedHardware];
+  return window.OTConfigEditor.load(['/api/config', '/api/hardware']);
 })()
   .then(([c, hw]) => {
     cfg   = c;

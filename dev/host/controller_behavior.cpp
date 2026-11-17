@@ -321,6 +321,19 @@ int main() {
     governor.tick();
     assert(ed.propPitchDemand > fineDemand);
 
+    // Slow pitch travel must still accumulate steps smaller than 0.0001.
+    resetData();
+    governor.pitchRampSec = 40.0f;
+    ed.n2Rpm = 12000;
+    governor.begin();
+    for (unsigned long tick = 1; tick <= 400; ++tick) {
+        fakeMillisClock() = tick * 5 / 2;
+        governor.tick();
+    }
+    assert(std::fabs(ed.propPitchDemand - 0.525f) < 0.0001f);
+    assert(std::strstr(ed.governorControllerState, "Active: prop pitch"));
+    governor.pitchRampSec = 1.0f;
+
     // Pitch endpoints never grant hidden main-fuel authority. The status tells
     // the operator which physical limit blocked the requested correction, and
     // authority recovers normally when the error reverses.

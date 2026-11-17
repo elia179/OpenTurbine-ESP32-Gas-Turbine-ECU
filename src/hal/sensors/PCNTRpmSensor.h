@@ -138,6 +138,7 @@ public:
     uint32_t sampleSequence() override { return _sampleSeq; }
     uint32_t sampleTimestampMs() override { return _lastMs; }
     bool hardwareReady() const { return _ready; }
+    int64_t accumulatedPulses() const { return _accumPulses; }
 
     void resetHealth() {
         _health.clear();

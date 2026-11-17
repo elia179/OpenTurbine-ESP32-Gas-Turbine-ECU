@@ -94,9 +94,9 @@ const BLOCKS = {
       {key:'pulsed_assist_off_ms', label:'Assist pulse OFF time', unit:'ms', type:'int', min:1, max:60000, step:10, def:250, configKey:'pulsed_assist_off_ms',
         visibleIf: hw => actuatorHasProportionalOutput('starter'),
         showWhen: vals => !!vals['StarterSpin.pulsed_assist_enabled']},
-      {key:'pre_ign_rpm',        label:'Pre-ignition N1 target', unit:'rpm', type:'float', min:100, max:50000, step:100, def:5000, configKey:'pre_ign_rpm',
+      {key:'pre_ign_rpm',        label:'Pre-ignition N1 target', unit:'rpm', type:'float', min:0, max:50000, step:100, def:5000, configKey:'pre_ign_rpm',
         visibleIf: hw => sensorEnabled('n1_rpm'),
-        desc:'This block completes when N1 exceeds this speed. It leaves starter demand active for a later Starter Off or other configured cut action. Without healthy N1 feedback it runs to timeout and causes a fault shutdown.'},
+        desc:'This block completes when N1 exceeds this speed. A target of 0 accepts healthy N1 without requiring positive speed. Starter demand carries forward, including into Running. Add a cut action if the starter should disengage before Running. Without healthy N1 feedback it runs to timeout and causes a fault shutdown.'},
       {key:'starter_timeout_ms', label:'Timeout',       unit:'ms',  type:'int',   min:1000,max:60000, step:500, def:8000,
         configKey:'starter_timeout_ms',
         desc:'Maximum spin time before fault shutdown. Bench Mode is the only mode where this timeout completes without verified N1 feedback.'},
@@ -109,15 +109,15 @@ const BLOCKS = {
     label:'Open Main Fuel Shutoff', type:'action', badgeClass:'badge-action',
     visibleIf: hw => actuatorEnabled('fuel_sol'),
     condition: null, timeout_action:null,
-    desc:'Opens the main fuel shutoff and marks that combustion was attempted so Cooldown can run when needed. Instant action.',
+    desc:'Opens the main fuel shutoff. Instant action.',
     params:[]
   },
   FlameConfirm: {
-    label:'Confirm Combustion by Flame Sensor', type:'while', badgeClass:'badge-while',
+    label:'Wait for Flame Signal', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('flame'),
     condition: hw => `Until ${hw.flame_required_count ?? 3} ${sequenceSensorLabel('flame','flame')} detections`,
     timeout_action:'abort',
-    desc:'Waits until the flame sensor reports the required consecutive detections. Confirms that combustion is self-sustained. Timeout aborts startup. On exit it can release only the ignition devices energized by dedicated ignition blocks in this sequence.',
+    desc:'Waits for consecutive flame-present readings. An already-active input can pass. To check for new light-off, verify the input is inactive before admitting fuel. Timeout aborts startup.',
     hwWarnings:[
       { check: hw => sensorEnabled('flame'),
         msg: 'Blocked: No flame sensor configured - flame count will never increment. This block will always timeout and ABORT. Use TempConfirm as a replacement if a temperature sensor is fitted.',
@@ -125,7 +125,7 @@ const BLOCKS = {
     ],
     params:[
       {key:'flame_required_count',    label:'Required detections',     type:'int', min:1, max:20, step:1, def:3, configKey:'flame_required_count',
-        desc:'Consecutive flame detections required before the block confirms self-sustained combustion.'},
+        desc:'Number of consecutive flame-present readings required to advance.'},
       {key:'flame_check_interval_ms', label:'Detection interval', unit:'ms', type:'int', min:50, max:2000, step:50, def:250, configKey:'flame_check_interval_ms',
         desc:'Time window for each required flame detection. Longer is more tolerant of slow/noisy sensors but delays startup.'},
       {key:'flame_timeout_ms',       label:'Timeout',                 unit:'ms', type:'int',  min:1000, max:30000, step:500, def:5000, configKey:'flame_timeout_ms'},
@@ -134,11 +134,11 @@ const BLOCKS = {
     ]
   },
   TempConfirm: {
-    label:'Confirm Combustion by Temperature', type:'while', badgeClass:'badge-while',
+    label:'Wait for Temperature Threshold', type:'while', badgeClass:'badge-while',
     visibleIf: hw => sensorEnabled('tot') || sensorEnabled('tit'),
     condition: hw => `Until ${sequenceTemperatureLabel()} ≥ ${fmtSeqTemp(hw.temp_confirm_target ?? 200)}`,
     timeout_action:'abort',
-    desc:'Waits until selected engine temperature (TOT or TIT) rises above the configured threshold. Use as an alternative to or alongside FlameConfirm when a flame sensor is not fitted. On timeout -> ABORT. Does NOT change any actuator state.',
+    desc:'Waits for consecutive selected TOT/TIT readings at or above the target. Temperature already above the target can pass. Use a relative temperature check when you need evidence of a new rise. Timeout aborts startup.',
     hwWarnings:[
       { check: hw => sensorEnabled('tot') || sensorEnabled('tit'),
         msg: 'Blocked: No temperature (TOT/TIT) sensor configured - EGT will never rise above ambient. This block will always timeout and ABORT.',
@@ -183,17 +183,14 @@ const BLOCKS = {
     visibleIf: hw => actuatorHasProportionalOutput('throttle') && sensorEnabled('n1_rpm'),
     condition: hw => `Until ${sequenceSensorLabel('n1_rpm','N1')} ≥ ${hw.rpm_target ?? 32000} rpm`,
     timeout_action:'fault',
-    desc:'Sets main fuel demand to the calibrated minimum reliable metering output and holds until N1 reaches the idle-entry target. Flame monitoring is active; loss of combustion causes a fault shutdown. The running oil-pressure minimum is enforced from this block onward.',
+    desc:'Sets main fuel demand to the calibrated minimum reliable metering output and holds until N1 reaches the idle-entry target. The automatic combustion-loss trip starts in Running. Choose Startup and Running in oil protection if you need that general pressure trip during spool-up.',
     hwWarnings:[
       { check: hw => sensorEnabled('n1_rpm'),
         msg: 'Warning: No N1 RPM sensor - Spool cannot verify target RPM has been reached. Block will run until timeout -> FAULT SHUTDOWN.' },
     ],
     params:[
-      {key:'rpm_target',                label:'Idle-entry N1 target', unit:'rpm',type:'float', min:1000, max:200000, step:500, def:32000, configKey:'rpm_target'},
+      {key:'rpm_target',                label:'Idle-entry N1 target', unit:'rpm',type:'float', min:0, max:200000, step:500, def:32000, configKey:'rpm_target', desc:'A target of 0 accepts healthy N1 without requiring positive speed.'},
       {key:'rpm_timeout_ms',            label:'Timeout',                    unit:'ms', type:'int',   min:1000, max:120000, step:1000, def:12000, configKey:'rpm_timeout_ms'},
-      {key:'oil_running_min',           label:'Running Low-Pressure Limit', unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
-        visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Shared with Final Startup Checks. Without a named oil-pressure controller, the general Oil pressure protection also uses this reference. Named pump controllers have their own running low-pressure thresholds under Shutdown & Protection → Oil circuit pressure protection.'},
       {key:'spool_cut_starter_on_exit', label:'Cut starter demand on exit',            type:'bool',                                  def:true,  configKey:'spool_cut_starter_on_exit'},
       {key:'spool_cut_starter_en_on_exit',label:'Cut starter enable output on exit',   type:'bool',                                  def:true,  configKey:'spool_cut_starter_en_on_exit',
         visibleIf: hw => actuatorEnabled('starter_en')},
@@ -226,9 +223,6 @@ const BLOCKS = {
       {key:'final_check_p2_enabled',label:'Require P2 pressure',type:'bool',def:false,configKey:'final_check_p2_enabled',visibleIf:hw=>sensorEnabled('p2')},
       {key:'final_check_p2_bar',label:'Minimum accepted P2',unit:'bar',type:'float',min:0,max:1000,step:0.1,def:0,configKey:'final_check_p2_bar',visibleIf:hw=>sensorEnabled('p2'),showWhen:vals=>!!vals['SafetyHold.final_check_p2_enabled']},
       {key:'final_check_oil_enabled',label:'Require oil pressure',type:'bool',def:false,configKey:'final_check_oil_enabled',visibleIf:hw=>sensorEnabled('oil_press')},
-      {key:'oil_running_min',label:'Running Low-Pressure Limit',unit:'bar',type:'float', min:0, max:20, step:0.1, def:2.8, configKey:'oil_running_min',
-        visibleIf: hw => sensorEnabled('oil_press'),
-        desc:'Required at startup completion only when Require oil pressure is on. Shared with Accelerate to Idle and the general oil-pressure reference. Named pump controllers use their own separate running low-pressure thresholds under Shutdown & Protection → Oil circuit pressure protection.'},
       {key:'final_check_egt_enabled',label:'Require engine temperature',type:'bool',def:false,configKey:'final_check_egt_enabled',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit')},
       {key:'final_check_egt_c',label:'Minimum accepted EGT',unitType:'temp',type:'float',min:0,max:1400,step:10,def:0,configKey:'final_check_egt_c',visibleIf:hw=>sensorEnabled('tot')||sensorEnabled('tit'),showWhen:vals=>!!vals['SafetyHold.final_check_egt_enabled']},
       {key:'final_check_flame_enabled',label:'Require flame detected',type:'bool',def:false,configKey:'final_check_flame_enabled',visibleIf:hw=>sensorEnabled('flame')},
@@ -381,7 +375,7 @@ const BLOCKS = {
     label:'Cooldown', type:'while', badgeClass:'badge-while',
     condition: hw => `Until ${sequenceTemperatureLabel()} < ${fmtSeqTemp(hw.tot_cooldown_target ?? 150)}`,
     timeout_action:'continue',
-    desc:'Spin starter and/or run oil pump to cool EGT below target. Skipped if fuel was never opened. Proceeds on timeout. With oil pressure sensor: pump is regulated to target pressure; without: runs at fixed %.',
+    desc:'Runs the selected starter and oil outputs after an ignition attempt or recorded heat. Ends at the temperature target or timeout. With oil-pressure feedback, the selected main pump regulates to the pressure target. Cooldown cards share these settings.',
     hwWarnings:[
       { check: hw => sensorEnabled('tot') || sensorEnabled('tit'),
         msg: 'Warning: No temperature sensor - cooldown cannot verify EGT has dropped. Block will run for the full timeout then continue (safe).' },
@@ -401,15 +395,20 @@ const BLOCKS = {
       {key:'tot_cooldown_target',       label:'EGT target',              unitType:'temp', type:'float',min:0, max:100000, step:10, def:150, configKey:'tot_cooldown_target'},
       {key:'cooldown_timeout_ms',       label:'Timeout',                 unit:'ms', type:'int',  min:10000,max:600000, step:10000, def:60000, configKey:'cooldown_timeout_ms'},
       {key:'cooldown_skip_hold_ms',     label:'Manual skip hold',        unit:'ms', type:'int',  min:500,  max:30000,  step:500,   def:1000,  configKey:'cooldown_skip_hold_ms',
-        desc:'During SHUTDOWN, hold START and STOP together for this long to deliberately skip the remaining cooldown.'},
+        desc:'Hold START and STOP together for this long while this card is active to continue to the next shutdown step.'},
       {key:'cooldown_use_starter',      label:'Use starter motor',                  type:'bool',                                  def:true,   configKey:'cooldown_use_starter',
         visibleIf: hw => actuatorEnabled('starter')},
       {key:'cooldown_starter_pct',      label:'Starter speed',           unit:'%',  type:'float',min:0,    max:100,    step:5,     def:40,     configKey:'cooldown_starter_pct',
         visibleIf: hw => actuatorHasProportionalOutput('starter'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_starter']},
       {key:'cooldown_use_oil_pump',     label:'Run oil pump',                       type:'bool',                                  def:true,   configKey:'cooldown_use_oil',
-        visibleIf: hw => actuatorEnabled('oil_pump')},
-      {key:'cooldown_oil_pct',          label:'Oil pump %',              unit:'%',  type:'float',min:0,    max:100,    step:5,     def:30,     configKey:'cooldown_oil_pct',
-        visibleIf: hw => actuatorHasProportionalOutput('oil_pump') && !sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
+        visibleIf: hw => actuatorEnabled('oil_pump'),
+        desc:'On by default. Turn it off if oil is supplied independently or this step does not need the pump.'},
+      {key:'cooldown_keep_oil_on_exit', label:'Keep last oil pump command', type:'bool', def:false, configKey:'cooldown_keep_oil_on_exit',
+        visibleIf: hw => actuatorEnabled('oil_pump'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump'],
+        desc:'Carries the last command, including zero, into the next step. Pressure regulation ends here. Use a later output card for a fixed coast-down command, or Wait for Complete Stop to cut oil.'},
+      {key:'cooldown_oil_pct',          label:'Oil pump start / manual duty', unit:'%',  type:'float',min:0,    max:100,    step:5,     def:30,     configKey:'cooldown_oil_pct',
+        visibleIf: hw => actuatorHasProportionalOutput('oil_pump'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump'],
+        desc:'Starting duty for pressure-regulated cooldown. Also used for fixed-duty cooldown and Tools → Extra Cooldown.'},
       {key:'cooldown_oil_pressure_bar', label:'Oil pressure target',     unit:'bar',type:'float',min:0.5,  max:10,     step:0.1,   def:2.0,    configKey:'cooldown_oil_pressure_bar',
         visibleIf: hw => actuatorEnabled('oil_pump') && sensorEnabled('oil_press'), showWhen: vals => !!vals['CooldownSpin.cooldown_use_oil_pump']},
       {key:'cooldown_use_scavenge',     label:'Run scavenge pump',                  type:'bool',                                  def:false,  configKey:'cooldown_use_scavenge',
@@ -418,16 +417,28 @@ const BLOCKS = {
   },
   FinalStop: {
     label:'Wait for Complete Stop', type:'while', badgeClass:'badge-while',
-    condition: hw => sensorEnabled('n1_rpm')
-      ? `Until ${sequenceSensorLabel('n1_rpm','N1')} ≤ ${hw.rpm_zero_threshold ?? 100} rpm`
-      : `Timed run (no N1 sensor)`,
+    condition: hw => {
+      const source = hw.final_stop_speed_source ?? 0;
+      if (source === 3) return 'Timed spool-down';
+      const shafts = [
+        {key:'n1_rpm', label:'N1', source:0},
+        {key:'n2_rpm', label:'N2', source:1}
+      ].filter(shaft => source === shaft.source || (source === 2 && sensorEnabled(shaft.key)));
+      if (!shafts.length || shafts.some(shaft => !sensorEnabled(shaft.key)))
+        return 'Timed spool-down (speed feedback missing)';
+      const labels = shafts.map(shaft => sequenceSensorLabel(shaft.key, shaft.label));
+      return `Until ${labels.join(' and ')} ≤ ${hw.rpm_zero_threshold ?? 100} rpm, or timeout`;
+    },
     timeout_action:'continue',
-    desc:'Wait for complete stop. With healthy N1 feedback, the main oil pump cuts when speed reaches the stop threshold. If N1 is missing or unhealthy, the block waits for the full timeout as a conservative spool-down delay. A fitted scavenge pump can then continue to flush hot oil from bearings.',
+    desc:'The main oil pump cuts when the selected shaft speeds reach the stop threshold or the delay expires. If required feedback is missing or unhealthy, the card waits the full delay. A fitted scavenge pump can continue afterward.',
     params:[
+      {key:'final_stop_speed_source', label:'Speed source', type:'select', def:0, configKey:'final_stop_speed_source',
+        options:[{v:0,l:'Core shaft (N1)'},{v:1,l:'Power shaft (N2)'},{v:2,l:'Both fitted shafts'},{v:3,l:'Timer only'}],
+        desc:'Choose the shaft or shafts that receive oil from the main pump. Timer only always waits the full delay.'},
       {key:'rpm_zero_threshold',    label:'Stop threshold',   unit:'rpm',type:'float',min:0,   max:1000,  step:10,   def:100,
-        visibleIf: hw => sensorEnabled('n1_rpm'),
+        showWhen: params => Number(params['FinalStop.final_stop_speed_source']) !== 3,
         configKey:'rpm_zero_threshold',
-        desc:'N1 below this is treated as "stopped". When N1 is missing or unhealthy, this threshold cannot be used and the block waits for the full timeout.'},
+        desc:'All selected shafts must be at or below this speed to end the wait early.'},
       {key:'final_stop_timeout_ms', label:'Timeout',          unit:'ms', type:'int',  min:1000,max:60000, step:1000, def:10000, configKey:'final_stop_timeout_ms'},
       {key:'oil_scavenge_ms', label:'Scavenge pump run time', unit:'ms', type:'int',
         min:0, max:120000, step:1000, def:0, configKey:'oil_scavenge_ms',
@@ -550,25 +561,19 @@ const BLOCKS = {
   },
   ABFlameConfirm: {
     label:'Verify Afterburner Light-up', type:'while', badgeClass:'badge-while',
-    condition: hw => 'Until light-up evidence',
+    condition: () => `Until light-up evidence · ${cfg?.afterburner?.flame_timeout_ms ?? 3000} ms overall deadline`,
     timeout_action:'fault',
-    desc:'Uses the configured flame sensor, EGT rise, or explicitly unverified timed assumption. Timed mode does not confirm flame. Faults if the overall timeout is exceeded.',
-    params:[
-      {key:'ab_flame_timeout', label:'Overall Timeout', unit:'ms', type:'int', min:0, max:3600000, step:200, def:3000, configKey:'ab_flame_timeout',
-        desc:'Maximum time allowed for the selected afterburner light-up evidence before the sequence faults and removes afterburner fuel and ignition.'},
-    ]
+    desc:'Uses the selected light-up evidence. The overall deadline starts at the first afterburner fuel command.',
+    settingsInControllers:true,
+    params:[]
   },
   ABStabilize: {
     label:'Stabilize Afterburner', type:'while', badgeClass:'badge-while',
-    condition: hw => `Hold ${hw.ab_stab_ms ?? 1000} ms; check EGT`,
+    condition: () => `Hold ${cfg?.afterburner?.stabilize_ms ?? 1000} ms${Number(cfg?.afterburner?.stabilize_max_tot) > 0 ? '; check EGT' : ''}`,
     timeout_action:'complete',
-    desc:'Hold after lighting. Monitors selected EGT - faults if too hot. On completion, sets AB state to Running.',
-    params:[
-      {key:'ab_stab_ms', label:'Hold Time', unit:'ms', type:'int', min:0, max:3600000, step:100, def:1000, configKey:'ab_stab_ms',
-        desc:'Time to hold the light-up condition before declaring the afterburner stable and running.'},
-      {key:'ab_stab_max_tot', label:'Max EGT (0=off)', unitType:'temp', zeroOff:true, type:'float', min:0, max:100000, step:10, def:0, configKey:'ab_stab_max_tot',
-        desc:'Optional temperature ceiling during stabilization. Zero disables this local check; independent engine overtemperature protection remains active.'},
-    ]
+    desc:'Holds after light-up and checks the optional stabilization temperature limit. Afterburner enters Running when the light-up sequence finishes.',
+    settingsInControllers:true,
+    params:[]
   },
 
   // ------ Advanced hardware blocks ------------------------------------------------------------------------------------------------
@@ -678,8 +683,10 @@ const CONFIG_SECTIONS = {
   cooldown_timeout_ms:         {sec:'sequence.shutdown', key:'cooldown_timeout_ms'},
   cooldown_use_starter:        {sec:'sequence.shutdown', key:'cooldown_use_starter'},
   cooldown_use_oil:            {sec:'sequence.shutdown', key:'cooldown_use_oil'},
+  cooldown_keep_oil_on_exit:   {sec:'sequence.shutdown', key:'cooldown_keep_oil_on_exit'},
   cooldown_oil_pressure_bar:   {sec:'sequence.shutdown', key:'cooldown_oil_pressure_bar'},
   final_stop_timeout_ms:   {sec:'sequence.shutdown', key:'final_stop_timeout_ms'},
+  final_stop_speed_source: {sec:'sequence.shutdown', key:'final_stop_speed_source'},
   oil_scavenge_ms:         {sec:'sequence.shutdown', key:'oil_scavenge_ms'},
   rpm_zero_threshold:      {sec:'sequence.shutdown', key:'rpm_zero_threshold'},
   ramp_pct_per_s:          {sec:'starter_control', key:'startup_ramp_pct_per_s'},
@@ -703,8 +710,6 @@ const CONFIG_SECTIONS = {
   safety_turn_off_starter:    {sec:'sequence.startup', key:'safety_turn_off_starter'},
   safety_turn_off_starter_en: {sec:'sequence.startup', key:'safety_turn_off_starter_en'},
   safety_turn_off_igniter:    {sec:'sequence.startup', key:'safety_turn_off_igniter'},
-  // Spool / SafetyHold oil minimum (maps to Config::oilRunningMin - shared threshold)
-  oil_running_min:              {sec:'oil',              key:'running_min'},
   // Spool exit action bools
   spool_cut_starter_on_exit:    {sec:'sequence.startup', key:'spool_cut_starter_on_exit'},
   spool_cut_starter_en_on_exit: {sec:'sequence.startup', key:'spool_cut_starter_en_on_exit'},
@@ -732,9 +737,6 @@ const CONFIG_SECTIONS = {
   ab_tot_rise:         {sec:'afterburner', key:'tot_rise_deg_c'},
   ab_tot_rise_win:     {sec:'afterburner', key:'tot_rise_window_ms'},
   ab_assume_ms:        {sec:'afterburner', key:'assume_ignited_ms'},
-  ab_flame_timeout:    {sec:'afterburner', key:'flame_timeout_ms'},
-  ab_stab_ms:          {sec:'afterburner', key:'stabilize_ms'},
-  ab_stab_max_tot:     {sec:'afterburner', key:'stabilize_max_tot'},
   ab_pump_min_pct:     {sec:'afterburner', key:'pump_min_pct'},
   ab_pump_max_pct:     {sec:'afterburner', key:'pump_max_pct'},
   ab_main_offset:      {sec:'afterburner', key:'main_fuel_offset_pct'},
@@ -781,42 +783,42 @@ const BLOCK_INFO = {
     links: []
   },
   FuelOpen: {
-    desc: 'Opens the main fuel shutoff and marks that combustion was attempted so Cooldown can run when needed.',
+    desc: 'Opens the main fuel shutoff.',
     links: []
   },
   FlameConfirm: {
-    desc: 'Waits for the required consecutive flame detections. It can release sequence-owned ignition outputs on exit without changing unrelated controller outputs.',
+    desc: 'Waits for consecutive flame-present readings. A detector already active at entry can pass. Use a separate inactive check before fuel admission if the sequence must establish a new light-off. This step can release sequence-owned ignition on exit.',
     links: [
       { label: 'Combustion-Loss Confirmation Time', url: '/controllers.html#safety-monitor' },
     ]
   },
   TempConfirm: {
-    desc: 'Waits until selected EGT rises above the configured threshold. Alternative to FlameConfirm when no flame sensor is fitted.',
+    desc: 'Checks an absolute EGT threshold. Use a relative condition in a custom block when you need evidence of a new temperature rise.',
     links: [
       { label: 'Engine Temperature Source', url: '/controllers.html#engine-limits' },
     ]
   },
   Spool: {
-    desc: 'Holds main fuel at the calibrated minimum reliable metering output and waits for N1 to reach the idle-entry target. Flame monitoring remains active.',
+    desc: 'Holds main fuel at the calibrated minimum reliable metering output and waits for N1 to reach the idle-entry target. Automatic combustion-loss monitoring applies in Running.',
     links: [
       { label: 'Minimum Reliable Fuel-Metering Output', url: '/calibration.html#fuelpump-min-cal-row' },
       { label: 'Throttle Open Speed', url: '/controllers.html#throttle' },
-      { label: 'Startup oil-pressure reference', url: '/sequence.html#oil-running-min' },
+      { label: 'Shared Oil Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
     ]
   },
   SafetyHold: {
     desc: 'Requires at least one fitted sensor check. Every enabled check must remain continuously valid before RUNNING. Optional exit actions can turn off starter and sequence-owned ignition outputs.',
     links: [
       { label: 'Min RPM',         url: '/controllers.html#engine-limits' },
-      { label: 'Startup oil-pressure reference', url: '/sequence.html#oil-running-min' },
+      { label: 'Shared Oil Low-Pressure Limit', url: '/controllers.html#cf-oil_rm' },
     ]
   },
   CooldownSpin: {
-    desc: 'Spins starter and/or runs oil pump to cool EGT below target temperature. Skipped if fuel was never opened.',
+    desc: 'Runs selected cooling outputs after an ignition attempt or recorded heat. Other outputs keep their sequence commands.',
     links: []
   },
   FinalStop: {
-    desc: 'Waits until N1 is below the configured stop threshold. With missing or unhealthy N1 feedback it uses the full timeout; the scavenge pump can continue afterward.',
+    desc: 'Waits on the selected shaft speeds or a fixed delay before cutting main oil. The scavenge pump can continue afterward.',
     links: []
   },
   RPMDrop: {
@@ -865,7 +867,8 @@ const BLOCK_INFO = {
   ABStabilize: {
     desc: 'Hold period after AB lights. Monitors selected EGT - faults if too hot. Transitions to AB Running on exit.',
     links: [
-      { label: 'Afterburner Running Control', url: '/controllers.html#ab-run-section' },
+      { label: 'Stabilize Hold', url: '/controllers.html#cf-ab_sms' },
+      { label: 'Stabilize Max EGT', url: '/controllers.html#cf-ab_smt' },
     ]
   },
   GovernorHold: {

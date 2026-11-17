@@ -224,6 +224,10 @@ public:
         // linear calibration above. Raw points must increase; values must
         // consistently increase or decrease. Runtime clamps outside endpoints.
         uint8_t calibrationPointCount = 0;
+        bool ntcUsePointTable = true;
+        bool usesCalibrationPoints() const {
+            return calibrationPointCount >= 2 && (temperatureInterface != 4 || ntcUsePointTable);
+        }
         uint16_t calibrationRaw[PiecewiseCalibration::MAX_POINTS] = {};
         float calibrationValue[PiecewiseCalibration::MAX_POINTS] = {};
         uint16_t digitalThresholdRaw = 2048; // ADC-backed switch centre, 0..4095
@@ -286,6 +290,13 @@ public:
     }
     static bool driverIsProportionalOutput(Driver d) {
         return d == Pwm || d == Servo;
+    }
+    static bool isPressureCalibrationPump(const Channel& c) {
+        return c.direction == Output && !c.mirrorOf[0] && channelAddressable(c) &&
+               (driverIsOnOffOutput(c.driver) || driverIsProportionalOutput(c.driver)) &&
+               (!strcmp(c.purpose, "oil_pump") || !strcmp(c.purpose, "coolant_pump") ||
+                !strcmp(c.purpose, "scavenge_pump") || !strcmp(c.purpose, "fuel_pump") ||
+                !strcmp(c.purpose, "ab_pump"));
     }
     static bool isSwitchCondition(const Channel& c) {
         if (c.direction != Input) return false;
@@ -1237,6 +1248,8 @@ private:
                 o["ntc_r0"] = c.thermistorR0;
                 o["ntc_r_fixed"] = c.thermistorRFixed;
                 o["ntc_pullup"] = c.thermistorPullup;
+                if (c.temperatureInterface == 4 && !c.ntcUsePointTable)
+                    o["ntc_use_point_table"] = false;
             }
             // Propeller pitch deliberately defaults to 100% coarse when an
             // old document omits this field. Therefore an explicit 0% park is
@@ -1329,6 +1342,8 @@ private:
             c.phasePulsesPerUnit = o["phase_pulses_per_unit"] | c.pulsesPerUnit;
             c.phaseZeroDeg = o["phase_zero_deg"] | 0.0f; c.phaseDegPerNm = o["phase_deg_per_nm"] | 1.0f;
             c.temperatureInterface = o["temp_interface"] | 0; c.spiClk = o["spi_clk"] | -1; c.spiCs = o["spi_cs"] | -1; c.spiMiso = o["spi_miso"] | -1; c.spiMosi = o["spi_mosi"] | -1; strlcpy(c.tcType, o["tc_type"] | "K", sizeof(c.tcType));
+            if (!o["ntc_use_point_table"].isNull() && !o["ntc_use_point_table"].is<bool>()) return false;
+            c.ntcUsePointTable = o["ntc_use_point_table"] | true;
             c.temperatureResolution = o["temp_resolution"] | 10; c.thermistorBeta = o["ntc_beta"] | 3950.0f; c.thermistorR0 = o["ntc_r0"] | 10000.0f; c.thermistorRFixed = o["ntc_r_fixed"] | 10000.0f; c.thermistorPullup = o["ntc_pullup"] | true;
             c.safeDemand = o["safe_demand"] | (!strcmp(c.purpose, "prop_pitch") ? 1.0f : 0.0f); c.forceSafeOnFault = o["force_safe_on_fault"] | false; c.minimumRunDemand = o["min_run_demand"] | 0.0f; c.pwmTimingConfigured = !o["pwm_freq_hz"].isNull() || !o["pwm_res_bits"].isNull(); c.pwmFrequency = o["pwm_freq_hz"] | 5000; c.pwmResolution = o["pwm_res_bits"] | 10;
             if(!o["pwm_zero_mode"].isNull() && (!o["pwm_zero_mode"].is<int>() ||

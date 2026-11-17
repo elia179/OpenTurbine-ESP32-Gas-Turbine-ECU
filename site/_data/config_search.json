@@ -186,16 +186,16 @@
     "text": "Open-loop pump output used after oil-pressure feedback has remained invalid for the fault delay above. This is separate from windmilling protection."
   },
   {
-    "title": "Low-Pressure Limit",
+    "title": "Shared Oil Low-Pressure Limit",
     "context": "Setting · Oil Pressure Safety",
     "url": "/user-guide/#field-oil_rm",
-    "text": "Sets the Dashboard low-pressure advisory. Automatic fault shutdown uses this limit during the selected monitoring phases, after the confirmation time. Explicit oil-prime requirements in Sequence remain independent."
+    "text": "Sets the oil-pressure reference during acceleration and the minimum for the optional oil check in Final Startup Checks. On setups without a named oil-pressure controller it also supplies the general low-pressure protection and Dashboard advisory. Build Oil Pressure and Set Starter have their own startup thresholds."
   },
   {
     "title": "Monitor during",
     "context": "Setting · Oil Pressure Safety",
     "url": "/user-guide/#field-sf_oil_modes",
-    "text": "Choose when this protection monitors pressure. The confirmation timer starts when monitoring begins and resets outside these phases. An active pressure condition while stopped does not prevent START."
+    "text": "Choose when this protection monitors pressure. The general analog trip uses the running oil minimum in each selected phase. Oil Prime has its own target for advancing the sequence. The trip timer resets outside the selected phases."
   },
   {
     "title": "Fault Confirmation Time (ms)",
@@ -879,7 +879,7 @@
     "title": "EGT Rise Window (ms)",
     "context": "Setting · Afterburner — Flame Confirmation",
     "url": "/user-guide/#field-ab_tw",
-    "text": "Time window in which the required EGT rise must occur (EGT Rise mode). Typical: 1500-3000 ms."
+    "text": "The required EGT rise must be measured within this time after the first afterburner fuel command. Zero uses the overall confirmation timeout."
   },
   {
     "title": "Unverified Timed Delay (ms)",
@@ -891,7 +891,7 @@
     "title": "Confirmation Timeout (ms)",
     "context": "Setting · Afterburner — Flame Confirmation",
     "url": "/user-guide/#field-ab_fto",
-    "text": "Overall deadline for flame confirmation. Exceeding this triggers an AB fault and shuts down the afterburner. Typical: 3000-5000 ms."
+    "text": "Overall deadline from the first afterburner fuel command. It includes any sequence steps before the verification card. Exceeding it cuts afterburner fuel and ignition."
   },
   {
     "title": "Pump Command Source",

@@ -129,7 +129,7 @@ function installedBrowser() {
         cv:2, s:91, m:1, v,
         f:(2 ** 3) + (2 ** 5) + (2 ** 18) + (2 ** 20),
         g:(2 ** 26) + (2 ** 27) + (2 ** 29) + (2 ** 31),
-        io:1, ih:1, oo:1, oh:1, di:5,
+        io:1, ih:1, ia:1, oo:1, oh:1, di:5,
         iv:[12.345], ir:[2048], ov:[674], oc:[12],
         am:2, sq:[3,8], u:99, bc:4, rr:1, lg:2, lq:3, lc:0, tr:7
       }, prior);
@@ -151,7 +151,7 @@ function installedBrowser() {
       fuel:.376, starter:.335, maxN1:15000, n1Healthy:true, starterOn:true,
       igniterOn:true, hardwareReady:true, loggerHealthy:true, limitedStart:true,
       seq:[3,8], throttleUs:1520, idleUs:1610, abFlameRaw:777,
-      input:{id:'pressure_test',value:12.345,raw:2048,healthy:true},
+      input:{id:'pressure_test',value:12.345,raw:2048,raw_fresh:true,healthy:true},
       output:{id:'starter_test',demand:.674,current_amps:1.2,current_healthy:true}
     });
     results.push('compact v2 decodes all live numerical, health, input, and output arrays');
@@ -724,7 +724,7 @@ function installedBrowser() {
 
     await scenario(page, 'startup');
     await waitShown(page, '#seq-progress-section', true);
-    assert.equal(await text(page, '#seq-block-name'), 'Confirm Combustion by Flame Sensor');
+    assert.equal(await text(page, '#seq-block-name'), 'Wait for Flame Signal');
     assert.equal(await text(page, '#seq-step-text'), '4 / 6');
     assert.equal(await page.locator('#throttle-startup-range-row').count(), 0);
     await waitShown(page, '#throttle-floor-row', true);
@@ -840,11 +840,12 @@ function installedBrowser() {
     await page.locator('#throttle-cal-row button', { hasText: 'Capture Max' }).click();
     await page.waitForFunction(() => document.querySelector('#th-status')?.textContent.includes('Max: 1880'));
     const throttleSaveResponse = page.waitForResponse(response =>
-      new URL(response.url()).pathname === '/api/config' && response.request().method() === 'PATCH');
+      new URL(response.url()).searchParams.get('source') === 'calibration' && response.request().method() === 'PATCH');
     await page.locator('#btn-th-save').click();
     const throttleSaved = await throttleSaveResponse;
     assert.equal(throttleSaved.ok(), true, 'throttle calibration PATCH must succeed');
     assert.equal((await throttleSaved.json()).ok, true);
+    assert.equal(throttleSaved.request().postDataJSON()._settings_patch.calibration.throttle_max_raw, 1872);
     saved = await state(page);
     assert.equal(saved.settings.calibration.throttle_min_raw, 1135); // +2% of 760 span
     assert.equal(saved.settings.calibration.throttle_max_raw, 1872); // -1% of 760 span
@@ -873,6 +874,7 @@ function installedBrowser() {
       window.applyData({ has_p1:true, p1_raw:1241, p1:1.01325 });
       document.getElementById('p1-zero-reference').value = '1.01325';
       _p12State.p1 = { mode:'physical', zeroRaw:620, refRaw:3102, refBar:5 };
+      _fluidCaptureBoot.p1 = calibrationFrameBoot;
       p12Save('p1');
     });
     await page.waitForFunction(() => document.querySelector('#p1-cal-status')?.textContent.includes('Saved'));
@@ -884,6 +886,23 @@ function installedBrowser() {
     assert.equal(savedP1.calibration_points[1].value, 5);
     assert.ok(savedP1.analog_zero_mv < 500);
     results.push('all pressure calibrations offer gauge/absolute references, save the selected basis, and show ADC-pin millivolts');
+    const descendingReference = await page.evaluate(() => {
+      const channel = registryInputById('oil_pressure');
+      const select = document.getElementById('oil-zero-reference');
+      const points = channel.calibration_points;
+      const previous = select.value;
+      try {
+        channel.calibration_points = [{raw:500,value:4},{raw:2500,value:0}];
+        select.value = '1.01325';
+        restorePressureReference(select.id, 'oil_pressure');
+        return select.value;
+      } finally {
+        channel.calibration_points = points;
+        select.value = previous;
+      }
+    });
+    assert.equal(descendingReference, '0');
+    results.push('descending gauge-pressure calibration restores its gauge reference');
 
     await page.goto(`${base}/hardware.html`);
     await page.waitForFunction(() => /Loaded|Converted/i.test(document.querySelector('#save-msg')?.textContent || ''));
@@ -1182,7 +1201,7 @@ function installedBrowser() {
     await page.setViewportSize({width:1280,height:720});
     await page.locator('#block-picker-list .block-picker-option', {hasText:'Timed Delay'}).click();
     assert.equal(await page.evaluate(() => hwCfg.startup_seq.at(-1)), 'TimedDelay');
-    assert.equal(await page.evaluate(() => typeof window.OTWaitForSaveRestart), 'function');
+    assert.equal(await page.evaluate(() => typeof window.OTSaveHardwarePatch), 'function');
     await page.evaluate(() => {
       hwCfg = window.__blockPickerSnapshot;
       delete window.__blockPickerSnapshot;
@@ -1224,7 +1243,64 @@ function installedBrowser() {
       available:true, block:'SetOutput', target:unifiedOutputBlock.expectedTarget,
       expectedTarget:unifiedOutputBlock.expectedTarget, professionalLabel:true, pilotAvailable:true
     });
-    results.push('sequence block picker adds one clicked choice directly and the shared reboot wait is available');
+    const cooldownChoices = await page.evaluate(() => {
+      const saved = {...cfg.sequence.shutdown};
+      try {
+        delete cfg.sequence.shutdown.cooldown_use_oil;
+        cfg.sequence.shutdown.cooldown_use_starter = true;
+        buildParamVals();
+        const card = document.createElement('div');
+        card.innerHTML = buildParamsHtml('CooldownSpin', 0, 'shutdown');
+        const oil = card.querySelector('[data-pkey="cooldown_use_oil_pump"] input');
+        if (!oil) return null;
+        onParamChangeBool('CooldownSpin','cooldown_use_oil_pump','cooldown_use_oil',false);
+        onParamChangeBool('CooldownSpin','cooldown_use_starter','cooldown_use_starter',false);
+        onParamChangeBool('CooldownSpin','cooldown_use_starter','cooldown_use_starter',true);
+        onParamChangeBool('CooldownSpin','cooldown_keep_oil_on_exit','cooldown_keep_oil_on_exit',true);
+        return {
+          oilDefaultOn:oil.checked,
+          oilEditable:!oil.disabled,
+          oilChoicePreserved:cfg.sequence.shutdown.cooldown_use_oil === false,
+          handoffStored:cfg.sequence.shutdown.cooldown_keep_oil_on_exit === true
+        };
+      } finally {
+        cfg.sequence.shutdown = saved;
+        buildParamVals();
+        render('shutdown', lastIdleRaw);
+      }
+    });
+    assert.deepEqual(cooldownChoices,{
+      oilDefaultOn:true, oilEditable:true, oilChoicePreserved:true, handoffStored:true
+    });
+    results.push('Cooldown defaults oil on and preserves independent pump and handoff choices');
+    const finalStopChoices = await page.evaluate(() => {
+      const savedSource = cfg.sequence.shutdown.final_stop_speed_source;
+      try {
+        cfg.sequence.shutdown.final_stop_speed_source = 0;
+        buildParamVals();
+        clearSequenceDirty();
+        const card = document.createElement('div');
+        card.innerHTML = buildParamsHtml('FinalStop', 0, 'shutdown');
+        const select = card.querySelector('[data-pkey="final_stop_speed_source"] select');
+        select.value = '2';
+        select.dispatchEvent(new Event('change'));
+        return {
+          options: [...select.options].map(option => option.textContent),
+          dirty: _seqDirty,
+          summary: BLOCKS.FinalStop.condition(flattenHw())
+        };
+      } finally {
+        if (savedSource === undefined) delete cfg.sequence.shutdown.final_stop_speed_source;
+        else cfg.sequence.shutdown.final_stop_speed_source = savedSource;
+        buildParamVals();
+        clearSequenceDirty();
+      }
+    });
+    assert.deepEqual(finalStopChoices.options, ['Core shaft (N1)', 'Power shaft (N2)', 'Both fitted shafts', 'Timer only']);
+    assert.equal(finalStopChoices.dirty, true);
+    assert.match(finalStopChoices.summary, /N1.*and.*N2/);
+    results.push('Final Stop exposes shaft and timer choices and enables Save for a setting-only edit');
+    results.push('sequence block picker adds one clicked choice directly and uses the shared save helper');
     results.push('sequence offers one editable Set Output action per fitted device and stores its exact physical target');
     const stableDeviceBinding = await page.evaluate(() => {
       const snapshot = JSON.parse(JSON.stringify(hwCfg));
@@ -1336,9 +1412,37 @@ function installedBrowser() {
     assert.equal(await delayInputs.nth(2).inputValue(), '6');
     assert.equal(await page.evaluate(() => hwCfg.startup_delay_ms.filter(Boolean).at(-1)), 6000);
     assert.equal(await delayInputs.nth(2).evaluate(el => document.activeElement === el), true);
+    const beforeMixedSave = await state(page);
+    await page.evaluate(() => {
+      cfg.sequence ??= {};
+      cfg.sequence.shutdown ??= {};
+      cfg.sequence.shutdown.final_stop_timeout_ms = 13000;
+      onParamChangeSelect('FinalStop', 'final_stop_speed_source', 'final_stop_speed_source', '2');
+    });
+    let attemptedMixedSave;
+    await page.route(url => url.pathname === '/api/hardware' && url.searchParams.get('source') === 'sequence', async route => {
+      attemptedMixedSave = route.request().postDataJSON();
+      await route.fulfill({status:400, json:{ok:false,error:'Proposed settings rejected'}});
+    }, {times:1});
+    await clickSaveControls(page,'#save-btn');
+    await page.locator('#ot-dialog-confirm').click();
+    await page.waitForFunction(() => document.querySelector('#save-status').textContent.includes('Proposed settings rejected'));
+    assert.equal(attemptedMixedSave.startup_delay_ms.filter(Boolean).at(-1), 6000);
+    assert.deepEqual(attemptedMixedSave._settings_patch, {sequence:{shutdown:{final_stop_timeout_ms:13000,final_stop_speed_source:2}}});
+    const rejectedMixedSave = await state(page);
+    assert.deepEqual(rejectedMixedSave.hardware, beforeMixedSave.hardware);
+    assert.deepEqual(rejectedMixedSave.settings, beforeMixedSave.settings);
+    assert.equal(await page.evaluate(() => _seqDirty), true);
     await clickSaveControls(page,'#save-btn');
     await page.locator('#ot-dialog-confirm').click();
     await page.waitForFunction(() => document.querySelector('#reboot-overlay')?.classList.contains('show'));
+    const acceptedMixedSave = await state(page);
+    assert.equal(acceptedMixedSave.hardware.startup_delay_ms.filter(Boolean).at(-1), 6000);
+    assert.equal(acceptedMixedSave.settings.sequence.shutdown.final_stop_timeout_ms, 13000);
+    assert.equal(acceptedMixedSave.settings.sequence.shutdown.final_stop_speed_source, 2);
+    assert.deepEqual(acceptedMixedSave.last_config_patch, beforeMixedSave.last_config_patch);
+    assert.equal(acceptedMixedSave.hardware._settings_patch, undefined);
+    results.push('Sequence saves hardware and settings in one request and leaves edits available after rejection');
     assert.match(await page.locator('body').textContent(), /Igniter On/);
     assert.match(await page.locator('body').textContent(), /Fuel Pump/);
     assert.ok((await page.locator('.block-header').first().getAttribute('title')).length > 10);
@@ -1626,6 +1730,19 @@ function installedBrowser() {
     await restorePost;
     await page.waitForFunction(() => /Config restored/i.test(document.getElementById('cfg-backup-msg')?.textContent || ''));
     results.push('System downloads and uploads a complete engine file through its browser controls');
+    const compactedOutputs = await page.evaluate(() => {
+      const outputs = [
+        {id:'pitch', purpose:'prop_pitch', safe_demand:0},
+        {id:'starter', purpose:'starter', pwm_freq_hz:5000, pwm_res_bits:10}
+      ];
+      const file = {hardware:{channel_registry:{outputs}},settings:{}};
+      return JSON.parse(compactEngineFileForRestore(JSON.stringify(file))).hardware.channel_registry.outputs;
+    });
+    assert.deepEqual(compactedOutputs,[
+      {id:'pitch',purpose:'prop_pitch',safe_demand:0},
+      {id:'starter',purpose:'starter',pwm_freq_hz:5000,pwm_res_bits:10}
+    ]);
+    results.push('engine-file restore keeps explicit prop-pitch park and PWM timing');
 
     const unified = await (await page.request.get(`${base}/api/ecu_config`)).json();
     unified.hardware.profile_id = 'second-bench-engine';

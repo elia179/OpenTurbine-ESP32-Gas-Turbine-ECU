@@ -10,6 +10,37 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.7.4] — 2026-11-15
+
+- Keep N1 underspeed shutdown independent of N1-based combustion-loss detection.
+- Confirm N1 and N2 overspeed using fresh shaft samples across the confirmation window.
+- Report startup sequence completion and clarify what temperature, flame, speed, starter handoff and oil-pressure settings verify.
+- Clarify startup temperature protection and the automatic relight attempt limit.
+- Resolve the pinned AsyncTCP library before its transitive dependency on clean builds.
+- Run configured cooldown after recorded heat and release only the outputs the cooldown step controlled.
+- Keep slow proportional prop-pitch corrections and remove the automatic conversion of the built-in N2 governor to a generic controller.
+- Honor afterburner trigger endpoints, clear invalid analog requests, and keep the EGT baseline average consistent.
+- Require automatic-relight recovery evidence within the attempt window and honor loss of N1 firing permission.
+- Let the Cooldown card select starter and oil independently, carry the last oil command when requested, and advance one step on a START+STOP hold. Clarify fixed-output Extra Cooldown.
+- Preserve explicit output safe demand and PWM timing when restoring an engine file. Restore the pressure reference correctly for descending calibration curves.
+- Expire browser-controlled oil calibration duty on lost refreshes while preserving standby oil-feed protection.
+- Retain the previous ESP32-S3 web bundle until the replacement marker is verified, and restore it if the update is interrupted before commit.
+- Let users switch between saved NTC datasheet and known-point calibrations without discarding either.
+- Reject stale I²C ADC readings during calibration while accepting fresh readings outside the old calibration range. Report the oil NTC curve's coverage using the measured ADC count.
+- Let standby oil pressure regulation lower the demand of a separately mapped pump as pressure rises.
+- Save paired hardware and settings changes together in Sequence, Controllers, System, and Calibration.
+- Keep controller definitions out of Sequence settings saves.
+- Stage oversized hardware and Sequence edits in LittleFS so they can exceed the ordinary web request buffer.
+- Let Wait for Complete Stop use N1, N2, both fitted shafts, or a fixed delay before cutting main oil.
+- Enable Sequence's Save button when an existing card setting changes.
+- Start the afterburner confirmation deadline at the first fuel command and require post-fuel evidence in sensor and EGT modes.
+- Reset the afterburner running flame-loss timer between attempts and apply a zero delay immediately.
+- Preserve the selected main-engine relight igniter during an afterburner-only shutdown or fault.
+- Retain the last configuration backup when recovery or replacement fails, and clear it during factory reset.
+- Stage optional factory configurations before replacing the current engine file.
+- Re-enable the oil calibration mode selector when the initial capture fails.
+- Prevent windmilling oil from using fallback hardware after a configuration fault and report blocked output tests before they enter the command queue.
+
 ## [2.7.3] — 2026-11-10
 
 - Extend physical analog readings beyond saved calibration points using the nearest segment. Show when readings are estimated and retain electrical validity checks and normalized command limits.

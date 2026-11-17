@@ -561,10 +561,10 @@ function registryDemandEditor(c, index) {
     return `<div class="hw-field"><span class="hw-label">Power-up / standby pitch (%)</span><span class="hw-desc">Semantic 0% is fine/minimum load; 100% is coarse/maximum load. Inversion maps these meanings to physical travel. Running N2-feedback loss, Reduced-Power mode and fault always command 100% coarse.</span><input class="${safeChanged}${safeInvalid}" type="number" min="0" max="100" step="1" value="${Math.round(Number(c.safe_demand ?? 1)*100)}" oninput="updateRegistryChannel('output',${index},'safe_demand',(+this.value)/100)"></div>`;
   }
   if (registryCoreActuatorPurposeKey(c)) {
-    return `<div class="hw-field"><span class="hw-label">Post-boot initialization demand</span><span class="hw-desc">Demand written after firmware gains control. Electrical reset and bootloader behavior still depends on external wiring and driver bias.</span><output>Off (fixed)</output></div>`;
+    return `<div class="hw-field"><span class="hw-label">Power-on demand</span><span class="hw-desc">Applied once the firmware starts. During reset and bootloader startup, external wiring and driver bias determine the output.</span><output>Off (fixed)</output></div>`;
   }
   if (outputDriverIsOnOff(c.driver)) {
-    return `<div class="hw-field"><span class="hw-label">Post-boot initialization demand</span><span class="hw-desc">Written only after firmware gains control; it cannot guarantee the output during reset or bootloader time. Keep Off unless the attached hardware requires another initialized position.</span><select class="${safeChanged}${safeInvalid}" onchange="updateRegistryChannel('output',${index},'safe_demand',+this.value)"><option value="0"${Number(c.safe_demand||0)<0.5?' selected':''}>Off</option><option value="1"${Number(c.safe_demand||0)>=0.5?' selected':''}>On</option></select></div>`;
+    return `<div class="hw-field"><span class="hw-label">Power-on demand</span><span class="hw-desc">Applied once the firmware starts. Keep Off unless the attached hardware requires another position at startup.</span><select class="${safeChanged}${safeInvalid}" onchange="updateRegistryChannel('output',${index},'safe_demand',+this.value)"><option value="0"${Number(c.safe_demand||0)<0.5?' selected':''}>Off</option><option value="1"${Number(c.safe_demand||0)>=0.5?' selected':''}>On</option></select></div>`;
   }
   return `<div class="hw-field"><span class="hw-label">Power-on demand (%)</span><span class="hw-desc">Demand written while this general-purpose output is initialised. Keep 0% unless the attached hardware explicitly requires another boot position.</span><input class="${safeChanged}${safeInvalid}" type="number" min="0" max="100" step="1" value="${Math.round((c.safe_demand||0)*100)}" oninput="updateRegistryChannel('output',${index},'safe_demand',(+this.value)/100)"></div>`;
 }
@@ -575,9 +575,8 @@ function registryFaultSafeEditor(c, index) {
     return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Running fault state</span><output>Combustion fuel and ignition are cut and held Off</output></div>`;
   if (purpose === 'prop_pitch')
     return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Running fault state</span><output>100% coarse / maximum load (fixed)</output></div>`;
-  const demand = Number(c.safe_demand || 0);
-  const state = registryCoreActuatorKey(c) ? 'Off' : (outputDriverIsOnOff(c.driver) ? (demand >= .5 ? 'On' : 'Off') : `${Math.round(demand * 100)}%`);
-  return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Fault override</span><span class="hw-desc">Normally the shutdown sequence stays in control. Enable this only when this output must be held at its initialized demand (${escapeHtmlText(state)}) for the entire fault shutdown, regardless of sequence actions.</span><label class="hw-toggle"><input class="${registryFieldChangedClass('output',index,'force_safe_on_fault')}" type="checkbox" ${c.force_safe_on_fault ? 'checked' : ''} onchange="updateRegistryChannel('output',${index},'force_safe_on_fault',this.checked)"><span></span> Force initialized safe demand during fault shutdown</label></div>`;
+  const label = registryCoreActuatorKey(c) ? 'Hold output off during fault shutdown' : 'Use power-on demand during fault shutdown';
+  return `<div class="hw-field output-fault-override" style="grid-column:1/-1"><span class="hw-label">Fault override</span><label class="hw-toggle"><input class="${registryFieldChangedClass('output',index,'force_safe_on_fault')}" data-registry-fault-override type="checkbox" ${c.force_safe_on_fault ? 'checked' : ''} onchange="updateRegistryChannel('output',${index},'force_safe_on_fault',this.checked)"><span></span> ${label}</label><span class="hw-desc">Overrides commands from the shutdown sequence for this output. Leave unchecked to let the sequence control it.</span></div>`;
 }
 function registryPwmTimingEditor(c, index) {
   if (Number(c.driver) !== 5) return '';
@@ -657,12 +656,10 @@ function registryRangeEditor(direction, c, index) {
     const threshold = Math.max(0, Math.min(4095, Math.round(Number(c.digital_threshold_raw ?? 2048))));
     const maxHysteresis = Math.max(0, Math.min(2047, 2 * Math.min(threshold, 4095 - threshold)));
     const hysteresis = Math.max(0, Math.min(maxHysteresis, Math.round(Number(c.digital_hysteresis_raw ?? 64))));
-    const polarityClass = registryFieldChangedClass(direction, index, 'active_high');
-    const hysteresisClass = registryFieldChangedClass(direction, index, 'digital_hysteresis_raw');
     const calAnchor = purpose === 'flame' ? 'flame-cal-row' : 'ab-flame-cal-row';
-    const ariaPrefix = purpose === 'flame' ? 'Main' : 'AB';
-    return `<div class="hw-field"><span class="hw-label">Flame active state</span><span class="hw-desc">Choose whether flame is reported above or below the calibrated threshold.</span><select class="${polarityClass}" onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false?' selected':''}>Above threshold</option><option value="0"${c.active_high === false?' selected':''}>Below threshold</option></select></div>
-      <div class="hw-field"><span class="hw-label">Threshold and hysteresis</span><span class="hw-desc">Threshold: ${threshold} raw ADC, set on <a href="/calibration.html#${calAnchor}">Calibration</a>. Hysteresis is total deadband around it.</span><input class="${hysteresisClass}" aria-label="${ariaPrefix} flame hysteresis" type="number" min="0" max="${maxHysteresis}" step="1" value="${hysteresis}" oninput="updateRegistryChannel('input',${index},'digital_hysteresis_raw',+this.value)"></div>`;
+    const referenceMv = Number(c.driver) === 9 ? Number(c.i2c_reference_mv ?? 3300) : 3300;
+    const millivolts = raw => registryFormatValue(raw * referenceMv / 4095, 1);
+    return `<div class="hw-field"><span class="hw-label">Flame calibration</span><span class="hw-desc">${c.active_high === false ? 'Below' : 'Above'} ${millivolts(threshold)} mV means flame present. Hysteresis: ${millivolts(hysteresis)} mV.</span><a href="/calibration.html#${calAnchor}">Open flame calibration</a></div>`;
   }
   if (direction === 'input' && Number(c.driver) === 2 && String(c.role) === 'speed')
     return `<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Speed plausibility range</span><span class="hw-desc">Automatic: up to twice the applicable N1 or N2 hard shutdown speed set under Controllers -> Engine Limits &amp; Protection. This avoids a second conflicting RPM limit here.</span></div>`;
@@ -996,7 +993,7 @@ function registryCurrentEditor(direction, c, index) {
       <label class="hw-toggle"><input type="checkbox" ${enabled ? 'checked' : ''} onchange="${setEnabled}"><span></span> Enable</label>
     </div>
     ${enabled ? `<div class="registry-card-editor" style="display:block"><div class="hw-grid">
-      <div class="hw-field"><span class="hw-label">Current sensor ADC GPIO</span><span class="hw-desc">${pcbProfileActive()?'Dedicated current feedback needs a native ADC GPIO. To monitor current through a PCB ADC connector, add a General current input.':'ADC-capable GPIO connected to the current sensor output.'}</span><select onchange="${fieldSet('pin','+this.value')}">${buildPinOptions(pin, 'adc')}</select></div>
+      <div class="hw-field"><span class="hw-label">Current sensor ADC GPIO</span><span class="hw-desc">${pcbProfileActive()?'Dedicated current feedback uses an exposed ADC1 GPIO. For a PCB ADC connector, add a General current input.':'Uses ADC1 pins so readings can continue while Wi-Fi is active. GPIOs in use are labeled in the list.'}</span><select onchange="${fieldSet('pin','+this.value')}">${buildPinOptions(pin, 'adc')}</select></div>
       <div class="hw-field"><span class="hw-label">Sensor sensitivity (mV/A)</span><span class="hw-desc">Datasheet sensitivity at the ECU ADC pin. Example: ACS712-20A = 100 mV/A.</span><input type="number" min="1" max="10000" step="1" value="${registryFormatValue(mvA)}" oninput="${fieldSet('mv_a','+this.value')}"></div>
       <div class="hw-field"><span class="hw-label">Zero-current voltage (V)</span><span class="hw-desc">Sensor output voltage when no current flows.</span><input type="number" min="0" max="3.3" step="0.01" value="${registryFormatValue(zeroV)}" oninput="${fieldSet('zero_v','+this.value')}"></div>
        ${registryDerivedPurpose('output',c) === 'glow_plug' ? `<div class="hw-field"><span class="hw-label">Hot-status current (A)</span><span class="hw-desc">For monitoring: this powered plug is reported hot when measured current falls to or below this value. It does not delay the sequence.</span><input type="number" min="0" max="1000" step="0.1" value="${registryFormatValue(readyA)}" oninput="${fieldSet('ready_a','+this.value')}"></div>` : ''}
@@ -1143,13 +1140,16 @@ function registryCurveProblem(c) {
 function setRegistryCurveEnabled(index, enabled) {
   const c = registryRoot().inputs[index];
   if (!c) return;
-  if (!enabled) c.calibration_points = [];
+  const ntc = c.role === 'temperature' && Number(c.temp_interface) === 4;
+  if (ntc && c.calibration_points?.length >= 2) c.ntc_use_point_table = enabled;
+  else if (!enabled) c.calibration_points = [];
   else {
     let lo = Math.max(0,Math.min(4095,Math.round(Number(c.min ?? 0))));
     let hi = Math.max(0,Math.min(4095,Math.round(Number(c.max ?? 4095))));
     if (hi <= lo) { lo = 0; hi = 4095; }
-    if (String(c.role||'') === 'temperature' && Number(c.temp_interface||0) === 4) {
+    if (ntc) {
       lo = Math.max(1,lo); hi = Math.min(4094,hi);
+      c.ntc_use_point_table = true;
     }
     c.calibration_points = [
       {raw:lo,value:registryLinearValueAtRaw(c,lo)},
@@ -1190,7 +1190,8 @@ function registryAnalogCurveEditor(direction, c, index) {
   const problem = registryCurveProblem(c);
   const ntc = String(c?.role||'') === 'temperature' && Number(c?.temp_interface||0) === 4;
   const rows = points.map((p,n)=>`<div class="hw-field" style="grid-column:1/-1"><span class="hw-label">Calibration point ${n+1}</span><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.55rem;align-items:end"><label><span class="hw-label">ADC reading</span><input class="${problem?'field-error':''}" style="width:100%" type="number" min="${ntc?1:0}" max="${ntc?4094:4095}" step="1" value="${Math.round(Number(p.raw))}" onchange="updateRegistryCurvePoint(${index},${n},'raw',this.value)"></label><label><span class="hw-label">Physical value (${escapeHtmlText(registryCurveUnit(c))})</span><input class="${problem?'field-error':''}" style="width:100%" type="number" step="any" value="${registryFormatValue(p.value,4)}" onchange="updateRegistryCurvePoint(${index},${n},'value',this.value)"></label>${points.length>2?`<button type="button" class="danger" onclick="removeRegistryCurvePoint(${index},${n})">Remove point ${n+1}</button>`:''}</div></div>`).join('');
-  return `<details open style="grid-column:1/-1"><summary>Advanced sensor curve (${points.length} points)</summary><div class="hw-grid" style="margin-top:.65rem"><div class="hw-field" style="grid-column:1/-1"><span class="hw-desc">Enter 2–6 datasheet or measured points. ADC values must increase; physical values may consistently increase or decrease. ${['generic','operator'].includes(String(c.role)) ? 'The command stays at the endpoint value beyond the saved points.' : 'Beyond the saved points, the ECU continues the nearest segment as a straight line. Verify readings outside the calibrated range against a known reference.'}</span>${problem?`<span class="field-error-text">${escapeHtmlText(problem)}</span>`:''}</div>${rows}<div class="hw-field" style="grid-column:1/-1;display:flex;gap:.5rem"><button type="button" ${points.length>=6?'disabled':''} onclick="addRegistryCurvePoint(${index})">Add point</button><button type="button" onclick="setRegistryCurveEnabled(${index},false)">Use linear calibration</button></div></div></details>`;
+  const useDatasheet = ntc && c.ntc_use_point_table === false;
+  return `<details open style="grid-column:1/-1"><summary>Advanced sensor curve (${points.length} points${useDatasheet?' saved, datasheet values active':''})</summary><div class="hw-grid" style="margin-top:.65rem"><div class="hw-field" style="grid-column:1/-1"><span class="hw-desc">Enter 2–6 datasheet or measured points. ADC values must increase; physical values may consistently increase or decrease. ${['generic','operator'].includes(String(c.role)) ? 'The command stays at the endpoint value beyond the saved points.' : 'Beyond the saved points, the ECU continues the nearest segment as a straight line. Verify readings outside the calibrated range against a known reference.'}</span>${problem?`<span class="field-error-text">${escapeHtmlText(problem)}</span>`:''}</div>${rows}<div class="hw-field" style="grid-column:1/-1;display:flex;gap:.5rem"><button type="button" ${points.length>=6?'disabled':''} onclick="addRegistryCurvePoint(${index})">Add point</button><button type="button" onclick="setRegistryCurveEnabled(${index},${useDatasheet})">${ntc?(useDatasheet?'Use saved curve':'Use datasheet values'):'Use linear calibration'}</button></div></div></details>`;
 }
 function registryOilFlowMonitorEditor(c, index) {
   const purpose = registryDerivedPurpose('output', c);
@@ -1291,6 +1292,7 @@ function registryProfileInputTuningEditor(direction, c, index) {
   const isSwitch = registryIsSwitchRole(c.role) || ['start_switch','stop_switch'].includes(purpose);
   const isFlame=['flame','ab_flame'].includes(purpose);
   if (!isSwitch&&!isFlame) return Number(c.driver)===9 ? registryInputOptionsEditor(direction,c,index) : externalBias;
+  if (isFlame && [1,9].includes(Number(c.driver))) return registryInputOptionsEditor(direction,c,index);
   const polarity = `<div class="hw-field"><span class="hw-label">Active state</span><span class="hw-desc">Choose which electrical state means the switch or interlock is On.</span><select onchange="updateRegistryChannel('input',${index},'active_high',this.value==='1')"><option value="1"${c.active_high !== false ? ' selected' : ''}>High / above threshold is On</option><option value="0"${c.active_high === false ? ' selected' : ''}>Low / below threshold is On</option></select></div>`;
   if (Number(c.driver) === 0 || Number(c.driver) === 2) {
     if(externalBias)return polarity+externalBias;

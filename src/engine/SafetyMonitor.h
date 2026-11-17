@@ -62,8 +62,8 @@ public:
         _startupSpooled   = false;
         _startupSpoolSinceMs = 0;
         _startupUnderSpeedSinceMs = 0;
-        _overspeedPending = false;
-        _n2OverspeedPending = false;
+        _n1Overspeed.reset();
+        _n2Overspeed.reset();
         _resetDwellConfirmations();
         _resetSurge();
     }
@@ -89,8 +89,8 @@ public:
             _flameoutMs     = 0;
             _relightDetectMs = 0;
             _relightLatched = false;
-            _overspeedPending = false;
-            _n2OverspeedPending = false;
+            _n1Overspeed.reset();
+            _n2Overspeed.reset();
             _resetDwellConfirmations(m != SysMode::SHUTDOWN);
             _lastCheckMs = 0;
             _lastEgt        = -1.0f;
@@ -117,8 +117,8 @@ public:
         if (ed.skipSafetyChecks || ed.benchMode) {
             // Never carry a partly confirmed raw overspeed across a period in
             // which monitoring was deliberately suspended.
-            _overspeedPending = false;
-            _n2OverspeedPending = false;
+            _n1Overspeed.reset();
+            _n2Overspeed.reset();
             _resetDwellConfirmations();
             _lastCheckMs = 0;
             _resetSurge();
@@ -129,38 +129,22 @@ public:
         // Deliberately ignores n1Healthy: a genuine fast runaway raises the
         // JUMP health flag on every 100 ms sample (rate > jumpThreshold ×
         // rpmLimit/s), which would suppress this exact protection. Instead
-        // the raw reading must stay above the limit for OVERSPEED_CONFIRM_MS
-        // (≥2, typically 3 sensor samples at the 100 ms sensor update rate),
-        // so a single noise spike still cannot trip it.
-        if (HardwareConfig::safetyOverspeed && HardwareConfig::hasN1Rpm &&
-            ed.n1Rpm > rpmLimit) {
-            unsigned long nowOs = millis();
-            if (!_overspeedPending) {
-                _overspeedPending = true;
-                _overspeedSinceMs = nowOs;
-            } else if (nowOs - _overspeedSinceMs >= OVERSPEED_CONFIRM_MS) {
-                _trigger("OVERSPEED");
-                return;
-            }
-        } else {
-            _overspeedPending = false;
+        // fresh raw readings must span OVERSPEED_CONFIRM_MS. One cached
+        // value cannot confirm the trip.
+        if (_n1Overspeed.check(HardwareConfig::safetyOverspeed && HardwareConfig::hasN1Rpm &&
+                               ed.n1Rpm > rpmLimit, ed.n1SampleSeq, ed.n1SampleMs, millis())) {
+            _trigger("OVERSPEED");
+            return;
         }
 
         // N2 is an independently protected power-turbine shaft. As with N1,
         // use confirmed raw readings so the sensor's fast-change health flag
         // cannot mask a real free-power-turbine runaway.
-        if (HardwareConfig::safetyN2Overspeed && HardwareConfig::hasN2Rpm &&
-            n2RpmLimit > 0.0f && ed.n2Rpm > n2RpmLimit) {
-            unsigned long nowOs = millis();
-            if (!_n2OverspeedPending) {
-                _n2OverspeedPending = true;
-                _n2OverspeedSinceMs = nowOs;
-            } else if (nowOs - _n2OverspeedSinceMs >= OVERSPEED_CONFIRM_MS) {
-                _trigger("N2_OVERSPEED");
-                return;
-            }
-        } else {
-            _n2OverspeedPending = false;
+        if (_n2Overspeed.check(HardwareConfig::safetyN2Overspeed && HardwareConfig::hasN2Rpm &&
+                               n2RpmLimit > 0.0f && ed.n2Rpm > n2RpmLimit,
+                               ed.n2SampleSeq, ed.n2SampleMs, millis())) {
+            _trigger("N2_OVERSPEED");
+            return;
         }
 
         // Independent hard trips for pressure and shaft torque. These do not
@@ -276,9 +260,9 @@ public:
         // explicit oil-loop ownership. Per-loop installations use their own
         // independently selected response and must not be tripped twice here.
         const float oilLimit = m == SysMode::STARTUP ? Config::oilRunningMin : ed.oilMinBar;
-        if (_confirmed(!HardwareConfig::hasOilLoop && HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress
-            && PressureSafety::monitors(Config::oilSafetyModes, m)
-            && oilLimit > 0 && ed.oilHealthy && ed.oilPressure < oilLimit,
+        const bool oilPressureMonitored = !HardwareConfig::hasOilLoop && HardwareConfig::safetyLowOil &&
+            HardwareConfig::hasOilPress && oilLimit > 0 && PressureSafety::monitors(Config::oilSafetyModes, m);
+        if (_confirmed(oilPressureMonitored && ed.oilHealthy && ed.oilPressure < oilLimit,
             now, lowOilConfirmMs, _lowOilSinceMs))
         {
             _trigger("LOW_OIL");
@@ -339,8 +323,9 @@ public:
         }
 
         // ── Fuel pressure low ────────────────────────────────
-        if (_confirmed(HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress && fuelPressMin > 0.0f
-            && PressureSafety::monitors(Config::fuelPressureSafetyModes, m) && ed.fuelPressHealthy
+        const bool fuelPressureMonitored = HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress &&
+            fuelPressMin > 0.0f && PressureSafety::monitors(Config::fuelPressureSafetyModes, m);
+        if (_confirmed(fuelPressureMonitored && ed.fuelPressHealthy
             && ed.fuelPressure < fuelPressMin,
             now, fuelPressConfirmMs, _fuelPressSinceMs))
         {
@@ -423,10 +408,6 @@ public:
         //          where the engine must pass through 0→minRpm on its way to idle).
         if (HardwareConfig::hasN1Rpm && m == SysMode::RUNNING) {
             if (Config::underspeedEnabled && minRpm > 0.0f && ed.n1Healthy && ed.n1Rpm < minRpm) {
-                if (HardwareConfig::safetyFlameout && ed.flameMonitorActive
-                    && _effectiveFlameoutSource() == 2) {
-                    return;
-                }
                 _trigger("UNDERSPEED");
                 return;
             }
@@ -443,10 +424,10 @@ public:
                 FeedbackRequirements::n2ForProtectionOrControl() && !ed.n2Healthy;
             bool protectionBlind =
                 (HardwareConfig::safetyOvertemp && Config::effectiveEgtSource() != 0 && !Config::primaryEgtHealthy(ed)) ||
-                (HardwareConfig::safetyLowOil && HardwareConfig::hasOilPress && !ed.oilHealthy) ||
+                (oilPressureMonitored && !ed.oilHealthy) ||
                 (HardwareConfig::hasOilLoop && !FeedbackRequirements::allOilLoopFeedbackHealthy(ed)) ||
                 (HardwareConfig::safetyOilTempHigh && HardwareConfig::hasOilTemp && !ed.oilTempHealthy) ||
-                (HardwareConfig::safetyFuelPressLow && HardwareConfig::hasFuelPress && !ed.fuelPressHealthy) ||
+                (fuelPressureMonitored && !ed.fuelPressHealthy) ||
                 (HardwareConfig::safetyBattLow && HardwareConfig::hasBattVoltage && !ed.battHealthy) ||
                 (FeedbackRequirements::p1ForProtectionOrControl() && !ed.p1Healthy) ||
                 (FeedbackRequirements::p2ForProtectionOrControl() && !ed.p2Healthy) ||
@@ -522,10 +503,33 @@ private:
     float         _lastEgt        = -1.0f;   // for dEGT/dt calculation
     unsigned long _lastEgtMs      = 0;
     uint32_t      _lastEgtSampleSeq = 0;
-    bool          _overspeedPending = false; // raw reading above rpmLimit, confirming
-    unsigned long _overspeedSinceMs = 0;     // millis() when the overspeed reading began
-    bool          _n2OverspeedPending = false;
-    unsigned long _n2OverspeedSinceMs = 0;
+    struct OverspeedConfirmation {
+        void reset() { pending = false; }
+
+        bool check(bool over, uint32_t sequence, uint32_t sampleMs, uint32_t now) {
+            // Match the freshness budget used for shaft feedback at START.
+            constexpr uint32_t maxSampleAgeMs = 500;
+            if (!over || sequence == 0 || now - sampleMs > maxSampleAgeMs) {
+                reset();
+                return false;
+            }
+            if (sequence == lastSequence) return false;
+            lastSequence = sequence;
+            if (!pending || sampleMs - lastSampleMs > maxSampleAgeMs) {
+                pending = true;
+                sinceMs = sampleMs;
+            }
+            lastSampleMs = sampleMs;
+            return sampleMs - sinceMs >= OVERSPEED_CONFIRM_MS;
+        }
+
+        bool pending = false;
+        uint32_t sinceMs = 0;
+        uint32_t lastSampleMs = 0;
+        uint32_t lastSequence = 0;
+    };
+    OverspeedConfirmation _n1Overspeed;
+    OverspeedConfirmation _n2Overspeed;
     unsigned long _registryOvercurrentSinceMs[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     unsigned long _oilUnderflowSinceMs[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};
     bool          _oilUnderflowWarned[ChannelRegistry::MAX_OUTPUT_CHANNELS] = {};

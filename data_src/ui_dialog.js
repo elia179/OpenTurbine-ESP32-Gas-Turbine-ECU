@@ -15,11 +15,15 @@
 
   // All pages require an explicit acknowledgement before reporting a save.
   // Never replay a write when its response was lost: it may already be stored.
-  window.OTSavePatch = async function (url, patch, returnRejections = false) {
+  window.OTSavePatch = async function (url, patch, returnRejections = false, expectedEcu = '', expectedBoot) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, {
+      const query = new URLSearchParams();
+      if (expectedEcu) query.set('ecu_id',expectedEcu);
+      if (Number.isInteger(expectedBoot)) query.set('boot_count',expectedBoot);
+      const target = query.size ? url + (url.includes('?') ? '&' : '?') + query.toString() : url;
+      const response = await fetch(target, {
         method:'PATCH', headers:{'Content-Type':'application/json'},
         body:JSON.stringify(patch), signal:controller.signal
       });
@@ -38,9 +42,17 @@
     } finally { clearTimeout(timeout); }
   };
 
+  // A page changing Hardware and Settings sends both diffs in one request.
+  window.OTSaveHardwarePatch = function (patch, source = '', settings = null, expectedEcu = '', expectedBoot) {
+    const payload = settings && Object.keys(settings).length ? {...patch, _settings_patch:settings} : patch;
+    const url = '/api/hardware' + (source ? '?source=' + encodeURIComponent(source) : '');
+    const save = () => window.OTSavePatch(url, payload, false, expectedEcu, expectedBoot);
+    return window.OTWithTelemetryPaused ? window.OTWithTelemetryPaused(save) : save();
+  };
+
   // Configuration reads can briefly compete with another page's snapshot.
   // Retry only reads, honour the ECU's delay, and bound the whole operation.
-  window.OTReadJson = async function(url, {attempts = 5, timeoutMs = 8000, budgetMs = 25000} = {}) {
+  window.OTReadJson = async function(url, {attempts = 5, timeoutMs = 8000, budgetMs = 25000, withEcu = false} = {}) {
     const deadline = Date.now() + budgetMs;
     let lastError;
     for (let attempt = 0; attempt < attempts; ++attempt) {
@@ -51,7 +63,10 @@
       let delay = 350 + attempt * 250 + Math.random() * 250;
       try {
         const response = await fetch(url, {cache:'no-store', signal:controller.signal});
-        if (response.ok) return JSON.parse(await response.text());
+        if (response.ok) {
+          const value = JSON.parse(await response.text());
+          return withEcu ? {value, ecu:response.headers.get('X-OpenTurbine-ECU')} : value;
+        }
         // Drain the rejection before waiting so it does not retain a socket.
         const body = await response.text();
         let detail;
@@ -98,27 +113,9 @@
     const requestUrl = typeof input === 'string' ? input : input.url;
     const method = String(init.method || (typeof input !== 'string' && input.method) || 'GET').toUpperCase();
     const pathname = new URL(requestUrl, location.href).pathname;
-    const cacheableConfig = method === 'GET' && location.hostname !== '127.0.0.1'
-      && location.hostname !== 'localhost'
-      && (pathname === '/api/config' || pathname === '/api/hardware');
-    const cacheKey = `ot-page-cache:${pathname}`;
-    if (cacheableConfig) {
-      try {
-        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
-        if (cached && Date.now() - cached.at < 5000) {
-          return Promise.resolve(new Response(cached.body, {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-          }));
-        }
-      } catch (_) {}
-    } else if (method !== 'GET' && (pathname === '/api/config' || pathname === '/api/hardware'
-        || pathname === '/api/ecu_config')) {
-      try {
-        sessionStorage.removeItem('ot-page-cache:/api/config');
-        sessionStorage.removeItem('ot-page-cache:/api/hardware');
-      } catch (_) {}
-    }
+    // ECUs can share the same access-point IP. Load the saved configuration
+    // from the connected ECU when opening a page or checking before a save.
+    const configRead = method === 'GET' && (pathname === '/api/config' || pathname === '/api/hardware');
     const requestController = new AbortController();
     const signals = [pageFetchController.signal, init.signal].filter(Boolean);
     const abort = () => requestController.abort();
@@ -127,24 +124,26 @@
       else signal.addEventListener('abort', abort, { once: true });
     }
     pendingPageFetches++;
-    const performFetch = () => nativeFetch(input, { ...init, signal: requestController.signal })
+    const performFetch = () => nativeFetch(input, {
+      ...init, ...(configRead ? {cache:'no-store'} : {}), signal: requestController.signal
+    })
       .then(async response => {
         // Do not report a JSON fetch as settled merely because its headers
         // arrived. Navigation must wait until the small ECU response body has
         // actually drained from the Classic's one-shot HTTP connection.
-        let body = null;
         if (response.headers.get('content-type')?.includes('application/json')) {
           // Keep the caller's abort signal connected through mutation ACK
           // bodies too. Resolving at headers then removing this listener let
           // a truncated firmware/save acknowledgement wait indefinitely.
-          body = await response.clone().text();
+          await response.clone().text();
         } else if (method === 'GET' && pathname.startsWith('/api/')) {
           // CSV and binary API downloads need the same timeout/navigation
           // lifetime. Native link downloads are unaffected by this wrapper.
           await response.clone().arrayBuffer();
         }
-        if (cacheableConfig && response.ok && body !== null) {
-          try { sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), body })); } catch (_) {}
+        if (response.ok && (configRead || (method === 'GET' &&
+            (pathname === '/api/data' || pathname === '/api/telemetry' || pathname === '/api/session/status')))) {
+          window.OTSetup.scope(response);
         }
         return response;
       })
@@ -159,8 +158,7 @@
     // and share one bounded response buffer on Classic ESP32. Page scripts may
     // ask for them from independent startup tasks, so serialize them here
     // without making every caller know about the transport constraint.
-    const largeRead = method === 'GET' &&
-      (pathname === '/api/config' || pathname === '/api/hardware' || pathname === '/api/data');
+    const largeRead = configRead || (method === 'GET' && pathname === '/api/data');
     if (!largeRead) return performFetch();
     const queued = largeReadChain.catch(() => {}).then(performFetch);
     largeReadChain = queued.then(() => undefined, () => undefined);
@@ -375,6 +373,8 @@
     overlay.className = 'ot-dialog-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'ot-dialog-title');
+    overlay.setAttribute('aria-describedby', 'ot-dialog-message');
     overlay.innerHTML = `
       <div class="ot-dialog-card">
         <div class="ot-dialog-header" id="ot-dialog-title"></div>
@@ -537,11 +537,62 @@
       .map(route => ({[route[1].startsWith('/') ? 'url' : 'target']:route[1], label:'Open ' + route[2]}));
   };
 
-  const setupKey = 'openturbine_setup_progress_v1';
+  let setupEcu = '';
+  const setupKey = ecu => 'openturbine_setup_progress_v2:' + ecu;
+  const setupIdentity = response => {
+    const id = response?.headers?.get('X-OpenTurbine-ECU') || '';
+    return /^[0-9a-f]{12}$/.test(id) ? id : '';
+  };
+  const notifySetupChange = () => window.dispatchEvent(new Event('ot-setup-change'));
+  window.OTConnectedEcuId = () => setupEcu;
+  let editorEcu = '';
+  let editorEcuChanged = false;
+  window.addEventListener('ot-setup-change', () => {
+    if (editorEcu && setupEcu !== editorEcu) editorEcuChanged = true;
+  });
+  window.OTConfigEditor = {
+    async load(paths, {optionalLastRead = false, attempts = 5} = {}) {
+      editorEcu = '';
+      const values = [];
+      let ecu;
+      for (const [index, path] of paths.entries()) {
+        let snapshot;
+        try {
+          snapshot = await window.OTReadJson(path, {withEcu:true, attempts});
+        } catch (error) {
+          if (!optionalLastRead || index === 0 || index !== paths.length - 1) throw error;
+          values.push({});
+          break;
+        }
+        if (!/^[0-9a-f]{12}$/.test(snapshot.ecu) || (ecu && ecu !== snapshot.ecu))
+          throw new Error('The connected ECU changed while loading. Reload this page.');
+        ecu = snapshot.ecu;
+        values.push(snapshot.value);
+      }
+      if (ecu !== setupEcu) throw new Error('The connected ECU changed while loading. Reload this page.');
+      editorEcu = ecu;
+      editorEcuChanged = false;
+      return values;
+    },
+    requireEcu() {
+      if (!editorEcu || editorEcuChanged || editorEcu !== setupEcu)
+        throw new Error('The connected ECU changed. Reload this page before saving.');
+      return editorEcu;
+    }
+  };
   window.OTSetup = {
-    mark(step) {
+    scope(response) {
+      const ecu = setupIdentity(response);
+      if (ecu === setupEcu) return;
+      setupEcu = ecu;
+      notifySetupChange();
+    },
+    mark(step, response) {
+      const ecu = response === undefined ? setupEcu : setupIdentity(response);
+      if (!ecu) return;
       try {
-        const state = JSON.parse(localStorage.getItem(setupKey) || '{}');
+        const key = setupKey(ecu);
+        const state = JSON.parse(localStorage.getItem(key) || '{}');
         // An upstream commissioning change makes selected later evidence stale.
         // Keep this conservative: these are browser activity marks, never a
         // substitute for the operator's physical verification.
@@ -553,11 +604,20 @@
         };
         (invalidates[step] || []).forEach(key => delete state[key]);
         state[step] = Date.now();
-        localStorage.setItem(setupKey, JSON.stringify(state));
+        localStorage.setItem(key, JSON.stringify(state));
+        if (ecu === setupEcu) notifySetupChange();
+      } catch (_) {}
+    },
+    clear(response) {
+      const ecu = response === undefined ? setupEcu : setupIdentity(response);
+      if (!ecu) return;
+      try {
+        localStorage.removeItem(setupKey(ecu));
+        if (ecu === setupEcu) notifySetupChange();
       } catch (_) {}
     },
     state() {
-      try { return JSON.parse(localStorage.getItem(setupKey) || '{}'); }
+      try { return setupEcu ? JSON.parse(localStorage.getItem(setupKey(setupEcu)) || '{}') : {}; }
       catch (_) { return {}; }
     }
   };

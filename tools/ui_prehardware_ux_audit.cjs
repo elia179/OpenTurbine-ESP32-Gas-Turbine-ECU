@@ -110,6 +110,9 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.evaluate(() => localStorage.clear());
     await patchData(page, { mode: 'STANDBY' });
     await page.reload();
+    await page.locator('#beta-ack-check').check();
+    await page.locator('#beta-ack-btn').click();
+    await page.locator('#theme-firstrun button.primary').click();
     await page.waitForSelector('#getting-started-banner');
     const gs = await text(page, '#getting-started-banner');
     assert.match(gs, /Commissioning checklist/i);
@@ -121,25 +124,64 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.equal(await page.locator(`#getting-started-banner a[href="/hardware.html?v=${webRevision}"]`).count(), 1);
     assert.equal(await page.locator(`#getting-started-banner a[href="/controllers.html?v=${webRevision}"]`).count(), 1);
     assert.equal(await page.locator(`#getting-started-banner a[href="/calibration.html?v=${webRevision}"]`).count(), 1);
-    await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1',
-      JSON.stringify({ hardware: Date.now(), tools: Date.now() })));
+    await page.evaluate(() => { OTSetup.mark('hardware'); OTSetup.mark('tools'); });
     await page.reload();
     await page.waitForSelector('#getting-started-banner');
     assert.match(await text(page, '#gs-progress'), /2 of 5 setup activities recorded/i);
     assert.match(await text(page, '[data-setup-step="hardware"] .gs-step-state'), /Hardware saved/i);
-    assert.match(await text(page, '[data-setup-step="tools"] .gs-step-state'), /Tool command completed/i);
+    assert.match(await text(page, '[data-setup-step="tools"] .gs-step-state'), /Actuator test command accepted/i);
     await page.evaluate(() => {
-      localStorage.setItem('openturbine_setup_progress_v1', JSON.stringify({
-        hardware: 1, config: 1, calibration: 1, sequence: 1, tools: 1
-      }));
+      for (const step of ['config','calibration','sequence','tools']) OTSetup.mark(step);
       OTSetup.mark('hardware');
     });
     assert.deepEqual(await page.evaluate(() => Object.keys(OTSetup.state()).sort()), ['hardware']);
     results.push('commissioning checklist gives a clear setup path without presenting browser activity as physical verification');
 
+    await page.evaluate(() => localStorage.setItem('openturbine_setup_progress_v1', '{"tools":1}'));
+    await patchData(page, {mock_ecu_id:'abcdef012345'});
+    await page.waitForFunction(() => document.querySelector('#gs-progress').textContent.startsWith('0 of 5'));
+    await page.evaluate(() => OTSetup.mark('tools'));
+    await page.evaluate(() => {
+      const firstEcuAck = new Response(null, {headers:{'X-OpenTurbine-ECU':'0123456789ab'}});
+      OTSetup.mark('config', firstEcuAck);
+    });
+    assert.deepEqual(await page.evaluate(() => Object.keys(OTSetup.state())), ['tools']);
+    await patchData(page, {mock_ecu_id:'0123456789ab'});
+    await page.waitForFunction(() => !!OTSetup.state().hardware);
+    assert.deepEqual(await page.evaluate(() => Object.keys(OTSetup.state()).sort()), ['config','hardware']);
+    await page.evaluate(() => OTSetup.mark('hardware'));
+    assert.match(await text(page, '[data-setup-step="tools"] .gs-step-state'), /No actuator test command recorded/);
+    results.push('commissioning checklist follows two ECUs at one browser address');
+
+    const guide = page.locator('#getting-started-banner');
+    const editCards = page.locator('#dashboard-card-edit-btn');
+    const showGuide = page.getByRole('button', { name:'Show Commissioning checklist' });
+    await guide.getByRole('button', { name:'Hide guide' }).click();
+    await guide.waitFor({state:'hidden'});
+    await page.reload();
+    await page.locator('#getting-started-banner.dashboard-user-hidden').waitFor({state:'attached'});
+    await editCards.click();
+    await showGuide.click();
+    await guide.waitFor({state:'visible'});
+    await page.evaluate(() => localStorage.setItem('ot_gs_dismissed','1'));
+    await page.reload();
+    await page.locator('#getting-started-banner.dashboard-user-hidden').waitFor({state:'attached'});
+    await editCards.click();
+    await showGuide.click();
+    await guide.waitFor({state:'visible'});
+    await page.reload();
+    await guide.waitFor({state:'visible'});
+    assert.deepEqual(await page.evaluate(() => Object.keys(OTSetup.state()).sort()), ['hardware']);
+    results.push('Edit cards can restore a hidden commissioning checklist and keeps prior setup progress');
+
     const blankResponse = await page.request.post(`${base}/__sim/blank`);
     assert.equal(blankResponse.ok(), true);
-    await goto(page, 'hardware.html', '#hardware-profile-section');
+    const hardwareLink = guide.locator('[data-setup-step="hardware"] a');
+    assert.equal(await hardwareLink.isVisible(), false);
+    await guide.locator('#gs-progress').click();
+    await hardwareLink.click();
+    await page.waitForURL('**/hardware.html*');
+    await page.locator('#hardware-profile-section').waitFor({state:'visible'});
     await page.locator('button[onclick="addRegistryChannel(\'input\')"]').click();
     await page.locator('#registry-add-catalog .registry-add-option', { hasText: 'TOT / EGT' }).click();
     assert.equal(await page.locator('#registry-add-modal').isVisible(), false);
@@ -165,6 +207,12 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     const oilTempStatus = await page.locator('#registry-inputs .registry-card').evaluateAll(cards =>
       cards.find(card => card.querySelector('strong')?.textContent.trim() === 'Oil Temp')?.querySelector('.registry-status')?.textContent || '');
     assert.match(oilTempStatus, /GPIO 15 is not ADC1-capable/i);
+    const analogPins = await page.evaluate(() => {
+      const select = document.createElement('select');
+      select.innerHTML = buildPinOptions(-1, 'adc');
+      return {platform:cfg.platform, pins:[...select.options].map(option => Number(option.value)).filter(pin => pin >= 0).sort((a,b) => a-b)};
+    });
+    assert.deepEqual(analogPins.pins, analogPins.platform === 'esp32s3' ? [1,2,3,4,5,6,7,8,9,10] : [32,33,34,35,36,39]);
     assert.match(await text(page, '#save-msg'), /Loaded/i);
     results.push('canonical inventory exposes every fitted sensor, actuator, AB control and invalid board pin before save');
 
@@ -172,12 +220,28 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     const calibrationTargets = await page.locator('#calibration-jump option').allTextContents();
     for (const expected of ['Minimum Reliable Fuel-Metering Output', 'Oil Pressure', 'Flame', 'Throttle Input', 'Battery'])
       assert.ok(calibrationTargets.some(label => label.includes(expected)), `calibration jump list should include ${expected}`);
+    assert.equal(await page.locator('.calibration-workspace').locator('#calibration-jump, #unit-temp-btn, #unit-press-btn').count(), 3);
     await page.locator('#calibration-jump').selectOption('oil-press-cal-row');
     assert.equal(await page.locator('#oil-press-cal-row').evaluate(row => row.classList.contains('deep-link-target')), true);
     assert.deepEqual(await page.locator('input:visible,select:visible').evaluateAll(fields =>
       fields.filter(field => !(field.title || field.closest('label')?.title))
         .map(field => field.id || field.getAttribute('aria-label') || field.type)), [],
       'every visible calibration field needs hover help');
+    const withoutFuelMetering = async route => {
+      const response = await route.fetch();
+      const hardware = await response.json();
+      hardware.actuators.throttle.enabled = false;
+      hardware.channel_registry.outputs = hardware.channel_registry.outputs.filter(output => output.purpose !== 'main_fuel');
+      hardware.channel_registry.bindings = hardware.channel_registry.bindings.filter(binding => binding.key !== 'main_fuel_output');
+      await route.fulfill({response, json:hardware});
+    };
+    await page.route('**/api/hardware', withoutFuelMetering);
+    await page.reload();
+    await page.waitForFunction(() => cfg.hardware?.actuators?.throttle?.enabled === false);
+    assert.equal(await page.locator('#fuelpump-min-cal-row').isVisible(), false);
+    assert.equal(await page.locator('#calibration-jump option[value="fuelpump-min-cal-row"]').count(), 0);
+    await page.unroute('**/api/hardware', withoutFuelMetering);
+    await page.reload();
     results.push('calibration page provides a compact index of fitted sensors and actuators');
 
     await goto(page, 'hardware.html', '#hardware-profile-section');
@@ -227,7 +291,12 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.locator('#registry-add-modal button[onclick="closeRegistryAddDialog()"]' ).click();
     assert.equal(await page.locator('#registry-inputs .registry-card[data-registry-id="oil_flow"]').count(), 0);
     const oilPumpCard = page.locator('#registry-outputs .registry-card[data-registry-id="oil_pump"]');
-    await oilPumpCard.locator('button', {hasText:'Edit'}).click();
+    await oilPumpCard.locator('.registry-card-summary strong').first().click();
+    const oilPumpEdit = oilPumpCard.locator('[data-card-edit]');
+    assert.equal(await oilPumpEdit.getAttribute('aria-expanded'), 'true');
+    await oilPumpEdit.click();
+    assert.equal(await oilPumpEdit.getAttribute('aria-expanded'), 'false');
+    await oilPumpEdit.click();
     assert.match((await oilPumpCard.textContent()).trim(), /Flow sensing & monitoring.*Main oil-pump flow sensor.*Pulses \/ litre.*Minimum flow.*Safety & Limits.*Oil Pressure Safety/is);
     assert.match((await oilPumpCard.textContent()).trim(), /Current sensing.*Calibration page/is);
     assert.equal(await oilPumpCard.locator(`a[href="/controllers.html?v=${webRevision}#cf-oil_mm"]`).count(), 1);
@@ -617,6 +686,13 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     }
     assert.ok(faultOverrideCard, 'at least one general/mechanical output keeps the configurable fault override');
     await mainFuelFaultFallback.check();
+    assert.equal(await mainFuelFaultFallback.isVisible(), true);
+    assert.equal(await mainFuelFaultFallback.isChecked(), true);
+    assert.equal(await faultOverrideCard.locator('.registry-output-advanced').getAttribute('open'), '');
+    await mainFuelFaultFallback.uncheck();
+    assert.equal(await mainFuelFaultFallback.isVisible(), true);
+    assert.equal(await mainFuelFaultFallback.evaluate(el => el.classList.contains('field-changed')), false);
+    await mainFuelFaultFallback.check();
     assert.equal(await faultOverrideCard.evaluate(el => el.classList.contains('field-changed')), true);
     const faultFallbackChanges = await page.evaluate(() => _buildChanges());
     assert.match(JSON.stringify(faultFallbackChanges), /Force safe state on fault.*Disabled.*Enabled/is);
@@ -771,7 +847,17 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.waitForSelector('#builtin-inputs .hw-item-card[data-workflow-key="stop"]');
     results.push('Start/Stop bias edits highlight the exact switch and require a reboot recap');
 
+    await patchHardware(page, {actuators:{fault_led:{enabled:false,pin:-1,active_h:true}}});
+    await page.reload();
+    await page.waitForFunction(() => _workflowSnap.devices.fault_led?.active_h === true);
     await page.locator('#btn-edit-comms').click();
+    const faultLed = page.locator('#hardware-comms-summary .hw-item-card').filter({has:page.getByText('Fault LED',{exact:true})});
+    const faultPolarity = faultLed.getByLabel('Active HIGH');
+    assert.equal(await faultLed.evaluate(el => el.classList.contains('field-changed')), false);
+    await faultPolarity.uncheck();
+    assert.equal(await faultLed.evaluate(el => el.classList.contains('field-changed')), true);
+    await faultPolarity.check();
+    assert.equal(await faultLed.evaluate(el => el.classList.contains('field-changed')), false);
     const statusLedToggle = page.locator('#hardware-comms-summary input[onchange^="setStatusLedEnabled"]');
     await statusLedToggle.uncheck();
     assert.equal(await statusLedToggle.evaluate(el => el.classList.contains('field-changed')), true);
@@ -802,15 +888,29 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await text(page, '#registry-inputs'), /AB Flame/);
     const abFlameCard = page.locator('#registry-inputs .registry-card[data-registry-id="ab_flame_main"]');
     await abFlameCard.locator('button', {hasText:'Edit'}).click();
-    assert.match(await abFlameCard.textContent(), /Flame active state.*Below threshold.*Threshold: 900 raw ADC.*Hysteresis/is);
-    assert.equal(await abFlameCard.locator('input[aria-label="AB flame hysteresis"]').inputValue(), '80');
+    assert.match(await abFlameCard.textContent(), /Below 725\.3 mV means flame present.*Hysteresis: 64\.5 mV/is);
+    assert.equal(await abFlameCard.locator('input[aria-label="AB flame hysteresis"]').count(),0);
+    assert.match(await abFlameCard.getByRole('link',{name:'Open flame calibration'}).getAttribute('href'),/#ab-flame-cal-row$/);
     assert.match(await text(page, '#builtin-inputs'), /Afterburner trigger and arm.*Physical trigger switch.*arm GPIO 35/is);
     assert.match(await text(page, '#save-msg'), /Loaded/i);
     assert.equal(await page.locator('.save-bar').evaluate(el => el.classList.contains('is-dirty')), false);
     results.push('canonical AB flame and trigger hardware loads as visible reviewable inventory');
 
     await goto(page, 'calibration.html', '#ab-flame-cal-row');
-    assert.equal(await page.locator('#ab-flame-thr-direct').inputValue(), '725');
+    assert.equal(await page.locator('#ab-flame-thr-direct').inputValue(), '725.3');
+    assert.equal(await page.locator('#ab-flame-hyst-direct').inputValue(), '64.5');
+    assert.equal(await page.locator('#ab-flame-active-high').inputValue(), '0');
+    const exactRoundTrip = await page.evaluate(() => [1000,3300,3300.07,5000,5500].every(reference => {
+      const channel = {driver:9,i2c_reference_mv:reference};
+      return flameSettingMv(4095,channel) === reference &&
+        Array.from({length:4096},(_,raw)=>raw).every(raw=>adcRawFromMv(flameSettingMv(raw,channel),channel)===raw);
+    }));
+    assert.equal(exactRoundTrip,true);
+    await page.locator('#ab-flame-thr-direct').fill('');
+    await page.locator('#ab-flame-cal-row button', {hasText:'Set threshold'}).click();
+    assert.match(await page.locator('#ot-dialog-message').innerText(),/Enter a flame threshold/);
+    await page.locator('#ot-dialog-confirm').click();
+    assert.equal((await state(page)).hardware.channel_registry.inputs.find(row => row.id === 'ab_flame_main').digital_threshold_raw,900);
     await page.locator('#ab-flame-thr-direct').fill('994');
     await page.locator('#ab-flame-cal-row button', {hasText:'Set threshold'}).click();
     await page.waitForFunction(() => document.querySelector('#ab-flame-status')?.textContent.includes('994 mV'));
@@ -1153,18 +1253,31 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
 
     await reset(page);
     await goto(page, 'log.html', '#tab-session');
+    const eventClear = page.getByRole('button', {name:'Clear event log', exact:true});
+    await eventClear.focus();
+    await page.keyboard.press('Enter');
+    const eventDialog = page.getByRole('dialog', {name:'Clear event log?'});
+    await eventDialog.waitFor();
+    assert.equal(await eventDialog.evaluate(el => el.contains(document.activeElement)), true);
+    await page.keyboard.press('Escape');
+    await eventDialog.waitFor({state:'hidden'});
+    assert.equal(await eventClear.evaluate(el => el === document.activeElement), true);
     await page.locator('#tab-session').click();
-    await page.request.delete(`${base}/api/session/all`);
-    await page.reload();
-    await page.waitForSelector('#tab-session');
-    await page.locator('#tab-session').click();
-    await page.waitForTimeout(300);
+    await page.getByRole('button', {name:'Delete All Sessions', exact:true}).click();
+    const sessionDialog = page.getByRole('dialog', {name:'Delete all session logs?'});
+    // The simulator's session list is static even after the API deletes its fixture CSV.
+    await page.route('**/api/session/list', route => route.fulfill({json:[]}));
+    const sessionDelete = page.waitForResponse(response => response.url().endsWith('/api/session/all') && response.request().method() === 'DELETE');
+    await sessionDialog.getByRole('button', {name:'Delete all sessions', exact:true}).click();
+    assert.equal((await sessionDelete).ok(), true);
+    await page.locator('#session-list-wrap').getByText('No session files found', {exact:true}).waitFor();
+    await page.unroute('**/api/session/list');
     assert.match(await text(page, 'body'), /No session|No data|empty|CSV/i);
     assert.match(await page.locator('button[onclick="loadLog()"]').getAttribute('title') || '', /event history.*run summary/i);
     assert.match(await page.locator('button[onclick="askClear(\'eventlog\')"]').getAttribute('title') || '', /permanently delete.*event history/i);
     assert.match(await page.locator('#tab-session').getAttribute('title') || '', /per-run CSV/i);
     assert.match(await page.locator('#session-current-download').getAttribute('title') || '', /currently open session CSV/i);
-    results.push('session log page handles empty log state without breaking controls');
+    results.push('Log uses keyboard-accessible deletion confirmations and handles empty session history');
 
     await reset(page);
     await goto(page, 'tools.html', '#tool-area');
@@ -1196,6 +1309,17 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await page.locator('#btn-OIL_PRIME').getAttribute('title'), /STOP input is unavailable/i);
     assert.equal(await page.locator('#btn-OIL_PRIME').isDisabled(), true);
     results.push('Tools explains and ghosts output commands when STOP is active or unavailable');
+
+    await page.evaluate(async () => {
+      OTSetup.clear();
+      await postToolCommand({cmd:'EXTRA_COOLDOWN',iParam:0});
+    });
+    assert.equal(await page.evaluate(() => OTSetup.state().tools), undefined);
+    await patchData(page, {stop_switch_healthy:true});
+    await page.locator('#btn-OIL_PRIME').click();
+    await page.locator('#ot-dialog-confirm').click();
+    await page.waitForFunction(() => !!OTSetup.state().tools);
+    results.push('Tools records a test after ECU acknowledgement and ignores stop commands');
 
     await patchData(page, {
       config_version_mismatch: true,

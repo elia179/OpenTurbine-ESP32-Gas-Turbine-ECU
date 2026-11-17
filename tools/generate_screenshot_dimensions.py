@@ -14,5 +14,5 @@ for path in sorted((root / 'site/assets/images/guided-builds').glob('*.png')):
     sizes[path.stem] = {'width': width, 'height': height}
 target = root / 'site/_data/screenshot_dimensions.json'
 target.parent.mkdir(parents=True, exist_ok=True)
-target.write_text(json.dumps(sizes, indent=2) + '\n', encoding='utf-8')
+target.write_text(json.dumps(sizes, indent=2) + '\n', encoding='utf-8', newline='\n')
 print(f'Indexed exact dimensions for {len(sizes)} guided-build screenshots.')

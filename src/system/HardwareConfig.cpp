@@ -4,6 +4,7 @@
 #include "HardwareConfig.h"
 #include "../hal/actuators/RelayDemand.h"
 #include "Config.h"
+#include "ConfigFileTransaction.h"
 #include "hardware_profile.h"
 #include "pcb/PcbProfileManager.h"
 #include "pcb/PcbProfileResolver.h"
@@ -2816,11 +2817,10 @@ void HardwareConfig::load() {
         bootState.configLocked = false;
     }
 
-    static constexpr const char* BAK_PATH = "/ecu_config.bak";
-    if (!LittleFS.exists(PATH) && LittleFS.exists(BAK_PATH)) {
-        if (LittleFS.rename(BAK_PATH, PATH)) {
-            Serial.println("[HWCfg] Recovered ecu_config.json from backup");
-        }
+    if (!ConfigFileTransaction::recoverBackup(LittleFS, PATH)) {
+        inhibitStartForHardwareConfigFailure(
+            "Cannot start: the configuration backup could not be restored. The backup is retained.", true);
+        return;
     }
 
     // First boot with no ecu_config.json seeds the file from the compiled
@@ -2858,7 +2858,7 @@ void HardwareConfig::load() {
         Serial.println("[HWCfg] Stored config is too large - START inhibited");
         applyDefaults();
         inhibitStartForHardwareConfigFailure(
-            "Cannot start: ecu_config.json is unexpectedly large. Use Tools to export "
+            "Cannot start: ecu_config.json is unexpectedly large. Use System to export "
             "it for diagnosis, then restore a valid engine file or reset configuration.",
             true);
         return;
@@ -2876,7 +2876,8 @@ void HardwareConfig::load() {
     if (err) {
         Serial.printf("[HWCfg] JSON parse error: %s - using defaults\n", err.c_str());
         inhibitStartForHardwareConfigFailure(
-            "Cannot start: the hardware configuration file is corrupted.", true);
+            "Cannot start: the engine file is corrupted. Restore a complete engine file in System, "
+            "or explicitly reset the configuration.", true);
         return;
     }
     JsonDocument workDoc;
@@ -2886,11 +2887,10 @@ void HardwareConfig::load() {
         fullDoc.shrinkToFit();
         delay(0);
     } else {
-        Serial.println("[HWCfg] Missing hardware; adding compiled defaults");
-        if (!saveUnified(true)) {
-            inhibitStartForHardwareConfigFailure(
-                "Cannot start: no stored hardware configuration is available.", true);
-        }
+        Serial.println("[HWCfg] Stored engine file has no hardware object - START inhibited");
+        inhibitStartForHardwareConfigFailure(
+            "Cannot start: the saved engine file is missing its hardware section. "
+            "Restore a complete engine file in System, or explicitly reset the configuration.", true);
         return;
     }
 
@@ -2941,7 +2941,6 @@ void HardwareConfig::load() {
 // ── Save ──────────────────────────────────────────────────────
 bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
     static constexpr const char* TMP_PATH = "/ecu_config.unified.tmp";
-    static constexpr const char* BAK_PATH = "/ecu_config.bak";
     if (!Config::acquireStorageWrite()) {
         Serial.println("[HWCfg] Unified config write wait timed out");
         return false;
@@ -3009,22 +3008,17 @@ bool HardwareConfig::saveUnified(bool preserveStoredSettings) {
         return false;
     }
 
-    LittleFS.remove(BAK_PATH);
-    const bool hadOriginal = LittleFS.exists(PATH);
-    if (hadOriginal && !LittleFS.rename(PATH, BAK_PATH)) {
+    const auto result = ConfigFileTransaction::install(LittleFS, TMP_PATH, PATH);
+    if (result != ConfigFileTransaction::InstallResult::Saved) {
         LittleFS.remove(TMP_PATH);
-        Serial.println("[HWCfg] Failed to preserve previous unified config");
-        return false;
-    }
-    if (!LittleFS.rename(TMP_PATH, PATH)) {
-        Serial.println("[HWCfg] Failed to install unified config");
-        const bool restored = !hadOriginal || LittleFS.rename(BAK_PATH, PATH);
-        LittleFS.remove(TMP_PATH);
-        if (!restored)
+        if (result == ConfigFileTransaction::InstallResult::RollbackFailed)
             Serial.println("[HWCfg] Unified rollback failed; preserving backup");
+        else if (result == ConfigFileTransaction::InstallResult::PreserveFailed)
+            Serial.println("[HWCfg] Failed to preserve previous unified config");
+        else
+            Serial.println("[HWCfg] Failed to install unified config");
         return false;
     }
-    if (hadOriginal) LittleFS.remove(BAK_PATH);
     return true;
 }
 
@@ -4495,6 +4489,7 @@ void HardwareConfig::_fromDoc(const JsonDocument& doc) {
                 hasOilTemp = true; strlcpy(oilTempChip, "ntc", sizeof(oilTempChip)); oilTempPin = oilTemp->pin;
                 ntcBeta = oilTemp->thermistorBeta; ntcR0 = oilTemp->thermistorR0; ntcRFixed = oilTemp->thermistorRFixed;
                 ntcFixedPullup = oilTemp->thermistorPullup;
+                if (!oilTemp->ntcUsePointTable) oilTempUseRawPoly = false;
             } else if (iface == 5 && oilTemp->pin >= 0) {
                 hasOilTemp = true; strlcpy(oilTempChip, "ds18b20", sizeof(oilTempChip)); oilTempPin = oilTemp->pin;
                 oilTempResolution = constrain((int)oilTemp->temperatureResolution, 9, 12);

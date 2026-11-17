@@ -4,8 +4,8 @@ Exercises paths not covered by the normal safety campaigns:
   * FinalStop keeps main oil on until its no-N1 delay expires.
   * The main pump then stops while the independent scavenge pump runs longer.
   * STANDBY turns the scavenge pump off after its configured overrun.
-  * The physical cooldown override stops the active sequence, including a
-    deliberately unmatched OilScavengeOn block, so it cannot resume in STANDBY.
+  * Holding START+STOP outside a Cooldown step leaves the programmed shutdown
+    wait and its scavenge output in place.
 """
 
 from __future__ import annotations
@@ -138,12 +138,11 @@ def main() -> int:
             main_output=main_after, scavenge_output=scav_after,
         )
 
-        # Now hold an unmatched OilScavengeOn through a long delay. The
-        # operator override must cancel the sequence itself, not merely write
-        # the outputs off once while the sequence keeps running in STANDBY.
+        # Hold OilScavengeOn through a long wait outside Cooldown. The
+        # gesture must leave this step and its output in place.
         runner.apply_profile({
             "id": "shutdown_override_ownership",
-            "name": "Cooldown override sequence cancellation",
+            "name": "Cooldown skip is scoped to its own step",
             "build": lambda hw: base_build(
                 hw, ["ImmediateCut", "OilScavengeOn", "TimedDelay", "FinalStop"]
             ),
@@ -177,23 +176,24 @@ def main() -> int:
         physical_active = tester.get("STARTER_EN")
         tester.set("START", 1)
         tester.set("STOP", 1)
-        skipped, skipped_data = dut.poll_until(
-            lambda d: d.get("mode") == "STANDBY", timeout=2.5, interval=0.02,
-        )
+        time.sleep(1.0)
+        still_waiting = dut.full_data()
+        during_hold = tester.get("STARTER_EN")
         tester.set("START", 0)
         tester.set("STOP", 0)
-        immediate_off = tester.get("STARTER_EN")
         time.sleep(5.4)
         later = dut.full_data()
         later_output = tester.get("STARTER_EN")
         record(
-            "COOLDOWN_OVERRIDE_CANCELS_UNMATCHED_SCAVENGE_SEQUENCE",
-            active and int(physical_active.get("level") or 0) == 1 and skipped and
-            int(immediate_off.get("level") or 0) == 0 and
+            "COOLDOWN_SKIP_LEAVES_OTHER_SHUTDOWN_STEPS_ACTIVE",
+            active and int(physical_active.get("level") or 0) == 1 and
+            still_waiting.get("mode") == "SHUTDOWN" and
+            still_waiting.get("current_block") == "TimedDelay" and
+            int(during_hold.get("level") or 0) == 1 and
             later.get("mode") == "STANDBY" and not later.get("oil_scavenge_on") and
             not later.get("current_block") and int(later_output.get("level") or 0) == 0,
             active={"telemetry": active_data.get("current_block"), "output": physical_active},
-            skipped={"event": skipped_data.get("last_event"), "output": immediate_off},
+            during_hold={"block": still_waiting.get("current_block"), "output": during_hold},
             after_old_deadline={"mode": later.get("mode"), "block": later.get("current_block"),
                                 "scavenge": later.get("oil_scavenge_on"), "output": later_output},
         )

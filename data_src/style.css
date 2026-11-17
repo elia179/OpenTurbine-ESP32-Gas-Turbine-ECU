@@ -1169,6 +1169,29 @@ body[data-page="tools"] main { max-width: 1180px; }
 /* ── Misc utility ────────────────────────────────────────────── */
 .oil-sub       { font-size: 0.66rem; color: var(--dim); margin-top: 0.2rem; font-family: var(--font-ui); }
 .command-details{margin-top:.45rem}.command-details summary{cursor:pointer;color:var(--muted);font-size:.78rem}.command-details[open] summary{margin-bottom:.25rem}
+.dashboard-card-links{display:flex;flex-wrap:wrap;gap:.25rem .8rem;font-size:.75rem}
+.card:has(> .dashboard-card-details),.gs-banner:has(> .dashboard-card-details),
+.hw-item-card:has(> .registry-card-summary [data-card-edit][aria-expanded="false"]:enabled){cursor:pointer}
+.dashboard-card-details>summary{list-style:none}
+.dashboard-card-details>summary::-webkit-details-marker{display:none}
+.dashboard-card-details>summary:not(:focus-visible){position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.card:has(> .dashboard-card-details>summary:focus-visible),
+.gs-banner:has(> .dashboard-card-details>summary:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.command-details.dashboard-card-details:not([open]){margin-top:0}
+details.config-group[data-group="safety"]{border-inline-start:3px solid var(--accent)}
+details.config-group[data-group="safety"]>summary{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+details.config-group[data-group="safety"]>summary .group-title{color:var(--accent)}
+.calibration-pump-controls{margin-top:.45rem}
+.calibration-pump-toggle{display:inline-flex;align-items:center;gap:.5rem;min-height:36px;font-size:.85rem;cursor:pointer}
+.calibration-pump-controls [data-pump-settings]>p{margin:.35rem 0;font-size:.82rem}
+.output-fault-override .hw-toggle{display:flex;align-items:center;gap:.65rem;min-height:40px;padding:.35rem 0}
+.output-fault-override{padding-top:.65rem}
+.pressure-cal-controls{display:flex;align-items:end;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+.pressure-cal-controls label{display:grid;gap:.25rem;color:var(--dim);font-size:.78rem}
+.pressure-cal-controls input[type="number"]{width:10rem;max-width:100%}
+.pressure-cal-controls button{margin:0}
+.pressure-cal-controls .pressure-capture-status{color:var(--green);font-size:.78rem}
+.dashboard-view-controls :is(#unit-temp-btn,#unit-press-btn){font-size:.75rem;padding:.24rem .55rem;border-radius:4px;background:var(--surface);color:var(--dim)}
 .safety-local-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.5rem;margin:.55rem 0}.safety-local-toggle{display:grid;gap:.2rem;padding:.55rem .65rem;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}.safety-local-toggle label{font-weight:700;font-size:.76rem}.safety-local-toggle span{font-size:.65rem;color:var(--dim);line-height:1.4}
 .last-event-val { font-size: 0.84rem; color: var(--text); word-break: break-word; line-height: 1.4; margin-top: 0.15rem; }
 .stop-warn     { font-size: 0.7rem; color: var(--red); margin-top: 0.25rem; display: none; }
@@ -1399,23 +1422,26 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
   border-radius: 999px;
 }
 .registry-remove-panel { max-width: 560px; }
-.calibration-jump {
-  display: flex;
+.calibration-workspace{margin-bottom:1rem}
+.calibration-workspace-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.65rem;
+  flex-wrap:wrap;
+}
+.calibration-workspace .cfg-workspace-title{margin:0;font-size:1.05rem;letter-spacing:.02em}
+.calibration-workspace .unit-controls{display:flex;align-items:center;gap:.3rem;color:var(--dim);font-size:.7rem}
+.calibration-workspace .unit-controls button{min-height:34px;padding:.28rem .65rem;font-size:.69rem}
+.calibration-jump:not([hidden]) {
+  display:flex;
   align-items: center;
   gap: .55rem;
   flex-wrap: wrap;
-  margin: -.25rem 0 1rem;
-  padding: .65rem .75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--surface);
+  margin-top:.8rem;
 }
-.calibration-jump label {
-  color: var(--text-2);
-  font-size: .78rem;
-  font-weight: 700;
-}
-.calibration-jump select { flex: 1 1 16rem; }
+.calibration-jump select { flex:1 1 16rem;min-width:0;min-height:44px;background:var(--bg);border-color:var(--border-light);font:inherit }
+#calibration-empty{margin:.65rem 0 0;color:var(--dim);font-size:.8rem}
 .calibration-jump span {
   color: var(--dim);
   font-size: .72rem;

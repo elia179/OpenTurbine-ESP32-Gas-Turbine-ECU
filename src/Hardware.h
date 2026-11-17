@@ -512,7 +512,7 @@ namespace Hardware {
         // curve instead of the beta equation.
         if (!strcmp(c.role, "temperature") && c.temperatureInterface == 4 &&
             (rawCounts <= 0.0f || rawCounts >= 4095.0f)) return NAN;
-        if (c.calibrationPointCount >= 2) {
+        if (c.usesCalibrationPoints()) {
             if (!strcmp(c.role, "generic") || !strcmp(c.role, "operator") || !strcmp(c.role, "flame")) {
                 float calibrated = PiecewiseCalibration::applyClamped(rawCounts, c.calibrationPointCount,
                                                                       c.calibrationRaw, c.calibrationValue);
@@ -688,7 +688,12 @@ namespace Hardware {
     inline void mirrorCoreRegistryInput(uint8_t i, uint8_t kind, EngineData& ed) {
         if (kind == 1) { ed.registryInputValue[i] = ed.n1Rpm; ed.registryInputHealthy[i] = ed.n1Healthy; }
         else if (kind == 2) { ed.registryInputValue[i] = ed.n2Rpm; ed.registryInputHealthy[i] = ed.n2Healthy; }
-        else if (kind == 3) { ed.registryInputValue[i] = ed.fuelFlow; ed.registryInputHealthy[i] = ed.fuelFlowHealthy; }
+        else if (kind == 3) {
+            ed.registryInputValue[i] = ed.fuelFlow;
+            ed.registryInputHealthy[i] = ed.fuelFlowHealthy;
+            ed.registryInputRaw[i] = g_sensorFuelFlowPulse.hardwareReady()
+                ? int32_t(g_sensorFuelFlowPulse.accumulatedPulses() & INT32_MAX) : -1;
+        }
         else if (kind == 4) {
             const auto& c = HardwareConfig::channelRegistry.inputs[i];
             ed.registryInputValue[i] = c.inverted ? 1.0f - ed.rcThrottleNorm : ed.rcThrottleNorm;
@@ -937,6 +942,8 @@ namespace Hardware {
             } else if (!strcmp(c.role, "flow")) {
                 float ppl = c.pulsesPerUnit > 0.0f ? c.pulsesPerUnit : 1.0f;
                 value = hz * 60.0f / ppl;
+                // Publish an independent running pulse count for measured-volume calibration.
+                ed.registryInputRaw[i] = int32_t((uint32_t(ed.registryInputRaw[i]) + count) & INT32_MAX);
             }
             if (!strcmp(c.role, "speed") || !strcmp(c.role, "flow")) {
                 ed.registryInputValue[i] = value;
@@ -1844,6 +1851,7 @@ namespace Hardware {
         g_blkCooldownSpin.oilPressureTarget  = Config::cooldownOilPressureTarget;
         g_blkCooldownSpin.timeoutMs          = Config::shutdownCooldownTimeoutMs;
         g_blkFinalStop.timeoutMs            = Config::shutdownFinalStopTimeoutMs;
+        g_blkFinalStop.speedSource         = static_cast<FinalStop::SpeedSource>(Config::finalStopSpeedSource);
         g_blkFinalStop.rpmZeroThreshold    = Config::rpmZeroThreshold;
         g_blkFinalStop.oilScavengeMs       = (unsigned long)Config::finalStopOilScavengeMs;
         g_blkOilPrime.useScavengePump      = Config::oilPrimeUseScavengePump;
@@ -2475,6 +2483,7 @@ namespace Hardware {
             ed.flameSensorRaw = ed.registryInputRaw[flameRegistry];
             ed.flameDetected=ed.flameHealthy && ed.registryInputValue[flameRegistry]>=.5f;
             ed.flameSampleSeq = ed.registryInputSampleSeq[flameRegistry];
+            ed.flameSampleMs = ed.registryInputSampleMs[flameRegistry];
         } else {
             ed.flameHealthy = false;
             ed.flameDetected = false;
@@ -2560,7 +2569,7 @@ namespace Hardware {
             // open/short and stale-sample health checks.
             if (oilTempSpecial >= 0) {
                 const auto& channel = HardwareConfig::channelRegistry.inputs[oilTempSpecial];
-                if (channel.temperatureInterface == 4 && channel.calibrationPointCount >= 2) {
+                if (channel.temperatureInterface == 4 && channel.usesCalibrationPoints()) {
                     const float calibrated = registryAnalogPhysicalInput(ed.oilTempRaw, channel);
                     ed.oilTempHealthy = ed.oilTempHealthy && isfinite(calibrated);
                     if (ed.oilTempHealthy) ed.oilTemp = calibrated;
@@ -2571,6 +2580,8 @@ namespace Hardware {
         if (oilTempSpecial >= 0) {
             ed.registryInputValue[oilTempSpecial] = ed.oilTemp;
             ed.registryInputHealthy[oilTempSpecial] = ed.oilTempHealthy;
+            if (HardwareConfig::channelRegistry.inputs[oilTempSpecial].temperatureInterface == 4)
+                ed.registryInputRaw[oilTempSpecial] = ed.oilTempRaw;
         }
         if (battAnalog >= 0) {
             ed.battVoltage = ed.registryInputValue[battAnalog];
@@ -3074,7 +3085,7 @@ namespace Hardware {
     inline void allOff();
 
     // ── Actuator update: EngineData demands → physical signals ─
-    inline void updateActuators() {
+    inline void updateActuators(void (*finalizeDemands)()) {
         if(PcbPowerStage::active() && !PcbPowerStage::ready())return;
         auto& hw = HardwareConfig::instance();
         auto& ed = EngineData::instance();
@@ -3104,6 +3115,7 @@ namespace Hardware {
         const bool starterDelayOk = !hw.hasStarterEn ||
             (starterEnableQualified &&
              millis() - starterEnableSinceMs >= (unsigned long)hw.starterEnDelayMs);
+        ed.starterOutputReady = starterDelayOk;
         ed.effectiveStarterDemand = starterDelayOk
             ? constrain(ed.starterDemand, 0.0f, 1.0f) : 0.0f;
         if (ed.mode == SysMode::STARTUP) {
@@ -3122,6 +3134,7 @@ namespace Hardware {
         // so ThrottleSlew's feedback loop never sees the inflated value.
         const float mainFuelApplied = Config::effectiveMainFuelDemand(ed);
         ed.mainFuelAppliedDemand = (hw.hasThrottle && g_actThrottle) ? mainFuelApplied : 0.0f;
+        finalizeDemands();
         if (hw.hasThrottle && g_actThrottle) g_actThrottle->set(mainFuelApplied);
 
         // Starter enable output

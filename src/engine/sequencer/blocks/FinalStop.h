@@ -3,15 +3,24 @@
 #include "../../EngineData.h"
 #include "../../../system/HardwareConfig.h"
 #include <Arduino.h>
+#include <math.h>
 
-// Final shutdown: wait for N1=0, cut main oil, run scavenge pump (if fitted), enter STANDBY.
+// Final shutdown: wait for the selected shafts or the configured delay, then cut main oil.
 class FinalStop : public IBlock {
 public:
+    enum class SpeedSource : uint8_t { N1, N2, BothFitted, TimerOnly };
+    SpeedSource   speedSource      = SpeedSource::N1;
     float         rpmZeroThreshold = 100.0f;
     unsigned long timeoutMs        = 10000;
     unsigned long oilScavengeMs    = 0;      // scavenge pump extra runtime after main oil cut (0 = disabled)
 
     const char* name() override { return "FinalStop"; }
+
+    static bool hasRequiredSpeedInputs(SpeedSource source) {
+        const uint8_t required = requiredShafts(source);
+        return source == SpeedSource::TimerOnly ||
+               (required != 0 && (required & fittedShafts()) == required);
+    }
 
     void onEnter() override {
         _entryMs    = millis();
@@ -25,16 +34,22 @@ public:
         unsigned long now = millis();
 
         if (_phase == 0) {
-            // Unhealthy N1 must not read as "stopped" — the shaft may still be
-            // spinning. Wait out timeoutMs instead (same policy as RPMDrop).
-            // With no N1 sensor there is no proof that the shaft has stopped.
-            // Use the configured time as a conservative spool-down delay, just
-            // as we do when fitted N1 feedback becomes unhealthy.
-            bool stopped = HardwareConfig::hasN1Rpm
-                         && ed.n1Healthy
-                         && (ed.n1Rpm <= rpmZeroThreshold);
-            _timedOut = !stopped && (now - _entryMs) > timeoutMs;
-            if (stopped || _timedOut) {
+            const uint8_t required = requiredShafts(speedSource);
+            const bool needN1 = (required & N1Mask) != 0;
+            const bool needN2 = (required & N2Mask) != 0;
+            const float n1 = ed.n1Rpm;
+            const float n2 = ed.n2Rpm;
+            const bool n1Valid = ed.n1Healthy && isfinite(n1) && n1 >= 0.0f;
+            const bool n2Valid = ed.n2Healthy && isfinite(n2) && n2 >= 0.0f;
+            const bool timedOnly = speedSource == SpeedSource::TimerOnly;
+            const bool inputsFitted = hasRequiredSpeedInputs(speedSource);
+            const bool stopped = !timedOnly && inputsFitted &&
+                                 (!needN1 || (n1Valid && n1 <= rpmZeroThreshold)) &&
+                                 (!needN2 || (n2Valid && n2 <= rpmZeroThreshold));
+            const unsigned long elapsed = now - _entryMs;
+            const bool delayEnded = elapsed >= timeoutMs;
+            _timedOut = !timedOnly && !stopped && delayEnded;
+            if (stopped || delayEnded) {
                 // Cut main oil pump
                 ed.oilTargetBar    = 0;
                 ed.oilPumpPct = 0;
@@ -48,14 +63,19 @@ public:
                     return _timedOut ? BlockResult::TimeoutContinue : BlockResult::Complete;
                 }
             } else {
-                char _buf[80];
-                if (!HardwareConfig::hasN1Rpm)
-                    snprintf(_buf, sizeof(_buf), "No N1 sensor (waiting %lu ms spool-down delay)", timeoutMs);
-                else if (!ed.n1Healthy)
-                    snprintf(_buf, sizeof(_buf), "N1 sensor unhealthy (waiting %lu ms timeout)", timeoutMs);
+                char reason[80];
+                if (timedOnly)
+                    snprintf(reason, sizeof(reason), "Spool-down delay: %lu ms remaining", timeoutMs - elapsed);
+                else if (!inputsFitted)
+                    snprintf(reason, sizeof(reason), "Required speed sensor missing (%lu ms left)", timeoutMs - elapsed);
+                else if ((needN1 && !n1Valid) || (needN2 && !n2Valid))
+                    snprintf(reason, sizeof(reason), "%s speed unavailable (%lu ms left)",
+                             needN1 && !n1Valid ? "N1" : "N2", timeoutMs - elapsed);
+                else if (needN1 && needN2)
+                    snprintf(reason, sizeof(reason), "Waiting for stop: N1 %.0f RPM, N2 %.0f RPM", n1, n2);
                 else
-                    snprintf(_buf, sizeof(_buf), "N1: %d RPM (waiting for zero)", (int)ed.n1Rpm);
-                setWaitReason(_buf);
+                    snprintf(reason, sizeof(reason), "Waiting for stop: %s %.0f RPM", needN1 ? "N1" : "N2", needN1 ? n1 : n2);
+                setWaitReason(reason);
             }
         }
         if (_phase == 1) {
@@ -78,6 +98,24 @@ public:
     }
 
 private:
+    static constexpr uint8_t N1Mask = 1;
+    static constexpr uint8_t N2Mask = 2;
+
+    static uint8_t fittedShafts() {
+        return (HardwareConfig::hasN1Rpm ? N1Mask : 0) |
+               (HardwareConfig::hasN2Rpm ? N2Mask : 0);
+    }
+
+    static uint8_t requiredShafts(SpeedSource source) {
+        switch (source) {
+            case SpeedSource::N1: return N1Mask;
+            case SpeedSource::N2: return N2Mask;
+            case SpeedSource::BothFitted: return fittedShafts();
+            case SpeedSource::TimerOnly: return 0;
+        }
+        return 0;
+    }
+
     unsigned long _entryMs   = 0;
     unsigned long _stoppedMs = 0;
     int           _phase     = 0;

@@ -5,7 +5,7 @@ const {chromium}=require('playwright');
  try{for(const packed of [false,true]){
   const p=await browser.newPage();await p.addInitScript(()=>{localStorage.setItem('ot_beta_notice_ack_v1','1');localStorage.setItem('ot_theme_onboarded_v1','1');});
   if(packed)await p.route(/\/(?:calibration\.html|app\.js|ui_dialog\.js)(?:\?.*)?$/,r=>{const file=new URL(r.request().url()).pathname.split('/').pop();return r.fulfill({contentType:file.endsWith('html')?'text/html':'application/javascript',body:gunzipSync(fs.readFileSync('data/'+file+'.gz'))});});
-  await p.goto(base+'/calibration.html');await p.waitForFunction(()=>typeof patchHardware==='function'&&typeof OTSaveHardwarePatch==='function');
+  await p.goto(base+'/calibration.html');await p.waitForFunction(()=>calibrationHardwareEcu && cfg.hardware);
   const result=await p.evaluate(async()=>{
    const actualFetch=window.fetch,actualAlert=window.alert;const messages=[];let callbacks=0,writes=0;
    window.alert=message=>messages.push(message);

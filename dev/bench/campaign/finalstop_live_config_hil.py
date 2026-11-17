@@ -135,16 +135,22 @@ def main() -> int:
         # below is deliberately large and its Wi-Fi transfer time is unrelated
         # to the configured turbine spool-down delay.
         elapsed = time.monotonic() - started
-        time.sleep(0.5)
-        durable_engine = dut._get("/api/ecu_config")
+        durable_ramp = None
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            durable_engine = dut._get("/api/ecu_config")
+            durable_ramp = durable_engine.get("settings", {}).get("throttle", {}).get("ramp_up_ms")
+            if durable_ramp == 250:
+                break
+            # Give the standby writer an idle interval between flash-backed reads.
+            time.sleep(0.8)
         oil_after = tester.get("OILPUMP_OUT")
         record(
             "NO_N1_FINALSTOP_USES_CONFIGURED_DELAY",
-            in_shutdown and standby and 1.75 <= elapsed <= 3.7 and
-            int(durable_engine.get("settings", {}).get("throttle", {}).get("ramp_up_ms") or 0) == 250,
+            in_shutdown and standby and 1.75 <= elapsed <= 3.7,
             elapsed_s=round(elapsed, 3), last_event=stopped.get("last_event"),
-            durable_ramp_up_ms=durable_engine.get("settings", {}).get("throttle", {}).get("ramp_up_ms"),
         )
+        record("LIVE_FIELD_PERSISTS_IN_STANDBY", durable_ramp == 250, durable_ramp_up_ms=durable_ramp)
         record(
             "OIL_STAYS_ON_THROUGH_DELAY_THEN_STANDBY_FORCES_OFF",
             float(oil_before.get("duty") or 0) > 0.2 and
@@ -156,6 +162,8 @@ def main() -> int:
 
         # Sequence topology/timing is not a marked live field. It must be
         # rejected while RUNNING, then apply normally after reaching STANDBY.
+        if not runner.dc._wait_config_apply():
+            raise RuntimeError("deferred save did not release the configuration gate")
         stopped_code, stopped_resp = dut.patch("/api/config", {
             "sequence": {"shutdown": {"final_stop_timeout_ms": 1000}},
         })

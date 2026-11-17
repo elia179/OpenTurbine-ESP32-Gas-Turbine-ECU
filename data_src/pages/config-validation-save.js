@@ -725,12 +725,6 @@ function _cancelSaveRecap() {
   if (cb) cb.disabled = false;
 }
 
-// These page-owned Hardware writes also require an explicit acknowledgement.
-async function _saveConfigHardwarePatch(source, patch) {
-  const {data}=await window.OTSaveHardwarePatch(patch,source);
-  return data;
-}
-
 // OT_CONTROLLERS_ONLY_BEGIN
 async function _saveControllerChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
@@ -749,17 +743,8 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
       throw Error('Sequence changed since the review. Reload Controllers and review the changes again.');
     Object.assign(hardwarePatch,cleanup.patch);
   }
-  await _saveConfigHardwarePatch('controllers', hardwarePatch);
-  // Finish the Hardware reboot before sending the second page-owned write.
-  if (Object.keys(payload).length) {
-    saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
-    await window.OTWaitForSaveRestart();
-    if (typeof window.OTSaveConfigPatch !== 'function')
-      throw new Error('Shared save support did not load; reload this page and retry');
-    const {response: settingsResponse, data} = await window.OTSaveConfigPatch(payload);
-    if (!settingsResponse?.ok || data?.ok !== true)
-      throw new Error(data?.error || data?.reason || `Settings HTTP ${settingsResponse?.status || 0}`);
-  }
+  const {response} = await window.OTSaveHardwarePatch(hardwarePatch, 'controllers', payload, window.OTConfigEditor.requireEcu());
+  window.OTSetup?.mark('config', response);
   _clearDirty();
   saveMsg.textContent = '✓ Saved — ECU rebooting…';
   saveMsg.style.color = 'var(--green)';
@@ -772,28 +757,13 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
 async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   if (typeof stopGlobalTelemetry === 'function') stopGlobalTelemetry();
   await new Promise(resolve => setTimeout(resolve, 150));
-  let settingsReboot = false;
-  if (_systemHardwareDirty) {
-    const hardwarePatch = {};
-    for (const path of _systemHardwareChangedPaths) {
-      const value = getPath(hwCfg, path.split('.'));
-      if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
-    }
-    await _saveConfigHardwarePatch('system', hardwarePatch);
+  const hardwarePatch = {};
+  for (const path of _systemHardwareChangedPaths) {
+    const value = getPath(hwCfg, path.split('.'));
+    if (value !== undefined) setPath(hardwarePatch, path.split('.'), value);
   }
-  if (Object.keys(payload).length) {
-    if (_systemHardwareDirty) {
-      saveMsg.textContent = 'Hardware saved — reconnecting to save page settings…';
-      await window.OTWaitForSaveRestart();
-    }
-    if (typeof window.OTSaveConfigPatch !== 'function')
-      throw new Error('Shared save support did not load; reload this page and retry');
-    const {response, data} = await window.OTSaveConfigPatch(payload);
-    if (!response?.ok || data?.ok !== true)
-      throw new Error(data?.error || data?.reason || `Settings HTTP ${response?.status || 0}`);
-    settingsReboot = data?.reboot === true;
-  }
-  const rebooting = _systemHardwareDirty || settingsReboot;
+  const {data} = await window.OTSaveHardwarePatch(hardwarePatch, 'system', payload, window.OTConfigEditor.requireEcu());
+  const rebooting = data.reboot === true;
   const nextWifiName = _systemHardwareChangedPaths.has('profile_id')
     ? String(hwCfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine' : '';
   _clearDirty();
@@ -886,13 +856,15 @@ async function _performConfigSave() {
   const sendSave = async () => {
     if (typeof window.OTSaveConfigPatch !== 'function')
       throw new Error('Shared save support did not load; reload this page and retry');
-    const { response, data } = await window.OTSaveConfigPatch(payload);
-    if (response?.ok && data?.ok === true) return data;
+    const { response, data } = await window.OTSaveConfigPatch(payload, window.OTConfigEditor.requireEcu());
+    if (response?.ok && data?.ok === true) return {response, data};
     throw new Error(data?.error || data?.reason || ('HTTP ' + (response?.status || 0)));
   };
-  const finishSave = () => sendSave().then(async d => {
+  const finishSave = () => sendSave().then(async ({response, data:d}) => {
     if (d.ok) {
-      if (window.OTSetup) OTSetup.mark('config');
+      if (CONFIG_SURFACE === 'controllers' && d.persist !== 'deferred_until_safe') {
+        window.OTSetup?.mark('config', response);
+      }
       // Firmware returns success after validation and queueing. Ordinary saves
       // are already durable; Developer-Mode live tuning is deliberately kept
       // out of flash until the engine reaches a safe mode.

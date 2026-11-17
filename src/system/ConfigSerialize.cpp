@@ -336,12 +336,14 @@ const ConfigField<int> SHUTDOWN_INT_FIELDS[] = {
     CONFIG_FIELD(shutdownRpmDropTimeoutMs, "rpm_drop_timeout_ms"),
     CONFIG_FIELD(shutdownCooldownTimeoutMs, "cooldown_timeout_ms"),
     CONFIG_FIELD(shutdownFinalStopTimeoutMs, "final_stop_timeout_ms"),
+    CONFIG_FIELD(finalStopSpeedSource, "final_stop_speed_source"),
     CONFIG_FIELD(finalStopOilScavengeMs, "oil_scavenge_ms"),
 };
 const ConfigField<bool> SHUTDOWN_BOOL_FIELDS[] = {
     CONFIG_FIELD(cooldownUseScavengePump, "cooldown_use_scavenge"),
     CONFIG_FIELD(cooldownUseStarter, "cooldown_use_starter"),
     CONFIG_FIELD(cooldownUseOilPump, "cooldown_use_oil"),
+    CONFIG_FIELD(cooldownKeepOilOnExit, "cooldown_keep_oil_on_exit"),
 };
 
 const ConfigField<float> OIL_ADVANCED_FLOAT_FIELDS[] = {
@@ -555,7 +557,9 @@ void Config::_applyDefaults() {
     shutdownRpmDropThreshold = 5000; shutdownRpmDropTimeoutMs = 15000;
     shutdownCooldownTimeoutMs = 60000; shutdownFinalStopTimeoutMs = 10000;
     rpmZeroThreshold = 100.0f;
+    finalStopSpeedSource = 0;
     cooldownUseStarter = true; cooldownUseOilPump = true;
+    cooldownKeepOilOnExit = false;
     cooldownStarterPct = 40.0f; cooldownOilPct = 30.0f; cooldownOilPressureTarget = 2.0f;
     throttleRampUpMs = 1000; throttleRampDownMs = 2000;
     throttleIdleMaxPct = 50; throttleExpo = 0.0f;
@@ -1250,7 +1254,7 @@ void Config::_fromDoc(JsonVariantConst doc, bool resolveRuleHandles) {
     if (abTotRiseDegC < 0.0f) abTotRiseDegC = 0.0f;
     if (abTotRiseWindowMs < 0) abTotRiseWindowMs = 0;
     if (abAssumeIgnitedMs < 0) abAssumeIgnitedMs = 0;
-    if (abFlameTimeoutMs < abAssumeIgnitedMs) abFlameTimeoutMs = abAssumeIgnitedMs;
+    if (abFlameTimeoutMs < 0) abFlameTimeoutMs = 0;
     if (abFlameLossDelayMs < 0) abFlameLossDelayMs = 0;
     if (abFlameLossDelayMs > 60000) abFlameLossDelayMs = 60000;
     if (abStabilizeMs < 0) abStabilizeMs = 0;

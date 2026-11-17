@@ -14,6 +14,7 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await page.addInitScript(()=>{localStorage.setItem('ot_beta_notice_ack_v1','1');localStorage.setItem('ot_theme_onboarded_v1','1');localStorage.setItem('ot_gs_dismissed','1');});
     const initial=await(await page.request.get(base+'/__sim/state')).json();
     const state=guidedFixture(initial,1);state.settings.rules=[];state.hardware.oil_loops=[];state.hardware.controllers.oil_loop=false;
+    state.settings.oil.running_min = 0;
     // The walkthrough starts after Build 1's physical channel/calibration checks.
     // Remove the answers for the controller and sequence tasks tested below.
     for(const tab of ['startup','shutdown']){state.hardware[tab+'_seq']=[];state.hardware[tab+'_enter_actions']=[];state.hardware[tab+'_exit_actions']=[];state.hardware[tab+'_delay_ms']=[];}
@@ -26,7 +27,11 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
       await clickSaveControls(page);
       const warning=page.getByRole('button',{name:'Save anyway',exact:true});
       if(await warning.isVisible())throw Error('Recipe has unresolved save warnings: '+await page.locator('.ot-dialog-overlay.show').innerText());
-      const written=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/config'&&['POST','PATCH'].includes(response.request().method()),{timeout:30000});
+      const written=page.waitForResponse(response=>{
+        const url=new URL(response.url());
+        return response.request().method()==='PATCH' &&
+          (url.pathname==='/api/config' || url.searchParams.get('source')==='controllers');
+      },{timeout:30000});
       written.catch(()=>{});
       await page.locator('#save-recap-confirm-btn').click();await written;
       await page.waitForFunction(()=>document.querySelector('#save-msg')?.textContent.includes('Saved'));
@@ -67,9 +72,9 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
       const node=await add('startup',title,'ACTION'),control=field(node,title==='Set Main Fuel Metering'?'Demand':'Command');
       if(title==='Set Main Fuel Metering')await fill(control,value);else await control.selectOption(value);
     }
-    const temp=await add('startup','Confirm Combustion by Temperature','UNTIL');await fill(field(temp,'Target EGT'),e.tot_lightoff_c);await fill(field(temp,'Timeout'),e.lightoff_timeout_ms);
+    const temp=await add('startup','Wait for Temperature Threshold','UNTIL');await fill(field(temp,'Target EGT'),e.tot_lightoff_c);await fill(field(temp,'Timeout'),e.lightoff_timeout_ms);
     const checks=await add('startup','Final Startup Checks','CHECK');
-    await field(checks,'Require N1').check();await fill(field(checks,'Minimum accepted N1'),e.n1_final_min_rpm);await field(checks,'Require oil pressure').check();await fill(field(checks,'Running Low-Pressure Limit'),e.oil_min_bar);await field(checks,'Require engine temperature').check();await fill(field(checks,'Minimum accepted EGT'),e.tot_lightoff_c);await fill(field(checks,'Stable time required'),e.stable_ms);await fill(field(checks,'Overall timeout'),e.stable_timeout_ms);
+    await field(checks,'Require N1').check();await fill(field(checks,'Minimum accepted N1'),e.n1_final_min_rpm);await field(checks,'Require oil pressure').check();await field(checks,'Require engine temperature').check();await fill(field(checks,'Minimum accepted EGT'),e.tot_lightoff_c);await fill(field(checks,'Stable time required'),e.stable_ms);await fill(field(checks,'Overall timeout'),e.stable_timeout_ms);
     for(const title of ['Set Starter','Set Igniter']){const node=await add('startup',title,'ACTION');if(title==='Set Starter')await fill(field(node,'Demand'),0);else await field(node,'Command').selectOption('0');}
     await add('startup','Final Startup Checks','CHECK');
     assert.equal(await page.locator('#list-startup > .block-card').count(),9);
@@ -80,13 +85,21 @@ const {guidedFixture,example:e}=require('./guided_build_fixture.cjs');
     await page.getByRole('button',{name:'Shutdown',exact:true}).click();
     for(const title of ['Immediate Fuel and Ignition Cut','Wait for Rotor to Slow','Cooldown','Wait for Complete Stop'])await add('shutdown',title);
     assert.equal(await page.locator('#list-shutdown > .block-card').count(),4);
-    const sequenceWritten=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/config'&&response.request().method()==='PATCH',{timeout:30000});sequenceWritten.catch(()=>{});
+    const sequenceWritten=page.waitForResponse(response=>new URL(response.url()).searchParams.get('source')==='sequence'&&response.request().method()==='PATCH',{timeout:30000});sequenceWritten.catch(()=>{});
     await clickSaveControls(page,'#save-btn');await sequenceWritten;
     assert.equal(await page.locator('.ot-dialog-overlay.show').count(),0,'explicit starter cut and Final Startup Checks save without a misleading Spool advisory');
     await page.waitForFunction(()=>document.querySelector('#save-status')?.textContent.includes('Saved'));
     await page.reload();
     await page.waitForFunction(()=>document.querySelectorAll('#list-startup > .block-card').length===9);
     saved=await(await page.request.get(base+'/api/ecu_config')).json();assert.equal(saved.hardware.shutdown_seq.length,4);assert.equal(saved.hardware.startup_enter_actions[6][0].value,0);
+    await page.goto(base+'/sequence.html#oil-running-min');
+    await page.locator('[data-shared-oil-limit].deep-link-target').click();
+    await page.waitForURL('**/controllers.html*#cf-oil_rm');
+    await fill(page.locator('#cf-oil_rm'),e.oil_min_bar);
+    await saveControllers();
+    saved=await(await page.request.get(base+'/api/ecu_config')).json();
+    assert.equal(saved.settings.oil.running_min,e.oil_min_bar);
+    assert.equal(saved.hardware.oil_loops[0].low_pressure_bar,e.oil_min_bar);
     console.log('Both paths saved and reloaded, including explicit starter cut without a misleading Spool advisory.');
     // Build 2/3 field recipes start at their explicit cumulative hardware baseline.
     const second=guidedFixture(initial,2);second.settings.dynamic_idle.fuel_mode=1;second.hardware.controllers.dynamic_idle=false;second.settings.rules[0].output_min=e.fuel_idle_pct/100;

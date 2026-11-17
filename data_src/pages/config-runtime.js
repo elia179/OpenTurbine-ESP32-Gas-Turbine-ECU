@@ -225,10 +225,11 @@ async function factoryReset() {
     .then(async r => {
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(d.error || d.reason || ('HTTP ' + r.status));
-      return d;
+      return {response:r, data:d};
     })
-    .then(d => {
+    .then(({response, data:d}) => {
       if (d.ok) {
+        window.OTSetup?.clear(response);
         if (msg) { msg.textContent = 'Reset sent — device rebooting…'; msg.style.color = 'var(--yellow)'; msg.style.display = ''; }
         window.OTShowRebootOverlay?.({returnPath:'/system.html'});
       } else {
@@ -253,8 +254,9 @@ function compactEngineFileForRestore(text) {
     temp_interface:0, spi_clk:-1, spi_cs:-1, spi_miso:-1, spi_mosi:-1,
     tc_type:'K', temp_resolution:10, ntc_beta:3950, ntc_r0:10000,
     ntc_r_fixed:10000, ntc_pullup:true,
-    safe_demand:0, force_safe_on_fault:false, min_run_demand:0,
-    pwm_freq_hz:5000, pwm_res_bits:10,
+    force_safe_on_fault:false, min_run_demand:0,
+    // Keep explicit safe demand and PWM timing. Omitting safe demand can
+    // change prop-pitch park, and key presence selects custom PWM timing.
     invert:false, pullup:false, pulldown:false,
     has_current:false, current_pin:-1, current_mv_a:100,
     current_zero_v:1.65, current_max_a:0,
@@ -276,9 +278,9 @@ async function backupConfig() {
     let lastError;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const cfgRes = await fetch('/api/ecu_config', { cache:'no-store' });
+        const cfgRes = await fetch('/api/ecu_config', {cache:'no-store', signal:AbortSignal.timeout(20000)});
         if (!cfgRes.ok) throw new Error('HTTP ' + cfgRes.status);
-        return JSON.parse(await cfgRes.text());
+        return await cfgRes.blob();
       } catch (error) {
         lastError = error;
         if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
@@ -287,13 +289,14 @@ async function backupConfig() {
     throw lastError || new Error('No response');
   };
   fetchEngineFile()
-    .then(async cfg => {
+    .then(async savedFile => {
+      const cfg = await savedFile.text().then(text => JSON.parse(text)).catch(() => null);
+      const complete = cfg && [cfg.hardware, cfg.settings].every(section =>
+        section && typeof section === 'object' && !Array.isArray(section));
+      if (!complete) return {blob:savedFile, profilePart:'recovery_', complete:false};
       // Live status only annotates the backup; losing it must not discard a
       // complete engine file that has already been read successfully.
-      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null);
-      return [cfg, live || {}];
-    })
-    .then(([cfg, live]) => {
+      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null) || {};
       cfg._backup_meta = {
         timestamp:    new Date().toISOString(),
         fw_version:   live.fw_version || 'unknown',
@@ -301,10 +304,13 @@ async function backupConfig() {
         uptime_s:     live.uptime_s  || 0
       };
       const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
-      const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const profile = String(cfg._backup_meta.profile || 'OpenTurbine')
         .replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'OpenTurbine';
       const profilePart = /^openturbine$/i.test(profile) ? '' : profile + '_';
+      return {blob, profilePart, complete:true};
+    })
+    .then(({blob, profilePart, complete}) => {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
@@ -312,15 +318,17 @@ async function backupConfig() {
       a.click();
       URL.revokeObjectURL(url);
       if (state) {
-        state.textContent = 'Download started';
-        state.className   = 'tool-state done';
+        state.textContent = complete ? 'Download started' : 'Recovery copy started';
+        state.className   = complete ? 'tool-state done' : 'tool-state fault';
       }
       if (msg) {
-        msg.textContent = 'Download started. Confirm the complete engine file appears in Downloads before relying on it.';
-        msg.style.color = 'var(--green)';
+        msg.textContent = complete
+          ? 'Download started. Confirm the complete engine file appears in Downloads before relying on it.'
+          : 'Recovery copy started. The saved engine file is damaged or incomplete. Keep this copy for diagnosis and use a complete engine file to restore the ECU.';
+        msg.style.color = complete ? 'var(--green)' : 'var(--yellow)';
         msg.style.display = '';
       }
-      setTimeout(() => {
+      if (complete) setTimeout(() => {
         // A restore may have started or failed after the backup download.
         // Never clear that newer operation's status or error message.
         if (state?.textContent !== 'Download started') return;
@@ -433,10 +441,11 @@ async function restoreConfig(input) {
           ? 'Engine description must fit within 63 UTF-8 bytes.' : d.detail;
         throw new Error((d.error || d.reason || ('HTTP ' + r.status)) + (detail ? ': ' + detail : ''));
       }
-      return d;
+      return {response:r, data:d};
     })
-    .then(d => {
+    .then(({response, data:d}) => {
       if (d.ok) {
+        window.OTSetup?.clear(response);
         if (state) {
           state.textContent = 'Done — rebooting…';
           state.className   = 'tool-state done';
@@ -1141,9 +1150,6 @@ function _escHtml(s) {
 async function fetchJsonWithTimeout(url, ms = 8000) {
   return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 5) {
-  return window.OTReadJson(url, {attempts});
-}
 
 function revealConfigDeepLink() {
   const id = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));
@@ -1362,9 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // These are the ECU's two largest configuration documents and share one
   // bounded transfer buffer. Read them in order so an ordinary page open never
   // has to recover from an expected HTTP 409 collision.
-  const loadedConfig = await fetchJsonWithRetry('/api/config');
-  const loadedHardware = await fetchJsonWithRetry('/api/hardware');
-  return [loadedConfig, loadedHardware];
+  return window.OTConfigEditor.load(['/api/config', '/api/hardware']);
 })()
   .then(([c, hw]) => {
     cfg   = c;

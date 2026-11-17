@@ -89,11 +89,16 @@ function resolveSequenceActions(tab, sequence) {
     }
     if(name==='CooldownSpin'){
       if(param(name,'cooldown_use_starter',true)){
-        set('starter',Number(param(name,'cooldown_starter_pct',40))/100,'during','After combustion; skipped in Bench Mode');set('starter_en',1,'during');
+        set('starter',Number(param(name,'cooldown_starter_pct',40))/100,'during','After ignition attempt or recorded heat; skipped in Bench Mode');set('starter_en',1,'during');
+        set('starter',0,'exit');set('starter_en',0,'exit');
       }
-      if(param(name,'cooldown_use_oil_pump',true))set('oil_pump',sensorEnabled('oil_press')?`Pressure control: ${param(name,'cooldown_oil_pressure_bar',2)} bar`:Number(param(name,'cooldown_oil_pct',30))/100,'during','After combustion; skipped in Bench Mode');
-      if(param(name,'cooldown_use_scavenge',false))set('oil_scavenge_pump',1,'during');
-      for(const key of ['starter','starter_en','oil_pump','oil_scavenge_pump'])set(key,0,'exit');
+      if(param(name,'cooldown_use_oil_pump',true)){
+        set('oil_pump',sensorEnabled('oil_press')?`Pressure control: ${param(name,'cooldown_oil_pressure_bar',2)} bar`:Number(param(name,'cooldown_oil_pct',30))/100,'during','After ignition attempt or recorded heat; skipped in Bench Mode');
+        if(!param(name,'cooldown_keep_oil_on_exit',false))set('oil_pump',0,'exit');
+      }
+      if(param(name,'cooldown_use_scavenge',false)){
+        set('oil_scavenge_pump',1,'during');set('oil_scavenge_pump',0,'exit');
+      }
     }
     if(name==='FinalStop'){
       set('oil_pump',0,'during','After shaft-stop condition or timeout');

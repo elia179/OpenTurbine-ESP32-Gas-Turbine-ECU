@@ -216,11 +216,11 @@ public:
     // Called before sequencers/controllers calculate this tick's ordinary
     // demands. It removes last tick's rule overlay so those owners always
     // start from the last non-rule command rather than their own stale value.
-    static void releaseOwnedTargets() {
+    static void releaseOwnedTargets(bool restoreBaseDemand = true) {
         auto& ed = EngineData::instance();
         for (uint8_t i = 0; i < _ownedTargetCount; ++i)
             if (_actuatorUsable(_ownedTargets[i]))
-                _applyActuator(_ownedTargets[i], _ownedBaseDemands[i], ed, nullptr);
+                _applyActuator(_ownedTargets[i], restoreBaseDemand ? _ownedBaseDemands[i] : 0.0f, ed, nullptr);
         _ownedTargetCount = 0;
     }
 

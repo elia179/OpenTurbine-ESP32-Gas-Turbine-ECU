@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{gunzipSync}=require('node:zlib');
 const {chromium,firefox,webkit}=require('playwright');
+const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
 (async()=>{
  globalThis.OT_UI_SIM_PORT=17900+Math.floor(Math.random()*100);await import('./ui_mock_server.mjs');const base=`http://127.0.0.1:${OT_UI_SIM_PORT}`;
  for(const engine of [chromium,firefox,webkit])for(const gzip of [false,true]){
@@ -8,7 +9,7 @@ const {chromium,firefox,webkit}=require('playwright');
    await p.addInitScript(()=>{for(const k of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1'])localStorage.setItem(k,'1');});
    if(gzip)await p.route(/\/(controllers\.html|app\.js|theme\.js|style\.css)(?:\?.*)?$/,async r=>{const file=new URL(r.request().url()).pathname.split('/').pop();await r.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+file+'.gz'))});});
    await p.request.post(base+'/__sim/reset');await p.request.post(base+'/__sim/data',{data:{mode:'STANDBY',dev_mode:false,stop_switch_active:false,extra_cooldown_active:false}});await p.request.patch(base+'/api/config',{data:{sequence:{startup:{startup_egt_guard_enabled:false,startup_egt_limit_c:900,startup_egt_dwell_c:800,startup_egt_dwell_ms:1000}}}});
-   await p.goto(base+'/controllers.html');await p.waitForFunction(()=>document.querySelector('#cf-sf_sg_en'));await p.evaluate(()=>openProtection('egt'));
+   await p.goto(base+'/controllers.html');await waitForEditorBaseline(p,'controllers');await p.evaluate(()=>openProtection('egt'));
    const card=p.locator('[data-protection="egt"]');await card.waitFor({state:'visible'});
    assert.equal(await card.locator('.protection-part').count(),4);assert.equal(await p.locator('#cf-sf_st').isDisabled(),false);
    const startup=card.locator('.protection-part-startup').filter({has:p.locator('#cf-sf_sg_en')});

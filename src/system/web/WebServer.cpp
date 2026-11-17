@@ -9,6 +9,7 @@
 #include "hardware_profile.h"
 #include "../version.h"
 #include "../Config.h"
+#include "../ConfigFileTransaction.h"
 #include "../HardwareConfig.h"
 #include "../DigitalInputMirror.h"
 #include "../HardwareCapabilities.h"
@@ -49,6 +50,7 @@ extern AnalogLinearSensor g_sensorFuelFlow;
 #include <lwip/priv/tcp_priv.h>
 #include <mbedtls/sha256.h>
 #include <new>
+#include <optional>
 
 static volatile bool _otaPendingRestart      = false;
 static volatile bool _otaInProgress          = false;
@@ -56,6 +58,7 @@ static bool          _otaError               = false;
 static AsyncWebServerRequest* _otaUploadOwner = nullptr;
 static unsigned long _otaUploadLastMs        = 0;
 static size_t        _otaChunkReceived       = 0;
+static size_t        _otaFinalChunkOffset    = 0;
 static volatile bool _assetUploadInProgress  = false;
 static bool          _assetUploadError       = false;
 static AsyncWebServerRequest* _assetUploadOwner = nullptr;
@@ -67,10 +70,14 @@ static size_t        _assetChunkReceived     = 0;
 static int8_t        _assetLastComplete      = -1;
 static size_t        _assetLastCompleteSize  = 0;
 static bool          _webAssetsComplete      = false;
-static AsyncWebServerRequest* _configRestoreOwner = nullptr;
-static File          _configRestoreFile;
-static bool          _configRestoreError     = false;
-static unsigned long _configRestoreLastMs    = 0;
+static AsyncWebServerRequest* _configUploadOwner = nullptr;
+static File          _configUploadFile;
+static bool          _configUploadError     = false;
+static bool          _configUploadOwnsApplyGate = false;
+static size_t        _configUploadBytes     = 0;
+static unsigned long _configUploadLastMs    = 0;
+static constexpr const char* CONFIG_UPLOAD_PATH = "/ecu_config.restore.tmp";
+static constexpr size_t CONFIG_UPLOAD_MAX = 196608UL; // matches the boot engine-file limit
 static volatile bool _hwRebootPending        = false;
 static unsigned long _hwRebootScheduledMs    = 0;
 static char _pendingRestartBlocker[80] = {};
@@ -267,8 +274,9 @@ static void _printCsvField(Print& out, const char* value) {
     out.print('"');
 }
 
-static void _mergeJsonObject(JsonObject dst, JsonObjectConst patch) {
+static void _mergeJsonObject(JsonObject dst, JsonObjectConst patch, const char* excludedKey = nullptr) {
     for (JsonPairConst kv : patch) {
+        if (excludedKey && strcmp(kv.key().c_str(), excludedKey) == 0) continue;
         JsonVariantConst src = kv.value();
         if (src.is<JsonObjectConst>()) {
             JsonVariant nestedVariant = dst[kv.key()];
@@ -426,13 +434,13 @@ static bool _writeWebAssetMarker() {
     char digest[65];
     if (!_webAssetDigest(digest)) return false;
     File marker = LittleFS.open(WEB_ASSET_MARKER, "w");
-    const bool ok = marker && marker.println(digest) > 0;
+    const bool ok = marker && marker.print(digest) == 64;
     if (marker) marker.close();
     return ok;
 }
 
-static bool _verifyWebAssetMarker() {
-    File marker = LittleFS.open(WEB_ASSET_MARKER, "r");
+static bool _verifyWebAssetMarker(const char* path = WEB_ASSET_MARKER) {
+    File marker = LittleFS.open(path, "r");
     if (!marker) return false;
     String expected = marker.readStringUntil('\n');
     marker.close();
@@ -442,7 +450,7 @@ static bool _verifyWebAssetMarker() {
 }
 
 static bool _maintenanceUploadInProgress() {
-    return _otaInProgress || _assetUploadInProgress || (_configRestoreOwner != nullptr);
+    return _otaInProgress || _assetUploadInProgress || (_configUploadOwner != nullptr);
 }
 
 static bool _rejectMaintenanceConflict(AsyncWebServerRequest* req, bool commandEnvelope = false) {
@@ -482,6 +490,8 @@ static bool _isStandbyToolCommand(OTCommand cmd) {
         case OTCommand::IDLE_TEST:
         case OTCommand::SET_OIL_DEMAND:
         case OTCommand::SET_OIL_PCT:
+        case OTCommand::SET_OIL_CAL_PCT:
+        case OTCommand::PRESSURE_CAL_PUMP:
         case OTCommand::SET_THROTTLE_PCT:
         case OTCommand::EXTRA_COOLDOWN:
         case OTCommand::CLEAR_LOG:
@@ -534,9 +544,12 @@ static bool _startsTimedActuatorTest(const OTPacket& pkt) {
 
 static bool _mayEnergizeOutput(const OTPacket& pkt) {
     switch (pkt.cmd) {
+        case OTCommand::SET_OIL_CAL_PCT:
+        case OTCommand::PRESSURE_CAL_PUMP: return pkt.fParam > 0.0f;
+        case OTCommand::SET_THROTTLE_PCT:
+            return (pkt.fParam != 0.0f ? pkt.fParam : float(pkt.iParam)) > 0.0f;
         case OTCommand::SET_OIL_DEMAND:
         case OTCommand::SET_OIL_PCT:
-        case OTCommand::SET_THROTTLE_PCT:
         case OTCommand::FUEL_PRIME:
         case OTCommand::OIL_PRIME:
         case OTCommand::IGN_TEST:
@@ -571,8 +584,20 @@ static const char* _missingHardwareForCommand(const OTPacket& pkt) {
         case OTCommand::FUEL_SOL_TEST: return HardwareConfig::hasFuelSol ? nullptr : "Fuel solenoid is not configured";
         case OTCommand::OIL_PRIME:
         case OTCommand::SET_OIL_PCT:
+        case OTCommand::SET_OIL_CAL_PCT:
         case OTCommand::SET_OIL_DEMAND: return HardwareConfig::hasOilPump ? nullptr : "Oil pump is not configured";
         case OTCommand::SET_THROTTLE_PCT: return HardwareConfig::hasThrottle ? nullptr : "Throttle output is not configured";
+        case OTCommand::PRESSURE_CAL_PUMP: {
+            const auto& registry = HardwareConfig::channelRegistry;
+            if (pkt.iParam < 0 || pkt.iParam >= registry.outputCount ||
+                !ChannelRegistry::isPressureCalibrationPump(registry.outputs[pkt.iParam]))
+                return "Select a configured pump output";
+            const auto& pump = registry.outputs[pkt.iParam];
+            if (pkt.fParam > 0.0f && pump.driver == ChannelRegistry::I2cRelay &&
+                !I2CDeviceManager::channelAvailable(pump))
+                return "Selected pump output is unavailable";
+            return nullptr;
+        }
         case OTCommand::IGN_TEST: return HardwareConfig::hasIgniter ? nullptr : "Igniter 1 is not configured";
         case OTCommand::IGN2_TEST: return HardwareConfig::hasIgniter2 ? nullptr : "secondary igniter is not configured";
         case OTCommand::START_TEST: return HardwareConfig::hasStarter ? nullptr : "Starter is not configured";
@@ -631,10 +656,18 @@ static const char* _commandPreflightRejectReason(const OTPacket& pkt) {
     if (_hwRebootPending && pkt.cmd != OTCommand::AB_STOP) {
         return "ECU is rebooting to apply a saved configuration. Reconnect and retry.";
     }
+    const bool energizing = _mayEnergizeOutput(pkt);
+    if (pkt.cmd == OTCommand::PRESSURE_CAL_PUMP && energizing && ed.mode != SysMode::STANDBY)
+        return "Pump-assisted pressure calibration requires STANDBY";
+    if (pkt.cmd == OTCommand::PRESSURE_CAL_PUMP && energizing &&
+        (ed.standbyOilFeedActive || ed.dryOilStopActive || ed.recoveryLockout))
+        return "A protection is active. Wait until it releases the outputs.";
+    if (energizing && (!Config::profileMatch || ed.configLocked || ed.configStorageFault))
+        return "Cannot energize tools until the ECU configuration is repaired.";
     if (const char* hw = _missingHardwareForCommand(pkt)) return hw;
-    if (_mayEnergizeOutput(pkt) && ed.stopSwitchActive)
+    if (energizing && ed.stopSwitchActive)
         return "Cannot energize tools while the STOP input is active. Release STOP first.";
-    if (_mayEnergizeOutput(pkt) && ed.stopSwitchConfigured && !ed.stopSwitchHealthy)
+    if (energizing && ed.stopSwitchConfigured && !ed.stopSwitchHealthy)
         return "Cannot energize tools because the configured STOP input is unavailable. Check its wiring or device.";
     if (_isStandbyToolCommand(pkt.cmd) && !_isStandbyLike(ed.mode)) {
         return "Command is only available in STANDBY or FAULT";
@@ -707,6 +740,8 @@ static bool _parseCommandName(const char* text, OTCommand& command) {
         {"TOGGLE_SAFETY_CHECKS", OTCommand::TOGGLE_SAFETY_CHECKS},
         {"TOGGLE_BENCH_MODE", OTCommand::TOGGLE_BENCH_MODE},
         {"SET_OIL_PCT", OTCommand::SET_OIL_PCT},
+        {"SET_OIL_CAL_PCT", OTCommand::SET_OIL_CAL_PCT},
+        {"PRESSURE_CAL_PUMP", OTCommand::PRESSURE_CAL_PUMP},
         {"SET_THROTTLE_PCT", OTCommand::SET_THROTTLE_PCT},
         {"SET_OIL_DEMAND", OTCommand::SET_OIL_DEMAND},
         {"EXTRA_COOLDOWN", OTCommand::EXTRA_COOLDOWN},
@@ -870,7 +905,35 @@ static void _discardAssetTemps() {
     }
 }
 
+#if defined(OT_PLATFORM_ESP32S3)
+static void _discardWebAssetBackups() {
+    for (uint16_t i = 0; i < WEB_ASSET_COUNT; ++i) {
+        const String backup = _assetBackupPath(i);
+        if (LittleFS.exists(backup)) LittleFS.remove(backup);
+    }
+    LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
+}
+
+static bool _restoreWebAssetGeneration() {
+    bool restored = true;
+    for (uint16_t i = 0; i < WEB_ASSET_COUNT; ++i) {
+        const String backup = _assetBackupPath(i);
+        if (!LittleFS.exists(backup)) continue;
+        const String target = _assetPath(i, false);
+        if ((LittleFS.exists(target) && !LittleFS.remove(target)) ||
+            !LittleFS.rename(backup, target)) restored = false;
+    }
+    if (!restored || !_verifyWebAssetMarker(WEB_ASSET_MARKER_BACKUP)) return false;
+    if (LittleFS.exists(WEB_ASSET_MARKER) && !LittleFS.remove(WEB_ASSET_MARKER)) return false;
+    return LittleFS.rename(WEB_ASSET_MARKER_BACKUP, WEB_ASSET_MARKER);
+}
+#endif
+
 static void _finishAssetUpload() {
+#if defined(OT_PLATFORM_ESP32S3)
+    if (!_webAssetsComplete && LittleFS.exists(WEB_ASSET_MARKER_BACKUP))
+        _webAssetsComplete = _restoreWebAssetGeneration();
+#endif
     _discardAssetTemps();
     _assetUploadOwner = nullptr;
     _assetUploadMask = 0;
@@ -895,34 +958,16 @@ static bool _commitWebAssetGeneration() {
             if (!LittleFS.rename(temp, target)) { ok = false; break; }
         }
     }
-    if (!ok) {
-        for (uint16_t i = 0; i < WEB_ASSET_COUNT; i++) {
-            String target = _assetPath(i, false);
-            String backup = _assetBackupPath(i);
-            if (LittleFS.exists(backup)) {
-                if (LittleFS.exists(target)) LittleFS.remove(target);
-                LittleFS.rename(backup, target);
-            }
-        }
-    } else {
-        for (uint16_t i = 0; i < WEB_ASSET_COUNT; i++) {
-            String backup = _assetBackupPath(i);
-            if (LittleFS.exists(backup)) LittleFS.remove(backup);
-        }
-    }
 #endif
-    if (ok) {
-        ok = _writeWebAssetMarker();
-        if (ok) LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
-    }
-#if defined(OT_PLATFORM_ESP32S3)
-    if (!ok && LittleFS.exists(WEB_ASSET_MARKER_BACKUP)) {
-        LittleFS.remove(WEB_ASSET_MARKER);
-        LittleFS.rename(WEB_ASSET_MARKER_BACKUP, WEB_ASSET_MARKER);
-        _webAssetsComplete = _verifyWebAssetMarker();
-    } else
-#endif
+    // A valid completion marker commits the generation. Keep rollback files
+    // until the marker can be read back and matches the installed pages.
+    if (ok) ok = _writeWebAssetMarker() && _verifyWebAssetMarker();
     _webAssetsComplete = ok;
+#if defined(OT_PLATFORM_ESP32S3)
+    if (ok) _discardWebAssetBackups();
+#else
+    if (ok) LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
+#endif
     return ok;
 }
 
@@ -992,47 +1037,40 @@ static void __attribute__((noinline)) _handleStartRequest(
 }
 
 static void _recoverInterruptedAssetUpdate() {
-    bool hasBackup = false;
-    bool hasTemp = false;
-    for (uint16_t i = 0; i < WEB_ASSET_COUNT; i++) {
-        hasBackup |= LittleFS.exists(_assetBackupPath(i));
-        hasTemp |= LittleFS.exists(_assetPath(i, true));
-    }
-
-    if (hasBackup && hasTemp) {
-        Serial.println("[WebAssets] Interrupted swap detected - restoring previous pages");
-        for (uint16_t i = 0; i < WEB_ASSET_COUNT; i++) {
-            String target = _assetPath(i, false);
-            String backup = _assetBackupPath(i);
-            if (LittleFS.exists(backup)) {
-                if (LittleFS.exists(target)) LittleFS.remove(target);
-                LittleFS.rename(backup, target);
-            }
-        }
-    } else if (hasBackup) {
-        // Every staged file was installed before power was lost; discard old copies.
-        Serial.println("[WebAssets] Completing installed page update cleanup");
-        for (uint16_t i = 0; i < WEB_ASSET_COUNT; i++) {
-            String backup = _assetBackupPath(i);
-            if (LittleFS.exists(backup)) LittleFS.remove(backup);
+#if defined(OT_PLATFORM_ESP32S3)
+    bool hasBackup = LittleFS.exists(WEB_ASSET_MARKER_BACKUP);
+    for (uint16_t i = 0; i < WEB_ASSET_COUNT && !hasBackup; ++i)
+        hasBackup = LittleFS.exists(_assetBackupPath(i));
+    if (hasBackup) {
+        if (_verifyWebAssetMarker()) {
+            // Power may fail after commit and before cleanup finishes.
+            _discardWebAssetBackups();
+        } else {
+            Serial.println("[WebAssets] Interrupted swap detected - restoring previous pages");
+            _restoreWebAssetGeneration();
         }
     }
+#endif
     _discardAssetTemps();
 }
 
-static void _finishConfigRestore(bool discardTemp = true) {
-    if (_configRestoreFile) _configRestoreFile.close();
-    if (discardTemp) LittleFS.remove("/ecu_config.restore.tmp");
+static void _finishConfigUpload() {
+    if (_configUploadFile) _configUploadFile.close();
+    LittleFS.remove(CONFIG_UPLOAD_PATH);
     LittleFS.remove("/ecu_config.section.tmp");
     LittleFS.remove("/ecu_config.settings.tmp");
     LittleFS.remove("/ecu_config.hardware.tmp");
-    if (discardTemp) LittleFS.remove("/config_apply.tmp");
-    _configRestoreOwner = nullptr;
-    _configRestoreError = false;
+    LittleFS.remove("/config_apply.tmp");
+    _configUploadOwner = nullptr;
+    _configUploadError = false;
     // A successful restore keeps all flash-backed traffic excluded until its
     // scheduled reboot. Error/timeout paths release the lease so the current
     // UI can continue normally.
     if (!_hwRebootPending) _endMaintenanceWriteWindow();
+    if (_configUploadOwnsApplyGate) {
+        _configUploadOwnsApplyGate = false;
+        ConfigApplyGate::release();
+    }
 }
 
 // Load one top-level object without ever holding the complete unified engine
@@ -1040,7 +1078,7 @@ static void _finishConfigRestore(bool discardTemp = true) {
 // parse retains the top-level wrapper, so stage the selected object briefly,
 // release that document, then parse the object as the destination root.
 static bool _stageUnifiedConfigSection(const char* section, const char* path,
-                                       const char* sourcePath = "/ecu_config.restore.tmp") {
+                                       const char* sourcePath = CONFIG_UPLOAD_PATH) {
     LittleFS.remove(path);
     File source = LittleFS.open(sourcePath, "r");
     if (!source) return false;
@@ -1233,6 +1271,34 @@ static bool _locateUnifiedConfigSection(const char* section,
     return true;
 }
 
+// Keep only offsets and a version in the response. Retaining a LittleFS
+// handle for the lifetime of a large HTTP response can starve Classic ESP32.
+static AsyncWebServerResponse* _beginEngineFileRead(AsyncWebServerRequest* req,
+                                                   size_t offset, size_t length,
+                                                   uint32_t version) {
+    return req->beginResponse("application/json", length,
+        [req, offset, length, version](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+            if (index >= length) return 0;
+            // A changed version must fail the fixed-length response rather
+            // than spill bytes from a new file into the old file's offsets.
+            const auto failRead = [req]() -> size_t {
+                if (auto* client = req->client()) client->setRxTimeout(1);
+                return 0;
+            };
+            if (ConfigFileTransaction::readVersion() != version) return failRead();
+            File source = LittleFS.open(Config::PATH, "r");
+            if (!source || !source.seek(offset + index)) {
+                source.close();
+                return failRead();
+            }
+            const size_t wanted = min(maxLen, length - index);
+            const size_t count = source.read(buffer, wanted);
+            source.close();
+            if (ConfigFileTransaction::readVersion() != version || count != wanted) return failRead();
+            return count;
+        });
+}
+
 static bool _copyLittleFsFile(const char* from, const char* to) {
     File src = LittleFS.open(from, "r");
     if (!src) return false;
@@ -1242,18 +1308,45 @@ static bool _copyLittleFsFile(const char* from, const char* to) {
         return false;
     }
     uint8_t buf[256];
-    bool ok = true;
-    while (src.available()) {
-        size_t n = src.read(buf, sizeof(buf));
-        if (dst.write(buf, n) != n) {
+    const size_t expected = src.size();
+    size_t remaining = expected;
+    bool ok = expected > 0;
+    while (ok && remaining > 0) {
+        const size_t requested = min(remaining, sizeof(buf));
+        const size_t n = src.read(buf, requested);
+        if (n != requested || dst.write(buf, n) != n) {
             ok = false;
             break;
         }
+        remaining -= n;
     }
     src.close();
     dst.close();
+    if (ok) {
+        File staged = LittleFS.open(to, "r");
+        ok = staged && staged.size() == expected;
+    }
     if (!ok) LittleFS.remove(to);
     return ok;
+}
+
+static bool _validFactoryConfigFile(const char* path) {
+    File file = LittleFS.open(path, "r");
+    if (!file || file.size() > CONFIG_UPLOAD_MAX) return false;
+
+    // Match the boot parser without keeping both configuration trees in
+    // memory. The factory file may supply Hardware alone and let boot seed
+    // default Settings. If it supplies both, they must identify one engine.
+    JsonDocument filter;
+    filter[HardwareConfig::SECTION]["profile_id"] = true;
+    filter[Config::SECTION]["profile_id"] = true;
+    JsonDocument identities;
+    if (deserializeJson(identities, file, DeserializationOption::Filter(filter)) ||
+        identities.overflowed()) return false;
+    const char* hardwareId = identities[HardwareConfig::SECTION]["profile_id"] | "";
+    if (!hardwareId[0] || strlen(hardwareId) >= sizeof(HardwareConfig::profileId)) return false;
+    const auto settings = identities[Config::SECTION].as<JsonObjectConst>();
+    return settings.isNull() || strcmp(hardwareId, settings["profile_id"] | "") == 0;
 }
 
 // Remove session files one at a time, closing directory iteration before each
@@ -1326,7 +1419,7 @@ private:
 #endif
 
 // Serializes maintenance-upload state (Update handle, _assetTempFile,
-// _configRestoreFile and their owner/flag variables) between the async_tcp
+// _configUploadFile and their owner/flag variables) between the async_tcp
 // upload handlers and the webTask tick() idle-timeout cleanup.  Without it a
 // chunk arriving exactly at the 30 s timeout boundary can write a File object
 // that tick() is concurrently closing.  Statically allocated in begin().
@@ -1335,12 +1428,102 @@ static SemaphoreHandle_t _uploadMux = nullptr;
 
 class UploadLock {
 public:
-    UploadLock()  { if (_uploadMux) xSemaphoreTake(_uploadMux, portMAX_DELAY); }
-    ~UploadLock() { if (_uploadMux) xSemaphoreGive(_uploadMux); }
+    explicit UploadLock(bool active = true) : _held(active && _uploadMux) {
+        if (_held) xSemaphoreTake(_uploadMux, portMAX_DELAY);
+    }
+    ~UploadLock() { if (_held) xSemaphoreGive(_uploadMux); }
+private:
+    bool _held;
+};
+
+static bool _readUploadOffset(AsyncWebServerRequest* req, size_t& offset) {
+    const String arg = req->arg("offset");
+    if (arg.isEmpty() || arg[0] < '0' || arg[0] > '9') return false;
+    char* end = nullptr;
+    offset = (size_t)strtoul(arg.c_str(), &end, 10);
+    return *end == '\0';
+}
+
+static void _abortFirmwareUpload() {
+    if (Update.isRunning()) Update.abort();
+    _otaUploadOwner = nullptr;
+    _otaInProgress = false;
+}
+
+// Called while UploadLock is held, after the maintenance storage window has
+// been acquired. Both restore and oversized PATCH use the same scratch file.
+static void _openConfigUpload(AsyncWebServerRequest* req, size_t total, bool ownsApplyGate = false) {
+    _releaseLiveTelemetryWorkspace();
+    _configUploadOwner = req;
+    _configUploadOwnsApplyGate = ownsApplyGate;
+    _configUploadLastMs = millis();
+    _configUploadBytes = 0;
+    _configUploadError = total > CONFIG_UPLOAD_MAX;
+    LittleFS.remove(CONFIG_UPLOAD_PATH);
+    if (!_configUploadError) {
+        _configUploadFile = LittleFS.open(CONFIG_UPLOAD_PATH, "w");
+        _configUploadError = !_configUploadFile;
+    }
+    req->onDisconnect([req]() {
+        UploadLock lock;
+        if (_configUploadOwner == req) _finishConfigUpload();
+    });
+}
+
+static bool _appendConfigUpload(AsyncWebServerRequest* req, const uint8_t* data,
+                                size_t len, size_t index, size_t total) {
+    if (_configUploadOwner != req) return false;
+    _configUploadLastMs = millis();
+    if (index != _configUploadBytes || index > total || len > total - index)
+        _configUploadError = true;
+    if (!_configUploadError && _configUploadFile.write(data, len) == len) {
+        _configUploadBytes += len;
+        if (_configUploadBytes < total) return false;
+        _configUploadFile.close();
+        return true;
+    }
+    _finishConfigUpload();
+    req->send(400, "application/json", "{\"error\":\"configuration upload is too large or could not be staged\"}");
+    return false;
+}
+
+// Once a PATCH claims the apply gate, release it on early validation errors.
+// Successful writes transfer it to the ECU core or hold it through reboot.
+class HardwarePatchApplyLease {
+public:
+    bool claim(bool staged) {
+        _held = staged || ConfigApplyGate::tryBeginWebWrite();
+        if (staged) _configUploadOwnsApplyGate = false;
+        return _held;
+    }
+    void handoff() { _held = false; }
+    ~HardwarePatchApplyLease() { if (_held) ConfigApplyGate::release(); }
+private:
+    bool _held = false;
 };
 
 static AsyncWebServer  _server(80);
 static DNSServer       _dns;                 // captive portal DNS
+static char s_setupEcuId[13] = {};
+
+static bool _rejectWrongConfigEcu(AsyncWebServerRequest* req, size_t index) {
+    const auto* expected = req->getParam("ecu_id");
+    if (expected && expected->value() != s_setupEcuId) {
+        if (index == 0)
+            req->send(409, "application/json", "{\"error\":\"The connected ECU changed. Reload before saving.\"}");
+        return true;
+    }
+    if (const auto* boot = req->getParam("boot_count")) {
+        char current[11];
+        snprintf(current, sizeof(current), "%lu", (unsigned long)EngineData::instance().bootCount);
+        if (boot->value() != current) {
+            if (index == 0)
+                req->send(409, "application/json", "{\"error\":\"The ECU restarted. Capture both endpoints again.\"}");
+            return true;
+        }
+    }
+    return false;
+}
 
 // ESPAsyncWebServer builds every response header in throwing STL containers.
 // An allocation failure can therefore abort the process instead of
@@ -1400,6 +1583,21 @@ public:
         }
 #endif
         next();
+        if (!request) return;
+        const auto method = request->method();
+        const String& path = request->url();
+        const bool setupRead = method == HTTP_GET &&
+            (path == "/api/data" || path == "/api/telemetry" ||
+             path == "/api/hardware" || path == "/api/config" || path == "/api/session/status");
+        const bool setupWrite = (method == HTTP_PATCH &&
+            (path == "/api/hardware" || path == "/api/config")) ||
+            (method == HTTP_POST && (path == "/api/command" ||
+             path == "/api/factory_reset" || path == "/api/ecu_config"));
+        if (setupRead || setupWrite) {
+            auto* response = request->getResponse();
+            if (response && response->code() >= 200 && response->code() < 300)
+                response->addHeader("X-OpenTurbine-ECU", s_setupEcuId);
+        }
     }
 };
 static LowHeapRequestGuard s_lowHeapRequestGuard;
@@ -1869,8 +2067,8 @@ static void _startWiFi() {
 
 static void _scheduleRestart(const char* reason, uint32_t delayMs = 5000) {
     _pendingRestartReason = reason;
-    _hwRebootPending = true;
     _hwRebootScheduledMs = millis() + delayMs;
+    _hwRebootPending = true;
 }
 
 static void _restartCleanly(const char* reason) {
@@ -1893,6 +2091,13 @@ static bool _registryOutputAvailable(const ChannelRegistry::Channel& channel) {
                !I2CDeviceManager::channelRechecking(channel);
     if (PcbPowerStage::ownsPin(channel.pin)) return PcbPowerStage::ready();
     return channel.pin >= 0;
+}
+
+// Raw ADC calibration can use a recent conversion outside the old validity
+// window. A cached conversion from a missing ADC must not count as a sample.
+static bool _freshCalibrationAdc(const EngineData& ed, uint8_t input, uint32_t now) {
+    return ed.registryInputSampleSeq[input] != 0 &&
+           uint32_t(now - ed.registryInputSampleMs[input]) <= 500;
 }
 
 static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
@@ -2052,11 +2257,15 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
 
     uint32_t inputOnMask = 0;
     uint32_t inputHealthyMask = 0;
+    uint32_t calibrationAdcMask = 0;
+    const uint32_t calibrationNow = millis();
     uint32_t outputOnMask = 0;
     uint32_t outputAvailableMask = 0;
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount && i < 32; ++i) {
         if (ed.registryInputValue[i] >= 0.5f) inputOnMask |= (1UL << i);
         if (ed.registryInputHealthy[i]) inputHealthyMask |= (1UL << i);
+        if (HardwareConfig::channelRegistry.inputs[i].driver == ChannelRegistry::I2cAnalog &&
+            _freshCalibrationAdc(ed, i, calibrationNow)) calibrationAdcMask |= (1UL << i);
     }
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount && i < 32; ++i) {
         if (_registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i])) outputAvailableMask |= (1UL << i);
@@ -2069,6 +2278,7 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount && i < 32; ++i)
         if (ed.registryOutputCurrentHealthy[i]) outputCurrentHealthyMask |= (1UL << i);
     doc["io"] = inputOnMask; doc["ih"] = inputHealthyMask;
+    doc["ia"] = calibrationAdcMask;  // bit per fresh I2C ADC conversion
     doc["pr"] = (int)lroundf(ed.phaseTorqueRpm);
     doc["oa"] = outputAvailableMask;
     doc["oo"] = outputOnMask; doc["oh"] = outputCurrentHealthyMask;
@@ -2078,12 +2288,14 @@ static size_t _buildCompactTelemetry(char* buf, size_t len, JsonDocument& doc) {
     auto ir = doc["ir"].to<JsonArray>();
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; ++i) {
         iv.add((float)lroundf(ed.registryInputValue[i] * 1000.0f) / 1000.0f);
-        ir.add(ed.registryInputRaw[i]);
+        const auto& channel = HardwareConfig::channelRegistry.inputs[i];
+        const bool flowPulse = channel.driver == ChannelRegistry::Pulse && !strcmp(channel.role, "flow");
+        ir.add(flowPulse ? 0 : ed.registryInputRaw[i]);
     }
     auto ov = doc["ov"].to<JsonArray>();
     auto oc = doc["oc"].to<JsonArray>();
     for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount; ++i) {
-        ov.add((int)lroundf(ed.registryOutputDemand[i] * 1000.0f));
+        ov.add((int)lroundf(OutputActivity::logicalDemand(HardwareConfig::channelRegistry.outputs[i], i, ed) * 1000.0f));
         oc.add((int)lroundf(ed.registryOutputCurrentAmps[i] * 10.0f));
     }
 
@@ -2491,19 +2703,22 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     }
     {
         auto inArr = doc["registry_inputs"].to<JsonArray>();
+        const uint32_t calibrationNow = millis();
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; i++) {
             auto ch = inArr.add<JsonObject>();
             ch["id"]      = HardwareConfig::channelRegistry.inputs[i].id;
             ch["value"]   = (float)(int)(ed.registryInputValue[i] * 1000) / 1000.0f;
             ch["raw"]     = ed.registryInputRaw[i];
             ch["healthy"] = ed.registryInputHealthy[i];
+            if (HardwareConfig::channelRegistry.inputs[i].driver == ChannelRegistry::I2cAnalog)
+                ch["raw_fresh"] = _freshCalibrationAdc(ed, i, calibrationNow);
         }
         auto outArr = doc["registry_outputs"].to<JsonArray>();
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.outputCount; i++) {
             auto ch = outArr.add<JsonObject>();
             ch["id"]     = HardwareConfig::channelRegistry.outputs[i].id;
             ch["available"] = _registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i]);
-            ch["demand"] = (float)(int)(ed.registryOutputDemand[i] * 1000) / 1000.0f;
+            ch["demand"] = (float)(int)(OutputActivity::logicalDemand(HardwareConfig::channelRegistry.outputs[i], i, ed) * 1000) / 1000.0f;
             ch["current_amps"] = (float)(int)(ed.registryOutputCurrentAmps[i] * 100) / 100.0f;
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
         }
@@ -2765,6 +2980,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
         }
         doc["registry_inputs"].clear();
         auto rin = doc["registry_inputs"].to<JsonArray>();
+        const uint32_t calibrationNow = millis();
         for (uint8_t i = 0; i < HardwareConfig::channelRegistry.inputCount; i++) {
             const auto& c = HardwareConfig::channelRegistry.inputs[i];
             auto ch = rin.add<JsonObject>();
@@ -2783,7 +2999,9 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["pulldown"] = c.pulldown;
             ch["invert"] = c.inverted;
             ch["raw"] = ed.registryInputRaw[i];
-            if (c.calibrationPointCount >= 2 && strcmp(c.role, "generic") &&
+            if (c.driver == ChannelRegistry::I2cAnalog)
+                ch["raw_fresh"] = _freshCalibrationAdc(ed, i, calibrationNow);
+            if (c.usesCalibrationPoints() && strcmp(c.role, "generic") &&
                 strcmp(c.role, "operator") && strcmp(c.role, "flame")) {
                 auto range = ch["cal_range"].to<JsonArray>();
                 range.add(c.calibrationRaw[0]);
@@ -2817,7 +3035,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["has_flow_monitor"] = c.hasFlowMonitor;
             ch["minimum_flow_l_min"] = c.minimumFlow;
             ch["available"] = _registryOutputAvailable(HardwareConfig::channelRegistry.outputs[i]);
-            ch["demand"] = (float)(int)(ed.registryOutputDemand[i] * 1000) / 1000.0f;
+            ch["demand"] = (float)(int)(OutputActivity::logicalDemand(c, i, ed) * 1000) / 1000.0f;
             ch["current_amps"] = (float)(int)(ed.registryOutputCurrentAmps[i] * 100) / 100.0f;
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
         }
@@ -3242,8 +3460,8 @@ void WebServer::_setupRoutes() {
     });
 
     // GET /api/config — expose the settings section for page editors.
-    // Serialize into the static TX buffer and send with a fixed
-    // Content-Length (same path as /api/data). AsyncResponseStream silently
+    // Classic streams the stored section. S3 serializes the current settings
+    // into the TX buffer. Both serve a fixed Content-Length. AsyncResponseStream silently
     // truncates a large JSON under AP heap pressure — serializeJson ignores
     // the stream's short writes — which the editor pages saw as
     // "Unterminated string in JSON".
@@ -3251,25 +3469,15 @@ void WebServer::_setupRoutes() {
 #if defined(OT_PLATFORM_ESP32)
         size_t sectionOffset = 0;
         size_t sectionLen = 0;
-        if (!_locateUnifiedConfigSection(Config::SECTION, sectionOffset, sectionLen)) {
+        const uint32_t version = ConfigFileTransaction::readVersion();
+        if (!ConfigFileTransaction::isStable(version) ||
+            !_locateUnifiedConfigSection(Config::SECTION, sectionOffset, sectionLen) ||
+            ConfigFileTransaction::readVersion() != version) {
             req->send(503, "application/json",
                       "{\"error\":\"settings file is temporarily unavailable\"}");
             return;
         }
-        AsyncWebServerResponse* resp = req->beginResponse(
-            "application/json", sectionLen,
-            [sectionOffset, sectionLen](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
-                if (index >= sectionLen) return 0;
-                File source = LittleFS.open(Config::PATH, "r");
-                if (!source || !source.seek(sectionOffset + index)) {
-                    source.close();
-                    return RESPONSE_TRY_AGAIN;
-                }
-                const size_t wanted = min(maxLen, sectionLen - index);
-                const size_t count = source.read(buffer, wanted);
-                source.close();
-                return count == 0 && wanted != 0 ? RESPONSE_TRY_AGAIN : count;
-            });
+        auto* resp = _beginEngineFileRead(req, sectionOffset, sectionLen, version);
         if (!resp) {
             req->send(503, "application/json",
                       "{\"error\":\"not enough memory to read settings\"}");
@@ -3403,6 +3611,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            if (_rejectWrongConfigEcu(req, index)) return;
             if (index == 0 && _rejectMaintenanceConflict(req)) return;
             if (!_appendWebRx(req, data, len, index)) return;
             if (index + len < total) return;   // wait for more chunks
@@ -3622,6 +3831,12 @@ void WebServer::_setupRoutes() {
     // it travels with the engine file. Either field may be updated independently.
     // Cosmetic: not mode-gated and no event log.
     _server.on("/api/theme", HTTP_POST, [](AsyncWebServerRequest* req) {
+        const auto& ed = EngineData::instance();
+        if (ed.configStorageFault || ed.configLocked || !Config::profileMatch) {
+            req->send(409, "application/json",
+                "{\"ok\":false,\"error\":\"Restore or repair the saved engine file in System before saving appearance settings\"}");
+            return;
+        }
         if (!req->hasParam("t") && !req->hasParam("a")) {
             req->send(400, "application/json", "{\"ok\":false,\"error\":\"missing appearance field\"}");
             return;
@@ -3872,6 +4087,26 @@ void WebServer::_setupRoutes() {
             if (!_parseCommandName(cmdStr, pkt.cmd)) { req->send(400); return; }
             pkt.fParam = doc["fParam"] | 0.0f;
             pkt.iParam = doc["iParam"] | 0;
+            if (pkt.cmd == OTCommand::PRESSURE_CAL_PUMP) {
+                if (strcmp(doc["ecu_id"] | "", s_setupEcuId) != 0) {
+                    _sendCommandReject(req, 409, "The connected ECU changed. Reload Calibration.");
+                    return;
+                }
+                if (!doc["boot_count"].is<uint32_t>() ||
+                    doc["boot_count"].as<uint32_t>() != EngineData::instance().bootCount) {
+                    _sendCommandReject(req, 409, "The ECU restarted. Reload Calibration.");
+                    return;
+                }
+                const char* pumpId = doc["pump_id"] | "";
+                const auto& registry = HardwareConfig::channelRegistry;
+                pkt.iParam = -1;
+                for (uint8_t i = 0; i < registry.outputCount; ++i) {
+                    if (*pumpId && strcmp(pumpId, registry.outputs[i].id) == 0) {
+                        pkt.iParam = i;
+                        break;
+                    }
+                }
+            }
             if (pkt.cmd != OTCommand::AB_STOP && _rejectMaintenanceConflict(req, true)) return;
             if (const char* reject = _commandPreflightRejectReason(pkt)) {
                 _sendCommandReject(req, 409, reject);
@@ -3932,27 +4167,75 @@ void WebServer::_setupRoutes() {
                 "{\"ok\":false,\"error\":\"Session recording is still finalizing; retry factory reset in a moment\"}");
             return;
         }
-        // Drain any already-pending save to a known state, then wipe the config.
-        Config::flushPendingSave();
+        if (!ConfigApplyGate::tryBeginWebWrite()) {
+            req->send(409, "application/json",
+                "{\"ok\":false,\"error\":\"Another configuration update or START is in progress\"}");
+            return;
+        }
+        if (!_isStandbyLike(EngineData::instance().mode) || _hwRebootPending || _outputsActiveForOta()) {
+            ConfigApplyGate::release();
+            req->send(409, "application/json",
+                "{\"ok\":false,\"error\":\"ECU must be idle and available to reset\"}");
+            return;
+        }
         bool wipeOk = true;
         auto removeAndVerify = [&](const char* path) {
             if (LittleFS.exists(path) && !LittleFS.remove(path)) wipeOk = false;
             if (LittleFS.exists(path)) wipeOk = false;
         };
-        removeAndVerify(Config::PATH);
-        // Optional override: if a curated /factory_config.json is present, restore
-        // it; otherwise leave the config removed so the reboot regenerates from
-        // the compiled hardware_profile.h defaults (the normal case).
         if (LittleFS.exists(FACTORY_CONFIG_PATH)) {
-            if (!_copyLittleFsFile(FACTORY_CONFIG_PATH, Config::PATH)) {
-                Serial.println("[WebServer] factory_config.json restore failed - falling back to compiled defaults");
-                wipeOk = false;
+            static constexpr const char* stage = "/ecu_config.factory.tmp";
+            if (!_copyLittleFsFile(FACTORY_CONFIG_PATH, stage)) {
+                ConfigApplyGate::release();
+                req->send(500, "application/json",
+                    "{\"ok\":false,\"error\":\"Could not stage the factory configuration. Current configuration retained.\"}");
+                return;
             }
+            if (!_validFactoryConfigFile(stage)) {
+                LittleFS.remove(stage);
+                ConfigApplyGate::release();
+                req->send(400, "application/json",
+                    "{\"ok\":false,\"error\":\"Factory configuration is malformed or its engine identities do not match. Current configuration retained.\"}");
+                return;
+            }
+            const auto result = ConfigFileTransaction::install(LittleFS, stage, Config::PATH);
+            LittleFS.remove(stage);
+            if (result != ConfigFileTransaction::InstallResult::Saved &&
+                result != ConfigFileTransaction::InstallResult::RollbackFailed) {
+                ConfigApplyGate::release();
+                req->send(500, "application/json",
+                    "{\"ok\":false,\"error\":\"Could not install the factory configuration. Current configuration retained.\"}");
+                return;
+            }
+            wipeOk = result == ConfigFileTransaction::InstallResult::Saved;
+            // If install could not roll back, leave its backup for recovery.
+            if (wipeOk) removeAndVerify(ConfigFileTransaction::backupPath);
+        } else {
+            // The next boot seeds compiled defaults. Remove the backup first
+            // so it cannot repopulate the primary after a successful reset.
+            removeAndVerify(ConfigFileTransaction::backupPath);
+            if (!wipeOk) {
+                ConfigApplyGate::release();
+                req->send(500, "application/json",
+                    "{\"ok\":false,\"error\":\"Could not remove the configuration backup. Current configuration retained.\"}");
+                return;
+            }
+            const ConfigFileTransaction::Mutation mutation;
+            removeAndVerify(Config::PATH);
         }
-        removeAndVerify(FlightRecorder::PATH);
-        if (!Config::clearRuntimeStats()) wipeOk = false;
-        if (!_removeAllSessionFiles()) wipeOk = false;
+        Config::discardPendingSave();
+        if (wipeOk) {
+            removeAndVerify(FlightRecorder::PATH);
+            if (!Config::clearRuntimeStats()) wipeOk = false;
+            if (!_removeAllSessionFiles()) wipeOk = false;
+        }
         if (!wipeOk) {
+            auto& ed = EngineData::instance();
+            ed.configLocked = true;
+            ed.configStorageFault = true;
+            strlcpy(ed.faultDescription, "Cannot start: factory reset incomplete. Retry factory reset or restore an engine file.",
+                    sizeof(ed.faultDescription));
+            ConfigApplyGate::release();
             Serial.println("[WebServer] Factory reset incomplete - reboot cancelled; retry is safe");
             req->send(500, "application/json",
                 "{\"ok\":false,\"error\":\"Factory reset incomplete; one or more files or runtime counters remain. Retry after stopping downloads.\"}");
@@ -4063,53 +4346,70 @@ void WebServer::_setupRoutes() {
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
             UploadLock lock;
-            const size_t offset = (size_t)strtoul(req->arg("offset").c_str(), nullptr, 10);
+            size_t offset = 0;
+            const bool validOffset = _readUploadOffset(req, offset);
             const bool finalChunk = req->arg("final") == "1";
             // A response can be lost after flash accepted the whole request.
             // Treat a completely committed range as an idempotent replay so
             // clients may safely retry without writing it twice or aborting.
             const bool replayed = _otaInProgress && offset < _otaChunkReceived &&
-                                  offset + total <= _otaChunkReceived;
+                                  total <= _otaChunkReceived - offset;
             if (index == 0) {
+                if (_otaUploadOwner && _otaUploadOwner != req) {
+                    req->send(409, "application/json", "{\"ok\":false,\"error\":\"Another firmware chunk is in progress\"}");
+                    return;
+                }
+                if (!validOffset) {
+                    req->send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid firmware chunk offset\"}");
+                    return;
+                }
+                if (replayed && finalChunk && (!_otaPendingRestart || offset != _otaFinalChunkOffset ||
+                    total != _otaChunkReceived - offset)) {
+                    req->send(409, "application/json", "{\"ok\":false,\"error\":\"This firmware chunk did not commit the update\"}");
+                    return;
+                }
+                if (!replayed && (_otaPendingRestart || offset != (_otaInProgress ? _otaChunkReceived : 0))) {
+                    req->send(409, "application/json", "{\"ok\":false,\"error\":\"Unexpected firmware chunk offset\"}");
+                    return;
+                }
                 if (!_otaInProgress) {
-                    _otaUploadOwner = req;
+                    if (_assetUploadInProgress || _configUploadOwner ||
+                        !_isStandbyLike(EngineData::instance().mode) || _outputsActiveForOta()) {
+                        req->send(409, "application/json", "{\"ok\":false,\"error\":\"Engine must be idle to upload firmware\"}");
+                        return;
+                    }
+                    _otaInProgress = true;
                     _otaError = false;
-                    _otaUploadLastMs = millis();
                     _otaChunkReceived = 0;
                     _releaseLiveTelemetryWorkspace();
-                    if (_assetUploadInProgress || _configRestoreOwner ||
-                        !_isStandbyLike(EngineData::instance().mode) || _outputsActiveForOta()) {
-                        _otaError = true;
-                    } else {
-                        _otaInProgress = true;
-                        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-                            _otaInProgress = false;
-                            _otaError = true;
-                        }
+                    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+                        _abortFirmwareUpload();
+                        req->send(400, "application/json", "{\"ok\":false,\"error\":\"Could not begin firmware update\"}");
+                        return;
                     }
-                } else if (!_otaUploadOwner) {
-                    _otaUploadOwner = req;
                 }
-                if (_otaUploadOwner != req || (!replayed && offset != _otaChunkReceived))
-                    _otaError = true;
+                _otaUploadOwner = req;
+                req->onDisconnect([req]() {
+                    UploadLock lock;
+                    if (_otaUploadOwner == req) _abortFirmwareUpload();
+                });
             }
+            if (_otaUploadOwner != req) return;
             _otaUploadLastMs = millis();
-            if (!_otaError && _otaUploadOwner == req && !replayed) {
+            if (!_otaError && !replayed) {
                 if (Update.write(data, len) != len) _otaError = true;
                 else _otaChunkReceived += len;
             }
             if (index + len < total) return;
-            if (_otaError || _otaUploadOwner != req) {
+            if (_otaError) {
                 char errorBody[224];
                 snprintf(errorBody, sizeof(errorBody),
                     "{\"ok\":false,\"error\":\"Firmware chunk rejected: %s; offset %lu, received %lu\"}",
                     Update.hasError() ? Update.errorString() : "upload state or offset mismatch",
                     (unsigned long)offset, (unsigned long)_otaChunkReceived);
-                Serial.printf("[OTA] %s (body %u/%u, owner %d)\n", errorBody,
-                    (unsigned)(index + len), (unsigned)total, _otaUploadOwner == req);
-                if (Update.isRunning()) Update.abort();
-                _otaInProgress = false;
-                _otaUploadOwner = nullptr;
+                Serial.printf("[OTA] %s (body %u/%u)\n", errorBody,
+                    (unsigned)(index + len), (unsigned)total);
+                _abortFirmwareUpload();
                 req->send(400, "application/json", errorBody);
                 return;
             }
@@ -4128,6 +4428,7 @@ void WebServer::_setupRoutes() {
             req->send(ok ? 200 : 400, "application/json",
                 ok ? "{\"ok\":true,\"reboot\":true}" : "{\"ok\":false,\"error\":\"Firmware verification failed\"}");
             if (ok) {
+                _otaFinalChunkOffset = offset;
                 _otaPendingRestart = true;
                 _scheduleRestart("firmware OTA", 3000);
             } else {
@@ -4145,7 +4446,8 @@ void WebServer::_setupRoutes() {
             UploadLock lock;
             const String filename = req->arg("name");
             const int asset = _assetIndex(filename);
-            const size_t offset = (size_t)strtoul(req->arg("offset").c_str(), nullptr, 10);
+            size_t offset = 0;
+            const bool validOffset = _readUploadOffset(req, offset);
             const bool fileFinal = req->arg("final") == "1";
             // Compute from the complete HTTP-body range so the decision stays
             // stable if AsyncTCP delivers one request in several callbacks.
@@ -4157,8 +4459,27 @@ void WebServer::_setupRoutes() {
                  _assetChunkAsset == asset && offset < _assetChunkReceived &&
                  total <= _assetChunkReceived - offset));
             if (index == 0) {
+                if (_assetUploadOwner && _assetUploadOwner != req) {
+                    req->send(409, "application/json", "{\"ok\":false,\"error\":\"Another web asset chunk is in progress\"}");
+                    return;
+                }
+                if (asset < 0 || !validOffset) {
+                    req->send(400, "application/json", "{\"ok\":false,\"error\":\"Invalid web asset name or offset\"}");
+                    return;
+                }
+                if (!replayed && ((_assetUploadMask & (1u << asset)) ||
+                    (_assetChunkAsset < 0 ? offset != 0
+                                          : _assetChunkAsset != asset || offset != _assetChunkReceived))) {
+                    req->send(409, "application/json", "{\"ok\":false,\"error\":\"Unexpected web asset chunk or offset\"}");
+                    return;
+                }
                 if (!_assetUploadInProgress) {
-                    _assetUploadOwner = req;
+                    if (!_isStandbyLike(EngineData::instance().mode) || _otaInProgress ||
+                        _configUploadOwner || _outputsActiveForOta() || !_beginMaintenanceWriteWindow()) {
+                        req->send(409, "application/json",
+                                  "{\"ok\":false,\"error\":\"Engine must be idle and ECU storage available to update web assets\"}");
+                        return;
+                    }
                     _assetUploadError = false;
                     _assetUploadMask = 0;
                     _assetChunkAsset = -1;
@@ -4166,53 +4487,38 @@ void WebServer::_setupRoutes() {
                     _assetLastComplete = -1;
                     _assetLastCompleteSize = 0;
                     _assetUploadInProgress = true;
-                    if (!_isStandbyLike(EngineData::instance().mode) || _otaInProgress ||
-                        _configRestoreOwner || _outputsActiveForOta() || !_beginMaintenanceWriteWindow()) {
-                        _assetUploadError = true;
-                    } else {
-                        LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
-                        if (LittleFS.exists(WEB_ASSET_MARKER))
-                            LittleFS.rename(WEB_ASSET_MARKER, WEB_ASSET_MARKER_BACKUP);
-                        _webAssetsComplete = false;
-                    }
-                } else if (!_assetUploadOwner) {
-                    _assetUploadOwner = req;
-                }
-                _assetUploadLastMs = millis();
-                if (_assetUploadOwner != req || _assetUploadError || asset < 0) {
-                    _assetUploadError = true;
-                } else if (_assetUploadMask & (1u << asset)) {
-                    // A response may disappear after the final chunk of one
-                    // file was committed. The immediately completed file is
-                    // still known, so its fully written ranges are safe to
-                    // acknowledge without appending them again.
-                    if (!replayed) _assetUploadError = true;
-                } else {
-                    if (_assetChunkAsset != asset) {
-                        if (_assetChunkAsset >= 0 || offset != 0) {
+                    if (LittleFS.exists(WEB_ASSET_MARKER)) {
+                        if (LittleFS.exists(WEB_ASSET_MARKER_BACKUP))
+                            LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
+                        if (!LittleFS.rename(WEB_ASSET_MARKER, WEB_ASSET_MARKER_BACKUP))
                             _assetUploadError = true;
-                        } else {
-                            _assetChunkAsset = (int8_t)asset;
-                            _assetChunkReceived = 0;
-                        }
                     }
-                    if (!_assetUploadError && !replayed && offset != _assetChunkReceived) {
-                        _assetUploadError = true;
-                    }
+                    if (!_assetUploadError) _webAssetsComplete = false;
+                }
+                _assetUploadOwner = req;
+                req->onDisconnect([req]() {
+                    UploadLock lock;
+                    if (_assetUploadOwner == req) _finishAssetUpload();
+                });
+                _assetUploadLastMs = millis();
+                if (!_assetUploadError && !replayed) {
+                    if (_assetChunkAsset < 0) _assetChunkAsset = (int8_t)asset;
 #if defined(OT_PLATFORM_ESP32S3)
                     String writePath = _assetPath((uint16_t)asset, true);
 #else
                     String writePath = _assetPath((uint16_t)asset, false);
 #endif
-                    if (!_assetUploadError && !replayed) {
-                        if (offset == 0 && LittleFS.exists(writePath)) LittleFS.remove(writePath);
-                        _assetTempFile = LittleFS.open(writePath, offset == 0 ? "w" : "a");
-                        if (!_assetTempFile || (offset > 0 && _assetTempFile.size() != offset))
-                            _assetUploadError = true;
-                    }
+                    if (offset == 0 && LittleFS.exists(writePath)) LittleFS.remove(writePath);
+                    _assetTempFile = LittleFS.open(writePath, offset == 0 ? "w" : "a");
+                    if (!_assetTempFile || (offset > 0 && _assetTempFile.size() != offset))
+                        _assetUploadError = true;
                 }
             }
-            if (!_assetUploadError && _assetUploadOwner == req && !replayed) {
+            // Only the admitted request can write, abort, or release this
+            // transaction. Rejected requests may have more body callbacks.
+            if (_assetUploadOwner != req) return;
+            _assetUploadLastMs = millis();
+            if (!_assetUploadError && !replayed) {
                 if (!_assetTempFile || _assetTempFile.write(data, len) != len)
                     _assetUploadError = true;
                 else
@@ -4220,7 +4526,7 @@ void WebServer::_setupRoutes() {
             }
             if (index + len < total) return;
             if (_assetTempFile) _assetTempFile.close();
-            if (_assetUploadError || _assetUploadOwner != req) {
+            if (_assetUploadError) {
                 req->send(400, "application/json", "{\"ok\":false,\"error\":\"Web asset chunk rejected; upload the complete set again\"}");
                 _finishAssetUpload();
                 return;
@@ -4698,12 +5004,15 @@ void WebServer::_setupRoutes() {
             _scheduleRestart("hardware config save");
         });
 
-    // PATCH /api/hardware — bounded page-owned hardware updates. Calibration
-    // applies live; System, Controllers, and Sequence patches save then reboot.
+    // PATCH /api/hardware — bounded page-owned hardware updates. A hardware
+    // patch may include a Settings patch in the same durable transaction.
     _server.on("/api/hardware", HTTP_PATCH,
         [](AsyncWebServerRequest* req) {},
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            if (_rejectWrongConfigEcu(req, index)) return;
+            const bool staged = total >= sizeof(WebRxBuffer);
+            UploadLock uploadLock(staged);
             if (index == 0 && _rejectMaintenanceConflict(req)) return;
             // Hardware config changes take effect immediately on the live control loop
             // (HardwareConfig static fields are read every tick).  Reject unless
@@ -4715,10 +5024,33 @@ void WebServer::_setupRoutes() {
                     "{\"ok\":false,\"error\":\"engine not in STANDBY or FAULT\"}");
                 return;
             }
-            if (!_appendWebRx(req, data, len, index)) return;
-            if (index + len < total) return;
+            if (staged) {
+                if (index == 0) {
+                    if (!ConfigApplyGate::tryBeginWebWrite()) {
+                        req->send(409, "application/json",
+                            "{\"error\":\"START transition or another configuration update is in progress\"}");
+                        return;
+                    }
+                    if (!_isStandbyLike(EngineData::instance().mode) || _hwRebootPending ||
+                        !_beginMaintenanceWriteWindow()) {
+                        ConfigApplyGate::release();
+                        req->send(409, "application/json",
+                            "{\"error\":\"engine must be idle and ECU storage available to save this configuration\"}");
+                        return;
+                    }
+                    _openConfigUpload(req, total, true);
+                }
+                if (!_appendConfigUpload(req, data, len, index, total)) return;
+            } else {
+                if (!_appendWebRx(req, data, len, index)) return;
+                if (index + len < total) return;
+            }
+            struct StagedUploadRelease {
+                bool staged;
+                ~StagedUploadRelease() { if (staged) _finishConfigUpload(); }
+            } uploadRelease{staged};
             WebRxRelease release(req);
-            if (g_webRxOverflow) {
+            if (!staged && g_webRxOverflow) {
                 req->send(400, "application/json", "{\"error\":\"request body too large\"}");
                 return;
             }
@@ -4728,29 +5060,56 @@ void WebServer::_setupRoutes() {
                     "{\"ok\":false,\"error\":\"engine not in STANDBY or FAULT\"}");
                 return;
             }
+#if defined(OT_PLATFORM_ESP32)
+            // Large requests never need the receive buffer. Claim it before
+            // lending it so no simultaneous response can still refer to it.
+            _releaseLiveTelemetryWorkspace();
+            std::optional<ClassicRxWorkspaceLoan> rxWorkspaceLoan;
+            if (staged) {
+                if (!_claimWebRx(req, 0)) return;
+                rxWorkspaceLoan.emplace();
+            }
+#endif
             JsonDocument patch;
-            if (deserializeJson(patch, g_webRxBuf, g_webRxLen) != DeserializationError::Ok) {
-                req->send(400, "application/json", "{\"error\":\"bad json\"}");
+            DeserializationError patchError = DeserializationError::InvalidInput;
+            if (staged) {
+                File body = LittleFS.open(CONFIG_UPLOAD_PATH, "r");
+                if (body) patchError = deserializeJson(patch, body);
+            } else {
+                patchError = deserializeJson(patch, g_webRxBuf, g_webRxLen);
+            }
+            if (patchError != DeserializationError::Ok) {
+                const bool outOfMemory = patchError == DeserializationError::NoMemory;
+                req->send(outOfMemory ? 503 : 400, "application/json", outOfMemory
+                    ? "{\"error\":\"not enough memory to read the hardware patch; previous configuration retained\"}"
+                    : "{\"error\":\"hardware patch could not be read as JSON\"}");
                 return;
             }
 #if defined(OT_PLATFORM_ESP32)
-            // ArduinoJson 7 owns these strings; lending RX after parsing
-            // leaves room for validating and serializing the complete section.
-            // Compact telemetry retains a small reusable JsonDocument between
-            // frames. Retire it before this maintenance transaction so the
-            // Classic has the largest contiguous workspace available.
-            _releaseLiveTelemetryWorkspace();
-            ClassicRxWorkspaceLoan rxWorkspaceLoan;
+            // The ordinary path owns its parsed strings and no longer needs RX.
+            if (!staged) rxWorkspaceLoan.emplace();
 #endif
             bool patchAllowed = true;
             bool systemPatch = false;
             bool controllerPatch = false;
             bool sequencePatch = false;
             bool profileRenamePatch = false;
+            const String source = req->hasParam("source") ? req->getParam("source")->value() : "";
+            const JsonVariantConst settingsPatch = patch.as<JsonObjectConst>()["_settings_patch"];
+            const bool combined = !settingsPatch.isUnbound();
             const bool hardwarePagePatch = req->hasParam("source") &&
                 req->getParam("source")->value() == "hardware";
+            if (combined && ((source != "system" && source != "controllers" &&
+                              source != "sequence" && source != "calibration") ||
+                             !settingsPatch.is<JsonObjectConst>() ||
+                             settingsPatch.size() == 0 ||
+                             !settingsPatch["profile_id"].isUnbound())) {
+                req->send(400, "application/json", "{\"error\":\"invalid combined configuration patch\"}");
+                return;
+            }
             for (JsonPair top : patch.as<JsonObject>()) {
                 const char* topKey = top.key().c_str();
+                if (combined && strcmp(topKey, "_settings_patch") == 0) continue;
                 if (hardwarePagePatch) {
                     // The Hardware page may patch any validated hardware field,
                     // but never browser-only capability/discovery metadata.
@@ -4869,7 +5228,17 @@ void WebServer::_setupRoutes() {
                     for (JsonPair field : top.value().as<JsonObject>()) {
                         const char* key = field.key().c_str();
                         if (strcmp(key, "id") == 0) hasId = true;
-                        else if (strcmp(key, "invert") == 0) {
+                        else if (strcmp(key, "_capture") == 0) {
+                            const auto capture = field.value().as<JsonObjectConst>();
+                            if (strcmp(capture["ecu_id"] | "", s_setupEcuId) != 0 ||
+                                !capture["boot_count"].is<uint32_t>() ||
+                                capture["boot_count"].as<uint32_t>() != EngineData::instance().bootCount) {
+                                req->send(409, "application/json",
+                                          "{\"error\":\"The ECU changed or restarted. Reload Calibration and capture again.\"}");
+                                return;
+                            }
+                        }
+                        else if (strcmp(key, "invert") == 0 || strcmp(key, "ntc_use_point_table") == 0) {
                             if (!field.value().is<bool>()) patchAllowed = false;
                         }
                         else if (strcmp(key, "analog_zero_mv") != 0 &&
@@ -4900,9 +5269,18 @@ void WebServer::_setupRoutes() {
                 }
                 if (!patchAllowed) break;
             }
-            if (!patchAllowed || patch.as<JsonObject>().size() == 0) {
+            if (!patchAllowed || patch.as<JsonObject>().size() <= (combined ? 1U : 0U)) {
                 req->send(400, "application/json",
                     "{\"error\":\"hardware PATCH contains unsupported fields; use Hardware Save for topology changes\"}");
+                return;
+            }
+            HardwarePatchApplyLease applyLease;
+            if (!applyLease.claim(staged)) {
+                req->send(409, "application/json", "{\"error\":\"START transition or another configuration update is in progress\"}");
+                return;
+            }
+            if (!_isStandbyLike(EngineData::instance().mode) || _hwRebootPending) {
+                req->send(409, "application/json", "{\"error\":\"ECU is restarting or left STANDBY before configuration update\"}");
                 return;
             }
             // Merge directly in the ArduinoJson tree. A legal hardware section
@@ -4942,7 +5320,8 @@ void WebServer::_setupRoutes() {
                 for (JsonObject ch : inputs) {
                     if (strcmp(ch["id"] | "", id) != 0) continue;
                     for (JsonPairConst field : cal) {
-                        if (strcmp(field.key().c_str(), "id") != 0)
+                        if (strcmp(field.key().c_str(), "id") != 0 &&
+                            strcmp(field.key().c_str(), "_capture") != 0)
                             ch[field.key()] = field.value();
                     }
                     applied = true;
@@ -4954,34 +5333,30 @@ void WebServer::_setupRoutes() {
                 }
                 patch.remove("channel_registry_calibration");
             }
-            _mergeJsonObject(current.as<JsonObject>(), patch.as<JsonObjectConst>());
+            _mergeJsonObject(current.as<JsonObject>(), patch.as<JsonObjectConst>(),
+                             combined ? "_settings_patch" : nullptr);
             if (current.overflowed() || (!hardwarePagePatch && !completeRegistrySnapshot())) {
                 req->send(503, "application/json",
                     "{\"error\":\"Not enough memory to build a complete hardware update; no changes were saved\"}");
                 return;
             }
-            if (!ConfigApplyGate::tryBeginWebWrite()) {
-                req->send(409, "application/json", "{\"error\":\"START transition or another configuration update is in progress\"}");
-                return;
-            }
-            if (!_isStandbyLike(EngineData::instance().mode)) {
-                ConfigApplyGate::release();
-                req->send(409, "application/json", "{\"error\":\"engine left STANDBY before calibration update\"}");
-                return;
-            }
+            // Validation borrows the live registry. From here, recovery hands
+            // the gate to Core 1 or keeps START locked through reboot.
+            applyLease.handoff();
             reconcileRegistryDigitalInputs(current);
             if (!HardwareConfig::validateJson(current, &HardwareConfig::channelRegistry)) {
                 char rejection[160];
                 strlcpy(rejection, HardwareConfig::lastValidationError(), sizeof(rejection));
                 current.clear();
                 current.shrinkToFit();
+                patch.clear();
+                patch.shrinkToFit();
                 // Validation uses the live registry as bounded workspace on
                 // both targets. If it rejects, restore from the atomic
                 // committed file at boot rather than allocating another large
                 // tree in the same fragmented request context. Even S3 can
                 // fail that reload and expose compiled defaults until reboot.
                 _scheduleRestart("hardware validation rollback");
-                ConfigApplyGate::release();
                 // ClassicRxWorkspaceLoan may have returned the large receive
                 // workspace to the heap, so it is invalid here. The bounded
                 // transmit workspace remains owned for this small reply.
@@ -4997,8 +5372,6 @@ void WebServer::_setupRoutes() {
             // config document.
             current.clear();
             current.shrinkToFit();
-            patch.clear();
-            patch.shrinkToFit();
             bool settingsChangedByHardware = false;
             const bool hardwareProfileChanged =
                 strcmp(previousHardwareProfile, HardwareConfig::profileId) != 0;
@@ -5041,7 +5414,36 @@ void WebServer::_setupRoutes() {
             // The removed monolithic writer assembled both sections in one
             // JsonDocument and could exhaust a Classic ESP32 heap. This writer
             // has explicit overflow checks and installs the file atomically.
-            const bool saved = HardwareConfig::saveUnified(preserveStoredSettings);
+            size_t stagedSettingsLen = 0;
+            if (combined) {
+                Config::toJson(current);
+                _mergeJsonObject(current.as<JsonObject>(), settingsPatch.as<JsonObjectConst>());
+                if (current.overflowed() || !Config::validateJson(current)) {
+                    const bool outOfMemory = current.overflowed();
+                    current.clear();
+                    current.shrinkToFit();
+                    patch.clear();
+                    patch.shrinkToFit();
+                    _scheduleRestart("combined settings validation rollback");
+                    req->send(outOfMemory ? 503 : 400, "application/json", outOfMemory
+                        ? "{\"ok\":false,\"error\":\"not enough memory to validate settings; previous configuration retained\",\"rebooting\":true}"
+                        : "{\"ok\":false,\"error\":\"settings do not match the proposed hardware or sequence; previous configuration retained\",\"rebooting\":true}");
+                    return;
+                }
+                const size_t expected = measureJson(current);
+                File staged = LittleFS.open("/config_apply.tmp", "w");
+                if (staged && expected && serializeJson(current, staged) == expected)
+                    stagedSettingsLen = expected;
+                if (staged) staged.close();
+                current.clear();
+                current.shrinkToFit();
+            }
+            patch.clear();
+            patch.shrinkToFit();
+            const bool saved = combined
+                ? stagedSettingsLen && Config::saveStagedJsonCandidate(stagedSettingsLen, true)
+                : HardwareConfig::saveUnified(preserveStoredSettings);
+            if (combined) Config::clearStagedJsonCandidate();
             if (!saved) {
                 // The failed writer has already demonstrated that
                 // this request no longer has a safe contiguous JSON workspace.
@@ -5049,7 +5451,6 @@ void WebServer::_setupRoutes() {
                 // Keep START locked and boot the still-authoritative committed
                 // file instead; atomic save never replaced it on failure.
                 _scheduleRestart("hardware save rollback");
-                ConfigApplyGate::release();
                 req->send(500, "application/json",
                     "{\"ok\":false,\"error\":\"failed to write hardware config; restoring the previous setup\",\"rebooting\":true}"
                 );
@@ -5059,17 +5460,18 @@ void WebServer::_setupRoutes() {
                                             (controllerPatch ? "hardware.controllers" :
                                              (sequencePatch ? "hardware.sequence" :
                                               (hardwarePagePatch ? "hardware.page" : "hardware.patch"))), 0, 0);
-            if (systemPatch || controllerPatch || sequencePatch || hardwarePagePatch) {
+            if (combined || systemPatch || controllerPatch || sequencePatch || hardwarePagePatch) {
                 // Boot applies the saved topology. Keep START locked through
                 // the acknowledgement delay instead of exposing a startable
                 // interval immediately before a scheduled reset.
                 static constexpr const char* savedReply =
                     "{\"ok\":true,\"saved\":true,\"reboot\":true}";
-                _sendOwnedJson(req, savedReply, strlen(savedReply));
-                _scheduleRestart(systemPatch ? "system settings save" :
+                _scheduleRestart(combined ? "combined configuration save" :
+                                 (systemPatch ? "system settings save" :
                                  (controllerPatch ? "controller hardware save" :
-                                  (sequencePatch ? "sequence save" : "hardware page save")),
-                                 8000);
+                                  (sequencePatch ? "sequence save" : "hardware page save"))),
+                                 combined && source == "calibration" ? 2000 : 8000);
+                _sendOwnedJson(req, savedReply, strlen(savedReply));
             } else {
                 ConfigApplyGate::markReadyForCore();
                 req->send(200, "application/json", "{\"ok\":true,\"applying\":true}");
@@ -5080,6 +5482,11 @@ void WebServer::_setupRoutes() {
     // Deliberately serves the file verbatim incl. plaintext wifi_password: the JSON
     // must restore 1:1 on another ESP32 (portability by design — do not redact here).
     _server.on("/api/ecu_config", HTTP_GET, [](AsyncWebServerRequest* req) {
+        const uint32_t version = ConfigFileTransaction::readVersion();
+        if (!ConfigFileTransaction::isStable(version)) {
+            req->send(503, "application/json", "{\"error\":\"Engine file is being updated; retry the download\"}");
+            return;
+        }
         if (!LittleFS.exists(Config::PATH)) {
             req->send(404, "application/json", "{\"error\":\"ecu_config.json not found\"}");
             return;
@@ -5087,29 +5494,15 @@ void WebServer::_setupRoutes() {
         File probe = LittleFS.open(Config::PATH, "r");
         const size_t fileSize = probe ? probe.size() : 0;
         probe.close();
+        if (ConfigFileTransaction::readVersion() != version) {
+            req->send(503, "application/json", "{\"error\":\"Engine file is being updated; retry the download\"}");
+            return;
+        }
         if (fileSize == 0) {
             req->send(503, "application/json", "{\"error\":\"ecu_config.json is temporarily unavailable\"}");
             return;
         }
-        // Do not retain an AsyncFileResponse/File handle for this large mutable
-        // file. On Classic ESP32 that path could software-reset the ECU before
-        // the first body byte was sent. A bounded random-access callback is
-        // retry-safe (AsyncTCP may ask for the same offset again) and holds no
-        // flash handle between network callbacks.
-        AsyncWebServerResponse* resp = req->beginResponse(
-            "application/json", fileSize,
-            [fileSize](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
-                if (index >= fileSize) return 0;
-                File source = LittleFS.open(Config::PATH, "r");
-                if (!source || !source.seek(index)) {
-                    source.close();
-                    return RESPONSE_TRY_AGAIN;
-                }
-                const size_t wanted = min(maxLen, fileSize - index);
-                const size_t count = source.read(buffer, wanted);
-                source.close();
-                return count == 0 && wanted != 0 ? RESPONSE_TRY_AGAIN : count;
-            });
+        auto* resp = _beginEngineFileRead(req, 0, fileSize, version);
         if (!resp) {
             req->send(503, "application/json", "{\"error\":\"not enough memory to download configuration\"}");
             return;
@@ -5130,7 +5523,7 @@ void WebServer::_setupRoutes() {
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
             UploadLock lock;
             if (index == 0) {
-                if (_configRestoreOwner) {
+                if (_configUploadOwner) {
                     req->send(409, "application/json",
                         "{\"error\":\"Another full configuration restore is in progress\"}");
                     return;
@@ -5155,40 +5548,14 @@ void WebServer::_setupRoutes() {
                         "{\"error\":\"ECU storage is busy; retry the restore shortly\"}");
                     return;
                 }
-                // Release the heap-backed live telemetry frame before the
-                // complete engine file arrives. Waiting until the last body
-                // chunk left too little contiguous heap to parse Hardware on
-                // a busy S3/Classic UI session.
-                _releaseLiveTelemetryWorkspace();
-                _configRestoreOwner = req;
-                // Boot accepts this same maximum. The browser must be able to
-                // restore every engine file the firmware can legally load,
-                // including maximum sequence actions and calibration curves.
-                _configRestoreError = total > 196608UL;
-                _configRestoreLastMs = millis();
-                LittleFS.remove("/ecu_config.restore.tmp");
-                if (!_configRestoreError) {
-                    _configRestoreFile = LittleFS.open("/ecu_config.restore.tmp", "w");
-                    _configRestoreError = !_configRestoreFile;
-                }
+                _openConfigUpload(req, total);
             }
-            if (_configRestoreOwner != req) return;
-            _configRestoreLastMs = millis();
-            if (index > 196608UL || len > 196608UL - index) _configRestoreError = true;
-            if (!_configRestoreError && _configRestoreFile.write(data, len) != len)
-                _configRestoreError = true;
-            if (index + len < total) return;
-            if (_configRestoreFile) _configRestoreFile.close();
-            if (_configRestoreError) {
-                req->send(400, "application/json", "{\"error\":\"configuration file is too large or could not be staged\"}");
-                _finishConfigRestore();
-                return;
-            }
+            if (!_appendConfigUpload(req, data, len, index, total)) return;
 
             if (!_isStandbyLike(EngineData::instance().mode)) {
                 req->send(423, "application/json",
                     "{\"error\":\"Engine must be in STANDBY or FAULT to upload config\"}");
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             // Extract settings while the restore starts with maximum free
@@ -5202,13 +5569,13 @@ void WebServer::_setupRoutes() {
             if (!_stageUnifiedConfigSection(Config::SECTION, SETTINGS_STAGE)) {
                 req->send(400, "application/json",
                     "{\"error\":\"bad json or missing settings section\"}");
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             if (!_stageUnifiedConfigSection(HardwareConfig::SECTION, HARDWARE_STAGE)) {
                 req->send(400, "application/json",
                     "{\"error\":\"bad json or missing hardware section\"}");
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
 
@@ -5276,7 +5643,7 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 JsonDocument errorDoc;
@@ -5288,7 +5655,7 @@ void WebServer::_setupRoutes() {
                 size_t errorLen = serializeJson(errorDoc, g_webTxBuf, sizeof(g_webTxBuf));
                 _sendOwnedJson(req, g_webTxBuf, errorLen, 400);
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             char uploadedSettingsProfile[65];
@@ -5308,14 +5675,14 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 restoreRuntime();
                 req->send(400, "application/json",
                     "{\"error\":\"uploaded settings cleanup failed\"}");
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
 
@@ -5336,7 +5703,7 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 restoreRuntime();
@@ -5345,7 +5712,7 @@ void WebServer::_setupRoutes() {
                         ? "{\"error\":\"Not enough free memory to restore this engine file; reboot and retry\"}"
                         : "{\"error\":\"invalid hardware section JSON\"}");
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             if (strcmp((*hwDoc)["wifi_password"] | "", "__KEEP_PASSWORD__") == 0) {
@@ -5372,7 +5739,7 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 restoreRuntime();
@@ -5382,7 +5749,7 @@ void WebServer::_setupRoutes() {
                 size_t errorLen = serializeJson(errorDoc, g_webTxBuf, sizeof(g_webTxBuf));
                 _sendOwnedJson(req, g_webTxBuf, errorLen, 400);
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
 
@@ -5394,14 +5761,14 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 restoreRuntime();
                 req->send(400, "application/json",
                     "{\"error\":\"hardware and settings profile_id must identify the same engine\"}");
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             // Reclaim the permanent response workspace before replacing the
@@ -5414,13 +5781,13 @@ void WebServer::_setupRoutes() {
                     _scheduleRestart("web workspace recovery", 1000);
                     req->send(503, "application/json",
                         "{\"error\":\"ECU could not restore its web workspace; reboot and retry\"}");
-                    _finishConfigRestore();
+                    _finishConfigUpload();
                     return;
                 }
                 restoreRuntime();
                 req->send(503, "application/json",
                     "{\"error\":\"ECU needs more free memory to restore this engine file; reboot and retry\"}");
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             HardwareConfig::applyValidatedJsonRuntimeOnly(*hwDoc);
@@ -5431,7 +5798,7 @@ void WebServer::_setupRoutes() {
                 req->send(400, "application/json",
                     "{\"error\":\"settings do not match uploaded hardware or sequence\"}");
                 _scheduleRestart("web workspace recovery", 1000);
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
             Config::sanitizeForHardware();
@@ -5447,7 +5814,7 @@ void WebServer::_setupRoutes() {
             if (!Config::saveStagedJsonCandidate(uploadedSettingsLen, true)) {
                 restoreRuntime();
                 req->send(500, "application/json", "{\"error\":\"failed to atomically save ecu_config.json\"}");
-                _finishConfigRestore();
+                _finishConfigUpload();
                 return;
             }
 
@@ -5461,7 +5828,7 @@ void WebServer::_setupRoutes() {
             // scheduling first could let the clean-restart path stop the AP
             // before the response was attached to this completed upload.
             _scheduleRestart("engine config restore");
-            _finishConfigRestore();
+            _finishConfigUpload();
         });
 
     // 404
@@ -5501,11 +5868,16 @@ bool WebServer::begin() {
         return false;
     }
     _uploadMux = xSemaphoreCreateMutexStatic(&_uploadMuxBuf);
+    // An interrupted upload never becomes the committed engine file.
+    LittleFS.remove(CONFIG_UPLOAD_PATH);
     _recoverInterruptedAssetUpdate();
     _webAssetsComplete = _verifyWebAssetMarker();
     if (!_webAssetsComplete)
         Serial.println("[WebAssets] Complete-generation marker missing or hash mismatch; recovery page only");
     _startWiFi();
+    const uint64_t chipId = ESP.getEfuseMac();
+    snprintf(s_setupEcuId, sizeof(s_setupEcuId), "%04x%08x",
+             unsigned((chipId >> 32) & 0xffff), unsigned(chipId & 0xffffffff));
     _server.addMiddleware(&s_lowHeapRequestGuard);
     _setupRoutes();
     _server.begin();
@@ -5547,7 +5919,12 @@ void WebServer::tick() {
     // Skip while a reboot is pending: factory reset / config restore just replaced
     // the on-disk file, and a deferred save would overwrite it with the old
     // in-memory settings during the 5 s pre-reboot window.
-    if (storageWriteWindow && !_hwRebootPending) Config::flushPendingSave();
+    if (storageWriteWindow && !_hwRebootPending && Config::savePending() &&
+        ConfigApplyGate::tryBeginWebWrite()) {
+        if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode))
+            Config::flushPendingSave();
+        ConfigApplyGate::release();
+    }
     unsigned long _t4 = millis();
     if (storageWriteWindow) Config::flushPendingRuntimeStats();
     unsigned long _t5 = millis();
@@ -5591,10 +5968,7 @@ void WebServer::tick() {
         UploadLock lock;
         if (_otaInProgress && !_otaPendingRestart && (millis() - _otaUploadLastMs) > 30000) {
             Serial.println("[OTA] Timed out - aborting interrupted firmware upload");
-            if (Update.isRunning()) Update.abort();
-            _otaError = true;
-            _otaInProgress = false;
-            _otaUploadOwner = nullptr;
+            _abortFirmwareUpload();
         }
     }
     if (_assetUploadInProgress && (millis() - _assetUploadLastMs) > 30000) {
@@ -5605,11 +5979,11 @@ void WebServer::tick() {
             _finishAssetUpload();
         }
     }
-    if (_configRestoreOwner && (millis() - _configRestoreLastMs) > 30000) {
+    if (_configUploadOwner && (millis() - _configUploadLastMs) > 30000) {
         UploadLock lock;
-        if (_configRestoreOwner && (millis() - _configRestoreLastMs) > 30000) {
-            Serial.println("[Config] Timed out - discarding staged full restore");
-            _finishConfigRestore();
+        if (_configUploadOwner && (millis() - _configUploadLastMs) > 30000) {
+            Serial.println("[Config] Timed out - discarding staged upload");
+            _finishConfigUpload();
         }
     }
     // Reboot only after the HTTP response has had time to leave and network

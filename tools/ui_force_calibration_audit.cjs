@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { gunzipSync } = require('node:zlib');
 const { chromium } = require('playwright');
 const port = 12400 + Math.floor(Math.random()*400);
 const base = `http://127.0.0.1:${port}`;
@@ -16,18 +17,28 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
   const browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{})});
   try {
     const page=await browser.newPage();
+    if(process.env.OT_UI_PACKAGED==='1') {
+      const html=gunzipSync(fs.readFileSync(path.join(__dirname,'../data/calibration.html.gz')));
+      await page.route(/\/calibration\.html(?:\?.*)?$/,route=>route.fulfill({contentType:'text/html',body:html}));
+    }
     const errors=[],alerts=[];
     page.on('pageerror',error=>errors.push(error.message));
     page.on('dialog',async dialog=>{alerts.push(dialog.message());await dialog.dismiss();});
     const state=async()=> (await page.request.get(base+'/__sim/state')).json();
+    let externalAdcId;
+    const forceSample=(kind,raw,healthy)=>({
+      [kind+'_raw']:raw,[kind+'_healthy']:healthy,[kind]:0,
+      ...(externalAdcId?{registry_inputs:[{id:externalAdcId,raw,healthy,raw_fresh:true}]}:{})
+    });
     const stimulus=async(kind,raw,healthy=true)=>{
-      assert.ok((await page.request.post(base+'/__sim/data',{data:{[kind+'_raw']:raw,[kind+'_healthy']:healthy,[kind]:0}})).ok());
+      assert.ok((await page.request.post(base+'/__sim/data',{data:forceSample(kind,raw,healthy)})).ok());
       await page.waitForFunction(({kind,raw,healthy})=>live[kind+'_raw']===raw && live[kind+'_healthy']===healthy,{kind,raw,healthy});
     };
     const setup=async(channel,kind,raw,healthy=true)=>{
+      externalAdcId=channel.driver===9?channel.id:null;
       await page.request.post(base+'/__sim/reset');
       assert.ok((await page.request.patch(base+'/api/hardware',{data:{channel_registry:{inputs:[channel],outputs:[],bindings:[]}}})).ok());
-      await page.request.post(base+'/__sim/data',{data:{[kind+'_raw']:raw,[kind+'_healthy']:healthy,[kind]:0}});
+      await page.request.post(base+'/__sim/data',{data:forceSample(kind,raw,healthy)});
       await page.goto(base+'/calibration.html');
       await page.waitForFunction(({kind,raw})=>typeof cfg!=='undefined' && calibrationConnected() && live[kind+'_raw']===raw && !!_loadCellCal[kind].mode,{kind,raw});
       await page.locator('#'+kind+'-loadcell-wizard').waitFor({state:'visible'});
@@ -46,6 +57,13 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     assert.match(await page.locator('#torque-loadcell-wizard').textContent(),/HX711/);
     assert.equal(await page.locator('#torque-adc-wizard').isVisible(),false);
     await capture('torque');
+    await stimulus('torque',10000,false);
+    await capture('torque');
+    assert.match(await page.locator('#torque-lc-status').textContent(),/Capture failed/);
+    assert.equal(await page.evaluate(()=>_loadCellCal.torque.zero),null);
+    await page.locator('#ot-dialog-confirm').click();
+    await stimulus('torque',10000);
+    await capture('torque');
     await stimulus('torque',210000);
     await save('torque',5,'kg'); // arm is required; no accidental default 1 m.
     assert.equal((await state()).hardware.channel_registry.inputs[0].hx711_scale,1);
@@ -61,10 +79,20 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     assert.equal((await state()).hardware.channel_registry.inputs[0].hx711_scale,1);
     await page.locator('#ot-dialog-confirm').click();
     await stimulus('torque',210000);
+    await page.evaluate(()=>OTSetup.mark('tools'));
     await save('torque',5,'kg',0.2); await saved('torque');
+    const calibrationProgress=await page.evaluate(()=>OTSetup.state());
+    assert.ok(calibrationProgress.calibration,'saving a hardware-only calibration records setup progress');
+    assert.equal(calibrationProgress.tools,undefined,'changing calibration clears the previous tool test mark');
     let channel=(await state()).hardware.channel_registry.inputs[0];
     assert.equal(channel.hx711_zero,10000);close(channel.hx711_scale,5*9.80665*0.2/200000);
     assert.equal(channel.loadcell_n_per_count,undefined);
+    const toolMarkAfterNoOp=await page.evaluate(async () => {
+      OTSetup.mark('tools');
+      await patchHardware({}, () => {});
+      return OTSetup.state().tools;
+    });
+    assert.ok(toolMarkAfterNoOp,'saving an unchanged calibration preserves the last tool test mark');
     await page.setViewportSize({width:390,height:844});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await page.screenshot({path:'artifacts/force-calibration-hx-mobile.png',fullPage:true});
@@ -97,10 +125,10 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.calibration_points?.length===2);
     assert.equal(await page.evaluate(()=>_loadCellCal.thrust.zero),null);
     const tla={...analog,driver:9,pin:-1,i2c_address:16,device_channel:2,i2c_reference_mv:5000};
-    await setup(tla,'thrust',3000);
+    await setup(tla,'thrust',3000,false);
     await capture('thrust');
     assert.match(await page.locator('#thrust-lc-status').textContent(),/3663 mV/);
-    await stimulus('thrust',2000);
+    await stimulus('thrust',2000,false);
     await save('thrust',2,'kg');await saved('thrust');
     channel=(await state()).hardware.channel_registry.inputs[0];
     close(channel.calibration_points[0].value,3*2*9.80665);
@@ -124,7 +152,7 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
       await stimulus('thrust',zero+polarity*2000000);
       await save('thrust',200,'N');await saved('thrust');
       await page.reload();
-      await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.loadcell_zero!==0);
+      await page.waitForFunction(zero=>cfg?.hardware?.channel_registry?.inputs[0]?.loadcell_zero===zero,zero);
       channel=await page.evaluate(()=>cfg.hardware.channel_registry.inputs[0]);
       assert.equal(channel.loadcell_zero,zero);
       for(const force of [0,0.0255,0.0256,1,25,50,100,150,200,250,300,0,-1]) {
@@ -142,7 +170,8 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
       adc('tla_oil','oil_pressure','pressure',5)];
     await page.request.post(base+'/__sim/reset');
     await page.request.patch(base+'/api/hardware',{data:{channel_registry:{inputs:channels,outputs:[],bindings:[]}}});
-    await page.request.post(base+'/__sim/data',{data:{batt_voltage_raw:2048,batt_voltage_healthy:true,torque_raw:819,torque_healthy:true}});
+    await page.request.post(base+'/__sim/data',{data:{batt_voltage_raw:2048,batt_voltage_healthy:true,torque_raw:819,torque_healthy:true,
+      registry_inputs:[{id:'tla_battery',raw:2048,raw_fresh:true},{id:'tla_torque',raw:819,raw_fresh:true}]}});
     await page.goto(base+'/calibration.html');
     await page.waitForFunction(()=>cfg?.hardware?.channel_registry?.inputs[0]?.id==='tla_gate' && calibrationConnected() && live.batt_voltage_raw===2048);
     const gate=page.locator('[data-channel-id="tla_gate"]');
@@ -168,17 +197,41 @@ const close = (a,b)=>assert.ok(Math.abs(a-b)<1e-8*Math.max(1,Math.abs(b)),`${a} 
     channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_p1');
     assert.deepEqual(channel.calibration_points,[{raw:410,value:0},{raw:3686,value:10}]);
     close(channel.analog_mv_per_unit,400);
-    if(await page.locator('#ot-dialog-confirm').isVisible()) await page.locator('#ot-dialog-confirm').click();
+    await page.locator('#reboot-overlay.show').waitFor({state:'visible'});
+    await page.locator('#reboot-overlay.show').waitFor({state:'hidden'});
+    await page.waitForFunction(()=>liveAdcRaw('batt_voltage_raw')===2048);
+    await page.locator('#bv-known-v').fill('10');
+    await page.locator('[onclick="captureBattVolt()"]').click();
+    assert.equal(await page.locator('#btn-bv-save').isEnabled(),true);
+    await page.locator('#bv-known-v').fill('');
+    await page.locator('[onclick="captureBattVolt()"]').click();
+    assert.equal(await page.locator('#btn-bv-save').isDisabled(),true);
+    await page.locator('#ot-dialog-confirm').click();
     await page.locator('#bv-known-v').fill('10');
     await page.locator('[onclick="captureBattVolt()"]').click();
     await page.locator('#btn-bv-save').click();
     await page.waitForFunction(()=>cfg.hardware.channel_registry.inputs.find(c=>c.id==='tla_battery').analog_divider===4);
     channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_battery');assert.equal(channel.analog_divider,4);
+    await page.waitForFunction(()=>liveAdcRaw('torque_raw')===819);
     await page.locator('[onclick="captureTorqueZero()"]').click();await page.locator('#torque-fullscale').fill('100');
     await page.locator('#btn-torque-save').click();
     await page.waitForFunction(()=>document.getElementById('torque-status').textContent.startsWith('Saved: scale='));
     channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_torque');
     close(channel.analog_zero_mv,1000);close(channel.analog_mv_per_unit,50);
+    const setTorqueSample=async (raw,raw_fresh)=>{
+      await page.request.post(base+'/__sim/data',{data:{registry_inputs:[{id:'tla_torque',raw,raw_fresh}]}});
+      await page.waitForFunction(({raw,raw_fresh})=>live.registry_inputs?.some(s=>s.id==='tla_torque'&&s.raw===raw&&s.raw_fresh===raw_fresh),{raw,raw_fresh});
+    };
+    await setTorqueSample(1638,true);
+    await page.locator('[onclick="captureTorqueZero()"]').click();
+    await setTorqueSample(1638,false);
+    await page.locator('[onclick="captureTorqueZero()"]').click();
+    await page.locator('#ot-dialog-confirm').click();
+    await page.locator('#torque-fullscale').fill('200');
+    await page.locator('#btn-torque-save').click();
+    await page.waitForFunction(()=>document.getElementById('torque-status').textContent.startsWith('Saved: scale=40.00'));
+    channel=(await state()).hardware.channel_registry.inputs.find(c=>c.id==='tla_torque');
+    close(channel.analog_zero_mv,1000);close(channel.analog_mv_per_unit,25);
     const oilSlope=await page.evaluate(()=>{
       oilPts=[{raw:819,b:0}];document.getElementById('oil-mv-bar').value='500';oilUseDatasheet();return oilFit.c;
     });

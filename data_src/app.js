@@ -70,8 +70,8 @@ function selectedEgtKey(d) {
 }
 const SEQUENCE_BLOCK_LABELS = {
   OilPrime:'Build Oil Pressure', StarterSpin:'Starter Spin to Light-Off Speed',
-  FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Confirm Combustion by Flame Sensor',
-  TempConfirm:'Confirm Combustion by Temperature', TimedDelay:'Timed Delay',
+  FuelOpen:'Open Main Fuel Shutoff', FlameConfirm:'Wait for Flame Signal',
+  TempConfirm:'Wait for Temperature Threshold', TimedDelay:'Timed Delay',
   FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle', Spool:'Accelerate to Idle',
   SafetyHold:'Final Startup Checks', AirstarterOn:'Air Starter Valve Open', AirstarterOff:'Air Starter Valve Close',
   CoolFanOn:'Cooling Fan On', CoolFanOff:'Cooling Fan Off', IgniterOn:'Ignition Output On', IgniterOff:'Ignition Output Off',
@@ -102,8 +102,8 @@ const _unitPrefs = (() => { try { return JSON.parse(localStorage.getItem('ot_uni
 function _saveUP() { try { localStorage.setItem('ot_units', JSON.stringify(_unitPrefs)); } catch {} }
 function tempUnit()   { return _unitPrefs.temp  || 'C'; }
 function pressUnit()  { return _unitPrefs.press || 'bar'; }
-function setTempUnit(v)  { _unitPrefs.temp  = v; _saveUP(); applyUnitLabels(); if (_lastData) applyData(_lastData); }
-function setPressUnit(v) { _unitPrefs.press = v; _saveUP(); applyUnitLabels(); if (_lastData) applyData(_lastData); }
+function setTempUnit(v, redraw = true)  { _unitPrefs.temp  = v; _saveUP(); applyUnitLabels(); if (redraw && _lastData) applyData(_lastData); }
+function setPressUnit(v, redraw = true) { _unitPrefs.press = v; _saveUP(); applyUnitLabels(); if (redraw && _lastData) applyData(_lastData); }
 function toDispTemp(c)   { return tempUnit()  === 'F'   ? c * 9/5 + 32  : c; }
 function fromDispTemp(v) { return tempUnit()  === 'F'   ? (v - 32) * 5/9 : v; }
 function toDispTempDelta(c)   { return tempUnit() === 'F' ? c * 9/5 : c; }
@@ -130,6 +130,14 @@ function applyUnitLabels() {
     bp.title = `Currently displaying ${dispPressUnit()}. Click to use ${pressUnit() === 'bar' ? 'PSI' : 'bar'}.`;
   }
 }
+
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.target.closest('a,button,input,select,textarea,label,summary,[role="button"]')) return;
+  const card = event.target.closest('.card,.gs-banner');
+  const details = card?.querySelector(':scope > .dashboard-card-details');
+  if (!details?.getClientRects().length || window.getSelection()?.toString()) return;
+  details.open = !details.open;
+});
 
 function applyContextTooltips(root = document) {
   root.querySelectorAll('.tool-card, .cfg-field, .hw-field, .hw-item-card').forEach(el => {
@@ -227,10 +235,22 @@ const DASHBOARD_LIMIT_FIELDS = {
   'fuel-press-card':'sf_fp', 'batt-card':'sf_bv', 'p1-card':'sf_p1t', 'p2-card':'sf_p2t', 'torque-card':'sf_tqt'
 };
 let _dashboardHiddenCards = (() => {
+  let hidden = new Set();
   try {
     const value = JSON.parse(localStorage.getItem(DASHBOARD_CARD_PREF_KEY) || '[]');
-    return new Set(Array.isArray(value) ? value.filter(id => dashboardCardIdAllowed(id) && dashboardCardCanHide(id)) : []);
-  } catch (_) { return new Set(); }
+    if (Array.isArray(value)) hidden = new Set(value.filter(id => dashboardCardIdAllowed(id) && dashboardCardCanHide(id)));
+  } catch (_) {}
+  // Keep earlier Hide guide choices in the same list as other hidden cards.
+  try {
+    const key = 'ot_gs_dismissed';
+    if (localStorage.getItem(key) === '1' || sessionStorage.getItem(key) === '1') {
+      hidden.add('getting-started-banner');
+      localStorage.setItem(DASHBOARD_CARD_PREF_KEY, JSON.stringify([...hidden]));
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  } catch (_) {}
+  return hidden;
 })();
 let _dashboardCustomOrder = (() => {
   try {
@@ -254,6 +274,13 @@ function dashboardCardLabel(card) {
 
 function saveDashboardCardPrefs() {
   try { localStorage.setItem(DASHBOARD_CARD_PREF_KEY, JSON.stringify([..._dashboardHiddenCards])); } catch (_) {}
+}
+
+function hideDashboardCard(id) {
+  if (!dashboardCardCanHide(id)) return;
+  _dashboardHiddenCards.add(id);
+  saveDashboardCardPrefs();
+  refreshDashboardCardVisibility();
 }
 
 function refreshDashboardCardVisibility() {
@@ -327,9 +354,7 @@ function initializeDashboardCardEditing() {
     button.title = 'Hide this card in this browser';
     button.addEventListener('click', event => {
       event.stopPropagation();
-      _dashboardHiddenCards.add(id);
-      saveDashboardCardPrefs();
-      refreshDashboardCardVisibility();
+      hideDashboardCard(id);
     });
     if (dashboardCardCanHide(id)) card.appendChild(button);
     const drag = document.createElement('button');
@@ -733,7 +758,8 @@ function openSensorRange(key, trigger) {
   dialog.showModal();
 }
 function sensorCalibrationRange(channel) {
-  if (!channel || ['generic','operator','flame'].includes(String(channel.role))) return null;
+  if (!channel || ['generic','operator','flame'].includes(String(channel.role)) ||
+      (Number(channel.temp_interface) === 4 && channel.ntc_use_point_table === false)) return null;
   const points=channel.calibration_points;
   const range=channel.cal_range || (Array.isArray(points)&&points.length>=2?[points[0].raw,points[points.length-1].raw]:null);
   return Array.isArray(range)&&range.length===2&&range.every(v=>Number.isFinite(Number(v)))&&Number(range[1])>Number(range[0])
@@ -1140,6 +1166,7 @@ function decodeCompactTelemetry(frame, previous) {
   if (Array.isArray(frame.iv)) out.registry_inputs = frame.iv.map((value, index) => ({
     id:priorInputs[index]?.id || String(index), value,
     raw:Array.isArray(frame.ir) ? frame.ir[index] : undefined,
+    ...(frame.ia === undefined ? {} : {raw_fresh:bit(frame.ia,index)}),
     healthy:bit(frame.ih, index)
   }));
   if (Array.isArray(frame.ov)) out.registry_outputs = frame.ov.map((percent, index) => ({
@@ -1631,11 +1658,13 @@ function applyData(d) {
   if (!running) {
     if (d.mode === 'FAULT')                startBlock = String(faultDescriptionText(d) || d.hardware_fault || d.last_event || 'ECU startup validation failed');
     else if (d.stop_switch_active)         startBlock = 'STOP switch is active';
+    else if (d.config_storage_fault)      startBlock = 'Engine file storage fault. Review Backup & restore in System.';
     else if (d.profile_match === false)    startBlock = 'Profile mismatch — upload a matching config';
     // (boot config-load failure enters FAULT mode, caught above; telemetry
     // config_locked means "running, edits locked" and never applies here)
     else if (d.extra_cooldown_active)      startBlock = 'Extra cooldown is running — stop it on Tools';
-    else if (d.seq_has_structural_errors)  startBlock = 'Sequence setup has errors. Review Sequence for details.';
+    else if (d.seq_has_structural_errors)  startBlock = Number(d.startup_seq_count) === 0
+      ? 'Startup sequence is empty.' : 'Sequence setup has errors.';
     else if (d.seq_has_errors && !d.bench_mode) startBlock = 'Startup sequence needs hardware that is not configured.';
     else if (Array.isArray(d.di_channels) &&
              d.di_channels.some(ch => ch && ch.pin >= 0 && ch.state && ch.role === 'inhibit_start'))
@@ -1653,9 +1682,10 @@ function applyData(d) {
     sbr.style.display = show ? 'block' : 'none';
     if (show) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
-      if (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode)) {
+      if (Number(d.startup_seq_count) !== 0 &&
+          (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode))) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261109b';
+        link.href = '/sequence.html?v=20261117g';
         link.textContent = ' Review Sequence →';
         sbr.appendChild(link);
       }
@@ -1725,7 +1755,7 @@ function applyData(d) {
   // ── Profile mismatch banner ───────────────────────────────
   const mismatchBanner = document.getElementById('profile-mismatch-banner');
   if (mismatchBanner) {
-    const mismatch = d.profile_match === false;
+    const mismatch = d.profile_match === false && !d.config_storage_fault;
     mismatchBanner.style.display = mismatch ? 'block' : 'none';
   }
 
@@ -3320,16 +3350,8 @@ scheduleTelemetryBoot();
 // buffer and produced harmless but user-visible 409 errors during navigation.
 const _emptySeqBanner = document.getElementById('empty-seq-banner');
 if (_emptySeqBanner) _emptySeqBanner.style.display = 'none';
-// Save only the settings owned and changed by the current page. In particular,
-// never turn an ordinary Classic ESP32 edit into a full engine-file restore:
-// that route needs substantially more contiguous RAM and belongs exclusively
-// to System > Backup & restore.
-window.OTSaveHardwarePatch = function(patch, source = '') {
-  return withGlobalTelemetryPaused(() => window.OTSavePatch('/api/hardware'+(source?'?source='+encodeURIComponent(source):''),patch));
-};
-
-window.OTSaveConfigPatch = function(patch) {
-  return withGlobalTelemetryPaused(() => window.OTSavePatch('/api/config',patch,true));
+window.OTSaveConfigPatch = function(patch, expectedEcu = '', expectedBoot) {
+  return withGlobalTelemetryPaused(() => window.OTSavePatch('/api/config',patch,true,expectedEcu,expectedBoot));
 };
 
 // Fault presentation lives in the matched web bundle. Older human-readable

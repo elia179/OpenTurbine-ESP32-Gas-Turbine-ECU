@@ -674,13 +674,11 @@ const setups = [
       await page.waitForSelector('#save-status', { state: 'attached' });
       await assertVisibleTextClean(page, `${setup.id} sequence`);
       if (setup.id === 'minimal_timer_turbojet') {
-        const merged = await page.evaluate(() => mergeSequenceEdits(
-          {startup_seq:['Old'],controllers:{governor:false},identity:{name:'A'}},
-          {startup_seq:['New'],controllers:{governor:false},identity:{name:'A'}},
-          {startup_seq:['Old'],controllers:{governor:true},identity:{name:'B'}}));
-        assert.deepEqual(merged, {
-          startup_seq:['New'], controllers:{governor:true}, identity:{name:'B'}
-        }, 'Sequence atomic save must overlay its array edit without restoring unrelated fresh fields');
+        const patch = await page.evaluate(() => sequenceSettingsPatch(
+          {sequence:{shutdown:{final_stop_timeout_ms:10000}}, rules:[{name:'Oil'}]},
+          {sequence:{shutdown:{final_stop_timeout_ms:15000}}, rules:[{name:'Oil', controller_id:1}]}));
+        assert.deepEqual(patch, {sequence:{shutdown:{final_stop_timeout_ms:15000}}},
+          'Sequence settings save must leave locally normalized controller definitions alone');
       }
       if (setup.id === 'dry_sump_flow_monitored_turbine') {
         const startupOptions = await page.locator('#add-startup-sel').textContent();

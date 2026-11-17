@@ -50,6 +50,8 @@ enum class OTCommand : uint8_t {
     PROP_PITCH_TEST,      // move prop pitch servo to mid-travel briefly
     REGISTRY_OUTPUT_TEST, // iParam = registry output index, fParam = normalized demand
     RESET_PEAKS,          // clear session peak values (maxN1, maxN2, maxTot, maxP1, maxP2)
+    SET_OIL_CAL_PCT,      // fParam = temporary calibration demand in percent, 0 releases it
+    PRESSURE_CAL_PUMP,    // iParam = registry pump index, fParam = normalized demand
 };
 
 struct OTPacket {

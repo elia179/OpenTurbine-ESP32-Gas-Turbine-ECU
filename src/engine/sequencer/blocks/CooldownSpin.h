@@ -29,6 +29,8 @@ public:
 
     const char* name() override { return "CooldownSpin"; }
 
+    void requestSkip() { _skipRequested = true; }
+
     void onEnter() override {
         _entryMs       = millis();
         _lastTickMs    = _entryMs;
@@ -36,34 +38,38 @@ public:
         _oilWarnLogged = false;
         auto& ed = EngineData::instance();
 
-        // Skip immediately if fuel was never opened (no combustion = no hot EGT to cool)
-        // Also skip in bench mode — no real heat was generated, no need to wait
-        if (!ed.combustionAttempted || ed.benchMode) {
-            _skip = true;
-            return;
-        }
-        _skip = false;
+        _skipRequested = false;
+        _handoffOil = false;
+        _skip = ed.benchMode || (!ed.combustionAttempted && !ed.thermallyLoaded);
+        _ownsStarter = !_skip && HardwareConfig::hasStarter && Config::cooldownUseStarter;
+        _ownsOil = !_skip && HardwareConfig::hasOilPump && Config::cooldownUseOilPump;
+        _ownsScavenge = !_skip && HardwareConfig::hasOilScavengePump && useScavengePump;
+        if (_skip) return;
 
-        if (HardwareConfig::hasStarter && Config::cooldownUseStarter) {
+        if (_ownsStarter) {
             ed.starterEnabled = true;
             ed.starterDemand  = starterCoolPct;
         }
-        if (HardwareConfig::hasOilPump && Config::cooldownUseOilPump) {
+        if (_ownsOil) {
             // Start at oilCoolPct regardless of sensor presence.
             // With hasOilPress: tick() regulates up/down via P-controller from this seed.
             // Without hasOilPress: stays fixed at oilCoolPct for the whole cooldown.
             ed.oilPumpPct = oilPumpBinary ? (oilCoolPct > 0.0f ? 100.0f : 0.0f)
                                           : constrain(oilCoolPct, oilMinPct, oilMaxPct);
         }
-        if (HardwareConfig::hasOilScavengePump && useScavengePump) ed.oilScavengeDemand = 1.0f;
+        if (_ownsScavenge) ed.oilScavengeDemand = 1.0f;
     }
 
     BlockResult tick() override {
         if (_skip) return BlockResult::Complete;
+        if (_skipRequested) {
+            _handoffOil = Config::cooldownKeepOilOnExit;
+            return BlockResult::Complete;
+        }
         auto& ed = EngineData::instance();
 
         // Pressure-fed oil system: regulate pump to target pressure
-        if (HardwareConfig::hasOilPump && HardwareConfig::hasOilPress && Config::cooldownUseOilPump) {
+        if (_ownsOil && HardwareConfig::hasOilPress) {
             if (oilFeedbackHealthy(ed)) {
                 _oilFeedbackLostMs = 0;
                 const unsigned long now = millis();
@@ -95,7 +101,7 @@ public:
 
         // Oil pump fail-check: if oil is near zero while pump is supposed to be running,
         // log a warning but do NOT abort — the engine must still cool regardless.
-        if (HardwareConfig::hasOilPump && HardwareConfig::hasOilPress && Config::cooldownUseOilPump
+        if (_ownsOil && HardwareConfig::hasOilPress
             && oilFeedbackHealthy(ed) && oilPressureBar(ed) < Config::oilZeroBar
             && !_oilWarnLogged)
         {
@@ -105,18 +111,25 @@ public:
         }
 
         if (Config::primaryEgtHealthy(ed) && Config::primaryEgtC(ed) < totTarget) {
+            _handoffOil = Config::cooldownKeepOilOnExit;
             return BlockResult::Complete;
         }
-        if ((millis() - _entryMs) > timeoutMs)   return BlockResult::TimeoutContinue;
+        if ((millis() - _entryMs) > timeoutMs) {
+            _handoffOil = Config::cooldownKeepOilOnExit;
+            return BlockResult::TimeoutContinue;
+        }
         return BlockResult::Running;
     }
 
     void onExit() override {
         auto& ed = EngineData::instance();
-        ed.starterDemand  = 0;
-        ed.starterEnabled = false;
-        ed.oilPumpPct   = 0;
-        ed.oilScavengeDemand = 0.0f;
+        if (_ownsStarter) {
+            ed.starterDemand = 0.0f;
+            ed.starterEnabled = false;
+        }
+        if (_ownsOil && !_handoffOil) ed.oilPumpPct = 0.0f;
+        if (_ownsScavenge) ed.oilScavengeDemand = 0.0f;
+        _ownsStarter = _ownsOil = _ownsScavenge = false;
     }
 
 private:
@@ -133,6 +146,11 @@ private:
     unsigned long _entryMs       = 0;
     unsigned long _lastTickMs    = 0;
     bool          _skip          = false;
+    bool          _skipRequested = false;
+    bool          _handoffOil    = false;
+    bool          _ownsStarter   = false;
+    bool          _ownsOil       = false;
+    bool          _ownsScavenge  = false;
     bool          _oilWarnLogged = false;
     unsigned long _oilFeedbackLostMs = 0;
 };

@@ -248,12 +248,12 @@ function flattenHw() {
     rpm_drop_threshold:   sd.rpm_drop_threshold ?? 5000,
     tot_cooldown_target:  en.tot_cooldown_target ?? 150,
     rpm_zero_threshold:   sd.rpm_zero_threshold ?? 100,
+    final_stop_speed_source: sd.final_stop_speed_source ?? 0,
     wait_for_input_ch:    su.wait_for_input_ch ?? 0,
     wait_for_input_state: su.wait_for_input_state !== false,
     fuel_pulse_ms:        paramVals['FuelPulse.fuel_pulse_ms']   ?? 200,
     wait_tot_target:      paramVals['WaitTOTCool.wait_tot_target'] ?? 150,
     throttle_set_pct:     paramVals['ThrottleSet.throttle_set_pct'] ?? 10,
-    ab_stab_ms:           paramVals['ABStabilize.ab_stab_ms']     ?? 1000,
     gov_hold_band_rpm:    paramVals['GovernorHold.gov_hold_band_rpm'] ?? 500,
   };
 }
@@ -421,6 +421,9 @@ function buildParamsHtml(bname, idx, tab) {
   const sideHtml = `<div class="resolved-block-actions">${buildResolvedActionsHtml(bname,idx,tab)}</div>` + buildSideActionsHtml(tab, idx);
   const ignitionHtml = buildDeviceTargetHtml(bname, idx, tab);
   const outputCommandHtml = bname === 'SetOutput' ? buildSetOutputHtml(tab, idx) : '';
+  if (def?._custom) {
+    return `<div class="block-params"><div class="block-desc">${esc(def.desc)}</div>${warningHtml}${sideHtml}</div>`;
+  }
   if (bname === 'WaitForInput' || bname === 'WaitForInputOff') {
     ensureWaitInputSlots(tab);
     const wait = hwCfg[waitInputSeqKey(tab)][idx];
@@ -438,7 +441,10 @@ function buildParamsHtml(bname, idx, tab) {
     ? `<div style="font-size:.65rem;color:var(--dim);line-height:1.35;margin:.35rem 0 .55rem">Shared engine settings: changing a value here also changes other sequence blocks using that same setting. Timed Delay duration and output-device selections are per card.</div>`
     : '';
   if (!def || def.params.length === 0) {
-    const noParams = bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
+    const settingsLinks = def?.settingsInControllers ? BLOCK_INFO[bname]?.links : null;
+    const noParams = settingsLinks?.length
+      ? `<div class="bip-links">${settingsLinks.map(({url,label})=>`<a class="bip-link" href="${esc(url)}">${esc(label)}</a>`).join('')}</div>`
+      : bname === 'SetOutput' ? '' : '<em style="font-size:.72rem;color:var(--dim)">No configurable parameters.</em>';
     return `<div class="block-params"><div class="block-desc">${esc(def?.desc ?? '')}</div>${warningHtml}${ignitionHtml}${outputCommandHtml}${noParams}${sideHtml}</div>`;
   }
   const inputs = def.params.map(p => {
@@ -452,16 +458,12 @@ function buildParamsHtml(bname, idx, tab) {
     const hiddenStyle = isVisible ? '' : ' style="display:none"';
     if (p.type === 'bool') {
       const checked = val ? 'checked' : '';
-      // Starter checkbox: when checked, oil pump checkbox is ghosted+forced-on
-      const isOilPump   = (bname === 'CooldownSpin' && p.key === 'cooldown_use_oil_pump');
-      const starterOn   = isOilPump && (paramVals['CooldownSpin.cooldown_use_starter'] ?? true);
-      const disabledAttr = starterOn ? 'disabled' : '';
-      const displayVal   = starterOn ? 'Yes (required by starter)' : (val ? 'Yes' : 'No');
+      const displayVal = val ? 'Yes' : 'No';
       const boolDescHtml = p.desc ? `<span class="param-desc" style="display:block;font-size:.65rem;color:var(--dim);line-height:1.35;margin-bottom:.18rem">${p.desc}</span>` : '';
       return `<div class="param-field" id="pf-${tab}-${idx}-${bname}-${p.key}" data-bname="${bname}" data-pkey="${p.key}"${hiddenStyle}>
         <span class="param-label">${esc(sequenceParamLabel(p))}</span>
         ${boolDescHtml}<div style="display:flex;align-items:center;gap:.45rem;padding:.32rem 0">
-          <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked} ${disabledAttr}
+          <input type="checkbox" id="p-${tab}-${idx}-${bname}-${p.key}" ${checked}
             onchange="onParamChangeBool('${bname}','${p.key}','${p.configKey??''}',this.checked)">
           <label for="p-${tab}-${idx}-${bname}-${p.key}" style="font-size:.78rem;color:var(--dim);cursor:pointer">${displayVal}</label>
         </div>
@@ -488,9 +490,12 @@ function buildParamsHtml(bname, idx, tab) {
         oninput="onParamChange('${bname}','${p.key}','${p.configKey??''}',this.value,'${tab}',${idx})">
     </div>`;
   }).join('');
+  const oilLimit = ['Spool','SafetyHold'].includes(bname) && sensorEnabled('oil_press')
+    ? `<div class="bip-links"><a class="bip-link" data-shared-oil-limit href="/controllers.html#cf-oil_rm">Shared Oil Low-Pressure Limit · ${seqRound(cfg?.oil?.running_min ?? 2.8)} bar</a></div>`
+    : '';
   return `<div class="block-params">
     <div class="block-desc">${esc(def.desc ?? '')}</div>
-    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${sideHtml}
+    ${warningHtml}${ignitionHtml}${sharedNoteHtml}<div class="param-grid">${inputs}</div>${oilLimit}${sideHtml}
   </div>`;
 }
 
@@ -624,30 +629,6 @@ function onParamChangeBool(bname, pkey, configKey, checked) {
   });
   if (configKey) setConfigVal(configKey, checked);
 
-  // CooldownSpin: when starter is toggled, ghost/force oil pump checkbox
-  if (bname === 'CooldownSpin' && pkey === 'cooldown_use_starter') {
-    if (checked) {
-      // Starter on -> force oil pump on
-      paramVals['CooldownSpin.cooldown_use_oil_pump'] = true;
-      setConfigVal('cooldown_use_oil', true);
-    }
-    const cur = paramVals['CooldownSpin.cooldown_use_oil_pump'] ?? true;
-    document.querySelectorAll('.param-field[data-bname="CooldownSpin"][data-pkey="cooldown_use_oil_pump"]').forEach(pf => {
-      const oilCb  = pf.querySelector('input[type="checkbox"]');
-      const oilLbl = pf.querySelector('label');
-      if (!oilCb) return;
-      if (checked) {
-        // Starter on -> force oil pump on and disable the checkbox
-        oilCb.checked  = true;
-        oilCb.disabled = true;
-        if (oilLbl) oilLbl.textContent = 'Yes (required by starter)';
-      } else {
-        // Starter off -> re-enable oil pump checkbox
-        oilCb.disabled = false;
-        if (oilLbl) oilLbl.textContent = cur ? 'Yes' : 'No';
-      }
-    });
-  }
   refreshParamVisibility(bname);
 }
 
@@ -1073,7 +1054,7 @@ function editCustomBlock(key, tab) {
   document.getElementById('cblk-label').value = def.label || '';
   document.getElementById('cblk-desc').value  = def.desc  || '';
   document.getElementById('cblk-type').value  = def.type  || 'action';
-  document.getElementById('cblk-dur').value   = def.timeout_ms || def.duration_ms || 1000;
+  document.getElementById('cblk-dur').value = def.type === 'while' ? ((def.timeout_ms ?? 10000) || 30000) : (def.duration_ms ?? 1000);
   document.getElementById('cblk-timeout-action').value = def.timeout_action || 'abort';
   _buildCondSensorSelect(def.condition?.source || def.condition?.sensor || null);
   if (def.condition) {
@@ -1108,11 +1089,16 @@ function updateCustomCondUI() {
   const sensors = getEnabledSensors();
   const key = document.getElementById('cblk-cond-sensor').value;
   const s = sensors.find(s => s.key === key);
+  const threshold = document.getElementById('cblk-cond-val');
+  threshold.step = s?.step ?? 'any';
   document.getElementById('cblk-cond-unit').textContent = s?.unit ? `(${s.unit})` : '';
   if (s?.bool) {
     document.getElementById('cblk-cond-op').innerHTML = '<option value="==">==</option>';
-    document.getElementById('cblk-cond-val').max = 1; document.getElementById('cblk-cond-val').min = 0;
+    threshold.max = 1;
+    threshold.min = 0;
   } else {
+    threshold.removeAttribute('min');
+    threshold.removeAttribute('max');
     document.getElementById('cblk-cond-op').innerHTML =
       `<option value="<">&lt;</option><option value=">">&gt;</option><option value="<=">&lt;=</option><option value=">=">&gt;=</option>`;
   }
@@ -1128,7 +1114,7 @@ function updateCustomCondPreview() {
   const prev = document.getElementById('cblk-cond-preview');
   if (s) {
     prev.style.display = '';
-    prev.textContent = `WHILE ${s.label} ${op} ${val}${s.unit ? ' ' + s.unit : ''}`;
+    prev.textContent = `Wait until ${s.label} ${op} ${val}${s.unit ? ' ' + s.unit : ''}`;
   } else {
     prev.style.display = 'none';
   }
@@ -1144,6 +1130,7 @@ function updateCustomBlockTypeUI() {
   document.getElementById('cblk-timeout-action-wrap').style.display = type === 'while' ? '' : 'none';
   document.getElementById('cblk-timer-label').textContent =
     type === 'wait' ? 'Duration (ms)' : 'Timeout (ms)';
+  document.getElementById('cblk-dur').min = type === 'while' ? 1 : 100;
   if (type === 'while') updateCustomCondPreview();
 }
 
@@ -1245,12 +1232,13 @@ function buildRuntimeBlockDef(key, def) {
       ? s.source === def.condition.source : s.key === def.condition.sensor);
     const sLabel = s ? s.label : `Missing input: ${def.condition.source || def.condition.sensor}`;
     const unit   = s?.unit ?? '';
-    condFn = () => `${sLabel} ${def.condition.op} ${def.condition.value}${unit?' '+unit:''}`;
+    const timeoutMs = (def.timeout_ms ?? 10000) || 30000;
+    const quantity = def.condition.relative_to_entry ? `Change in ${sLabel}` : sLabel;
+    const hold = def.condition.stable_ms > 0 ? ` for ${def.condition.stable_ms} ms` : '';
+    condFn = () => `${quantity} ${def.condition.op} ${def.condition.value}${unit ? ' '+unit : ''}${hold} · ${timeoutMs} ms timeout`;
   } else if (def.type === 'wait') {
     condFn = () => `${def.duration_ms ?? 1000} ms`;
   }
-  const timerKey = def.type === 'while' ? 'timeout_ms' : 'duration_ms';
-  const timerDef = def.type === 'while' ? (def.timeout_ms ?? 10000) : (def.duration_ms ?? 1000);
   const rawSteps = def.type === 'wait' ? [] : (def.steps || []);
   const stepLines = rawSteps.map((s, idx) => {
     if (s.type === 'delay_ms') return `${idx+1}. DELAY ${s.val} ms`;
@@ -1266,10 +1254,7 @@ function buildRuntimeBlockDef(key, def) {
     condition: condFn,
     timeout_action: def.timeout_action || null,
     desc: fullDesc || def.label,
-    params: def.type !== 'action'
-      ? [{key: timerKey, label: def.type==='while'?'Timeout':'Duration',
-          unit:'ms', type:'int', min:100, max:600000, step:100, def:timerDef}]
-      : [],
+    params: [],
     _custom: true,
     _def: def,
   };
@@ -1297,24 +1282,42 @@ function confirmCustomBlock() {
   }
 
   const rawDef = { label, type, desc };
+  const duration = document.getElementById('cblk-dur');
+  const durationMs = duration.valueAsNumber;
+  if (type !== 'action' && (!Number.isInteger(durationMs) || durationMs < Number(duration.min) || durationMs > Number(duration.max))) {
+    alert(`Enter a whole number of milliseconds from ${duration.min} to ${duration.max} for the ${type === 'while' ? 'timeout' : 'duration'}.`);
+    return;
+  }
   if (type !== 'wait') rawDef.steps = JSON.parse(JSON.stringify(_cblkSteps));
 
   if (type === 'while') {
     const sKey = document.getElementById('cblk-cond-sensor').value;
-    if (!sKey) { alert('Select a sensor for the condition.'); return; }
+    const selectedSensor = getEnabledSensors().find(s => s.key === sKey);
+    if (!selectedSensor) { alert('Select a fitted sensor for the condition.'); return; }
+    const threshold = document.getElementById('cblk-cond-val').valueAsNumber;
+    if (!Number.isFinite(threshold) || (selectedSensor.bool && threshold !== 0 && threshold !== 1)) {
+      alert(selectedSensor.bool ? 'Enter 0 or 1 for a switch condition.' : 'Enter a numeric threshold for the condition.');
+      return;
+    }
+    const stable = document.getElementById('cblk-stable-ms');
+    const stableMs = stable.valueAsNumber;
+    if (!Number.isInteger(stableMs) || stableMs < Number(stable.min) || stableMs > Number(stable.max)) {
+      alert(`Enter a whole number of milliseconds from ${stable.min} to ${stable.max} for the stable time.`);
+      return;
+    }
+    if (stableMs > durationMs) { alert('Stable time must fit within the condition timeout.'); return; }
     rawDef.condition = {
       sensor: sKey,
       op:     document.getElementById('cblk-cond-op').value,
-      value:  parseFloat(document.getElementById('cblk-cond-val').value) || 0,
-      stable_ms: Math.max(0, parseInt(document.getElementById('cblk-stable-ms').value) || 0),
+      value: threshold,
+      stable_ms: stableMs,
       relative_to_entry: document.getElementById('cblk-relative').checked,
     };
-    const selectedSensor = getEnabledSensors().find(s => s.key === sKey);
     if (selectedSensor?.source) rawDef.condition.source = selectedSensor.source;
-    rawDef.timeout_ms      = parseInt(document.getElementById('cblk-dur').value) || 10000;
+    rawDef.timeout_ms      = durationMs;
     rawDef.timeout_action  = document.getElementById('cblk-timeout-action').value;
   } else if (type === 'wait') {
-    rawDef.duration_ms = parseInt(document.getElementById('cblk-dur').value) || 1000;
+    rawDef.duration_ms = durationMs;
   }
 
   const key = _editingKey || ('custom_' + Date.now());
@@ -1330,6 +1333,7 @@ function confirmCustomBlock() {
 
   closeCustomBlockDialog();
   populateAddSelects();
+  markSequenceDirty('Sequence edited — save to apply');
   renderAllTabsWithLiveIdle();
 }
 
@@ -1339,9 +1343,9 @@ function _validateSequence(blocks) {
   const has = b => blocks.includes(b);
   const manualFuelWorkflow = has('OilPumpOn') && has('FuelPumpIdle');
 
-  // Must have flame confirmation - otherwise ignition failure goes undetected
+  // Timed sequences remain valid when the installation does not require feedback.
   if (!has('FlameConfirm') && !has('TempConfirm')) {
-    warnings.push('Timer-based light-up cannot confirm combustion. When a temperature or flame sensor is configured, replace the ignition hold TimedDelay with TempConfirm or FlameConfirm before live engine testing.');
+    warnings.push('No built-in flame or temperature check is present. If this installation requires verified light-off, review its custom checks or add suitable feedback.');
   }
   // Should have oil priming - running without it risks bearing damage
   if (actuatorEnabled('oil_pump') && !manualFuelWorkflow && !has('OilPrime') && !has('OilPumpOn')) {

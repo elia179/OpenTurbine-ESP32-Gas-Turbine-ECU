@@ -106,12 +106,12 @@ The example uses a **0–10 bar gauge transducer with 0.5–4.5 V output**. Its 
 
 **Calibrate:**
 
-1. Open **Calibration → Oil Pressure**. Leave **Include electric oil-pump control and minimum-output calibration** unchecked for **Sensor only** mode. It uses your external pressure source and sends no pump commands. Select **0 bar (gauge pressure)** for this sensor.
-2. With the circuit safely depressurized, press **Start Calibration** to capture ambient. Apply a known pressure measured by a trusted gauge, enter it and select **Capture point**. Repeat at another point, select a straight-line fit for this sensor, then select **Compute Fit →** and **Save calibration**. Release pressure and verify zero.
+1. Open **Calibration → Oil Pressure**. Leave **Use pump for calibration** and **Also calibrate the oil pump’s minimum output** unchecked for this external-source example. Select **Gauge (ambient = 0 bar)**.
+2. With the circuit safely depressurized, select **Capture ambient**. Apply a known pressure measured by a trusted gauge, enter it and select **Capture point**. Repeat at another point, choose **Straight-line sensor**, then select **Compute Fit →** and **Save calibration**. Release pressure and verify zero.
 
 For this circuit, zero is **{{ e.pressure_zero_mv }} mV** and sensitivity **{{ e.pressure_mv_per_bar }} mV/bar at the ADC**. {{ e.oil_target_bar }} bar corresponds to 920 mV. Verify your actual transducer and gauge instead of assuming identical calibration. Optional pump-assisted calibration is separate and can operate the pump.
 
-{% include build-screen.html file="pressure-calibration" step="Start oil-pressure calibration against a gauge" alt="Oil-pressure calibration panel with sensor-only mode, zero-bar gauge reference and Start Calibration button." caption="Leave pump-assisted calibration unchecked. Start with the circuit depressurized, then follow the point-capture and fit steps above using your own gauge readings." %}
+{% include build-screen.html file="pressure-calibration" step="Start oil-pressure calibration against a gauge" alt="Oil-pressure calibration with the zero-bar gauge reference, Capture ambient button and optional pump checkbox beneath the capture controls." caption="Start with the circuit depressurized. Use your own gauge readings for the reference points." %}
 
 **Check:** zero and at least two reference pressures agree with the gauge, returning to zero afterward. An incorrectly scaled reading is not ready for protection.
 
@@ -241,7 +241,7 @@ Open **Sequence → Startup**, reviewing any defaults before replacement. Choose
 | 2 | Set Starter — UNTIL | {{ e.starter_pct }}%, ramp {{ e.starter_ramp_pct_s }}%/s; N1 {{ e.n1_crank_rpm }}; timeout {{ e.crank_timeout_ms }} ms |
 | 3 | Set Igniter — ACTION | ON |
 | 4 | Set Main Fuel Metering — ACTION | {{ e.fuel_idle_pct }}% assumed starting fuel |
-| 5 | Confirm Combustion by Temperature | {{ e.tot_lightoff_c }} °C; timeout {{ e.lightoff_timeout_ms }} ms |
+| 5 | Wait for Temperature Threshold | {{ e.tot_lightoff_c }} °C; timeout {{ e.lightoff_timeout_ms }} ms |
 | 6 | Final Startup Checks | Require N1 ≥ {{ e.n1_final_min_rpm }} RPM, oil ≥ {{ e.oil_min_bar }} bar, TOT ≥ {{ e.tot_lightoff_c }} °C; stable {{ e.stable_ms }} ms; timeout {{ e.stable_timeout_ms }} ms |
 | 7 | Set Starter — ACTION | 0% |
 | 8 | Set Igniter — ACTION | OFF |
@@ -253,13 +253,15 @@ Both Final Startup Checks instances share settings. Leave their optional output-
 
 <h3 id="shutdown">7.2 · Shutdown</h3>
 
-On **Shutdown**, add **Immediate Fuel and Ignition Cut → Wait for Rotor to Slow → Cooldown → Wait for Complete Stop**. Fuel and ignition cut first. Set the N1-drop threshold below the actual starter's safe re-engagement speed. In **Cooldown**, choose oil pumping ON, {{ e.oil_target_bar }} bar target and {{ e.tot_cooldown_c }} °C temperature target; starter cooling stays OFF unless its mechanism supports it. Give every wait a finite, engine-appropriate timeout. Shutdown can continue after cooling timeout: check final oil behavior deliberately.
+On **Shutdown**, add **Immediate Fuel and Ignition Cut → Wait for Rotor to Slow → Cooldown → Wait for Complete Stop**. Fuel and ignition cut first. Set the N1-drop threshold below the actual starter's safe re-engagement speed. In **Cooldown**, choose oil pumping ON, {{ e.oil_target_bar }} bar target and {{ e.tot_cooldown_c }} °C temperature target; starter cooling stays OFF unless its mechanism supports it. Give every wait a finite, engine-appropriate timeout. Shutdown can continue after the cooling timeout. If oil must continue until **Wait for Complete Stop**, review the Cooldown oil handoff or set an explicit coast-down pump command before that card.
 
 {% include build-screen.html file="sequence-engine-shutdown" step="The matching Shutdown" alt="Shutdown cuts combustion, waits for speed drop, cools with oil delivery and waits for stop." caption="Check final fuel/ignition off states and required lubrication on the actual installation." %}
 
 <h3 id="sequence-review">7.3 · Save and review both paths</h3>
 
 Save and reopen both paths. This recipe uses Final Startup Checks and explicit fuel/starter actions instead of Accelerate to Idle. Verify that the Starter 0% action is before the second Final Startup Checks and the final preview shows Starter 0%. Check the handover to Main Fuel on entering Running; the Shutdown preview must show combustion off and the intended oil behavior.
+
+After saving the sequences, follow **Shared Oil Low-Pressure Limit** from **Final Startup Checks**. Set it to {{ e.oil_min_bar }} bar in Controllers and save. This is the reference for the final startup check. The Oil Pump's separate running protection was set in step 5.2.
 
 <h2 id="verify">8 · Check your setup and save a backup</h2>
 

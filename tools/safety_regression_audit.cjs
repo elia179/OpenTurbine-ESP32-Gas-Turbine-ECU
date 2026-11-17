@@ -46,6 +46,14 @@ const hwConfig = read('src/system/HardwareConfig.cpp') +
 const main = read('src/main.cpp');
 const nothrowNew = read('src/platform/esp32/NothrowNew.cpp');
 const web = read('src/system/web/WebServer.cpp');
+const engineFileStream = web.slice(web.indexOf('static AsyncWebServerResponse* _beginEngineFileRead('),
+  web.indexOf('static bool _copyLittleFsFile('));
+expect('Classic Settings and backups reject a generation change without holding a flash handle between chunks',
+  web.includes('_beginEngineFileRead(req, sectionOffset, sectionLen, version)') &&
+  web.includes('_beginEngineFileRead(req, 0, fileSize, version)') &&
+  engineFileStream.indexOf('ConfigFileTransaction::readVersion() != version') < engineFileStream.indexOf('LittleFS.open(') &&
+  engineFileStream.indexOf('ConfigFileTransaction::readVersion() != version || count != wanted') > engineFileStream.indexOf('source.read(') &&
+  engineFileStream.includes('client->setRxTimeout(1)'));
 const webApp = read('data_src/app.js');
 const outputActivity = read('src/system/OutputActivity.h');
 const configGate = read('src/system/ConfigApplyGate.h');
@@ -102,6 +110,7 @@ const throttleSlew = read('src/engine/controllers/ThrottleSlew.h');
 const dynamicIdle = read('src/engine/controllers/DynamicIdle.h');
 const tempConfirm = read('src/engine/sequencer/blocks/TempConfirm.h');
 const abFlameConfirm = read('src/engine/sequencer/blocks/ABFlameConfirm.h');
+const abStabilize = read('src/engine/sequencer/blocks/ABStabilize.h');
 const version = read('src/system/version.h');
 const changelog = read('CHANGELOG.md');
 const phase2Hil = read('dev/bench/campaign/phase2_safety_hil.py');
@@ -187,8 +196,9 @@ expect('STOP cancels every temporary output in standby and fault',
   main.includes('cancelTemporaryOutputOwners();') &&
   main.includes('STOP: temporary outputs cancelled'));
 expect('tool output preflight reports active or unavailable STOP input',
-  web.includes('_mayEnergizeOutput(pkt) && ed.stopSwitchActive') &&
-  web.includes('_mayEnergizeOutput(pkt) && ed.stopSwitchConfigured && !ed.stopSwitchHealthy') &&
+  web.includes('const bool energizing = _mayEnergizeOutput(pkt);') &&
+  web.includes('energizing && ed.stopSwitchActive') &&
+  web.includes('energizing && ed.stopSwitchConfigured && !ed.stopSwitchHealthy') &&
   webApp.includes('out.stop_switch_configured = bit(frame.h, 0)') &&
   webApp.includes('out.stop_switch_healthy = bit(frame.h, 1)'));
 expect('live governor tuning cannot transfer between fuel and pitch authority',
@@ -337,7 +347,7 @@ expect('canonical AB flame threshold is authoritative across calibration, teleme
   web.includes('doc["ab_flame_raw"]          = ed.abFlameRaw') &&
   web.includes('ChannelRegistry::isAdcThresholdCondition(input)') &&
   hardwareCatalog.includes("['flame','ab_flame'].includes(purpose)") &&
-  hardwareCatalog.includes('Flame active state'));
+  hardwareCatalog.includes('Open flame calibration'));
 expect('digital AB flame calibration hides the irrelevant analog threshold workflow',
   calibrationHtml.includes("![0,8].includes(Number(registryAbFlame.driver))") &&
   calibrationHtml.includes('Digital AB flame input uses its direct On/Off state'));
@@ -422,6 +432,20 @@ expect('windmilling oil protection is explicit opt-in and cannot drive a pump wh
   configCpp.includes('standbyOilEnabled   = false') &&
   main.includes('!Config::standbyOilEnabled || !selectedUsable') &&
   configHtml.includes('Enable Windmilling Oil Protection'));
+const standbyOil = main.slice(main.indexOf('static void checkStandbyOilFeed() {'),
+  main.indexOf('// ── General-purpose DI channel polling'));
+expect('standby pressure regulation can reduce a registry oil-pump command',
+  standbyOil.includes('pressure > ed.oilTargetBar + deadband) loopPct = 0.0f') &&
+  standbyOil.includes('demandPct = max(demandPct, _manualOilPct)') &&
+  !standbyOil.includes('ed.registryOutputDemand[selectedIndex]'));
+expect('untrusted hardware cannot receive windmilling or queued web-tool demands',
+  standbyOil.includes('const bool trustedConfiguration = Config::profileMatch && !ed.configLocked;') &&
+  standbyOil.indexOf('if (!trustedConfiguration)') < standbyOil.indexOf('const char* selectedId') &&
+  standbyOil.includes('if (trustedConfiguration && _standbyOilActuator == RulesEngine::OIL_PUMP)') &&
+  standbyOil.includes('RulesEngine::applyProtectedActuatorDemand((uint8_t)_standbyOilActuator, 0.0f)') &&
+  main.includes('RulesEngine::releaseOwnedTargets(Config::profileMatch && !EngineData::instance().configLocked);') &&
+  web.includes('if (energizing && (!Config::profileMatch || ed.configLocked || ed.configStorageFault))') &&
+  web.includes('Cannot energize tools until the ECU configuration is repaired.'));
 expect('scavenge flow remains observable during shutdown without retriggering shutdown',
   safety.includes('m == SysMode::SHUTDOWN) _checkOilFlow') &&
   safety.includes('(mode == SysMode::STARTUP || mode == SysMode::RUNNING)'));
@@ -454,16 +478,36 @@ expect('gradual limiters share the physical fuel floor but tune each feedback re
   !configHtml.includes('N1 Reduction Method'));
 expect('afterburner EGT confirmation enforces its configured rise window',
   abFlameConfirm.includes('totRiseWindowMs > 0') &&
-  abFlameConfirm.includes('elapsed >= (unsigned long)totRiseWindowMs') &&
+  abFlameConfirm.includes('fuelElapsed >= static_cast<uint32_t>(totRiseWindowMs)') &&
+  abFlameConfirm.includes('withinRiseWindow && rise >= totRiseDegC') &&
   abFlameConfirm.includes('EGT DID NOT RISE IN AB WINDOW'));
+expect('afterburner fuel starts the confirmation deadline at the actuator boundary',
+  main.includes('AB FUEL CONFIRMATION TIMEOUT - RELEASE CONTROL TO RETRY') &&
+  main.includes('OutputActivity::logicalDemand(channel, i, ed)') &&
+  main.indexOf('checkABLightupFuel();') < main.lastIndexOf('Hardware::updateActuators(') &&
+  abFlameConfirm.includes('static_cast<int32_t>(sampleMs - ed.abFirstFuelMs) <= 0') &&
+  abFlameConfirm.includes('sampleMs - _firstOnSampleMs >= 100U'));
 expect('running afterburner flame loss has an AB-only configurable delay',
   configCpp.includes('abFlameLossDelayMs         = 1000') &&
   main.includes('Config::abFlameLossDelayMs') &&
+  main.includes('if (ed.mode != SysMode::RUNNING || ed.abMode != ABMode::Running)') &&
   main.includes('shutting down afterburner only') &&
   configHtml.includes('Running Flame-Loss Delay'));
 expect('custom afterburner ignition requires explicit confirmation',
   main.includes('Add ABFlameConfirm; select sensor, EGT-rise or timed assumption in Afterburner.') &&
   main.includes('[AB] Ignition sequence rejected: %s'));
+expect('afterburner checks confirmed feedback through every remaining light-up card',
+  main.includes('checkABLightupFeedback();\n    g_abSequencer.tick();') &&
+  main.includes('faultABLightup(g_abSequencer.currentBlockName(), reason)') &&
+  main.includes('AB FLAME LOST DURING LIGHT-UP') &&
+  main.includes('EGT INPUT LOST DURING AB LIGHT-UP') &&
+  !abStabilize.includes('abMode ='));
+expect('automatic afterburner requires a healthy release after an asserted or missing trigger',
+  main.includes('requestThreshold <= 0.0f ? requestValue > 0.0f :') &&
+  main.includes('if (!requestValid) _abReleaseRequired = true;') &&
+  main.includes('else if (!rawRequest && !requestAsserted) _abReleaseRequired = false;') &&
+  main.includes('const bool triggerRisingEdge = eligibleRequest && !_abReleaseRequired;') &&
+  main.indexOf('if (requestAsserted) _abReleaseRequired = true;') < main.indexOf('case ABMode::Off:'));
 expect('pre-start temperature is checked before STARTUP and startup has its own hard limit',
   main.includes('START blocked: selected EGT above pre-start limit') &&
   main.indexOf('START blocked: selected EGT above pre-start limit') < main.indexOf('ed.mode = SysMode::STARTUP') &&
@@ -476,7 +520,8 @@ expect('automatic relight has explicit nonzero firing and recovery speeds',
   configCpp.includes('validNumber(rl["min_rpm"], 1.0f') &&
   configCpp.includes('validNumber(rl["confirm_rpm"], 1.0f') &&
   main.includes('const float minimumRelightRpm = Config::effectiveRelightMinRpm()') &&
-  main.includes('ed.n1Rpm < minimumRelightRpm') &&
+  main.includes('ed.n1Rpm >= minimumRelightRpm') &&
+  main.includes('if (airflowValid && relightConfirmed(ed, relightLimitMs))') &&
   safety.includes('ed.n1Rpm >= Config::effectiveRelightMinRpm()') &&
   configCpp.includes('return fmaxf(relightMinRpm, minRpm)') &&
   !main.includes('Config::minRpm * 1.05f'));
@@ -551,7 +596,7 @@ expect('full restore publishes its reboot guard before releasing maintenance own
     const route = web.slice(web.indexOf('POST /api/ecu_config'), web.indexOf('// 404'));
     const reply = route.lastIndexOf('req->send(200, "application/json"');
     const guard = route.lastIndexOf('_scheduleRestart("engine config restore")');
-    const release = route.lastIndexOf('_finishConfigRestore()');
+    const release = route.lastIndexOf('_finishConfigUpload()');
     return reply >= 0 && reply < guard && guard < release;
   })());
 expect('Classic full restore streams the exact validated settings and borrows fixed web workspaces safely',
@@ -676,13 +721,14 @@ expect('general sensor session logging persists and resolves stable selected cha
 expect('logging UI offers each fitted general sensor independently',
   logHtml.includes('data-registry-log-id') &&
   logHtml.includes("purpose.startsWith('general_')") &&
-  logHtml.includes('patch.session_log.registry_inputs') &&
+  logHtml.includes('session_log.registry_inputs') &&
   !logHtml.includes('data-bit="general_inputs"'));
 expect('flash persistence is prohibited while engine control is active',
   web.includes('const bool storageWritesSafe = mode == SysMode::STANDBY || mode == SysMode::FAULT') &&
   web.includes('if (storageWriteWindow) FlightRecorder::runEviction()') &&
   web.includes('if (storageWriteWindow) SessionLogger::drainQueue()') &&
-  web.includes('if (storageWriteWindow && !_hwRebootPending) Config::flushPendingSave()') &&
+  web.includes('if (storageWriteWindow && !_hwRebootPending && Config::savePending() &&') &&
+  /if \(!_hwRebootPending && _isStandbyLike\(EngineData::instance\(\)\.mode\)\)\s+Config::flushPendingSave\(\)/.test(web) &&
   web.includes('if (storageWriteWindow) Config::flushPendingRuntimeStats()'));
 expect('flash-backed asset responses lease LittleFS against concurrent writes',
   web.includes('class LeasedAssetResponse final : public AsyncAbstractResponse') &&
@@ -776,8 +822,16 @@ expect('Classic rejects unrelated HTTP work while an atomic config apply owns it
   web.includes('request->method() == HTTP_GET &&') &&
   web.includes('(ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||') &&
   web.includes('AsyncBasicResponse builds several throwing STL header nodes'));
+const firmwareUpload = web.slice(web.indexOf('_server.on("/api/firmware_chunk"'),
+                                 web.indexOf('_server.on("/api/web_asset_chunk"'));
 expect('OTA releases live browser telemetry before streaming flash data',
-  /POST \/api\/firmware_chunk[\s\S]{0,1600}_releaseLiveTelemetryWorkspace\(\);/.test(web));
+  firmwareUpload.includes('_releaseLiveTelemetryWorkspace();') &&
+  firmwareUpload.indexOf('_releaseLiveTelemetryWorkspace();') < firmwareUpload.indexOf('Update.begin('));
+expect('only an admitted firmware chunk can write or abort and reboot requires a committed update',
+  firmwareUpload.includes('if (_otaUploadOwner == req) _abortFirmwareUpload();') &&
+  firmwareUpload.indexOf('if (_otaUploadOwner != req) return;') < firmwareUpload.indexOf('Update.write(data, len)') &&
+  firmwareUpload.includes('(!_otaPendingRestart || offset != _otaFinalChunkOffset') &&
+  firmwareUpload.indexOf('Update.end(true)') < firmwareUpload.indexOf('_otaPendingRestart = true;'));
 expect('bounded OTA safely acknowledges a completely committed retry without writing it twice',
   web.includes('const bool replayed = _otaInProgress && offset < _otaChunkReceived') &&
   web.includes('&& !replayed') && web.includes('"replayed\\\":true'));
@@ -993,11 +1047,13 @@ expect('normal sequence ignition cleanup is exact while emergency cuts remain ca
   sequenceActions.includes('const clearIgnition=') && sequenceActions.includes("for(const id of [...ignition])write(byId(id),0,'exit'") &&
   sequenceState.includes('resolveSequenceActions(tab,seq)') &&
   main.includes('cutCombustionAndStarterNow()'));
-expect('FinalStop waits for its timeout when N1 is missing or unhealthy',
-  finalStop.includes('bool stopped = HardwareConfig::hasN1Rpm') &&
-  finalStop.includes('&& ed.n1Healthy') &&
-  finalStop.includes('No N1 sensor (waiting %lu ms spool-down delay)') &&
-  !finalStop.includes(': true;'));
+expect('FinalStop waits for every selected fitted shaft or the configured timeout',
+  finalStop.includes('(required & fittedShafts()) == required') &&
+  finalStop.includes('(!needN1 || (n1Valid && n1 <= rpmZeroThreshold))') &&
+  finalStop.includes('(!needN2 || (n2Valid && n2 <= rpmZeroThreshold))') &&
+  finalStop.includes('const bool delayEnded = elapsed >= timeoutMs') &&
+  configCpp.includes('validInt(sd["final_stop_speed_source"], 0, 3)') &&
+  sequenceHtml.includes("l:'Timer only'"));
 expect('Developer Mode keeps the full config locked and opens only the RUNNING PATCH window',
   configCpp.includes('return active;') &&
   web.includes('liveWindowBeforeGate') && web.includes('liveWindowAfterGate') &&
@@ -1069,8 +1125,8 @@ expect('maximum legal hardware JSON is streamed independently of fixed web scrat
   web.includes('new (std::nothrow) StreamedJsonResponse()') &&
   web.includes('_sendWorkspaceSnapshot(req, doc);') &&
   web.includes('HardwareConfig::toJson(doc, true)') &&
-  web.includes('_configRestoreError = total > 196608UL') &&
-  web.includes('len > 196608UL - index') &&
+  web.includes('_configUploadError = total > CONFIG_UPLOAD_MAX') &&
+  web.includes('index != _configUploadBytes || index > total || len > total - index') &&
   !web.includes('current hardware exceeds rollback buffer'));
 expect('large hardware calibration merges without serialized web-buffer snapshots', (() => {
   const patchRoute = web.slice(web.indexOf('// PATCH /api/hardware'), web.indexOf('// GET /api/ecu_config'));
@@ -1083,6 +1139,16 @@ expect('large hardware calibration merges without serialized web-buffer snapshot
     !patchRoute.includes(': HardwareConfig::save()') &&
     !patchRoute.includes('HardwareConfig::toJson(g_webTxBuf') &&
     !patchRoute.includes('_serializeJsonBounded(current');
+})());
+expect('oversized hardware patches use the engine-file staging window and transfer their apply gate once', (() => {
+  const patchRoute = web.slice(web.indexOf('// PATCH /api/hardware'), web.indexOf('// GET /api/ecu_config'));
+  return patchRoute.includes('total >= sizeof(WebRxBuffer)') &&
+    patchRoute.includes('_openConfigUpload(req, total, true)') &&
+    patchRoute.includes('_appendConfigUpload(req, data, len, index, total)') &&
+    patchRoute.includes('deserializeJson(patch, body)') &&
+    patchRoute.includes('applyLease.claim(staged)') &&
+    patchRoute.includes('applyLease.handoff()') &&
+    web.includes('if (_configUploadOwner == req) _finishConfigUpload();');
 })());
 expect('calibration writes pause and drain compact telemetry before maintenance allocation',
   webApp.includes('async function withGlobalTelemetryPaused') &&
@@ -1117,7 +1183,7 @@ expect('hardware saves a recursive page-owned patch without restoring unrelated 
   hardwareState.includes('function mergeHardwareRegistryRows(') &&
   hardwareState.includes("(key === 'inputs' || key === 'outputs')") &&
   hardwareSave.includes('mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {})') &&
-  hardwareSave.includes("OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true)") &&
+  hardwareSave.includes("OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true,expectedEcu)") &&
   read('data_src/ui_dialog.js').includes("method:'PATCH'") &&
   read('data_src/ui_dialog.js').includes('body:JSON.stringify(patch)') &&
   !hardwareSave.includes("fetch('/api/ecu_config?source=hardware'") &&
@@ -1162,18 +1228,29 @@ const enterStandbyBody = main.slice(
   main.indexOf('static void enterStandby()'),
   main.indexOf('static void enterAbortStandby()'));
 expect('entering STANDBY releases every temporary actuator-tool timer',
-  ['_fuelPrimeUntilMs', '_oilPrimeUntilMs', '_ignTestUntilMs', '_ign2TestUntilMs',
+  ['_fuelPrimeUntilMs', '_oilPrimeUntilMs', '_oilCalibrationUntilMs', '_ignTestUntilMs', '_ign2TestUntilMs',
    '_startTestUntilMs', '_idleTestUntilMs', '_oilScavTestUntilMs',
    '_coolFanTestUntilMs', '_airstarterTestUntilMs', '_bleedValveTestUntilMs',
    '_glowTestUntilMs', '_fuelPump2TestUntilMs', '_abSolTestUntilMs',
    '_abPumpTestUntilMs', '_starterEnTestUntilMs', '_propPitchTestUntilMs',
    '_registryOutputTestUntilMs'].every(name =>
      new RegExp(`${name}\\s*=\\s*0;`).test(enterStandbyBody)));
-expect('paired registry and compatibility calibration writes are serialized with a bounded handoff retry',
-  calibrationHtml.includes('function patchHardwareThenConfig') &&
-  calibrationHtml.includes('patchConfig(configPatch, msg, onConfigOk, 20)') &&
-  calibrationHtml.includes('e.status === 409 && gateRetries > 0') &&
-  !/patchConfig\([\s\S]{0,850}if \([^\n]*RegistryPatch\) patchHardware/.test(calibrationHtml));
+expect('oil calibration owns a bounded output independent of the manual oil command',
+  main.includes('deadlineExpired(now, _oilCalibrationUntilMs)') &&
+  main.includes('deadlineAfter(millis(), 6000UL)') &&
+  calibrationHtml.includes("cmd:'SET_OIL_CAL_PCT'") &&
+  !calibrationHtml.includes("cmd:'SET_OIL_PCT'") &&
+  calibrationHtml.includes('if (!_oilDutyPending) send()'));
+expect('paired input-card calibration and settings are committed together',
+  calibrationHtml.includes("OTSaveHardwarePatch(hardwarePatch, 'calibration', configPatch, expectedEcu, expectedBoot)") &&
+  web.includes('Config::saveStagedJsonCandidate(stagedSettingsLen, true)') &&
+  web.includes('combined settings validation rollback'));
+expect('calibration writes require the ECU whose setup was loaded',
+  calibrationHtml.includes('hardware.ecu !== settings.ecu') &&
+  calibrationHtml.includes('calibrationEcuChanged = true;') &&
+  calibrationHtml.includes('OTSaveConfigPatch(patch, expectedEcu, expectedBoot)') &&
+  calibrationHtml.includes("OTSaveHardwarePatch(patch, '', null, expectedEcu)") &&
+  web.split('if (_rejectWrongConfigEcu(req, index)) return;').length === 3);
 expect('all configured I2C engine outputs participate in pre-start readiness, including cooling fans',
   hardware.includes('!strcmp(p, "cooling_fan")') &&
   hardware.includes('unavailableEngineI2cOutput()'));
@@ -1182,13 +1259,15 @@ expect('starter and ignition loss do not fault an established run but fuel and c
   hardware.includes('strcmp(p, "igniter") && strcmp(p, "ab_igniter")') &&
   hardware.includes('unavailableRunningCriticalI2cOutput()'));
 expect('canonical oil NTC applies an optional registry table without losing hardware health checks',
-  hardware.includes('channel.temperatureInterface == 4 && channel.calibrationPointCount >= 2') &&
+  hardware.includes('channel.temperatureInterface == 4 && channel.usesCalibrationPoints()') &&
   hardware.includes('ed.oilTempHealthy = ed.oilTempHealthy && isfinite(calibrated)') &&
   hardware.includes('registryAnalogPhysicalInput(ed.oilTempRaw, channel)'));
 expect('captured oil-temperature points persist as the same bounded monotonic registry curve',
   calibrationHtml.includes("[0,4].includes(Number(registry.temp_interface || 0))") &&
   calibrationHtml.includes('const points = curve.map(p=>({raw:Math.round(p.raw),value:p.b}))') &&
-  calibrationHtml.includes("registryCalibrationPatch('oil_temperature', { calibration_points: points })"));
+  calibrationHtml.includes("registryCalibrationPatch('oil_temperature', fields)") &&
+  calibrationHtml.includes("ntc_use_point_table:true") &&
+  calibrationHtml.includes("ntc_use_point_table:false"));
 expect('local registry oil pressure is sampled directly instead of circularly mirroring itself',
   !hardware.includes('ed.registryInputValue[i] = ed.oilPressure') &&
   !hardware.includes('return 6;') &&
@@ -1210,25 +1289,27 @@ expect('calibration PATCH uses the actual persisted channel id after purpose-bas
   calibrationHtml.includes("registryCalibrationPatch('torque',") &&
   !calibrationHtml.includes("registryCalibrationPatch('torque_main',"));
 expect('calibration settings save only changed fields and cannot overwrite a stale full snapshot',
-  calibrationHtml.includes('window.OTSaveConfigPatch(patch)') &&
-  webApp.includes("OTSavePatch('/api/config',patch,true)") &&
+  calibrationHtml.includes('window.OTSaveConfigPatch(patch, expectedEcu, expectedBoot)') &&
+  webApp.includes("OTSavePatch('/api/config',patch,true,expectedEcu,expectedBoot)") &&
   read('data_src/ui_dialog.js').includes("method:'PATCH'") &&
   !webApp.includes("const engineResponse = await fetch('/api/ecu_config', {cache:'no-store'});") &&
   !webApp.includes('merge(engine.settings, patch);') &&
   !calibrationHtml.includes("fetch('/api/config').then"));
 expect('session logging settings patch only their owned fields',
   logHtml.includes('const patch = {') &&
-  logHtml.includes('session_log:{interval_ms:Math.round(sessionInterval)}') &&
-  logHtml.includes('patch.session_log.registry_inputs =') &&
-  logHtml.includes('window.OTSaveConfigPatch(patch)'));
+  logHtml.includes('const session_log = {interval_ms:Math.round(') &&
+  logHtml.includes('!OTConfigEqual(value, _sessionSettingsBaseline?.[section]?.[key])') &&
+  logHtml.includes('window.OTSaveConfigPatch(patch, expectedEcu)') &&
+  logHtml.includes('sessionSettingsPatch(draft)'));
 expect('coolant pressure offers the same local and shared-I2C analog adapters as other pressure sensors',
   hardwareCatalog.includes("{value:'coolant_pressure',label:'Coolant pressure',role:'pressure',drivers:[1,9]"));
 expect('sequence saves send only page-owned setting and hardware patches',
   sequenceHtml.includes('loadedHwCfg = cloneSequenceJson(hwCfg)') &&
   sequenceHtml.includes('loadedCfg = cloneSequenceJson(cfg)') &&
-  sequenceHtml.includes("OTSavePatch('/api/config',settingsPatch)") &&
-  sequenceHtml.includes("OTSavePatch('/api/hardware?source=sequence',hardwarePatch)") &&
-  sequenceHtml.includes('mergeSequenceEdits(loadedCfg, cfg, {})') &&
+  sequenceHtml.includes("OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu())") &&
+  sequenceHtml.includes("OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, window.OTConfigEditor.requireEcu())") &&
+  sequenceHtml.includes('sequenceSettingsPatch(loadedCfg, cfg)') &&
+  sequenceHtml.includes('of Object.values(CONFIG_SECTIONS)') &&
   !sequenceHtml.includes("fetch('/api/ecu_config', {method:'POST'"));
 expect('sequence endpoint-type changes cannot reinterpret Boolean commands as proportional demands',
   sequenceHtml.includes("previousMeta?.mode === meta.mode ? actionStoredValue(row, previousDisplay) : 0") &&
@@ -1400,6 +1481,16 @@ expect('AB fuel and shutdown ignition have a final actuator-boundary invariant',
   hardware.includes('if (!strcmp(purpose, "ab_valve") || !strcmp(purpose, "ab_pump"))') &&
   hardware.includes('ed.abMode == ABMode::ShuttingDown || ed.abMode == ABMode::Fault') &&
   hardware.includes('applyAfterburnerCombustionInvariant();'));
+expect('only an authorized main-engine relight can regain ignition after the AB cutoff', (() => {
+  const finalize = main.slice(main.indexOf('Hardware::updateActuators([]()'), main.indexOf('PcbPowerStage::service(', main.indexOf('Hardware::updateActuators([]()')));
+  return finalize.includes('ed.mode == SysMode::RUNNING && !ed.faultShutdownActive &&') &&
+    finalize.includes('!ed.dryOilStopActive && !_emergencyShutdownActive') &&
+    finalize.includes('if (_relightActive)') &&
+    finalize.includes('if (ed.manualRelightActive)') &&
+    finalize.includes('commandConfiguredIgnitionOutput(Config::relightOutputId,') &&
+    finalize.includes('commandConfiguredIgnitionOutput(Config::manualRelightOutputId,') &&
+    hardware.indexOf('applyAfterburnerCombustionInvariant();') < hardware.indexOf('finalizeDemands();');
+})());
 expect('output channels remain multi-instance while one explicit card owns each built-in controller',
   channelRegistry.includes('if (d == Output) return false;') &&
   hardwareRegistryView.includes('output: new Set()') &&
@@ -1459,12 +1550,13 @@ expect('completed session capture returns its row queue memory',
   sessionLogger.includes('std::free(storage);') &&
   (sessionLogger.match(/_releaseCaptureStorage\(\);/g) || []).length >= 2);
 expect('pending reboot releases and freezes automation ownership so a rule cannot strand the restart',
-  main.includes('if (!WebServer::rebootPending()) RulesEngine::evaluate();') &&
+  /if \(!WebServer::rebootPending\(\) && Config::profileMatch && !EngineData::instance\(\)\.configLocked\)\s+RulesEngine::evaluate\(\);/.test(main) &&
   main.includes('Rule ownership was released above'));
 expect('reset recovery follows settled physical demand instead of command intent alone',
   main.includes('if (OutputActivity::anyPhysicalDemand(false)) ResetRecovery::markActive();') &&
-  main.indexOf('if (OutputActivity::anyPhysicalDemand(false)) ResetRecovery::markActive();') <
-    main.indexOf('Hardware::updateActuators();') &&
+  main.indexOf('Hardware::updateActuators([]()') <
+    main.indexOf('if (OutputActivity::anyPhysicalDemand(false)) ResetRecovery::markActive();') &&
+  hardware.indexOf('finalizeDemands();') < hardware.indexOf('g_actThrottle->set(mainFuelApplied);') &&
   !main.includes('if (mayEnergizeOutput(pkt.cmd)) ResetRecovery::markActive();'));
 expect('output re-purpose and removal preserve explicit ownership and stable numeric references',
   hardwareRegistryActions.includes('if (!otherOwner) {') &&
@@ -1568,12 +1660,12 @@ expect('calibration live fields use compact telemetry without repeated full snap
   webApp.includes('idle_input_us:v[16]') &&
   webApp.includes('ab_flame_raw:v[72]') &&
   calibrationHtml.includes('async function nextCalibrationFrame()') &&
-  calibrationHtml.includes('return calibrationConnected() ? (live || {}) : {};') &&
+  calibrationHtml.includes("calibrationFrames.addEventListener('sample', onSample, {once:true});") &&
   calibrationHtml.includes("classList.contains('connected') === true") &&
   !/function _captureInputAverage[\s\S]{0,500}fetch\('\/api\/data'\)/.test(calibrationHtml));
 expect('compact percentages retain the displayed tenth-percent digit',
   web.includes('ed.mainFuelAppliedDemand * 1000.0f') &&
-  web.includes('ed.registryOutputDemand[i] * 1000.0f') &&
+  web.includes('OutputActivity::logicalDemand(HardwareConfig::channelRegistry.outputs[i], i, ed) * 1000.0f') &&
   web.includes('ed.registryInputValue[i] * 1000.0f') &&
   webApp.includes('throttle_effective:Number(v[20])/1000') &&
   webApp.includes('demand:Number(percent)/1000'));
@@ -1591,6 +1683,20 @@ expect('normal dashboard and calibration telemetry use a uniform 3 Hz compact HT
   webApp.includes('return LIVE_TELEMETRY_PERIOD_MS;') &&
   webApp.includes('const period = Math.max(LIVE_TELEMETRY_PERIOD_MS, desiredPullPeriodMs());') &&
   webApp.includes('setInterval(restTelemetryFallbackNow, period);'));
+const webAssetCommit = web.slice(web.indexOf('static bool _commitWebAssetGeneration()'),
+                                web.indexOf('static const char* _limitedStartRejectReason()'));
+expect('web bundle rolls back until the completion marker is readable and verified',
+  webAssetCommit.includes('ok = _writeWebAssetMarker() && _verifyWebAssetMarker()') &&
+  webAssetCommit.indexOf('_verifyWebAssetMarker()') < webAssetCommit.indexOf('_discardWebAssetBackups()') &&
+  web.includes('_verifyWebAssetMarker(WEB_ASSET_MARKER_BACKUP)') &&
+  web.includes('if (!_webAssetsComplete && LittleFS.exists(WEB_ASSET_MARKER_BACKUP))'));
+const webAssetUpload = web.slice(web.indexOf('_server.on("/api/web_asset_chunk"'),
+                                web.indexOf('const bool ok = _commitWebAssetGeneration();'));
+expect('web asset upload leases belong only to an admitted body and release on disconnect',
+  webAssetUpload.indexOf('Another web asset chunk is in progress') < webAssetUpload.indexOf('_assetUploadOwner = req;') &&
+  webAssetUpload.indexOf('Unexpected web asset chunk or offset') < webAssetUpload.indexOf('_beginMaintenanceWriteWindow()') &&
+  webAssetUpload.includes('if (_assetUploadOwner == req) _finishAssetUpload();') &&
+  webAssetUpload.indexOf('if (_assetUploadOwner != req) return;') < webAssetUpload.indexOf('_assetTempFile.write(data, len)'));
 expect('web assets and JSON replies declare the server one-response lifecycle',
   (web.match(/addHeader\("Connection", "close"\)/g) || []).length >= 3 &&
   !web.includes('addHeader("Connection", "keep-alive")') &&
@@ -1663,6 +1769,27 @@ expect('factory reset reuses verified session deletion before scheduling reboot'
   web.includes('if (!_removeAllSessionFiles()) wipeOk = false;') &&
   web.indexOf('if (!_removeAllSessionFiles()) wipeOk = false;') <
     web.indexOf('_scheduleRestart("factory reset")'));
+expect('all configuration loads and saves share backup recovery and reset does not revive it', (() => {
+  const reset = web.slice(web.indexOf('_server.on("/api/factory_reset"'), web.indexOf('_scheduleRestart("factory reset")'));
+  return [configCpp, hwConfig].every(source =>
+    source.includes('ConfigFileTransaction::recoverBackup(LittleFS, PATH)') &&
+    source.includes('ConfigFileTransaction::install(LittleFS, TMP_PATH, PATH)')) &&
+    reset.includes('ConfigApplyGate::tryBeginWebWrite()') &&
+    reset.includes('Config::discardPendingSave()') &&
+    reset.indexOf('removeAndVerify(ConfigFileTransaction::backupPath)') <
+      reset.indexOf('removeAndVerify(Config::PATH)');
+})());
+expect('optional factory configuration is staged and verified before replacing the current configuration', (() => {
+  const reset = web.slice(web.indexOf('_server.on("/api/factory_reset"'), web.indexOf('_scheduleRestart("factory reset")'));
+  const copy = web.slice(web.indexOf('static bool _copyLittleFsFile'), web.indexOf('static bool _removeAllSessionFiles'));
+  return reset.includes('_copyLittleFsFile(FACTORY_CONFIG_PATH, stage)') &&
+    reset.indexOf('_validFactoryConfigFile(stage)') <
+      reset.indexOf('ConfigFileTransaction::install(LittleFS, stage, Config::PATH)') &&
+    reset.includes('ConfigFileTransaction::install(LittleFS, stage, Config::PATH)') &&
+    !reset.includes('_copyLittleFsFile(FACTORY_CONFIG_PATH, Config::PATH)') &&
+    copy.includes('n != requested || dst.write(buf, n) != n') &&
+    copy.includes('staged.size() == expected');
+})());
 expect('event-log clear verifies removal and preserves queued post-clear events on failure',
   flightRecorder.includes('(LittleFS.remove(PATH) && !LittleFS.exists(PATH))') &&
   flightRecorder.includes('s_lastError = 4;') &&

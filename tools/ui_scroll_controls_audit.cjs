@@ -62,7 +62,7 @@ async function wheelAndSettle(page, delta) {
       const button=bar.querySelector('button.primary,button.save-btn');if(button)button.disabled=true;
       const status=bar.querySelector('.save-msg,.save-status,#save-status');
       if(status)status.textContent='1 unsaved field change — review before saving';
-      bar.classList.remove('is-dirty'); // Singular messages still need the save handle.
+      bar.classList.add('is-dirty'); // Validation may block saving a real draft.
      });
      await p.waitForTimeout(850);await wheelAndSettle(p,250);
      await p.waitForFunction(()=>document.body.classList.contains('ot-controls-collapsed'),null,{timeout:5000});

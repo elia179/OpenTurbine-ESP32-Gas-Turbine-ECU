@@ -18,8 +18,9 @@ const {waitForEditorBaseline}=require('./save_controls_helper.cjs');
   await p.goto(base+'/sequence.html');await p.locator('#list-startup .block-card').first().waitFor();
   await p.getByRole('button',{name:'Shutdown',exact:true}).click();
   const cut=p.locator('#list-shutdown .block-card[data-block="ImmediateCut"]');await cut.locator('.block-header').click();
-  const actions=cut.locator('.sequence-action-card');assert.ok(await actions.count()>=4);
+  const actions=cut.locator('.sequence-action-card');assert.equal(await actions.count(),3);
   const labels=await actions.allTextContents();assert.ok(labels.some(s=>s.includes('Main Fuel')&&s.includes('0%')));assert.ok(labels.some(s=>s.includes('Igniter')&&s.includes('OFF')));
+  assert.ok(labels.some(s=>s.includes('Starter')&&s.includes('0%')));
   assert.ok(!labels.some(s=>s.includes('Oil Pump')),'cut must retain oil');
   const model=await p.evaluate(()=>{
    const cut=resolveSequenceActions('shutdown',['ImmediateCut'])[0];

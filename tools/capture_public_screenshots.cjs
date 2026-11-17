@@ -166,7 +166,7 @@ async function capture(page, route, file, selector, scrollToSelector = false) {
   const executablePath = installedBrowser();
   const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
   try {
-    const page = await browser.newPage({ viewport: { width: 1800, height: 1050 }, deviceScaleFactor: 1 });
+    const page = await browser.newPage({ viewport: { width: 1800, height: 1050 }, deviceScaleFactor: 1, locale: 'en-US' });
     await prepare(page);
     // The dashboard itself is 920 px wide; avoid blank margins in its preview.
     await page.setViewportSize({width:1000,height:936});

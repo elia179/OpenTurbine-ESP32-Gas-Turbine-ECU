@@ -107,6 +107,7 @@ struct EngineData {
     volatile bool     flameHealthy    = true;   // configured channel is available
     volatile bool     flameDetected   = false;
     volatile uint32_t flameSampleSeq  = 0;
+    volatile uint32_t flameSampleMs   = 0;
     volatile float    registryInputValue[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     volatile bool     registryInputHealthy[ChannelRegistry::MAX_INPUT_CHANNELS] = {};
     // Canonical sample metadata for registry-backed safety/sequence inputs.
@@ -126,6 +127,7 @@ struct EngineData {
     volatile float    oilTargetBar     = 0;      // bar target → P-controller
     volatile float    starterDemand   = 0;      // 0.0–1.0
     volatile float    effectiveStarterDemand = 0; // delay/interlock-qualified physical demand
+    volatile bool     starterOutputReady = true;  // enable delay and health qualified at the actuator boundary
     volatile float    abPumpDemand    = 0;      // 0.0–1.0  afterburner pump
     volatile float    propPitchDemand = 0;      // 0.0–1.0  propeller pitch servo (turboprop)
     // Semantic roles never quantise a command.  Relay drivers do that at their
@@ -178,6 +180,7 @@ struct EngineData {
     volatile uint32_t abFlameSampleSeq = 0;
     volatile uint32_t abFlameSampleMs = 0;
     volatile bool     abEvidenceValid = false;
+    volatile bool     abFuelStarted = false;
     volatile uint32_t abFirstFuelMs = 0;
     volatile uint32_t abFirstIgnitionMs = 0;
     volatile uint32_t abConfirmedMs = 0;

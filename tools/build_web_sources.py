@@ -131,7 +131,12 @@ def assemble(output_name: str, shell_name: str, script_names: tuple[str, ...]) -
     output = SRC / output_name
     old = output.read_text(encoding="utf-8") if output.exists() else None
     if old != generated:
-        output.write_text(generated, encoding="utf-8", newline="\n")
+        temporary = output.with_suffix(".html.tmp")
+        try:
+            temporary.write_text(generated, encoding="utf-8", newline="\n")
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
         print(f"  assembled {output_name}")
 
 

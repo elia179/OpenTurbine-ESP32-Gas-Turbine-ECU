@@ -34,10 +34,6 @@ public:
 
         auto& ed = EngineData::instance();
 
-        // Safety: if torchTotLimit is 0, skip torch for this attempt.
-        // Use a local flag — do NOT mutate useTorch, which is a config member
-        // set by applyConfig(). Mutating it would permanently disable torch
-        // for all subsequent AB ignition attempts in this run.
         _doTorch = useTorch;
         _useIgniterEff = useIgniter;
         _hasIgnitionAction = _doTorch || _useIgniterEff;
@@ -53,7 +49,6 @@ public:
         // the AB sequencer), making the spike completely ineffective on
         // physical-throttle setups.
         if (_doTorch) {
-            if (!ed.abFirstFuelMs) ed.abFirstFuelMs = millis();
             ed.abFuelOffset = torchSpikePct / 100.0f;
             Serial.printf("[AB] Ignite: torch spike +%.0f%% for %d ms\n",
                           (double)torchSpikePct, torchDurationMs);

@@ -832,6 +832,13 @@ class TenBuildRunner:
 
     def wait_idle_tools(self):
         deadline = time.time() + 8
+        hardware = self.dut.hardware()
+        parked_pitch = {
+            row["id"]: float(row.get("safe_demand", 1.0))
+            for row in hardware.get("channel_registry", {}).get("outputs", [])
+            if row.get("installed", True) and
+            (row.get("purpose") == "prop_pitch" or row.get("role") == "prop_pitch")
+        }
         # Optional actuator fields rotate across four compact telemetry frames.
         # One apparently-idle frame is therefore not evidence that every tool
         # owner has released its output. Require a complete rotation plus one
@@ -844,7 +851,8 @@ class TenBuildRunner:
             # in STANDBY and is not an energized turbine-starting output.
             active = (
                 not self.outputs_idle(d) or
-                any((o.get("demand", 0) or 0) > 0.01 for o in d.get("registry_outputs", []))
+                any(abs((o.get("demand", 0) or 0) - parked_pitch.get(o.get("id"), 0.0)) > 0.01
+                    for o in d.get("registry_outputs", []))
             )
             if not active:
                 idle_frames += 1

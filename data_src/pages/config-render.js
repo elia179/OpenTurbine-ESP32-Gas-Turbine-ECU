@@ -261,7 +261,8 @@ function createControllerForOutput(outputId) {
 }
 
 function migrateLegacyControllerDefinitions() {
-  if (Number(cfg?.controller_schema || 0) >= 1) return false;
+  // A generic controller cannot preserve the built-in governor's pitch control.
+  if (Number(cfg?.controller_schema || 0) >= 1 || hwCfg.controllers?.governor) return false;
   const outputs = simpleControlOutputs();
   const inputs = simpleControlInputs();
   cfg.rules ||= [];
@@ -272,33 +273,9 @@ function migrateLegacyControllerDefinitions() {
     return matches.length === 1 ? matches[0] : null;
   };
   const mainFuel = uniquePurpose(outputs, 'main_fuel');
-  const propPitch = uniquePurpose(outputs, 'prop_pitch');
   const throttle = uniquePurpose(inputs, 'throttle');
-  const n2 = uniquePurpose(inputs, 'n2_speed');
-  let hardwareChanged = false;
 
-  if (hwCfg.controllers?.governor && n2) {
-    const usePitch = propPitch && Number(cfg?.governor?.pitch_kp || 0) > 0;
-    const output = usePitch ? propPitch : mainFuel;
-    if (output && !owns(output)) {
-      const rule = _defaultRuleForOutput(output);
-      rule.name = OTTruncateUtf8(`${controllerChannelName(output)} N2 control`,23);
-      rule.kind = 2;
-      rule.source = n2.id;
-      rule.target_source_type = throttle ? 2 : 0;
-      rule.target_source = throttle?.id || '';
-      rule.target_fixed = Number(cfg?.governor?.target_rpm || 0);
-      rule.target_input_min = 0;
-      rule.target_input_max = 1;
-      rule.target_low = Number(cfg?.governor?.target_rpm || 0);
-      rule.target_high = Number(cfg?.governor?.target_rpm || 0);
-      rule.response_gain = Math.max(0, Number(cfg?.governor?.kp || .00025));
-      rule.deadband = Math.max(0, Number(cfg?.governor?.band_rpm || 500));
-      cfg.rules.push(rule);
-    }
-    hwCfg.controllers.governor = false;
-    hardwareChanged = true;
-  } else if (mainFuel && throttle && !owns(mainFuel)) {
+  if (mainFuel && throttle && !owns(mainFuel)) {
     const rule = _defaultRuleForOutput(mainFuel);
     rule.name = 'Main Fuel';
     rule.kind = 1;
@@ -308,7 +285,6 @@ function migrateLegacyControllerDefinitions() {
 
   cfg.controller_schema = 1;
   _controllerRulesDirty = true;
-  if (hardwareChanged) _controllerHardwareDirty = true;
   return true;
 }
 
@@ -1667,7 +1643,7 @@ function renderForm(preserveControllerOpenState = true) {
       <div class="cfg-field-head"><div class="cfg-label">${_escHtml(fieldLabel)}${unitSuffix}</div>
         ${level === 'advanced' ? '<span class="field-level">Advanced</span>' : ''}</div>
       ${inp}
-      ${dashboardNote?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
+      ${dashboardNote && (f.key !== 'oil_rm' || !oilPressureControlOwnsProtection())?`<p class="cfg-desc dashboard-field-note">${dashboardNote}</p>`:''}
       <details class="cfg-help"><summary>About this setting</summary><div class="cfg-desc">${fieldDesc}</div></details>
     </div>`;
   };
@@ -1683,10 +1659,12 @@ function renderForm(preserveControllerOpenState = true) {
     const displayTitle = isProtection ? 'Fuel Limiting & Hard Shutdowns' : sec.title;
     const allProtectionFields = isProtection ? [...sec.fields, ...(gradualSection?.fields || []), ...SCHEMA.find(s=>s.title==='Combustion & Startup Protection').fields.filter(f=>f.key==='sf_hs')] : sec.fields;
     const namedOilControl = oilPressureControlOwnsProtection();
+    const usesSequenceOilLimit = (hwCfg.startup_seq || []).some(block => ['Spool','SafetyHold'].includes(block));
     const oilSwitches = controllerInputs('low_oil_switch').length || controllerInputs('oil_zero_switch').length;
     const localSafety = {
       'Oil Pressure Safety': [
         {key:'low_oil',label:namedOilControl?'Oil-pressure switch protection':'Oil pressure protection',available:oilSwitches || (!namedOilControl && controllerInputs('oil_pressure').length),requirement:namedOilControl?'Analogue pressure protection is configured separately for each pump under Oil circuit pressure protection. This card is for an additional low-oil switch.':'Fit oil pressure or a low-oil switch',keys:namedOilControl?['sf_oil_modes','sf_lo_d']:['sf_oil_modes','oil_rm','sf_lo_d'],desc:'Fault shutdown after low pressure or the oil switch ON condition persists for its confirmation time; choose the monitoring phases below'},
+        ...(namedOilControl && usesSequenceOilLimit ? [{id:'startup-oil-limit',label:'Startup oil-pressure limit',available:controllerInputs('oil_pressure').length,requirement:'Fit an oil pressure input',keys:['oil_rm'],desc:'Shared by Accelerate to Idle and the optional final startup oil check. Each pump has its own protection limit.'}] : []),
         {label:'Low oil flow',configToggle:'oil_ufs',available:hasMonitoredOilFlowInputs(),requirement:'Fit a matching flow input and enable monitoring on an oil or scavenge pump in Hardware',keys:['oil_ufd','oil_ufs'],desc:'Flow-fault confirmation and optional shutdown'}
       ],
       'Combustion & Startup Protection': [

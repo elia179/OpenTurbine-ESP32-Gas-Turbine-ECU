@@ -263,7 +263,7 @@ An ESP32 GPIO can provide only a logic command. Use an interface rated for the r
 <tr><td>Generic automation output</td><td>Relay, PWM or servo output controlled by a simple Controller or sequence step, with no built-in engine role.</td></tr>
 </tbody></table></div>
 
-For every output, set a **Power-on state / Boot safe demand** and a **Fault safe demand** that are electrically safe. Verify actual polarity at the driver input and load terminals; a label in software cannot correct a wrongly wired active-low module.
+Click a collapsed Hardware device card or its **Edit** button to open it. In **Advanced output settings**, review **Power-on demand** and the fault behavior. Verify actual polarity at the driver input and load terminals, especially for active-low modules.
 
 ## Part 8: Describe the hardware in the dashboard
 
@@ -304,8 +304,8 @@ You can add a draft card before its wiring or shared bus is configured. In PCB m
 <tr><td>Duty/pulse at 0% and 100%</td><td>The actual PWM duty or servo pulse produced at the two command endpoints. These are electrical endpoints, not the pump's minimum-running calibration.</td></tr>
 <tr><td>Minimum non-zero / reliable command</td><td>Smallest nonzero command that reliably keeps an applicable motor/driver moving. Find it cautiously in Calibration/Tools.</td></tr>
 <tr><td>Output polarity / reverse</td><td>Reverses the electrical interpretation. Verify with a meter before connecting a load.</td></tr>
-<tr><td>Power-on / boot-safe demand</td><td>Command applied during initialization and after some tests. Choose the physically safe state.</td></tr>
-<tr><td>Fault-safe demand</td><td>Command used when the ECU enters fault handling. This is not a replacement for a de-energized safe design.</td></tr>
+<tr><td>Power-on demand</td><td>Command applied once firmware starts. External wiring and driver bias determine the state during reset. Choose the physically safe state.</td></tr>
+<tr><td>Fault override</td><td>Where available, <strong>Use power-on demand during fault shutdown</strong> overrides the shutdown sequence for that output. Fixed-Off outputs show <strong>Hold output off during fault shutdown</strong>. Fuel and ignition are cut on a running fault.</td></tr>
 <tr><td>Current-sensor fields</td><td>ADC GPIO, sensor mV/A, zero-current voltage and overcurrent limit for an attached current sensor. Calibrate zero with the load off.</td></tr>
 </tbody></table></div>
 
@@ -397,10 +397,12 @@ Specific checks:
 
 - **N1/N2:** compare several speeds with an independent tachometer. Correct pulses/revolution first.
 - **TOT/TIT:** verify thermocouple type, polarity, connector metals, converter and probe location. Compare ambient and a controlled reference.
-- **Pressure:** zero only while safely depressurized, then compare with a trusted gauge at multiple pressures. Oil pressure defaults to sensor-only calibration: capture known references without commanding a pump. Two-point linear calibration and an optional multi-point curve do not require electric-pump control. The separate electric-pump/minimum-output workflow remains available only when deliberately selected.
+- **Pressure:** select the gauge or absolute reference and capture ambient with the line safely depressurized. Enter a known pressure from a trusted gauge and capture the reference. For Fuel Pressure, P1, and P2, recapture the affected point after changing either reference. Oil pressure supports a two-point straight-line fit, a curved fit with at least four points, or datasheet sensitivity. Select **Also calibrate the oil pump’s minimum output** for the separate minimum-output procedure when an oil pump is fitted.
+- **Flow:** analog sensors use a zero-flow capture and a known flow in L/min. Pulse sensors use the starting and ending counts and the measured litres collected. Use the sensor's **Save calibration** button to store its result.
+- For pressure or flow, check **Use pump for calibration** below the capture controls to choose a configured pump, or use an external source. Stop the pump before changing test plumbing, capturing ambient pressure, or capturing a zero-flow reading. Unchecking requests a stop and keeps the controls visible if zero demand cannot be confirmed.
 - **Voltage/current:** compare with a meter at several loads; verify the divider ratio and current-sensor zero.
 - **Throttle/idle/AB input:** capture true low and high endpoints, then test signal loss and reversed travel.
-- A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released.
+- A native or registry/I2C AB command uses the same normalized input and disconnect guard. A required AB arm input remains continuous permission and starts normal AB shutdown when released. If permission or a lost signal returns while the trigger is held, release the trigger before asserting it again. At a 0% threshold, the calibrated minimum is released.
 - **Main fuel/oil/starter proportional outputs:** test the command signal into a meter or disconnected driver first. Find minimum reliable behavior only in a suitably safe rig.
 - **Fuel pump minimum:** open **Minimum Reliable Fuel-Metering Output**, sweep, stop at repeatable metering, test three restarts and save. Respect pump priming/lubrication requirements. Stop is disabled until a sweep starts; it is not a missing-hardware warning. The saved minimum is not an idle-speed target. See the [focused calibration example]({{ '/guided-builds/control/#fuel-minimum' | relative_url }}).
 
@@ -498,7 +500,7 @@ Oil pressure has three separate jobs. Change the setting for the job you need:
 | Pressure below which a running oil circuit warns or shuts down | **Controllers → Shutdown & Protection → Oil circuit pressure protection → your pump → Low-pressure threshold**. The pump card links here; the protection card links back. With no named pressure controller, use **Oil Pressure Safety → Oil pressure protection → Low-Pressure Limit** instead. |
 | Pressure required before ignition | **Sequence → Startup → Build Oil Pressure** or **Set Starter → Minimum pressure before ignition**. These two fields share one value. |
 
-The Dashboard oil card links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. Disabled controllers and retained legacy target values do not produce that warning. The target is compared only with that circuit's enabled pressure protection. A removed startup step does not activate its retained pressure settings. Warning links open the affected pump or sequence card; following a link within the current editor preserves unsaved edits. **Final Startup Checks → Require oil pressure** is an additional startup completion check, configured in that sequence block.
+Click the Dashboard oil-pressure card to reveal links to these locations. A running target below its enabled low-pressure limit produces a warning with links to both settings. The target is compared only with that circuit's enabled pressure protection. Warning links open the affected pump or sequence card and preserve unsaved edits within the current editor. **Final Startup Checks → Require oil pressure** enables the optional completion check. Edit its pressure threshold in **Controllers → Shutdown & Protection → Shared Oil Low-Pressure Limit**. Accelerate to Idle uses the same reference. Each named oil-pressure controller has its own protection threshold.
 
 ### Keeping page controls compact
 

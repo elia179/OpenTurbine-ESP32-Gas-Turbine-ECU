@@ -10,7 +10,7 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
   const browser=await chromium.launch({headless:true,...(process.env.OT_BROWSER_EXECUTABLE?{executablePath:process.env.OT_BROWSER_EXECUTABLE}:{})});
   const errors=[];
   try{
-    const page=await browser.newPage({viewport:{width:1200,height:1000},deviceScaleFactor:1.5});
+    const page=await browser.newPage({viewport:{width:1200,height:1000},deviceScaleFactor:1.5,locale:'en-US'});
     page.on('pageerror',err=>errors.push(err.message));
     const initial=await(await page.request.get(`${base}/__sim/state`)).json();
     await page.goto(base);await page.evaluate(()=>{
@@ -29,7 +29,7 @@ const port=12100+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
     const open=async selector=>{const node=page.locator(selector).first();await node.waitFor();if(await node.getAttribute('open')===null)await node.locator(':scope > summary').click();};
     const shot=async(name,selector)=>{
       const node=(typeof selector==='string'?page.locator(selector):selector).first();await node.waitFor({state:'visible'});
-      const style=await page.addStyleTag({content:'.save-bar,body>nav{visibility:hidden!important}.cfg-workspace{position:static!important}'});
+      const style=await page.addStyleTag({content:'.save-bar,.ot-save-handle,body>nav{visibility:hidden!important}.cfg-workspace{position:static!important}'});
       await node.screenshot({path:path.join(output,name+'.png'),animations:'disabled'});await style.evaluate(el=>el.remove());console.log('Captured '+name);
     };
     const card=async(id,name)=>{

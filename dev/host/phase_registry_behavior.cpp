@@ -280,6 +280,21 @@ int main() {
     reconcileRegistryDigitalInputs(adapters,+[](JsonObjectConst)->int{return -1;});
     assert(adapter["pin"].as<int>()==-1 && adapter["registry_id"].isNull());
 
+    JsonDocument ntcConfig;
+    assert(!deserializeJson(ntcConfig, R"({"inputs":[{"id":"oil_ntc","name":"Oil temperature","role":"temperature","purpose":"oil_temperature","driver":1,"pin":35,"temp_interface":4,"calibration_points":[{"raw":300,"value":90},{"raw":2000,"value":30}]}]})"));
+    ChannelRegistry ntcRegistry;
+    assert(ntcRegistry.fromJson(ntcConfig.as<JsonObjectConst>()));
+    assert(ntcRegistry.inputs[0].usesCalibrationPoints());
+    ntcRegistry.inputs[0].ntcUsePointTable = false;
+    JsonDocument ntcSaved;
+    ntcRegistry.toJson(ntcSaved.to<JsonObject>());
+    assert(ntcRegistry.fromJson(ntcSaved.as<JsonObjectConst>()));
+    assert(!ntcRegistry.inputs[0].usesCalibrationPoints());
+    assert(ntcRegistry.inputs[0].calibrationPointCount == 2);
+    ntcSaved["inputs"][0]["ntc_use_point_table"] = true;
+    assert(ntcRegistry.fromJson(ntcSaved.as<JsonObjectConst>()));
+    assert(ntcRegistry.inputs[0].usesCalibrationPoints());
+
     JsonDocument textLimits;auto textInput=textLimits["inputs"].to<JsonArray>().add<JsonObject>();
     textInput["id"]="user_switch";textInput["name"]=std::string(23,'a');textInput["role"]="generic";textInput["driver"]=0;textInput["pin"]=4;
     ChannelRegistry textRegistry;assert(textRegistry.fromJson(textLimits.as<JsonObjectConst>()));

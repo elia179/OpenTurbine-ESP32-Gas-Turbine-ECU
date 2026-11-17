@@ -27,7 +27,8 @@ public:
         _lastRampMs = _entryMs;
         _currentDemand = 0.0f;
         _completedNormally = false;
-        _assist.begin(assistEnabled, (uint32_t)_entryMs);
+        _assistStarted = false;
+        _assist.begin(false, (uint32_t)_entryMs);
         auto& ed = EngineData::instance();
         ed.starterEnabled = true;
         ed.starterDemand = 0.0f;
@@ -40,8 +41,14 @@ public:
         const bool n1Bypassed = FeedbackRequirements::bypassUnhealthyStartupCheck(
             ed, FeedbackRequirements::N1, ed.n1Healthy);
 
-        // Invalid feedback must never hold the starter on. The existing block
-        // timeout remains the single predictable startup failure deadline.
+        if (!_assistStarted && ed.starterOutputReady) {
+            _assistStarted = true;
+            _assist.begin(assistEnabled && !n1Bypassed, (uint32_t)now);
+            _lastRampMs = now;
+        }
+        const bool wasPulsing = _assist.phase() == PulsedStarterAssist::Phase::On ||
+                                _assist.phase() == PulsedStarterAssist::Phase::Off;
+        if (wasPulsing && !ed.starterOutputReady && !n1Bypassed) _assist.cancel();
         const auto assistPhase = _assist.update((uint32_t)now, ed.n1Healthy,
                                                 ed.n1Rpm, assistUntilRpm,
                                                 (uint32_t)assistOnMs,
@@ -51,26 +58,28 @@ public:
             // Keep the ordinary configured ramp and use timeoutMs as the bounded
             // open-loop crank duration instead of suppressing the starter.
             _assist.begin(false, (uint32_t)now);
-            applyNormalRamp(ed, now);
         } else if (assistPhase == PulsedStarterAssist::Phase::Cancelled) {
-            ed.starterDemand = 0.0f;
             ed.starterEnabled = false;
-            _lastRampMs = now;
-        } else if (!ed.n1Healthy) {
+        }
+
+        if (_assist.cancelled() || (!ed.n1Healthy && !n1Bypassed) || !ed.starterOutputReady) {
             ed.starterDemand = 0.0f;
+            _currentDemand = 0.0f;
             _lastRampMs = now;
-        } else if (assistPhase == PulsedStarterAssist::Phase::On ||
-                   assistPhase == PulsedStarterAssist::Phase::Off) {
+        } else if (!_assist.complete()) {
             ed.starterDemand = _assist.pulseOn() ? assistDemand : 0.0f;
         } else {
+            if (wasPulsing) {
+                _currentDemand = fminf(ed.effectiveStarterDemand, starterDemand);
+                _lastRampMs = now;
+            }
             applyNormalRamp(ed, now);
         }
 
-        if (ed.n1Healthy && ed.n1Rpm >= targetRpm) {
-            // Preserve the established startup hand-off: later ignition/flame
-            // blocks keep ordinary starter demand until Spool cuts it. Never
-            // let an assist ON/OFF phase leak beyond StarterSpin.
-            if (!_assist.complete()) ed.starterDemand = starterDemand;
+        if (!_assist.cancelled() && ed.n1Healthy && ed.n1Rpm >= targetRpm) {
+            // Hand off the applied command when the target is reached during
+            // a pulse, without advancing the pulse or forcing full demand.
+            if (wasPulsing) ed.starterDemand = ed.effectiveStarterDemand;
             _completedNormally = true;
             clearWaitReason();
             return BlockResult::Complete;
@@ -91,6 +100,10 @@ public:
         char message[80];
         if (n1Bypassed)
             snprintf(message, sizeof(message), "Reduced-power timed crank - %lu ms remaining", timeoutMs - elapsed);
+        else if (_assist.cancelled())
+            snprintf(message, sizeof(message), "Starter assist cancelled - %lu ms remaining", timeoutMs - elapsed);
+        else if (!ed.starterOutputReady)
+            snprintf(message, sizeof(message), "Waiting for starter enable - %lu ms remaining", timeoutMs - elapsed);
         else if (ed.benchMode)
             snprintf(message, sizeof(message), "[BENCH] Starter sim - %lu ms remaining", timeoutMs - elapsed);
         else
@@ -123,5 +136,6 @@ private:
     unsigned long _lastRampMs = 0;
     float         _currentDemand = 0.0f;
     bool          _completedNormally = false;
+    bool          _assistStarted = false;
     PulsedStarterAssist _assist;
 };

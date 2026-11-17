@@ -8,7 +8,16 @@ class Print;
 using std::max;using std::min;
 #include "../../src/engine/SafetyMonitor.h"
 #include "../../src/engine/controllers/ThrottleSlew.h"
+#include "../../src/engine/sequencer/blocks/CooldownSpin.h"
+#include "../../src/engine/sequencer/blocks/FinalStop.h"
 #include "temperature_test_bindings.h"
+bool HardwareConfig::hasStarter = true;
+bool HardwareConfig::hasOilPump = true;
+bool HardwareConfig::hasOilScavengePump = true;
+bool Config::cooldownUseStarter = true;
+bool Config::cooldownUseOilPump = false;
+bool Config::cooldownKeepOilOnExit = false;
+void FlightRecorder::logAbort(const char*, const char*) {}
 static int trips=0;
 static void trip(){++trips;}
 static void close(float a,float b){assert(std::fabs(a-b)<.001f);}
@@ -75,7 +84,31 @@ int main(){
  reset();Config::torqueTripEnabled=false;monitor.check();assert(trips==0);Config::torqueTripEnabled=true;monitor.check();assert(trips==1&&!strcmp(monitor.lastFault(),"TORQUE_HIGH"));Config::torqueTripEnabled=false;
  HardwareConfig::hasN1Rpm=true;ed.n1Healthy=true;ed.n1Rpm=1000;monitor.minRpm=5000;
  reset();Config::underspeedEnabled=false;monitor.check();assert(trips==0);Config::underspeedEnabled=true;fakeMillisClock()=700;monitor.check();assert(trips==1&&!strcmp(monitor.lastFault(),"UNDERSPEED"));
- std::cout<<"Independent pressure/torque/underspeed/startup switches suppress only their own trips and preserve limits.\n";
+ HardwareConfig::safetyFlameout=true;monitor.flameoutSource=2;monitor.flameoutN1MinRpm=500;
+ ed.flameMonitorActive=true;
+ reset();monitor.check();assert(trips==1&&!strcmp(monitor.lastFault(),"UNDERSPEED"));
+ Config::underspeedEnabled=false;reset();monitor.check();assert(trips==0);
+ HardwareConfig::safetyFlameout=false;ed.flameMonitorActive=false;
+
+ // Both shaft trips require fresh readings, including when fast acceleration
+ // makes the RPM health classifier report a jump.
+ HardwareConfig::hasN2Rpm=true;monitor.rpmLimit=5000;monitor.n2RpmLimit=5000;
+ ed.n1Healthy=false;ed.n2Healthy=false;ed.n1Rpm=6000;ed.n2Rpm=6000;
+ for (bool n2 : {false,true}) {
+   HardwareConfig::safetyOverspeed=!n2;HardwareConfig::safetyN2Overspeed=n2;
+   auto& seq=n2?ed.n2SampleSeq:ed.n1SampleSeq;
+   auto& stamp=n2?ed.n2SampleMs:ed.n1SampleMs;
+   reset();seq=1;stamp=100;monitor.check();assert(trips==0);
+   fakeMillisClock()=350;monitor.check();assert(trips==0);
+   seq=2;stamp=350;monitor.check();
+   assert(trips==1&&!strcmp(monitor.lastFault(),n2?"N2_OVERSPEED":"OVERSPEED"));
+   reset();seq=3;stamp=100;monitor.check();assert(trips==0);
+   fakeMillisClock()=700;monitor.check();assert(trips==0);
+   seq=4;stamp=700;monitor.check();assert(trips==0);
+   fakeMillisClock()=950;seq=5;stamp=950;monitor.check();assert(trips==1);
+ }
+ HardwareConfig::safetyOverspeed=false;HardwareConfig::safetyN2Overspeed=false;
+ std::cout<<"Independent underspeed and fresh-sample shaft overspeed checks passed.\n";
  // One configurable oil-pressure trip: one threshold, confirmation and enable.
  Config::underspeedEnabled=false;HardwareConfig::hasOilPress=true;
  HardwareConfig::hasOilLoop=false;HardwareConfig::safetyLowOil=true;
@@ -94,6 +127,13 @@ int main(){
    reset();monitor.check();fakeMillisClock()=350;monitor.check();
    assert((trips==1)==PressureSafety::monitors(modes,mode));
  }
+ ed.mode=SysMode::RUNNING;ed.oilHealthy=false;
+ for(int modes : {2,4,6}) {
+   ed.automaticLimpLatched=false;ed.limpMode=false;Config::oilSafetyModes=modes;
+   reset();monitor.check();fakeMillisClock()=650;monitor.check();
+   assert(ed.automaticLimpLatched==(modes!=2));assert(trips==0);
+ }
+ ed.automaticLimpLatched=false;ed.limpMode=false;ed.oilHealthy=true;
  HardwareConfig::safetyLowOil=false;HardwareConfig::safetyFuelPressLow=true;
  HardwareConfig::hasFuelPress=true;ed.fuelPressHealthy=true;ed.fuelPressure=.8f;
  monitor.fuelPressMin=1.2f;monitor.fuelPressConfirmMs=250;
@@ -102,6 +142,13 @@ int main(){
    reset();monitor.check();fakeMillisClock()=350;monitor.check();
    assert((trips==1)==PressureSafety::monitors(modes,mode));
  }
+ ed.mode=SysMode::RUNNING;ed.fuelPressHealthy=false;
+ for(int modes : {2,4,6}) {
+   ed.automaticLimpLatched=false;ed.limpMode=false;Config::fuelPressureSafetyModes=modes;
+   reset();monitor.check();fakeMillisClock()=650;monitor.check();
+   assert(ed.automaticLimpLatched==(modes!=2));assert(trips==0);
+ }
+ ed.automaticLimpLatched=false;ed.limpMode=false;ed.fuelPressHealthy=true;
  Config::fuelPressureSafetyModes=4;ed.mode=SysMode::STARTUP;
  reset();monitor.check();fakeMillisClock()=1000;monitor.check();assert(trips==0);
  ed.mode=SysMode::RUNNING;fakeMillisClock()=1100;monitor.check();assert(trips==0);
@@ -124,5 +171,66 @@ int main(){
  }
  assert(!PressureSafety::blocksStart("generic",false,true,true));
  std::cout<<"Oil/fuel phase matrices, fresh confirmation, pressure-switch START and independent interlocks passed.\n";
+ // A skipped cooldown must leave earlier sequence outputs alone. Recorded
+ // heat starts cooling even if ignition was external, and only owned outputs
+ // are released when an active cooldown ends.
+ CooldownSpin cooldown;
+ ed.mode=SysMode::SHUTDOWN;ed.tot=400;ed.totHealthy=true;
+ ed.combustionAttempted=false;ed.thermallyLoaded=false;
+ ed.starterDemand=.2f;ed.starterEnabled=true;ed.oilPumpPct=35;ed.oilScavengeDemand=.6f;
+ cooldown.onEnter();assert(cooldown.tick()==BlockResult::Complete);cooldown.onExit();
+ assert(ed.starterEnabled && ed.starterDemand==.2f && ed.oilPumpPct==35 && ed.oilScavengeDemand==.6f);
+ ed.thermallyLoaded=true;cooldown.onEnter();assert(cooldown.tick()==BlockResult::Running);
+ assert(ed.starterDemand==cooldown.starterCoolPct);
+ cooldown.onExit();
+ assert(!ed.starterEnabled && ed.starterDemand==0 && ed.oilPumpPct==35 && ed.oilScavengeDemand==.6f);
+ Config::cooldownUseOilPump=true;HardwareConfig::hasOilPress=false;
+ cooldown.onEnter();cooldown.requestSkip();assert(cooldown.tick()==BlockResult::Complete);
+ cooldown.onExit();assert(ed.oilPumpPct==0 && !ed.starterEnabled);
+ Config::cooldownKeepOilOnExit=true;
+ cooldown.onEnter();assert(cooldown.tick()==BlockResult::Running);
+ cooldown.requestSkip();assert(cooldown.tick()==BlockResult::Complete);
+ cooldown.onExit();assert(ed.oilPumpPct==cooldown.oilCoolPct && !ed.starterEnabled);
+ cooldown.onEnter();assert(cooldown.tick()==BlockResult::Running);
+ cooldown.onExit();assert(ed.oilPumpPct==0);
+ std::cout<<"Cooldown heat gate, output ownership, skip and oil handoff passed.\n";
+ FinalStop finalStop;
+ using StopSpeed = FinalStop::SpeedSource;
+ finalStop.timeoutMs = 1000;
+ auto beginFinalStop = [&](StopSpeed source) {
+   finalStop.speedSource = source;
+   fakeMillisClock() = 100;
+   ed.oilPumpPct = 40;
+   finalStop.onEnter();
+ };
+ HardwareConfig::hasN1Rpm = HardwareConfig::hasN2Rpm = true;
+ ed.n1Healthy = ed.n2Healthy = true;
+ ed.n1Rpm = 100;
+ ed.n2Rpm = 4500;
+ beginFinalStop(StopSpeed::BothFitted);
+ assert(finalStop.tick() == BlockResult::Running && ed.oilPumpPct == 40);
+ ed.n2Rpm = 100;
+ ed.n2Healthy = false;
+ assert(finalStop.tick() == BlockResult::Running && ed.oilPumpPct == 40);
+ ed.n2Healthy = true;
+ assert(finalStop.tick() == BlockResult::Complete && ed.oilPumpPct == 0);
+ HardwareConfig::hasN1Rpm = false;
+ beginFinalStop(StopSpeed::N2);
+ assert(finalStop.tick() == BlockResult::Complete && ed.oilPumpPct == 0);
+ beginFinalStop(StopSpeed::N1);
+ fakeMillisClock() = 1099;
+ assert(finalStop.tick() == BlockResult::Running && ed.oilPumpPct == 40);
+ fakeMillisClock() = 1100;
+ assert(finalStop.tick() == BlockResult::TimeoutContinue && ed.oilPumpPct == 0);
+ finalStop.oilScavengeMs = 300;
+ beginFinalStop(StopSpeed::TimerOnly);
+ assert(finalStop.tick() == BlockResult::Running && ed.oilPumpPct == 40);
+ fakeMillisClock() = 1100;
+ assert(finalStop.tick() == BlockResult::Running && ed.oilPumpPct == 0 && ed.oilScavengeDemand == 1);
+ fakeMillisClock() = 1400;
+ assert(finalStop.tick() == BlockResult::Complete);
+ finalStop.onExit();
+ assert(ed.oilScavengeDemand == 0);
+ std::cout<<"Final stop shaft selection, missing/unhealthy feedback, timed delay and scavenge passed.\n";
  std::cout<<"Production temperature safety: startup immediate/dwell, independent enable, normal fallback, Running takeover, selected TOT/TIT, sensor loss, new-start reset, temperature-only pullback pause and pressure limiting passed.\n";
 }

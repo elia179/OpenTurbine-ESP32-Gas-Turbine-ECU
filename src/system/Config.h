@@ -69,6 +69,7 @@ public:
     static int   shutdownRpmDropTimeoutMs;
     static int   shutdownCooldownTimeoutMs;
     static int   shutdownFinalStopTimeoutMs;
+    static int   finalStopSpeedSource;    // 0=N1, 1=N2, 2=both fitted, 3=timed
     static float rpmZeroThreshold;       // FinalStop: RPM below this = stopped
 
     // ── Throttle parameters ───────────────────────────────────
@@ -257,6 +258,7 @@ public:
     // ── Cooldown hardware selection ───────────────────────────
     static bool  cooldownUseStarter;          // spin starter motor during CooldownSpin block
     static bool  cooldownUseOilPump;          // run oil pump during CooldownSpin block
+    static bool  cooldownKeepOilOnExit;       // hand off the last pump command to the next step
     static float cooldownStarterPct;          // starter speed % during CooldownSpin (0-100)
     static float cooldownOilPct;              // oil pump % during CooldownSpin (no pressure sensor)
     static float cooldownOilPressureTarget;   // oil pressure target bar (pressure-fed systems)
@@ -270,7 +272,7 @@ public:
     static int   waitForInputTimeoutMs;  // finite when the block is included
 
     // ── Cooldown skip ─────────────────────────────────────────
-    static int   cooldownSkipHoldMs;     // hold both buttons this long in SHUTDOWN to skip cooldown
+    static int   cooldownSkipHoldMs;     // hold both buttons this long during the Cooldown step
 
     // ── Throttle / fuel ESC idle range ────────────────────────
     static float fuelPumpMinPct;         // measured min % at which the fuel-pump ESC reliably spins; 0 = not calibrated. Non-standby commands below it are forced to zero.
@@ -526,6 +528,8 @@ public:
                                            bool prevFuelPress, bool prevBatt,
                                            bool prevSurge, bool prevHotStart);
     static void requestSave();   // Core 1: mark save needed, zero file I/O
+    static bool savePending() { return _savePending; }
+    static void discardPendingSave();
     static bool flushPendingSave(); // Core 0 in STANDBY/FAULT: perform deferred save
     static void requestRuntimeStatsSave(); // Core 1: persist hour meter through NVS
     static bool flushPendingRuntimeStats(); // Core 0 in STANDBY/FAULT: deferred NVS write

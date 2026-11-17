@@ -233,24 +233,6 @@
     return overlay;
   };
 
-  // Shared by pages that save Hardware followed by Settings. Sequence and
-  // Hardware intentionally do not load the dashboard app.js bundle.
-  window.OTWaitForSaveRestart = async function () {
-    await new Promise(function (resolve) { setTimeout(resolve, 8000); });
-    for (var attempt = 0; attempt < 30; attempt++) {
-      try {
-        var controller = new AbortController();
-        var timeout = setTimeout(function () { controller.abort(); }, 2000);
-        var response = await fetch('/api/status', {cache:'no-store', signal:controller.signal});
-        clearTimeout(timeout);
-        var status = response.ok ? await response.json() : null;
-        if (status && !status.config_apply_busy && ['STANDBY','FAULT'].includes(status.mode)) return;
-      } catch (_) {}
-      await new Promise(function (resolve) { setTimeout(resolve, 1000); });
-    }
-    throw new Error('Hardware was saved, but the ECU did not reconnect. Settings remain unsaved; reconnect and retry Save.');
-  };
-
   function initializeFullscreen() {
     var button = document.getElementById('dashboard-fullscreen-btn');
     var root = document.documentElement;
@@ -428,7 +410,7 @@
     document.body.appendChild(saveHandle);
     var modalSelector='.ot-dialog-overlay,.save-recap-backdrop,.registry-add-backdrop,#block-picker-dlg,#custom-dlg,[role="dialog"][aria-modal="true"]';
     var last = window.scrollY, distance = 0, direction = 0, revealedUntil = 0;
-    function dirty() { return bar.classList.contains('is-dirty') || (!/\bno unsaved\b/i.test(bar.textContent) && /\bunsaved\b|save to apply/i.test(bar.textContent)); }
+    function dirty() { return bar.classList.contains('is-dirty'); }
     var manualOpen = false;
     function reveal() {
       if (!autoScrollControls()) return;
@@ -456,7 +438,7 @@
       var manual = !autoScrollControls();
       var short = manual || window.innerHeight <= 1000;
       saveHandle.textContent = dirty() ? 'Unsaved changes · Show save controls' : 'Show save controls';
-      if (manual) saveHandle.textContent = manualOpen ? 'Hide controls' : (dirty() ? 'Unsaved changes · Show controls' : 'No unsaved changes · Show controls');
+      if (manual) saveHandle.textContent = manualOpen ? 'Hide controls' : (dirty() ? 'Unsaved changes · Show controls' : 'Show controls');
       saveHandle.setAttribute('aria-expanded', String(manual ? manualOpen : !document.body.classList.contains('ot-controls-collapsed')));
       document.body.classList.toggle('ot-manual-controls',manual);
       document.body.classList.toggle('ot-short-controls',short);

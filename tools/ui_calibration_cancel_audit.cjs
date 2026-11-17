@@ -14,8 +14,10 @@ const {chromium,firefox,webkit}=require('playwright');
    });
    await p.request.post(base+'/__sim/reset');await p.request.post(base+'/__sim/data',{data:{mode:'STANDBY'}});
    await p.goto(base+'/calibration.html');await p.waitForFunction(()=>cfg.hardware&&live.mode==='STANDBY');
+   await p.route(/\/api\/(?:telemetry|data)$/,r=>r.fulfill({status:503,json:{error:'intentional telemetry stall'}}));
    const result=await p.evaluate(async()=>{
     stopGlobalTelemetry();
+    setConnectionState(true);
     const originalCommand=postCalCommand,originalTimer=window.setTimeout,originalSave=window.OTSaveConfigPatch;
     let waits=[],commands=[],failStop=false,holdPositive=false,releasePositive;
     const flush=()=>new Promise(r=>originalTimer(r,0));
@@ -28,13 +30,14 @@ const {chromium,firefox,webkit}=require('playwright');
     };
     const slider=document.getElementById('fp-min-slider'),status=document.getElementById('fp-min-status');
     const positive=()=>commands.filter(p=>p.cmd==='SET_THROTTLE_PCT'&&p.fParam>0).length;
+    const fresh=()=>applyData({mode:'STANDBY',stop_switch_active:false});
     try{
-     slider.value='10';fpMinSlide();const refreshWasRunning=!!_fpMinKeepAlive;
+     fresh();slider.value='10';fpMinSlide();const refreshWasRunning=!!_fpMinKeepAlive;
      const cancelled=fpMinTest();await flush();const refreshPaused=_fpMinKeepAlive===null;
      const waiting=waits.shift();const count=positive();await fpMinStop(true);waiting.fn();await cancelled;
      const stoppedStaysStopped=count===positive()&&!_fpMinTestRunning;
      // All three successful cycles retain a real off interval and finish off.
-     commands=[];waits=[];const normal=fpMinTest();await flush();const phases=[];
+     fresh();commands=[];waits=[];const normal=fpMinTest();await flush();const phases=[];
      for(let n=0;n<3;n++){
       let w=waits.shift();phases.push(w.ms);w.fn();await flush();
       w=waits.shift();phases.push(w.ms);w.fn();await flush();
@@ -51,7 +54,7 @@ const {chromium,firefox,webkit}=require('playwright');
       externalCancellation.push(commands.length===before&&!_fpMinTestRunning&&_fpMinKeepAlive===null);
      }
      // A late acknowledgement from a cancelled positive command cannot resume it.
-     commands=[];waits=[];holdPositive=true;const late=fpMinTest();await flush();
+     fresh();commands=[];waits=[];holdPositive=true;const late=fpMinTest();await flush();
      await fpMinStop(true);releasePositive({ok:true});await late;holdPositive=false;
      const lateSafe=positive()===1&&waits.length===0&&!_fpMinTestRunning;
      failStop=true;const failedStop=await fpMinStop(true),failureText=status.textContent;
@@ -61,17 +64,49 @@ const {chromium,firefox,webkit}=require('playwright');
      oilCalStop();oilWait.fn();await flush();
      const oilCancelled=oilWait.ms===3000&&!oilCalActive&&JSON.stringify(oilPts)===before&&document.getElementById('oil-step-2').style.display==='none';
      // Stop the manual refresh before saving, then preserve the Saved message.
-     commands=[];slider.value='12';fpMinSlide();
+     fresh();commands=[];slider.value='12';fpMinSlide();
      window.OTSaveConfigPatch=async patch=>{commands.push({cmd:'SAVE',patch});return {response:{ok:true},data:{ok:true}};};
      await fpMinSave();const saveIndex=commands.findIndex(p=>p.cmd==='SAVE');
      const savedAfterStop=saveIndex>0&&commands[saveIndex-1].cmd==='SET_THROTTLE_PCT'&&commands[saveIndex-1].fParam===0&&_fpMinKeepAlive===null;
-     return {refreshWasRunning,refreshPaused,stoppedStaysStopped,normalCount,normalStatus,phases,externalCancellation,lateSafe,failedStop,failureText,retryStopAvailable,oilCancelled,savedAfterStop,savedText:status.textContent};
+     const savedText=status.textContent;
+     fresh();commands=[];slider.value='10';fpMinSlide();
+     await new Promise(r=>originalTimer(r,2100));
+     const manualTelemetryLoss={positive:positive(),timerStopped:!_fpMinKeepAlive,message:status.textContent};
+     fresh();commands=[];waits=[];
+     const stalledTest=fpMinTest();await flush();
+     calibrationFrameAt=-Infinity;
+     waits.shift().fn();await flush();
+     waits.shift().fn();await stalledTest;
+     const restartTelemetryLoss=positive()===1&&!_fpMinTestRunning&&/Fresh telemetry/.test(status.textContent);
+     fresh();commands=[];
+     let sweepTick;
+     const originalInterval=window.setInterval;
+     window.setInterval=(fn,ms,...args)=>{
+      if(ms!==250)return originalInterval(fn,ms,...args);
+      sweepTick=fn;
+      return originalInterval(()=>{},60000);
+     };
+     try { await fpMinSweepStart(); } finally { window.setInterval=originalInterval; }
+     if(!sweepTick)throw Error('Fuel sweep did not start');
+     await new Promise(r=>originalTimer(r,300));
+     fresh();sweepTick();
+     calibrationFrameAt=-Infinity;
+     sweepTick();
+     const sweepTelemetryLoss={positive:positive(),sweepStopped:!_fpMinSweep,refreshStopped:!_fpMinKeepAlive,message:status.textContent};
+     return {refreshWasRunning,refreshPaused,stoppedStaysStopped,normalCount,normalStatus,phases,externalCancellation,lateSafe,failedStop,failureText,retryStopAvailable,oilCancelled,savedAfterStop,savedText,manualTelemetryLoss,restartTelemetryLoss,sweepTelemetryLoss};
     }finally{fpMinCancelTimers();window.setTimeout=originalTimer;postCalCommand=originalCommand;window.OTSaveConfigPatch=originalSave;}
    });
    for(const key of ['refreshWasRunning','refreshPaused','stoppedStaysStopped','lateSafe','retryStopAvailable','oilCancelled','savedAfterStop'])assert.equal(result[key],true,key);
    assert.equal(result.normalCount,3);assert.deepEqual(result.phases,[1500,1000,1500,1000,1500,1000]);
    assert.deepEqual(result.externalCancellation,[true,true]);
    assert.match(result.normalStatus,/Three restart cycles complete/);assert.equal(result.failedStop,false);assert.match(result.failureText,/Stop not confirmed/);assert.match(result.savedText,/Saved 12.0%/);
+   assert.equal(result.manualTelemetryLoss.positive,1,'stale telemetry must not renew fuel-metering output');
+   assert.ok(result.manualTelemetryLoss.timerStopped);
+   assert.match(result.manualTelemetryLoss.message,/fresh telemetry/i);
+   assert.ok(result.restartTelemetryLoss,'stale telemetry must halt the remaining restart cycles');
+   assert.ok(result.sweepTelemetryLoss.positive>0,JSON.stringify(result.sweepTelemetryLoss));
+   assert.ok(result.sweepTelemetryLoss.sweepStopped&&result.sweepTelemetryLoss.refreshStopped,JSON.stringify(result.sweepTelemetryLoss));
+   assert.match(result.sweepTelemetryLoss.message,/Fresh telemetry/);
    // Real command helper rejects an HTTP-200 body lacking an acknowledgement.
    await p.route('**/api/command',r=>r.fulfill({status:200,contentType:'application/json',body:'{}'}));
    assert.match(await p.evaluate(()=>postCalCommand({cmd:'SET_THROTTLE_PCT',fParam:0}).then(()=>'',e=>e.message)),/acknowledgement/);

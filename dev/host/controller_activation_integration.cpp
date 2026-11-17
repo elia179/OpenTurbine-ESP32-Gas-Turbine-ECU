@@ -8,9 +8,15 @@ using std::max;
 using std::min;
 #include "../../src/system/RulesEngine.h"
 #include "../../src/engine/sequencer/SequenceEngine.h"
+#include "../../src/engine/sequencer/blocks/ABFlameConfirm.h"
+#include "../../src/engine/sequencer/blocks/StarterSpin.h"
 
 // Minimal storage/bindings; all demand and lifecycle logic below is production code.
 EngineData& EngineData::instance() { static EngineData ed; return ed; }
+int8_t HardwareConfig::outputActuatorForId(const char*) { return -1; }
+int Config::effectiveEgtSource() { return 1; }
+bool Config::primaryEgtHealthy(const EngineData& ed) { return ed.totHealthy; }
+float Config::primaryEgtC(const EngineData& ed) { return ed.tot; }
 ChannelRegistry registry;
 ChannelRegistry& HardwareConfig::channelRegistry = registry;
 HardwareConfig::DiChannel HardwareConfig::diCh[HardwareConfig::MAX_DI] = {};
@@ -109,6 +115,148 @@ static Config::Rule& rule(int index,uint16_t id,uint8_t actuator,uint8_t event,u
     r.kind=3;r.onValue=.4f;r.activateEvents=1u<<event;r.deactivateEvents=stops;
     return r;
 }
+static void testStarterSpinHandoff() {
+    auto& ed = EngineData::instance();
+    StarterSpin spin;
+    spin.rampPctPerSec = 20.0f;
+    spin.assistEnabled = true;
+    spin.assistDemand = .2f;
+    ed.mode = SysMode::STARTUP;
+    ed.n1Healthy = true;
+    ed.n1Rpm = 0;
+    ed.starterOutputReady = false;
+    fakeMillisClock() = 1000;
+    spin.onEnter();
+    fakeMillisClock() = 2400;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, 0);
+    ed.starterOutputReady = true;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, .2f);
+    ed.effectiveStarterDemand = .2f;
+    fakeMillisClock() = 2600;
+    ed.n1Rpm = 1200;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, .2f);
+    fakeMillisClock() = 3100;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, .3f);
+
+    ed.n1Rpm = 0;
+    spin.onEnter();
+    assert(spin.tick() == BlockResult::Running);
+    ed.effectiveStarterDemand = .2f;
+    ed.n1Rpm = 5100;
+    assert(spin.tick() == BlockResult::Complete);
+    spin.onExit();
+    near(ed.starterDemand, .2f);
+
+    ed.n1Rpm = 0;
+    spin.onEnter();
+    assert(spin.tick() == BlockResult::Running);
+    ed.n1Healthy = false;
+    assert(spin.tick() == BlockResult::Running && !ed.starterEnabled);
+    ed.n1Healthy = true;
+    ed.n1Rpm = 5100;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, 0);
+
+    spin.assistEnabled = false;
+    ed.n1Rpm = 0;
+    fakeMillisClock() = 4000;
+    spin.onEnter();
+    assert(spin.tick() == BlockResult::Running);
+    fakeMillisClock() = 4500;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, .1f);
+
+    spin.assistEnabled = true;
+    ed.n1Healthy = false;
+    ed.limpMode = true;
+    ed.limpOverrideSensor = FeedbackRequirements::N1;
+    fakeMillisClock() = 5000;
+    spin.onEnter();
+    assert(spin.tick() == BlockResult::Running);
+    fakeMillisClock() = 5500;
+    assert(spin.tick() == BlockResult::Running);
+    near(ed.starterDemand, .1f);
+    fakeMillisClock() = 13001;
+    assert(spin.tick() == BlockResult::TimeoutContinue);
+    spin.onExit();
+    near(ed.starterDemand, .6f);
+    ed.limpMode = false;
+    ed.limpOverrideSensor = 0;
+    std::cout << "StarterSpin qualifies output before pulsing, preserves the handoff, and retains authorized timed crank.\n";
+}
+
+static void testAfterburnerConfirmation() {
+    auto& ed = EngineData::instance();
+    ABFlameConfirm verify;
+    verify.flameMode = 0;
+    ed.abFlameHealthy = ed.abFlameOffObserved = ed.abFlameOn = true;
+    ed.abFlameOffSampleSeq = 1;
+    ed.abFlameSampleSeq = 2;
+    ed.abFlameSampleMs = 190;
+    fakeMillisClock() = 200;
+    verify.onEnter();
+    assert(verify.tick() == BlockResult::Running && !ed.abEvidenceValid);
+    ed.abFuelStarted = true;
+    ed.abFirstFuelMs = 200;
+    fakeMillisClock() = 210;
+    assert(verify.tick() == BlockResult::Running);
+    ed.abFlameSampleSeq = 3;
+    ed.abFlameSampleMs = 215;
+    fakeMillisClock() = 215;
+    assert(verify.tick() == BlockResult::Running);
+    fakeMillisClock() = 315;
+    assert(verify.tick() == BlockResult::Running && !ed.abEvidenceValid);
+    ed.abFlameSampleSeq = 4;
+    ed.abFlameSampleMs = 315;
+    assert(verify.tick() == BlockResult::Complete && ed.abEvidenceValid);
+
+    ed.abEvidenceValid = false;
+    ed.abEgtBaselineValid = ed.totHealthy = true;
+    ed.abEgtBaselineSampleSeq = 2;
+    ed.abEgtBaseline = 500;
+    ed.tot = 600;
+    ed.totSampleSeq = 3;
+    ed.totSampleMs = 190;
+    verify.flameMode = 1;
+    verify.totRiseWindowMs = 200;
+    fakeMillisClock() = 250;
+    verify.onEnter();
+    assert(verify.tick() == BlockResult::Running && !ed.abEvidenceValid);
+    fakeMillisClock() = 401;
+    ed.totSampleMs = 401;
+    assert(verify.tick() == BlockResult::Fault && !ed.abEvidenceValid);
+    fakeMillisClock() = 250;
+    ed.totSampleMs = 250;
+    verify.onEnter();
+    assert(verify.tick() == BlockResult::Complete && ed.abEvidenceValid);
+
+    ed.abEvidenceValid = false;
+    ed.abFuelStarted = false;
+    verify.flameMode = 2;
+    verify.assumeIgnitedMs = 100;
+    verify.flameTimeoutMs = 400;
+    fakeMillisClock() = 1000;
+    verify.onEnter();
+    fakeMillisClock() = 1100;
+    assert(verify.tick() == BlockResult::Running && !ed.abEvidenceValid);
+    ed.abFuelStarted = true;
+    ed.abFirstFuelMs = 1100;
+    fakeMillisClock() = 1199;
+    assert(verify.tick() == BlockResult::Running);
+    fakeMillisClock() = 1200;
+    assert(verify.tick() == BlockResult::Complete && ed.abEvidenceValid);
+
+    ed.abEvidenceValid = false;
+    fakeMillisClock() = 1501;
+    verify.onEnter();
+    assert(verify.tick() == BlockResult::Fault && !ed.abEvidenceValid);
+    std::cout<<"Afterburner evidence rejects pre-fuel readings, a cached flame frame and late EGT. Timed confirmation and deadline use the fuel command.\n";
+}
+
 int main() {
     assert(RulesEngine::supportedSensor(RulesEngine::MAVLINK_THROTTLE));
     assert(RulesEngine::supportedSensor(ChannelRegistry::INPUT_SENSOR_BASE));
@@ -263,6 +411,10 @@ int main() {
     ed.mavlinkThrottleValid=true;ed.mavlinkThrottleDemand=.5f;
     RulesEngine::begin(nullptr,requestFault);RulesEngine::evaluate();near(ed.throttleDemand,.45f);
     ed.mavlinkThrottleValid=false;RulesEngine::releaseOwnedTargets();RulesEngine::evaluate();near(ed.throttleDemand,.05f);
+    RulesEngine::releaseOwnedTargets(false);
+    near(ed.throttleDemand,0.0f);
     RulesEngine::releaseForConfiguration();
     std::cout<<"Production RulesEngine: continuous pot tracking, ownership, event handover, safe shutdown, inactive no-op, disable/re-enable, fault, servo park and protective ignition passed.\n";
+    testAfterburnerConfirmation();
+    testStarterSpinHandoff();
 }

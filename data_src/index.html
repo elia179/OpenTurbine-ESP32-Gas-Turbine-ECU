@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>document.documentElement.setAttribute('data-dashboard-accents','on');try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 <main>
   <div style="font-size:.67rem;color:var(--dim);text-align:right;margin-bottom:.3rem;display:flex;justify-content:space-between;align-items:center">
     <span id="fw-version" style="color:var(--dim);opacity:.5"></span>
-    <span>New? <a href="/hardware.html" style="color:var(--dim);text-decoration:underline">Start with Hardware setup →</a></span>
   </div>
 
   <!-- Captive portal browser warning — shown when the page is opened via the OS auto-popup.
@@ -39,17 +38,20 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div id="getting-started-banner" data-dashboard-label="Commissioning checklist" class="gs-banner" style="display:none">
     <div class="gs-header">
       <span class="gs-title">Commissioning checklist</span>
-      <button class="gs-dismiss" onclick="dismissGettingStarted()" title="Hide this setup guide">Hide guide</button>
+      <button class="gs-dismiss" onclick="hideDashboardCard('getting-started-banner')" title="Restore this guide from Edit cards">Hide guide</button>
     </div>
     <div id="gs-progress" class="gs-progress">0 of 5 setup activities recorded in this browser.</div>
+    <details class="command-details dashboard-card-details">
+    <summary>Setup steps</summary>
     <ol class="gs-steps">
       <li data-setup-step="hardware" data-setup-done="Hardware saved in this browser"><a href="/hardware.html">Describe fitted hardware and assign pins</a><span class="gs-step-state">No hardware save recorded</span></li>
       <li data-setup-step="config" data-setup-done="Controllers saved in this browser"><a href="/controllers.html">Configure outputs and verify safety limits</a><span class="gs-step-state">No controller save recorded</span></li>
       <li data-setup-step="calibration" data-setup-done="Calibration saved in this browser"><a href="/calibration.html">Calibrate fitted sensors and actuators</a><span class="gs-step-state">No calibration save recorded</span></li>
       <li data-setup-step="sequence" data-setup-done="Sequence saved in this browser"><a href="/sequence.html">Review startup and shutdown sequences</a><span class="gs-step-state">No sequence save recorded</span></li>
-      <li data-setup-step="tools" data-setup-done="Tool command completed in this browser"><a href="/tools.html">Run a safe actuator or dry-sequence test</a><span class="gs-step-state">No tool command recorded</span></li>
+      <li data-setup-step="tools" data-setup-done="Actuator test command accepted"><a href="/tools.html">Run a safe actuator test</a><span class="gs-step-state">No actuator test command recorded</span></li>
     </ol>
     <div class="gs-step-text" style="margin-top:.55rem"><b>Progress marks record successful saves or tool commands—not physical verification.</b> Changing upstream hardware clears affected later marks. Keep fuel and ignition physically disconnected until you have checked the actual wiring, readings, actuator direction, failsafes, and sequences.</div>
+    </details>
   </div>
 
   <section id="dashboard-warnings-card" class="dashboard-warnings-card" data-dashboard-label="Warnings" aria-label="Dashboard warnings" style="display:none">
@@ -75,7 +77,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
   <div id="config-storage-banner" style="display:none;background:color-mix(in srgb, var(--red) 10%, transparent);border:1px solid color-mix(in srgb, var(--red) 55%, transparent);border-radius:7px;padding:.65rem 1rem;margin-bottom:.7rem;font-size:.82rem;color:var(--red);line-height:1.5">
     <strong>Storage fault - engine operations locked.</strong>
-    Config, calibration, or log storage could not be read or written. Check LittleFS/web-assets flashing and restore a known-good engine file before testing.
+    The ECU could not load or save its engine file. Use Backup &amp; restore in System to download a copy or restore a complete engine file.
   </div>
   <!-- Config schema mismatch banner -->
   <div id="config-version-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);line-height:1.6">
@@ -230,10 +232,12 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label"><span id="lbl-oil">Oil Press</span> (<span data-unit="press">bar</span>) <span id="oil-health" class="dot"></span></div>
       <div class="value small" id="oil">—</div>
       <div class="oil-sub" id="oil-target-row" style="display:none">pressure target: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
-      <div class="oil-sub"><a href="/controllers.html#oil-pressure-control">Running pressure target</a> · <a href="/controllers.html#oil-pressure-protection">Low-pressure protection</a> · <a href="/sequence.html#oil-arm-min">Startup pressure</a></div>
       <div class="oil-sub" id="oil-min-bar-row" style="display:none">run minimum: <span id="oil-min-bar-val">—</span> <span data-unit="press">bar</span></div>
       <span id="oil-abs-label" class="gauge-abs-label">— / — bar</span>
       <span id="oil-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching limit</span>
+      <details class="command-details dashboard-card-details"><summary>Pressure settings</summary>
+        <div class="dashboard-card-links"><a href="/controllers.html#oil-pressure-control">Running pressure target</a><a href="/controllers.html#oil-pressure-protection">Low-pressure protection</a><a href="/sequence.html#oil-arm-min">Startup pressure</a></div>
+      </details>
     </div>
     <div class="card" id="flame-card" style="display:none" title="Combustion flame sensor (optical or ionisation). The bar compares its live signal with the configured detection threshold; the green dot means flame is confirmed. It can verify ignition during startup and detect combustion loss while running.">
       <div class="label"><span id="lbl-flame">Flame</span> <span id="flame-dot" class="dot"></span></div>
@@ -478,7 +482,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         <span id="throttle-di-wrap" style="display:none"> · automatic idle <span id="throttle-di-state">Off</span>, configured target <span id="throttle-di-rpm">—</span> <span id="throttle-di-unit">rpm</span></span>
       </div>
       <div class="oil-sub" id="throttle-effective-note" style="display:none">base demand: <span id="throttle-base-demand">—</span>% + AB offset</div>
-      <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="throttle-command-details">Owner unavailable</div></details>
+      <details class="command-details dashboard-card-details"><summary>Command details</summary><div class="oil-sub" id="throttle-command-details">Owner unavailable</div></details>
     </div>
     <div class="card small" id="oil-output-card" title="Actual oil-pump PWM output. Controller Minimum Duty is a closed-loop floor, not a maximum; sequence steps such as Oil Pump On may command 100%.">
       <div class="label"><span id="lbl-oil-output">Oil Pump Output</span></div>
@@ -487,7 +491,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="oil-sub dashboard-card-warning" id="oil-failsafe-note" style="display:none;color:var(--red)">⚠ sensor failsafe</div>
       <div class="oil-sub dashboard-card-warning" id="oil-flow-warning-note" style="display:none;color:var(--warning)">⚠ monitored oil flow low or unavailable</div>
       <div class="oil-sub dashboard-card-warning" id="standby-oil-feed-note" style="display:none;color:var(--accent)" title="Windmilling protection is running the oil pump because a shaft is still turning while the engine is in standby.">● windmilling oil protection active</div>
-      <details class="command-details"><summary>Command details</summary><div class="oil-sub" id="oil-command-details">Owner unavailable</div></details>
+      <details class="command-details dashboard-card-details"><summary>Command details</summary><div class="oil-sub" id="oil-command-details">Owner unavailable</div></details>
     </div>
     <div class="card small" id="last-event-card" style="grid-column:1/-1" title="Most recent state transition or ECU event. Full event history with timestamps is available on the Log page.">
       <div class="label">Last Event</div>
@@ -517,8 +521,11 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="card small" id="system-card" style="grid-column:1/-1" title="ECU storage health. Flash is the onboard LittleFS filesystem used for config, logs and session data. Low free space triggers automatic eviction of old session files.">
       <div class="label">System</div>
       <div class="oil-sub">Flash: <span id="sys-flash-free">—</span> KB free · <span id="sys-flash-used">—</span> / <span id="sys-flash-total">—</span> KB used</div>
-      <div class="oil-sub">Log: <span id="sys-log-records">—</span> / <span id="sys-log-max">—</span> records &nbsp;·&nbsp; <a href="/log.html" style="color:var(--dim);text-decoration:underline;font-size:.7rem">view →</a></div>
+      <div class="oil-sub">Log: <span id="sys-log-records">—</span> / <span id="sys-log-max">—</span> records</div>
       <div class="oil-sub">Boot #<span id="sys-boot-count">—</span> &nbsp;·&nbsp; Last reset: <span id="sys-reset-reason">—</span></div>
+      <details class="command-details dashboard-card-details"><summary>System links</summary>
+        <div class="dashboard-card-links"><a href="/log.html">View log</a></div>
+      </details>
     </div>
   </section>
 </main>
@@ -575,7 +582,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 
 <script>
 const BETA_ACK_KEY = 'ot_beta_notice_ack_v1';
-const GS_DISMISS_KEY = 'ot_gs_dismissed';
 const CP_BANNER_KEY = 'cpBannerDismissed';
 let betaAckSession = false;
 function hasStoredFlag(key) {
@@ -787,20 +793,19 @@ document.getElementById('start-confirm-overlay').addEventListener('click', funct
 
 // Getting Started banner — show on first visit, hide once dismissed. Shared
 // app helpers are installed after the complete HTML document is received.
-document.addEventListener('DOMContentLoaded', function() {
+function renderSetupProgress() {
   try {
-    const banner = document.getElementById('getting-started-banner');
-    if (banner) banner.style.display = 'none';
     const progress = window.OTSetup ? OTSetup.state() : {};
     const rows = Array.from(document.querySelectorAll('[data-setup-step]'));
     let complete = 0;
     rows.forEach(row => {
       const done = !!progress[row.dataset.setupStep];
       row.classList.toggle('done', done);
-      if (done) {
-        complete++;
-        const status = row.querySelector('.gs-step-state');
-        if (status) status.textContent = row.dataset.setupDone || 'Activity recorded in this browser';
+      if (done) complete++;
+      const status = row.querySelector('.gs-step-state');
+      if (status) {
+        row.dataset.setupPending ??= status.textContent;
+        status.textContent = done ? row.dataset.setupDone : row.dataset.setupPending;
       }
     });
     const label = document.getElementById('gs-progress');
@@ -808,19 +813,14 @@ document.addEventListener('DOMContentLoaded', function() {
       ? 'All setup activities recorded in this browser. Physical verification is still required.'
       : complete + ' of ' + rows.length + ' setup activities recorded in this browser.';
   } catch(e) {}
-}, { once:true });
+}
+document.addEventListener('DOMContentLoaded', renderSetupProgress, {once:true});
+window.addEventListener('ot-setup-change', renderSetupProgress);
 
 function updateGettingStartedVisibility(mode) {
   const banner = document.getElementById('getting-started-banner');
   if (!banner) return;
-  const setupMode = mode === 'STANDBY' || mode === 'FAULT';
-  banner.style.display = setupMode && !hasStoredFlag(GS_DISMISS_KEY) ? '' : 'none';
-}
-
-function dismissGettingStarted() {
-  setStoredFlag(GS_DISMISS_KEY);
-  const banner = document.getElementById('getting-started-banner');
-  if (banner) banner.style.display = 'none';
+  banner.style.display = mode === 'STANDBY' || mode === 'FAULT' ? '' : 'none';
 }
 
 function dismissCaptiveBanner() {

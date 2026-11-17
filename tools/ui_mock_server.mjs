@@ -453,7 +453,14 @@ async function serveStatic(urlPath, res) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || `${host}:${port}`}`);
+  if (url.pathname.startsWith('/api/')) {
+    res.setHeader('X-OpenTurbine-ECU', state.data.mock_ecu_id || '0123456789ab');
+  }
   try {
+    const expectedEcu = url.searchParams.get('ecu_id');
+    if (req.method === 'PATCH' && (url.pathname === '/api/config' || url.pathname === '/api/hardware') &&
+        expectedEcu !== null && expectedEcu !== (state.data.mock_ecu_id || '0123456789ab'))
+      return sendJson(res, 409, {error:'The connected ECU changed. Reload before saving.'});
     if (req.method === 'GET' && (url.pathname === '/api/data' || url.pathname === '/api/telemetry')) return sendJson(res, 200, state.data);
     if (req.method === 'GET' && url.pathname === '/api/status') return sendJson(res, 200, {
       ok: true, mode: state.data.mode, locked: !!state.data.config_locked,
@@ -569,6 +576,8 @@ const server = http.createServer(async (req, res) => {
     }
     if ((req.method === 'POST' || req.method === 'PATCH') && url.pathname === '/api/hardware') {
       const body = await bodyJson(req);
+      const settingsPatch = body._settings_patch;
+      delete body._settings_patch;
       delete body._i2c_discovery;
       if (req.method === 'PATCH' && body.channel_registry_calibration) {
         const calibration = body.channel_registry_calibration;
@@ -577,6 +586,7 @@ const server = http.createServer(async (req, res) => {
         delete body.channel_registry_calibration;
       }
       state.hardware = req.method === 'POST' ? body : merge(state.hardware, body);
+      if (settingsPatch) state.settings = merge(state.settings, settingsPatch);
       syncDataFromHardware(state.data, state.hardware, state.settings);
       const pageSource = url.searchParams.get('source');
       if ((req.method === 'POST' || pageSource === 'system' || pageSource === 'hardware') && state.hardware.profile_id) {
@@ -617,6 +627,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/command') {
       const command = await bodyJson(req);
       state.commands.push(command);
+      if (command.cmd === 'PRESSURE_CAL_PUMP') {
+        if (command.ecu_id !== (state.data.mock_ecu_id || '0123456789ab'))
+          return sendJson(res, 409, {ok:false, error:'The connected ECU changed. Reload Calibration.'});
+        if (command.boot_count !== state.data.boot_count)
+          return sendJson(res, 409, {ok:false, error:'The ECU restarted. Reload Calibration.'});
+        const output = state.data.registry_outputs?.find(row => row.id === command.pump_id);
+        if (output) output.demand = command.fParam;
+      }
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'DELETE' && url.pathname === '/api/session/all') {

@@ -16,12 +16,24 @@ const {chromium}=require('playwright');
    startSequenceTelemetryForPlatform=()=>{resumed++;};startRebootCountdown=()=>{reboots++;};
    const result=[];
    try{
-    for(const body of ['{}','null','not JSON','{"ok":false,"error":"rejected"}','{"ok":true}']){
+    for(const body of ['{}','null','not JSON','{"ok":false,"error":"rejected"}','{"ok":true,"reboot":true}','{"ok":true}']){
      loadedHwCfg=structuredClone(hwCfg);loadedCfg=structuredClone(cfg);
-     hwCfg.startup_seq=['TimedDelay'];hwCfg.startup_delay_ms=[1234];loadedHwCfg.startup_delay_ms=[1000];markSequenceDirty();
+     const settingsOnly=body==='{"ok":true}';
+     if(settingsOnly){
+      cfg.sequence.shutdown.final_stop_timeout_ms=(cfg.sequence.shutdown.final_stop_timeout_ms||10000)+100;
+     }else{
+      hwCfg.startup_seq=['TimedDelay'];hwCfg.startup_delay_ms=[1234];loadedHwCfg.startup_delay_ms=[1000];
+     }
+     markSequenceDirty();
      let writes=0,release;
      window.fetch=async(url,options)=>{
-      if(options?.method==='PATCH'){writes++;await new Promise(resolve=>{release=resolve;});return new Response(body,{status:200,headers:{'Content-Type':'application/json'}});}
+      if(options?.method==='PATCH'){
+       const target = new URL(url,location.href);
+       if(target.searchParams.get('ecu_id')!=='0123456789ab')throw Error('Sequence save omitted its ECU');
+       if(settingsOnly && target.pathname!=='/api/config')throw Error('Setting-only save used the wrong endpoint');
+       writes++;await new Promise(resolve=>{release=resolve;});
+       return new Response(body,{status:200,headers:{'Content-Type':'application/json'}});
+      }
       return actualFetch(url,options);
      };
      console.log('ACK TEST '+body);const pending=saveAll();
@@ -30,7 +42,7 @@ const {chromium}=require('playwright');
      if(!document.querySelector('main').inert||!document.getElementById('save-btn').disabled||!document.getElementById('seq-discard-btn').disabled)throw Error('pending save did not lock editing');
      await saveAll();if(writes!==1)throw Error('duplicate sequence write');
      release();await pending;
-     const success=body==='{"ok":true}';
+     const success=settingsOnly||body==='{"ok":true,"reboot":true}';
      if(_seqDirty===success||document.querySelector('main').inert||_seqSavePending)throw Error('draft/lock not restored correctly');
      result.push({body,success,status:document.getElementById('save-status').textContent});
     }
@@ -39,10 +51,13 @@ const {chromium}=require('playwright');
     window.setTimeout=(fn,ms,...args)=>actualTimer(fn,ms===15000?20:ms,...args);
     window.fetch=async(url,options)=>{if(options?.method==='PATCH'){writes++;return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError'))));}return actualFetch(url,options);};
     await saveAll();if(writes!==1||!_seqDirty||_seqSavePending||document.querySelector('main').inert)throw Error('timeout retried or lost draft');
-    if(resumed!==5||reboots!==1)throw Error('failure telemetry/success reboot handling wrong');
+    if(resumed!==6||reboots!==1)throw Error('failure telemetry/success reboot handling wrong');
+    OTSetup.scope(new Response('{}',{headers:{'X-OpenTurbine-ECU':'abcdef012345'}}));
+    await saveAll();
+    if(writes!==1||!_seqDirty||!document.getElementById('save-status').textContent.includes('Reload this page'))throw Error('Sequence wrote or lost the draft after switching ECUs');
     return result;
    }finally{window.fetch=actualFetch;window.setTimeout=actualTimer;}
-  });assert(rows.slice(0,3).every(r=>r.status.includes('unconfirmed')));assert(rows[3].status.includes('rejected'));assert.equal(rows[4].success,true);
+  });assert(rows.slice(0,3).every(r=>r.status.includes('unconfirmed')));assert(rows[3].status.includes('rejected'));assert.equal(rows[4].success,true);assert.equal(rows[5].success,true);
   console.log('PASS '+(packed?'compressed':'source')+' sequence acknowledgements, timeout, duplicate suppression, edit lock and draft preservation');await p.close();
  }}finally{await browser.close();}process.exit(0);
 })().catch(e=>{console.error(e);process.exit(1)});

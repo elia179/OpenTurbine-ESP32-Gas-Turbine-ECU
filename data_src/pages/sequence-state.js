@@ -193,8 +193,17 @@ function revealSequenceDeepLink() {
     }
     showMissingSequenceLink(stepMatch[1]);return;
   }
-  const fieldKey = {'oil-running-min':['oil_running_min'],
-                    'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
+  if (id === 'oil-running-min') {
+    switchTab('startup');
+    const link = document.querySelector('#tab-startup [data-shared-oil-limit]');
+    if (link) {
+      link.closest('.block-params')?.classList.add('open');
+      link.classList.add('deep-link-target');
+      requestAnimationFrame(()=>link.scrollIntoView({behavior:'smooth',block:'center'}));
+    } else showMissingSequenceLink('startup');
+    return;
+  }
+  const fieldKey = {'oil-arm-min':['oil_arm_min_bar','oil_startup_min_bar'],
                     'starter-assist':['pulsed_assist_enabled','pulsed_assist_until_rpm'],
                     'starter-target':['pre_ign_rpm']}[id];
   if (fieldKey) {
@@ -369,11 +378,9 @@ async function loadAll() {
   updateSequenceSaveControls();
   setSaveStatus('Loading...');
   try {
-    hwCfg = await fetchJsonWithRetry('/api/hardware');
-    cfg   = await fetchJsonWithRetry('/api/config');
+    [hwCfg, cfg] = await window.OTConfigEditor.load(['/api/hardware', '/api/config']);
     pendingControllerSlots.clear();
     loadedHwCfg = cloneSequenceJson(hwCfg);
-    loadedCfg = cloneSequenceJson(cfg);
     // Rebuild runtime custom block defs from raw stored defs
     customBlocks = {};
     if (hwCfg.custom_blocks) {
@@ -396,8 +403,7 @@ async function loadAll() {
     const abTabBtn = document.getElementById('tab-btn-afterburner');
     if (abTabBtn) abTabBtn.style.display = sequenceHasAfterburner() ? '' : 'none';
     revealSequenceDeepLink();
-    // Keep the post-normalization baseline. Saving can then preserve unrelated
-    // settings changed by another browser while this page was open.
+    loadedCfg = cloneSequenceJson(cfg);
     _seqLoading=false;
     clearSequenceDirty('No unsaved changes');
     if(editingSurface)editingSurface.inert=false;
@@ -408,9 +414,6 @@ async function loadAll() {
 
 async function fetchJsonWithTimeout(url, ms = 8000) {
   return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
-}
-async function fetchJsonWithRetry(url, attempts = 5) {
-  return window.OTReadJson(url, {attempts});
 }
 
 // Build paramVals from the settings section using each block's configKey mapping.
@@ -476,6 +479,7 @@ function setConfigVal(key, val) {
     const condition = card.querySelector('.block-cond');
     if (condition && def?.condition) condition.textContent = def.condition(flattenHw());
   }
+  markSequenceDirty('Sequence edited — save to apply');
 }
 
 // ------ Render a sequence tab ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -802,31 +806,19 @@ function cloneSequenceJson(value) {
   return JSON.parse(JSON.stringify(value ?? {}));
 }
 
-function sequencePlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-// Apply only differences made on this page to a freshly fetched document.
-// Arrays are intentional units here (sequence order, actions and rules).
-function mergeSequenceEdits(baseline, edited, fresh) {
-  const base = sequencePlainObject(baseline) ? baseline : {};
-  const edit = sequencePlainObject(edited) ? edited : {};
-  const out = sequencePlainObject(fresh) ? cloneSequenceJson(fresh) : {};
-  const keys = new Set([...Object.keys(base), ...Object.keys(edit)]);
-  for (const key of keys) {
-    const hasEdit = Object.prototype.hasOwnProperty.call(edit, key);
-    const before = base[key];
-    const after = edit[key];
-    if (JSON.stringify(before) === JSON.stringify(after)) continue;
-    if (!hasEdit) {
-      delete out[key];
-    } else if (sequencePlainObject(before) && sequencePlainObject(after)) {
-      out[key] = mergeSequenceEdits(before, after, out[key]);
-    } else {
-      out[key] = cloneSequenceJson(after);
-    }
+// Controller IDs may be filled in locally when drawing timing blocks. The
+// Sequence page saves only the settings exposed by its controls.
+function sequenceSettingsPatch(baseline, edited) {
+  const patch = {};
+  for (const {sec, key} of Object.values(CONFIG_SECTIONS)) {
+    const path = sec.split('.');
+    const before = path.reduce((section, part) => section?.[part], baseline)?.[key];
+    const after = path.reduce((section, part) => section?.[part], edited)?.[key];
+    if (after === undefined || after === before) continue;
+    const section = path.reduce((parent, part) => (parent[part] ??= {}), patch);
+    section[key] = after;
   }
-  return out;
+  return patch;
 }
 function setAbInputEntryPercent(rawVal) {
   if (!hwCfg.ab_trigger) hwCfg.ab_trigger = {};

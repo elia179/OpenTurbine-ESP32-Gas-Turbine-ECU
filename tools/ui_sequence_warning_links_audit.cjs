@@ -30,6 +30,23 @@ const { chromium } = require('playwright');
     }
     await page.goto(base + `/sequence.html?v=${webRevision}`);
     await page.waitForFunction(() => typeof loadedCfg !== 'undefined' && Object.keys(loadedCfg).length > 0 && document.body.textContent.includes('No unsaved changes'));
+    if (!liveBase) {
+      const cards = await page.evaluate(() => ['ABFlameConfirm','ABStabilize'].map(name => {
+        const params = document.createElement('div');
+        params.innerHTML = buildParamsHtml(name,0,'ab');
+        return {
+          editableFields: params.querySelectorAll('.param-input').length,
+          summary: BLOCKS[name].condition(),
+          links: [...params.querySelectorAll('a.bip-link')].map(link=>link.getAttribute('href')),
+        };
+      }));
+      assert.equal(cards[0].editableFields,0);
+      assert.equal(cards[1].editableFields,0);
+      assert.match(cards[0].summary,/ms overall deadline/);
+      assert.match(cards[1].summary,/Hold .* ms/);
+      assert.deepEqual(cards[0].links,['/controllers.html#ab-flame-section']);
+      assert.deepEqual(cards[1].links,['/controllers.html#cf-ab_sms','/controllers.html#cf-ab_smt']);
+    }
     const firmware = fs.readFileSync(path.join(__dirname, '../src/main.cpp'), 'utf8');
     const blocks = [...new Set([...firmware.matchAll(/addIssue\("([^"]+)"/g)].map(match => match[1]))];
     const sequenceRoutes = await page.evaluate(blocks => blocks.map(block => ({block, url:sequenceIssueDestination({block,msg:''})})), blocks);

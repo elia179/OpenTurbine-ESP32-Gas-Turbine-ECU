@@ -64,7 +64,7 @@ function validateCustomBlockLimits() {
     if (steps.length > MAX_CUSTOM_STEPS) errors.push(`${label}: ${steps.length}/${MAX_CUSTOM_STEPS} steps.`);
     if (def?.type === 'action' && !steps.length) errors.push(`${label}: action block has no steps.`);
     if (def?.type === 'while' && !sensors.some(sensor =>
-      sensor.key === def?.condition?.sensor || sensor.source === def?.condition?.source))
+      def?.condition?.source ? sensor.source === def.condition.source : sensor.key === def?.condition?.sensor))
       errors.push(`${label}: condition sensor is not configured.`);
     steps.forEach((step, index) => {
       if (step?.type === 'set_act' && !acts.some(act =>
@@ -122,7 +122,7 @@ async function _saveSequenceChanges() {
       if (!idle) throw new Error('Live sequence status did not become idle; save was not started');
     }
     await new Promise(resolve => setTimeout(resolve, 150));
-    const settingsPatch = mergeSequenceEdits(loadedCfg, cfg, {});
+    const settingsPatch = sequenceSettingsPatch(loadedCfg, cfg);
     const hardwareKeys = [
       'startup_seq','shutdown_seq','ab_seq','ab_shut_seq',
       'startup_delay_ms','shutdown_delay_ms','ab_delay_ms','ab_shut_delay_ms',
@@ -138,22 +138,14 @@ async function _saveSequenceChanges() {
       if (JSON.stringify(loadedHwCfg[key]) !== JSON.stringify(hwCfg[key]) && hwCfg[key] !== undefined)
         hardwarePatch[key] = cloneSequenceJson(hwCfg[key]);
     });
-    const hardwareReboot = Object.keys(hardwarePatch).length > 0;
-    if (hardwareReboot) {
-      await window.OTSavePatch('/api/hardware?source=sequence',hardwarePatch);
+    let result;
+    if (Object.keys(hardwarePatch).length) {
+      result = await window.OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, window.OTConfigEditor.requireEcu());
+    } else if (Object.keys(settingsPatch).length) {
+      result = await window.OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu());
     }
-    let settingsReboot = false;
-    if (Object.keys(settingsPatch).length) {
-      if (hardwareReboot) {
-        setSaveStatus('Sequence hardware saved — reconnecting to save page settings…');
-        await window.OTWaitForSaveRestart();
-      }
-      const {response:settingsResponse,data:settingsResult}=await window.OTSavePatch('/api/config',settingsPatch);
-      if(!settingsResponse.ok)throw new Error(settingsResult.error||settingsResult.reason||`Settings HTTP ${settingsResponse.status}`);
-      settingsReboot = settingsResult.reboot === true;
-    }
-    const rebooting = hardwareReboot || settingsReboot;
-    if (window.OTSetup) OTSetup.mark('sequence');
+    const rebooting = result?.data.reboot === true;
+    if (result) window.OTSetup?.mark('sequence', result.response);
     clearSequenceDirty(rebooting ? 'Saved — rebooting…' : 'Saved');
     if (rebooting) startRebootCountdown();
     else {

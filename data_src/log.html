@@ -7,7 +7,7 @@
 <title>OpenTurbine — Log</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <button onclick="loadLog()" title="Reload the event history and run summary from the ECU.">Refresh</button>
       <button onclick="downloadLog('raw')" title="Download newline-delimited JSON: one detailed event object per line for diagnostics and scripts.">Event NDJSON</button>
       <button onclick="downloadLog('csv')" title="Download the recent event window as a small spreadsheet-friendly CSV. Use NDJSON for the complete black-box event log.">Event CSV</button>
-      <button onclick="askClear('eventlog')" class="danger" title="Permanently delete the event history after confirmation. Session CSV files are kept.">Clear</button>
+      <button onclick="askClear('eventlog')" class="danger" title="Permanently delete the event history after confirmation. Session CSV files are kept.">Clear event log</button>
     </div>
   </div>
   <p style="font-size:.74rem;color:var(--dim)">Event history is available in STANDBY or FAULT with Standby Snapshot Logging off.</p>
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     </div>
 
     <div style="display:flex;gap:.75rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:.9rem">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.8rem 1.1rem;flex:1;min-width:240px">
+      <div id="session-settings" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.8rem 1.1rem;flex:1;min-width:240px">
         <div style="font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem">Recording Settings</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.6rem;margin-bottom:.8rem">
           <label style="display:grid;align-content:start;gap:.25rem;font-size:.7rem;color:var(--dim)">
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
           <input type="checkbox" id="log-standby"> Log periodic snapshots while in standby
         </label>
         <button id="session-save-btn" onclick="saveSessionCfg()" style="margin-top:.55rem" title="Save logging intervals and which channels are recorded in each run's session CSV.">Save Logging Settings</button>
-        <span id="session-save-msg" style="font-size:.72rem;color:var(--green);margin-left:.5rem;display:none">Saved</span>
+        <span id="session-save-msg" role="status" style="font-size:.72rem;color:var(--green);margin-left:.5rem;display:none">Saved</span>
         <span id="session-lock-msg" style="font-size:.72rem;color:var(--yellow);margin-left:.5rem;display:none">Settings locked until STANDBY</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:.4rem">
@@ -212,17 +212,6 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         </table>
       </div>
       <div id="session-preview-empty" style="font-size:.78rem;color:var(--dim);display:none">No session data yet — data is recorded once the engine enters RUNNING.</div>
-    </div>
-  </div>
-  <!-- Clear confirmation modal -->
-  <div id="clear-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
-    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:1.6rem 2rem;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.55)">
-      <div style="font-size:1rem;font-weight:600;margin-bottom:.5rem" id="clear-confirm-title"></div>
-      <div style="font-size:.8rem;color:var(--dim);margin-bottom:1.4rem" id="clear-confirm-body"></div>
-      <div style="display:flex;gap:.6rem;justify-content:flex-end">
-        <button onclick="cancelClear()" title="Close this confirmation without deleting anything.">Cancel</button>
-        <button class="danger" onclick="confirmClear()" id="clear-confirm-btn" title="Confirm the selected permanent deletion."></button>
-      </div>
     </div>
   </div>
 </main>
@@ -315,7 +304,7 @@ function logBlockName(value) {
   const labels = {FuelPumpIdle:'Set Main Fuel for Idle', ModifiedIdle:'Set Main Fuel for Raised Idle',
     Spool:'Accelerate to Idle', TimedDelay:'Timed Delay', OilPrime:'Build Oil Pressure',
     StarterSpin:'Set Starter', ThrottleSet:'Set Main Fuel Demand', SetOutput:'Set Output',
-    TempConfirm:'Confirm Combustion by Temperature', FlameConfirm:'Confirm Combustion by Flame Sensor',
+    TempConfirm:'Wait for Temperature Threshold', FlameConfirm:'Wait for Flame Signal',
     SafetyHold:'Final Startup Checks', ImmediateCut:'Immediate Fuel and Ignition Cut',
     RPMDrop:'Wait for Rotor to Slow', CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop'};
   return labels[value] || readableLogName(value);
@@ -636,32 +625,6 @@ async function downloadLog(fmt) {
   }
 }
 
-// ── Clear confirmation modal ──────────────────────────────────
-let _clearTarget = null;
-
-function askClear(target) {
-  _clearTarget = target;
-  const overlay = document.getElementById('clear-confirm-overlay');
-  const title   = document.getElementById('clear-confirm-title');
-  const body    = document.getElementById('clear-confirm-body');
-  const btn     = document.getElementById('clear-confirm-btn');
-  if (target === 'eventlog') {
-    title.textContent = 'Clear event log?';
-    body.textContent  = 'This will permanently delete all recorded events. This cannot be undone.';
-    btn.textContent   = 'Yes, clear event log';
-  } else {
-    title.textContent = 'Delete all session logs?';
-    body.textContent  = 'This will permanently delete every session CSV file. This cannot be undone.';
-    btn.textContent   = 'Yes, delete all sessions';
-  }
-  overlay.style.display = 'flex';
-}
-
-function cancelClear() {
-  document.getElementById('clear-confirm-overlay').style.display = 'none';
-  _clearTarget = null;
-}
-
 async function assertOkResponse(r, fallback = '') {
   if (r.ok) return;
   const body = await r.text().catch(() => '');
@@ -687,9 +650,17 @@ async function waitForEventLogClear() {
   throw new Error('ECU did not confirm that the event log was cleared');
 }
 
-function confirmClear() {
-  document.getElementById('clear-confirm-overlay').style.display = 'none';
-  if (_clearTarget === 'eventlog') {
+async function askClear(target) {
+  const eventLog = target === 'eventlog';
+  const confirmed = await OTDialog.confirm(eventLog
+    ? 'Permanently delete all recorded events?'
+    : 'Permanently delete every saved session CSV file?', {
+    title: eventLog ? 'Clear event log?' : 'Delete all session logs?',
+    confirmLabel: eventLog ? 'Clear event log' : 'Delete all sessions',
+    danger:true
+  });
+  if (!confirmed) return;
+  if (eventLog) {
     fetch('/api/command', {
       method: 'POST',
       body: JSON.stringify({ cmd: 'CLEAR_LOG' }),
@@ -700,19 +671,25 @@ function confirmClear() {
     }).then(() => waitForEventLogClear())
       .then(() => loadLog())
       .catch(e => alert('Clear log failed: ' + e.message));
-  } else if (_clearTarget === 'sessions') {
+  } else {
     fetch('/api/session/all', { method: 'DELETE' })
       .then(assertOkResponse)
-      .then(() => { clearSessionPreview('No session files found'); loadSessionCfg(); loadSessionList(); })
+      .then(async () => {
+        clearSessionPreview('No session files found');
+        await loadSessionCfg().catch(() => {}); // Recorder status shows its own retry message.
+        await loadSessionList();
+      })
       .catch(e => alert('Clear session logs failed: ' + e.message));
   }
-  _clearTarget = null;
 }
 
 // ── Session Data tab ──────────────────────────────────────────
 const SLOG_BITS = ['n1','n2','tot','tit','oil_temp','oil','p1','p2','torque','thrust','throttle','starter','oil_pct','batt','fuel_press','fuel_flow','glow','wet_glow','glow_current','ign_current','ign2_current','oil_current','fp2','ab','prop','mode','loop'];
 let _sessionSettingsLocked = false;
 let _sessionSettingsLoaded = false;
+let _sessionSettingsBaseline = null;
+let _sessionSavePending = false;
+let _sessionSaveMessageTimer;
 let _loadedRegistryLogIds = [];
 let _sessionTabLoad = null;
 
@@ -820,14 +797,17 @@ function applySessionChannelNames(registry) {
   }
 }
 
-function loadSessionCfg() {
+async function loadSessionCfg() {
+  if (_sessionSavePending || (_sessionSettingsLoaded && Object.keys(sessionSettingsPatch(sessionSettingsDraft())).length))
+    return;
   _sessionSettingsLoaded = false;
   SLOG_BITS.forEach(bit => {
     const el = document.querySelector('[data-bit="' + bit + '"]');
     if (el) el.disabled = true;
   });
   _applySessionSettingsLock();
-  return loadSessionCfgJson().then(async status => {
+  try {
+    const [status] = await window.OTConfigEditor.load(['/api/session/status'], {attempts:2});
     _sessionSettingsLocked = !!status.locked;
     const sl = status.session_log || {};
     _sessionCaptureSchema=status.capture||null;
@@ -846,18 +826,19 @@ function loadSessionCfg() {
     _renderRegistryLogInputs(status.registry_inputs, _loadedRegistryLogIds);
     _sessionSettingsLoaded = true;
     _applyLogAvailability(status.available || {}, status.labels || {});
+    _sessionSettingsBaseline = sessionSettingsDraft();
     applySessionChannelNames(await loadSessionChannelNames());
     _applySessionSettingsLock();
     renderPersistenceHealth(status);
     return status;
-  }).catch(error => {
+  } catch (error) {
     const health = document.getElementById('persistence-health');
     if (health) {
       health.textContent = 'Recorder status could not be loaded. Use Refresh to retry.';
       health.style.color = 'var(--yellow)';
     }
     throw error;
-  });
+  }
 }
 
 // Grey out session-log checkboxes whose hardware source is not enabled.
@@ -916,7 +897,7 @@ function _applyLogAvailability(available, labels) {
 }
 
 function _applySessionSettingsLock() {
-  const controlsLocked = _sessionSettingsLocked || !_sessionSettingsLoaded;
+  const controlsLocked = _sessionSavePending || _sessionSettingsLocked || !_sessionSettingsLoaded;
   const sb = document.getElementById('log-standby');
   if (sb) sb.disabled = controlsLocked;
   ['session-log-interval','event-snapshot-interval'].forEach(id => {
@@ -943,7 +924,8 @@ function _applySessionSettingsLock() {
   if (saveBtn) saveBtn.disabled = controlsLocked;
   const lockMsg = document.getElementById('session-lock-msg');
   if (lockMsg) {
-    lockMsg.textContent = !_sessionSettingsLoaded ? 'Loading settings…' : 'Settings locked until STANDBY';
+    lockMsg.textContent = _sessionSavePending ? 'Saving…' :
+      !_sessionSettingsLoaded ? 'Loading settings…' : 'Settings locked until STANDBY';
     lockMsg.style.display = controlsLocked ? '' : 'none';
   }
 }
@@ -953,10 +935,6 @@ async function fetchJsonWithTimeout(url, ms = 8000) {
 }
 async function fetchJsonWithRetry(url, attempts = 5) {
   return window.OTReadJson(url, {attempts});
-}
-
-async function loadSessionCfgJson() {
-  return fetchJsonWithRetry('/api/session/status', 2);
 }
 
 async function loadSessionTab() {
@@ -980,7 +958,34 @@ async function loadSessionTab() {
   return _sessionTabLoad;
 }
 
-function saveSessionCfg() {
+function sessionSettingsDraft() {
+  const session_log = {interval_ms:Math.round(document.getElementById('session-log-interval').valueAsNumber)};
+  for (const bit of SLOG_BITS) session_log[bit] = document.querySelector(`[data-bit="${bit}"]`)?.checked === true;
+  const choices = [...document.querySelectorAll('[data-registry-log-id]')];
+  const shown = new Set(choices.map(input => input.dataset.registryLogId));
+  session_log.registry_inputs = [
+    ..._loadedRegistryLogIds.filter(id => !shown.has(id)),
+    ...choices.filter(input => input.checked).map(input => input.dataset.registryLogId)
+  ];
+  return {session_log, telemetry:{
+    log_standby:document.getElementById('log-standby').checked,
+    snapshot_interval_ms:Math.round(document.getElementById('event-snapshot-interval').valueAsNumber)
+  }};
+}
+
+function sessionSettingsPatch(draft) {
+  const patch = {};
+  for (const section of Object.keys(draft)) {
+    for (const [key, value] of Object.entries(draft[section])) {
+      if (!OTConfigEqual(value, _sessionSettingsBaseline?.[section]?.[key]))
+        (patch[section] ??= {})[key] = value;
+    }
+  }
+  return patch;
+}
+
+async function saveSessionCfg() {
+  if (_sessionSavePending) return;
   if (!_sessionSettingsLoaded) {
     alert('Logging settings are still loading. Try again in a moment.');
     return;
@@ -989,38 +994,43 @@ function saveSessionCfg() {
     alert('Logging settings are locked until the engine is back in STANDBY.');
     return;
   }
+  const panel = document.getElementById('session-settings');
+  const msg = document.getElementById('session-save-msg');
+  clearTimeout(_sessionSaveMessageTimer);
+  msg.style.display = 'none';
   try {
-    const sb = document.getElementById('log-standby');
-    const sessionInterval = Number(document.getElementById('session-log-interval')?.value);
-    const snapshotInterval = Number(document.getElementById('event-snapshot-interval')?.value);
+    const sessionInterval = document.getElementById('session-log-interval').valueAsNumber;
+    const snapshotInterval = document.getElementById('event-snapshot-interval').valueAsNumber;
     if (!Number.isFinite(sessionInterval) || sessionInterval < 100 || sessionInterval > 60000)
       throw new Error('Session CSV row interval must be between 100 and 60000 ms.');
     if (!Number.isFinite(snapshotInterval) || snapshotInterval < 500 || snapshotInterval > 3600000)
       throw new Error('Event snapshot interval must be between 500 and 3600000 ms.');
-    const patch = {
-      session_log:{interval_ms:Math.round(sessionInterval)},
-      telemetry:{log_standby:sb ? sb.checked : false,
-                 snapshot_interval_ms:Math.round(snapshotInterval)}
-    };
-    SLOG_BITS.forEach(bit => {
-      const el = document.querySelector('[data-bit="' + bit + '"]');
-      patch.session_log[bit] = el ? el.checked : false;
-    });
-    const registryChoices = Array.from(document.querySelectorAll('[data-registry-log-id]'));
-    patch.session_log.registry_inputs = registryChoices.length
-      ? registryChoices.filter(input => input.checked).map(input => input.dataset.registryLogId)
-      : _loadedRegistryLogIds.slice();
-    if (typeof window.OTSaveConfigPatch !== 'function')
-      throw new Error('Shared save support did not load; reload this page and retry');
-    window.OTSaveConfigPatch(patch).then(({response, data}) => {
-      if (!response?.ok || data?.ok === false)
+    const expectedEcu = window.OTConfigEditor.requireEcu();
+    const draft = sessionSettingsDraft();
+    const patch = sessionSettingsPatch(draft);
+    const changed = Object.keys(patch).length > 0;
+    if (changed) {
+      _sessionSavePending = true;
+      panel.inert = true;
+      panel.setAttribute('aria-busy','true');
+      _applySessionSettingsLock();
+      const {response, data} = await window.OTSaveConfigPatch(patch, expectedEcu);
+      if (!response?.ok || data?.ok !== true)
         throw new Error(data?.error || ('HTTP ' + (response?.status || 0)));
-    }).then(() => {
-      const msg = document.getElementById('session-save-msg');
-      if (msg) { msg.style.display = ''; setTimeout(() => msg.style.display = 'none', 2000); }
-    }).catch(e => alert('Save failed: ' + e));
+      _sessionSettingsBaseline = draft;
+    }
+    msg.textContent = changed ? 'Saved' : 'No changes to save';
+    msg.style.display = '';
+    _sessionSaveMessageTimer = setTimeout(() => msg.style.display = 'none', 2000);
   } catch (e) {
     alert('Save failed: ' + e.message);
+  } finally {
+    if (_sessionSavePending) {
+      _sessionSavePending = false;
+      panel.inert = false;
+      panel.removeAttribute('aria-busy');
+      _applySessionSettingsLock();
+    }
   }
 }
 

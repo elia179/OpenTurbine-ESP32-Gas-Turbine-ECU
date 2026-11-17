@@ -12,7 +12,6 @@ public:
     void onEnter() override {
         auto& ed = EngineData::instance();
         ed.abPumpDemand = demandPct / 100.0f;
-        if (!ed.abFirstFuelMs) ed.abFirstFuelMs = millis();
     }
     BlockResult tick() override { return BlockResult::Complete; }
     void onExit() override {}
@@ -32,7 +31,6 @@ public:
     void onEnter() override {
         auto& ed = EngineData::instance();
         ed.abSolOpen = true;
-        if (!ed.abFirstFuelMs) ed.abFirstFuelMs = millis();
     }
     BlockResult tick() override { return BlockResult::Complete; }
     void onExit() override {}

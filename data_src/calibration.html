@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -22,18 +22,22 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <span id="conn" class="conn-dot loading"></span><span id="conn-label" class="conn-label" aria-live="polite">Loading…</span>
 </nav>
 <main>
-  <div class="page-heading">
-    <div class="page-heading-main">
-      <h1 class="page-title">Calibration</h1>
-      <p class="page-subtitle">View live sensor readings and calibrate fitted inputs and actuators.</p>
+  <div class="cfg-workspace-card calibration-workspace">
+    <div class="calibration-workspace-head">
+      <h1 class="cfg-workspace-title">Calibration</h1>
+      <div class="unit-controls" role="group" aria-label="Display units">
+        <span>Units</span>
+        <button id="unit-temp-btn" type="button" onclick="changeCalibrationUnits('temperature')">°C</button>
+        <button id="unit-press-btn" type="button" onclick="changeCalibrationUnits('pressure')">bar</button>
+      </div>
     </div>
-  </div>
-  <div id="calibration-jump-wrap" class="calibration-jump">
-    <label for="calibration-jump">Jump to fitted calibration</label>
-    <select id="calibration-jump" aria-label="Jump to fitted calibration" onchange="jumpToCalibration(this.value)">
-      <option value="">Choose a sensor or actuator…</option>
-    </select>
-    <span id="calibration-jump-count"></span>
+    <div id="calibration-jump-wrap" class="calibration-jump" hidden>
+      <select id="calibration-jump" aria-label="Jump to calibration" title="Jump to a fitted sensor or actuator" onchange="jumpToCalibration(this.value)">
+        <option value="">Jump to calibration…</option>
+      </select>
+      <span id="calibration-jump-count"></span>
+    </div>
+    <p id="calibration-empty" hidden>No fitted inputs or outputs need calibration.</p>
   </div>
 
   <div class="sensor-row" id="thrust-cal-row" style="display:none">
@@ -46,7 +50,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
   <!-- Minimum reliable main-fuel-metering output calibration -->
-  <div class="sensor-row" id="fuelpump-min-cal-row">
+  <div class="sensor-row" id="fuelpump-min-cal-row" style="display:none">
     <div class="sensor-name">Minimum Reliable Fuel-Metering Output</div>
     <div class="wizard" id="fuelpump-min-tools">
       <div class="wizard-title">Find the lowest output that meters fuel reliably</div>
@@ -74,17 +78,17 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="sensor-name"><span id="oil-h-cal" class="dot"></span> Oil Pressure</div>
     <div class="sensor-vals">
         <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-oil-raw">—</div></div>
-      <div class="sv-item"><div class="sv-label">bar</div><div class="sv-val" id="cal-oil">—</div></div>
-      <div class="sv-item"><div class="sv-label">Pump %</div><div class="sv-val" id="cal-oil-pct">—</div></div>
+      <div class="sv-item"><div class="sv-label">Pressure</div><div class="sv-val" id="cal-oil">—</div></div>
       <div class="sv-item"><div class="sv-label">Status</div><div class="sv-val" id="cal-oil-h">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-oil" style="width:0%"></div></div>
-    <div class="bar-range"><span>0 bar</span><span>6 bar</span></div>
+    <div class="bar-range"><span data-pressure-label="0">0 bar</span><span data-pressure-label="6">6 bar</span></div>
 
     <div class="wizard">
       <div class="wizard-title">Oil Pressure Calibration</div>
 
-      <label><input type="checkbox" id="oil-pump-assisted" onchange="oilCalibrationModeChanged()"> Include electric oil-pump control and minimum-output calibration</label><p id="oil-cal-mode-note">Sensor only: apply pressure with an external source. No pump commands are sent.</p>
+      <label id="oil-pump-assisted-option" hidden><input type="checkbox" id="oil-pump-assisted" onchange="oilCalibrationModeChanged()"> Also calibrate the oil pump’s minimum output</label>
+      <p id="oil-cal-mode-note" hidden>Keep this page open while running the oil pump.</p>
       <!-- Step indicator -->
       <div id="oil-steps" style="display:flex;gap:.4rem;align-items:center;margin-bottom:.75rem">
         <span id="oil-step-ind-1" class="step-dot active">1</span>
@@ -92,20 +96,20 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         <span id="oil-step-ind-3" class="step-dot">3</span>
       </div>
 
-      <!-- Step 1: capture the sensor's pump-off reference -->
+      <!-- Step 1: capture the ambient reference -->
       <div id="oil-step-1">
         <div class="wizard-steps">
-          <b>1. Capture ambient pressure.</b> Depressurise the oil line and choose what the sensor should read at ambient pressure: <b>0 bar</b> for a gauge-pressure sensor, or about <b>1 bar</b> for an absolute-pressure sensor. Pump-assisted mode stops the pump before capturing; sensor-only mode leaves outputs untouched.
+          Depressurise the oil line and select the sensor’s ambient reference.
         </div>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.5rem">
-          <label style="font-size:.75rem;color:var(--dim)">Pressure reference
-            <select id="oil-zero-reference">
-              <option value="0">0 bar (gauge pressure)</option>
-              <option value="1.01325">ambient, about 1 bar (absolute pressure)</option>
-            </select>
-          </label>
-          <button id="btn-oil-start" onclick="oilCalStart()">Start Calibration</button>
-        </div>
+      <div class="pressure-cal-controls">
+        <label>Pressure reference
+          <select id="oil-zero-reference" data-pressure-reference>
+            <option value="0">Gauge (ambient = 0 bar)</option>
+            <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
+          </select>
+        </label>
+        <button type="button" id="btn-oil-start" onclick="oilCalStart()">Capture ambient</button>
+      </div>
         <div id="oil-zero-status" style="font-size:.75rem;color:var(--yellow);margin-top:.4rem;display:none"></div>
       </div>
 
@@ -117,7 +121,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         </div>
         <!-- Pump speed control -->
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.5rem 0">
-          <span style="font-size:.78rem;color:var(--dim)">Pump %</span>
+          <span style="font-size:.78rem;color:var(--dim)">Pump output: <b id="cal-oil-pct">—</b></span>
+          <label for="oil-pump-pct2">Set output (%)</label>
           <input type="number" id="oil-pump-pct2" value="0" min="0" max="100" step="0.25" style="width:80px">
           <button onclick="oilSetPump()">Set pump</button>
           <button id="btn-oil-sweep" onclick="oilMinSweepStart()">Sweep from 0 at 1%/s</button>
@@ -127,24 +132,25 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         <div id="oil-min-pct-status" style="font-size:.75rem;color:var(--yellow);margin-bottom:.65rem">Minimum pump output not captured yet.</div>
         </div>
         <div class="wizard-steps">
-          <b>Calibrate pressure.</b> Apply known pressures across the useful range, using an external source or the optional pump controls. After each reading stabilises, enter the pressure shown by your trusted gauge and capture the point. The pump output and sensor voltage are stored together; Two points including ambient are sufficient for a straight-line sensor; use at least four for a curved fit.
+          Apply a known pressure. Once stable, enter the gauge reading and capture it. Capture at least two points including ambient for a straight-line fit, or four for a curved fit.
         </div>
-        <!-- Pressure capture -->
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
-          <input type="number" id="oil-pval" placeholder="bar (e.g. 3.5)" step="0.1" min="0" max="10">
-          <button onclick="captureOilPoint()">Capture point</button>
-          <button onclick="clearOilPoints()" style="color:var(--dim)">Clear all</button>
-          <label>Fit <select id="oil-fit-mode"><option value="auto">Automatic</option><option value="linear">Straight-line sensor</option><option value="cubic">Curved sensor</option></select></label>
-        </div>
+      <div class="pressure-cal-controls">
+        <label>Reference pressure (<span data-unit="press">bar</span>)
+          <input type="number" id="oil-pval" data-pressure-entry min="0" max="10" step="any" title="Pressure measured by the reference gauge.">
+        </label>
+        <button type="button" onclick="captureOilPoint()">Capture point</button>
+        <label>Fit <select id="oil-fit-mode"><option value="auto">Automatic</option><option value="linear">Straight-line sensor</option><option value="cubic">Curved sensor</option></select></label>
+      </div>
         <details style="margin:.55rem 0;font-size:.75rem;color:var(--dim)"><summary style="cursor:pointer">Use the sensor datasheet instead of gauge points</summary>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.5rem">
-            <label>Sensor sensitivity at the ECU ADC pin <input id="oil-mv-bar" type="number" min="0.1" step="0.1" style="width:6rem"> mV/bar</label>
+            <label>Sensor sensitivity at the ECU ADC pin <input id="oil-mv-bar" data-pressure-entry="inverse" type="number" min="0.1" step="0.1" style="width:6rem"> mV/<span data-unit="press">bar</span></label>
             <button onclick="oilUseDatasheet()">Use datasheet value</button>
           </div>
         </details>
         <pre id="oil-pts" style="font-size:.7rem;color:var(--dim);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:.5rem;min-height:2.5rem">Waiting for first point…</pre>
         <div style="display:flex;gap:.5rem;margin-top:.5rem">
           <button id="btn-oil-to-3" onclick="oilGoStep3()" disabled>Compute Fit →</button>
+          <button type="button" onclick="clearOilPoints()">Clear reference points</button>
           <button onclick="oilCalStop();oilGoStep(1);" style="color:var(--dim)">Cancel</button>
         </div>
       </div>
@@ -204,10 +210,10 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div id="flame-status" style="font-size:.75rem;color:var(--dim)"></div>
       <div style="margin-top:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
         <span style="font-size:.75rem;color:var(--dim)">Or set threshold directly:</span>
-        <label style="font-size:.75rem;color:var(--dim)"><input type="number" id="flame-thr-direct" min="0" max="3300" step="1" style="width:90px"
+        <label style="font-size:.75rem;color:var(--dim)"><input type="number" id="flame-thr-direct" min="0" max="3300" step="0.1" style="width:90px"
                placeholder="0–3300"> mV</label>
         <label style="font-size:.75rem;color:var(--dim)">hysteresis
-          <input type="number" id="flame-hyst-direct" min="0" max="1650" step="1" value="52" style="width:80px"> mV
+          <input type="number" id="flame-hyst-direct" min="0" max="1650" step="0.1" value="52" style="width:80px"> mV
         </label>
         <select id="flame-active-high" aria-label="Main flame active state"><option value="1">Flame above threshold</option><option value="0">Flame below threshold</option></select>
         <button onclick="saveFlameThresholdDirect()">Set threshold</button>
@@ -237,10 +243,10 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       </div>
       <div style="margin-top:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
         <span style="font-size:.75rem;color:var(--dim)">Detection threshold:</span>
-        <label style="font-size:.75rem;color:var(--dim)"><input type="number" id="ab-flame-thr-direct" min="0" max="3300" step="1" style="width:90px"
+        <label style="font-size:.75rem;color:var(--dim)"><input type="number" id="ab-flame-thr-direct" min="0" max="3300" step="0.1" style="width:90px"
                placeholder="0–3300"> mV</label>
         <label style="font-size:.75rem;color:var(--dim)">hysteresis
-          <input type="number" id="ab-flame-hyst-direct" min="0" max="1650" step="1" value="52" style="width:80px"> mV
+          <input type="number" id="ab-flame-hyst-direct" min="0" max="1650" step="0.1" value="52" style="width:80px"> mV
         </label>
         <select id="ab-flame-active-high" aria-label="Afterburner flame active state"><option value="1">Flame above threshold</option><option value="0">Flame below threshold</option></select>
         <button onclick="saveAbFlameThresholdDirect()">Set threshold</button>
@@ -262,30 +268,30 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="sensor-name">Fuel Pressure Sensor <span id="fuelpress-h-cal" class="dot"></span></div>
     <div class="sensor-vals">
         <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-fuelpress-raw">—</div></div>
-      <div class="sv-item"><div class="sv-label">Pressure bar</div><div class="sv-val" id="cal-fuelpress">—</div></div>
+      <div class="sv-item"><div class="sv-label">Pressure</div><div class="sv-val" id="cal-fuelpress">—</div></div>
       <div class="sv-item"><div class="sv-label">Cal range</div><div class="sv-val" id="cal-fuelpress-range">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-fuelpress" style="width:0%"></div></div>
-    <div class="bar-range"><span>0 bar</span><span id="fuelpress-bar-max">10 bar</span></div>
+    <div class="bar-range"><span data-pressure-label="0">0 bar</span><span id="fuelpress-bar-max" data-pressure-label="10">10 bar</span></div>
     <div class="wizard">
       <div class="wizard-title">Fuel Pressure Two-Point Calibration</div>
       <div class="wizard-steps">
-        1. Choose the pressure reference. With fuel pump off / line depressurised and the sensor open to atmosphere, click <b>Capture Ambient</b>.<br>
-        2. Apply a known reference pressure (e.g. 3 bar from a gauge), enter the value below, then click <b>Capture Ref</b>.<br>
-        3. Click <b>Save</b> to write calibration to config.
+        Depressurise the line and capture ambient. Then apply a known pressure, enter the gauge reading and capture the reference.
       </div>
-      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem">
-        <label style="font-size:.8rem;color:var(--dim)">Pressure reference:
-          <select id="fuelpress-zero-reference">
+      <div class="pressure-cal-controls">
+        <label>Pressure reference
+          <select id="fuelpress-zero-reference" data-pressure-reference>
             <option value="0">Gauge (ambient = 0 bar)</option>
             <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
           </select>
         </label>
-        <button onclick="fpCapZero()">Capture Ambient</button>
-        <label style="font-size:.8rem;color:var(--dim)">Ref pressure:
-          <input type="number" id="fp-ref-bar" value="3" min="0.1" max="1000" step="0.1" style="width:80px;margin-left:.3rem"> bar
+        <button type="button" onclick="fpCapZero()">Capture ambient</button>
+      </div>
+      <div class="pressure-cal-controls">
+        <label>Reference pressure (<span data-unit="press">bar</span>)
+          <input type="number" id="fp-ref-bar" data-pressure-entry min="0.1" max="1000" step="any" value="3" title="Pressure measured by the reference gauge.">
         </label>
-        <button onclick="fpCapRef()">Capture Ref</button>
+        <button type="button" onclick="fpCapRef()">Capture reference</button>
       </div>
       <div id="fp-pts-status" style="font-size:.75rem;color:var(--dim);margin-bottom:.5rem"></div>
       <div class="wiz-buttons">
@@ -300,44 +306,41 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="p1-cal-row" style="display:none">
     <div class="sensor-name" id="p1-cal-name">Pressure 1 Sensor</div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label">Reading (bar)</div><div class="sv-val" id="cal-p1">—</div></div>
-        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p1-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p1-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label">Pressure</div><div class="sv-val" id="cal-p1">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-p1" style="width:0%"></div></div>
-    <div class="bar-range"><span>0 bar</span><span id="p1-bar-max-label">10 bar</span></div>
+    <div class="bar-range"><span data-pressure-label="0">0 bar</span><span id="p1-bar-max-label" data-pressure-label="10">10 bar</span></div>
     <div class="wizard">
       <div class="wizard-title" id="p1-cal-wizard-title">Pressure 1 Two-Point Calibration</div>
-      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
-        <label style="font-size:.8rem;color:var(--dim)">Pressure reference:
-          <select id="p1-zero-reference">
-            <option value="0">Gauge (ambient = 0 bar)</option>
-            <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
-          </select>
-        </label>
-      </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
         <button style="font-size:.72rem;padding:.25rem .6rem" onclick="p12CalMode('p1','physical')" id="p1-mode-physical" class="primary">Physical capture</button>
         <button style="font-size:.72rem;padding:.25rem .6rem" onclick="p12CalMode('p1','factory')"  id="p1-mode-factory">Factory spec (datasheet)</button>
       </div>
-      <!-- Physical capture mode -->
-      <div id="p1-mode-physical-panel">
-        <div class="wizard-steps">
-          <b>Step 1 — Ambient:</b> Open sensor port to atmosphere. <button onclick="p12CaptureZero('p1')">Capture Ambient</button>
-          <span id="p1-zero-captured" style="color:var(--green);margin-left:.4rem"></span><br>
-          <b>Step 2 — Reference:</b> Apply a known pressure.
-          <input type="number" id="p1-ref-bar" min="0.1" max="100" step="0.1" placeholder="bar" style="width:5rem;margin:0 .3rem">
-          <button onclick="p12CaptureRef('p1')">Capture Reference</button>
-          <span id="p1-ref-captured" style="color:var(--green);margin-left:.4rem"></span>
-        </div>
+      <div class="pressure-cal-controls">
+        <label>Pressure reference
+          <select id="p1-zero-reference" data-pressure-reference>
+            <option value="0">Gauge (ambient = 0 bar)</option>
+            <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
+          </select>
+        </label>
+        <button type="button" id="p1-capture-ambient" onclick="p12CaptureZero('p1')">Capture ambient</button><span class="pressure-capture-status" id="p1-zero-captured"></span>
       </div>
-      <!-- Factory spec mode -->
+      <div id="p1-mode-physical-panel">
+        <div class="wizard-steps">Depressurise the line and capture ambient. Then apply a known pressure and capture the reference.</div>
+      <div class="pressure-cal-controls">
+        <label>Reference pressure (<span data-unit="press">bar</span>)
+          <input type="number" id="p1-ref-bar" data-pressure-entry min="0.1" max="100" step="any" title="Pressure measured by the reference gauge.">
+        </label>
+        <button type="button" onclick="p12CaptureRef('p1')">Capture reference</button><span class="pressure-capture-status" id="p1-ref-captured"></span>
+      </div>
+      </div>
       <div id="p1-mode-factory-panel" style="display:none">
-        <div class="wizard-steps">
-          Enter the sensor voltage at the ECU ADC pin after any divider or level shift:<br>
-          ADC-pin voltage with the sensor <b>open to atmosphere</b>: <input type="number" id="p1-v-zero" min="0" max="3.3" step="0.01" placeholder="0.5 V" style="width:5rem;margin:0 .3rem"> V
-          &nbsp; ADC-pin voltage at <b>full-scale</b>: <input type="number" id="p1-v-max" min="0" max="3.3" step="0.01" placeholder="3.0 V" style="width:5rem;margin:0 .3rem"> V
-          &nbsp; Pressure at full-scale (bar): <input type="number" id="p1-v-valmax" min="0.1" max="1000" step="0.1" placeholder="10 bar" style="width:5rem;margin:0 .3rem"> bar
-          <br><span style="font-size:.72rem;color:var(--dim)">Enter the voltage at the ADC pin after any divider, within its configured reference range. Native ESP32 ADC pins require a divider for signals above 3.3 V.</span>
+        <p class="wizard-steps">Enter voltages at the ECU ADC pin after any divider. Native ESP32 ADC pins require a divider above 3.3 V.</p>
+        <div class="pressure-cal-controls">
+          <label>Ambient voltage (V)<input type="number" id="p1-v-zero" min="0" max="3.3" step="0.01" placeholder="0.5 V" style="width:5rem;margin:0 .3rem"></label>
+          <label>Full-scale voltage (V)<input type="number" id="p1-v-max" min="0" max="3.3" step="0.01" placeholder="3.0 V" style="width:5rem;margin:0 .3rem"></label>
+          <label>Full-scale pressure (<span data-unit="press">bar</span>)<input type="number" id="p1-v-valmax" data-pressure-entry min="0.1" max="1000" step="any" style="width:6rem"></label>
         </div>
       </div>
       <div class="wiz-buttons">
@@ -352,42 +355,41 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <div class="sensor-row" id="p2-cal-row" style="display:none">
     <div class="sensor-name" id="p2-cal-name">Pressure 2 Sensor</div>
     <div class="sensor-vals">
-      <div class="sv-item"><div class="sv-label">Reading (bar)</div><div class="sv-val" id="cal-p2">—</div></div>
-        <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p2-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label">ADC pin voltage</div><div class="sv-val" id="cal-p2-raw">—</div></div>
+      <div class="sv-item"><div class="sv-label">Pressure</div><div class="sv-val" id="cal-p2">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-p2" style="width:0%"></div></div>
-    <div class="bar-range"><span>0 bar</span><span id="p2-bar-max-label">10 bar</span></div>
+    <div class="bar-range"><span data-pressure-label="0">0 bar</span><span id="p2-bar-max-label" data-pressure-label="10">10 bar</span></div>
     <div class="wizard">
       <div class="wizard-title" id="p2-cal-wizard-title">Pressure 2 Two-Point Calibration</div>
-      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
-        <label style="font-size:.8rem;color:var(--dim)">Pressure reference:
-          <select id="p2-zero-reference">
-            <option value="0">Gauge (ambient = 0 bar)</option>
-            <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
-          </select>
-        </label>
-      </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
         <button style="font-size:.72rem;padding:.25rem .6rem" onclick="p12CalMode('p2','physical')" id="p2-mode-physical" class="primary">Physical capture</button>
         <button style="font-size:.72rem;padding:.25rem .6rem" onclick="p12CalMode('p2','factory')"  id="p2-mode-factory">Factory spec (datasheet)</button>
       </div>
+      <div class="pressure-cal-controls">
+        <label>Pressure reference
+          <select id="p2-zero-reference" data-pressure-reference>
+            <option value="0">Gauge (ambient = 0 bar)</option>
+            <option value="1.01325">Absolute (ambient ≈ 1.013 bar)</option>
+          </select>
+        </label>
+        <button type="button" id="p2-capture-ambient" onclick="p12CaptureZero('p2')">Capture ambient</button><span class="pressure-capture-status" id="p2-zero-captured"></span>
+      </div>
       <div id="p2-mode-physical-panel">
-        <div class="wizard-steps">
-          <b>Step 1 — Ambient:</b> Open sensor port to atmosphere. <button onclick="p12CaptureZero('p2')">Capture Ambient</button>
-          <span id="p2-zero-captured" style="color:var(--green);margin-left:.4rem"></span><br>
-          <b>Step 2 — Reference:</b> Apply a known pressure.
-          <input type="number" id="p2-ref-bar" min="0.1" max="100" step="0.1" placeholder="bar" style="width:5rem;margin:0 .3rem">
-          <button onclick="p12CaptureRef('p2')">Capture Reference</button>
-          <span id="p2-ref-captured" style="color:var(--green);margin-left:.4rem"></span>
-        </div>
+        <div class="wizard-steps">Depressurise the line and capture ambient. Then apply a known pressure and capture the reference.</div>
+      <div class="pressure-cal-controls">
+        <label>Reference pressure (<span data-unit="press">bar</span>)
+          <input type="number" id="p2-ref-bar" data-pressure-entry min="0.1" max="100" step="any" title="Pressure measured by the reference gauge.">
+        </label>
+        <button type="button" onclick="p12CaptureRef('p2')">Capture reference</button><span class="pressure-capture-status" id="p2-ref-captured"></span>
+      </div>
       </div>
       <div id="p2-mode-factory-panel" style="display:none">
-        <div class="wizard-steps">
-          Enter the sensor voltage at the ECU ADC pin after any divider or level shift:<br>
-          ADC-pin voltage with the sensor <b>open to atmosphere</b>: <input type="number" id="p2-v-zero" min="0" max="3.3" step="0.01" placeholder="0.5 V" style="width:5rem;margin:0 .3rem"> V
-          &nbsp; ADC-pin voltage at <b>full-scale</b>: <input type="number" id="p2-v-max" min="0" max="3.3" step="0.01" placeholder="3.0 V" style="width:5rem;margin:0 .3rem"> V
-          &nbsp; Pressure at full-scale (bar): <input type="number" id="p2-v-valmax" min="0.1" max="1000" step="0.1" placeholder="10 bar" style="width:5rem;margin:0 .3rem"> bar
-          <br><span style="font-size:.72rem;color:var(--dim)">Enter the voltage at the ADC pin after any divider, within its configured reference range. Native ESP32 ADC pins require a divider for signals above 3.3 V.</span>
+        <p class="wizard-steps">Enter voltages at the ECU ADC pin after any divider. Native ESP32 ADC pins require a divider above 3.3 V.</p>
+        <div class="pressure-cal-controls">
+          <label>Ambient voltage (V)<input type="number" id="p2-v-zero" min="0" max="3.3" step="0.01" placeholder="0.5 V" style="width:5rem;margin:0 .3rem"></label>
+          <label>Full-scale voltage (V)<input type="number" id="p2-v-max" min="0" max="3.3" step="0.01" placeholder="3.0 V" style="width:5rem;margin:0 .3rem"></label>
+          <label>Full-scale pressure (<span data-unit="press">bar</span>)<input type="number" id="p2-v-valmax" data-pressure-entry min="0.1" max="1000" step="any" style="width:6rem"></label>
         </div>
       </div>
       <div class="wiz-buttons">
@@ -427,7 +429,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="sv-item"><div class="sv-label">Temperature</div><div class="sv-val" id="cal-oiltemp">—</div></div>
     </div>
     <div class="bar-track"><div class="bar-fill" id="bar-oiltemp" style="width:0%"></div></div>
-    <div class="bar-range"><span>0 °C</span><span>150 °C</span></div>
+    <div class="bar-range"><span data-temperature-label="0">0 °C</span><span data-temperature-label="150">150 °C</span></div>
     <div class="wizard" id="oiltemp-ntc-wizard">
       <div class="wizard-title">NTC Thermistor Calibration</div>
       <div class="wizard-steps">
@@ -450,17 +452,19 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         </div>
       </div>
       <div class="wiz-buttons" style="margin-bottom:.4rem">
-        <button onclick="saveNtcCal()">Save</button>
+        <button onclick="saveNtcCal()">Save and use datasheet values</button>
       </div>
+      <div id="ntc-active-method" style="font-size:.75rem;color:var(--dim)"></div>
       <div id="ntc-status" style="font-size:.75rem;color:var(--dim)"></div>
       <hr style="border:0;border-top:1px solid var(--border);margin:.8rem 0">
       <div class="wizard-title">Known temperature points</div>
-      <div class="wizard-steps">Use this for an NTC divider or another supported analog temperature input. Stabilise it at four different, well-spaced temperatures covering the useful range. Enter the known temperature in the page-selected unit, capture the live ADC-pin voltage, review all four points, then save. Saving this disables NTC datasheet mode.</div>
+      <div class="wizard-steps">Use this for an NTC divider or another supported analog temperature input. Stabilise it at four different, well-spaced temperatures covering the useful range. Enter the known temperature in the page-selected unit, capture the live ADC-pin voltage, review all four points, then save.</div>
       <div id="oiltemp-known-rows"></div>
       <label>Known temperature <input id="oilt-known-temp" type="number" step="0.1" style="width:6rem"> <span data-unit="temp">°C</span></label>
       <div class="wiz-buttons" style="margin-top:.5rem">
         <button onclick="oilTempAddPoint()">Capture known point</button>
         <button id="btn-oilt-known-save" onclick="saveOilTempKnown()" disabled>Save known-point calibration</button>
+        <button id="btn-ntc-use-curve" onclick="useSavedNtcCurve()" hidden>Use saved curve</button>
         <button onclick="clearOilTempKnown()">Clear points</button>
       </div>
       <div id="oilt-known-status" style="font-size:.75rem;color:var(--dim)"></div>
@@ -487,7 +491,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="wizard-steps">
         1. Connect a multimeter to the battery/bus terminal.<br>
         2. Enter the measured voltage below and click <b>Capture &amp; Compute</b>.<br>
-        3. The divider ratio is calculated automatically and saved.
+        3. Review the calculated divider ratio and click <b>Save</b>.
       </div>
       <div style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0;flex-wrap:wrap">
         <div style="font-size:.72rem;color:var(--dim)">Measured voltage (V):</div>
@@ -716,6 +720,7 @@ let thMin = null, thMax = null;
 let idleMin = null, idleMax = null;
 const _operatorCaptureBusy = {throttle:false, idle:false};
 const _operatorCaptureGeneration = {throttle:0, idle:0};
+const _operatorCaptureBoot = {throttle:null, idle:null};
 let cfg = {};
 
 // Input types reported by firmware ('adc', 'servo', or 'none')
@@ -723,6 +728,8 @@ let throttleInputType = 'adc';
 let idleInputType     = 'adc';
 
 let fpRawZero = null, fpRawRef = null;
+let fpAmbientBar, fpReferenceBar;
+const _fluidCaptureBoot = {};
 
 const REGISTRY_SENSOR_PURPOSES = {
   n1_rpm:'n1_speed', n2_rpm:'n2_speed', tot:'tot', tit:'tit', oil_press:'oil_pressure',
@@ -756,6 +763,17 @@ function registryChannelByPurpose(hw, direction, purpose) {
   if (!purpose) return null;
   return (hw?.channel_registry?.[direction] || []).find(channel =>
     registryChannelInstalled(channel) && String(channel.purpose || channel.id || '') === purpose) || null;
+}
+function fuelMeteringCalibrationOutput(hw) {
+  const registry = hw?.channel_registry;
+  const bound = registry?.bindings?.find(binding => binding.key === 'main_fuel_output');
+  const outputs = registry?.outputs || [];
+  const candidates = outputs.filter(channel =>
+    channel.installed !== false && (channel.purpose || channel.id) === 'main_fuel');
+  const output = outputs.find(channel => channel.id === bound?.channel) ||
+    candidates.find(channel => channel.id === 'main_fuel') ||
+    (candidates.length === 1 ? candidates[0] : null);
+  return registryChannelInstalled(output) && [5,6].includes(Number(output.driver)) ? output : null;
 }
 function hwSensorEnabled(hw, key, flatKey) {
   return !!registryChannelByPurpose(hw, 'inputs', REGISTRY_SENSOR_PURPOSES[key]);
@@ -796,12 +814,13 @@ function refreshCalibrationJump() {
       label: (row.querySelector('.sensor-name')?.textContent || row.id)
         .replace(/\s+/g, ' ').trim()
     }));
-  select.innerHTML = '<option value="">Choose a sensor or actuator…</option>' +
-    rows.map(row => `<option value="${row.id}">${row.label}</option>`).join('');
+  select.replaceChildren(new Option('Jump to calibration…', ''),
+    ...rows.map(row => new Option(row.label, row.id)));
   if (rows.some(row => row.id === current)) select.value = current;
   const count = document.getElementById('calibration-jump-count');
   if (count) count.textContent = `${rows.length} fitted calibration${rows.length === 1 ? '' : 's'}`;
-  wrap.style.display = rows.length > 1 ? '' : 'none';
+  wrap.hidden = rows.length < 2;
+  document.getElementById('calibration-empty').hidden = !cfg.hardware || rows.length > 0;
 }
 function jumpToCalibration(id) {
   const target = document.getElementById(id);
@@ -823,10 +842,6 @@ function revealCalibrationDeepLink() {
 async function fetchJsonWithTimeout(url, ms = 8000) {
   return window.OTReadJson(url, {attempts:1, timeoutMs:ms});
 }
-async function fetchJsonWithRetry(url, attempts = 5) {
-  return window.OTReadJson(url, {attempts});
-}
-
 function refreshOilTempCalMode(sensor) {
   const chip = sensor?.chip || 'ntc';
   const ntc = chip === 'ntc';
@@ -850,12 +865,21 @@ function refreshOilTempCalMode(sensor) {
 
 document.addEventListener('DOMContentLoaded', () => {
 (async () => {
-  const c = await fetchJsonWithRetry('/api/config');
-  const hw = await fetchJsonWithRetry('/api/hardware');
-  return [c, hw];
+  const settings = await window.OTReadJson('/api/config', {withEcu:true});
+  const hardware = await window.OTReadJson('/api/hardware', {withEcu:true});
+  if (!/^[0-9a-f]{12}$/.test(settings.ecu) || hardware.ecu !== settings.ecu)
+    throw new Error('Could not identify a single ECU for Calibration. Reload the page.');
+  calibrationHardwareEcu = hardware.ecu;
+  return [settings.value, hardware.value];
 })().then(([c, hw]) => {
   cfg = c;
   c.hardware = hw;
+  const fuelMetering = fuelMeteringCalibrationOutput(hw);
+  setRowVisible('fuelpump-min-cal-row', !!fuelMetering);
+  syncCalibrationPressureUnits();
+  refreshCalibrationTemperatureLabels();
+  oilCalibrationModeChanged();
+  renderFluidCalibrationControls();
   configureAdcVoltageControls();
   renderAdcSwitchCalibration();
   // Keep fitted channel names on the calibration rows while preserving their
@@ -876,7 +900,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll(`#${row}-cal-row .wizard-title`).forEach(title => { title.textContent = channel.name + ' · ' + title.textContent; });
   }
   for (const [row,purpose] of [['fuelpump-min','main_fuel'],['glow-current','glow_plug'],['oilpump-current','oil_pump'],['igniter-current','igniter'],['igniter2-current','ab_igniter']]) {
-    const channels=(hw.channel_registry?.outputs || []).filter(c=>c.installed!==false && !c.mirror_of && c.purpose===purpose);
+    const channels=row==='fuelpump-min' ? (fuelMetering ? [fuelMetering] : []) :
+      (hw.channel_registry?.outputs || []).filter(c=>c.installed!==false && !c.mirror_of && c.purpose===purpose);
     if(channels.length!==1 || !String(channels[0].name || '').trim()) continue;
     const name=channels[0].name.trim();
     const header=document.querySelector(`#${row}-cal-row .sensor-name`);
@@ -918,12 +943,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const fpMax = c.calibration?.fuel_press_raw_max ?? 4095;
   const fpVal = c.calibration?.fuel_press_val_max ?? 10;
   if (fpMin !== 0 || fpMax !== 4095) {
-    fpRawZero = fpMin; fpRawRef = fpMax;
     document.getElementById('fp-pts-status').textContent =
-      'Saved: zero=' + adcMvText(fpMin, 'fuel_pressure') + ', ref=' + adcMvText(fpMax, 'fuel_pressure') + ' @ ' + fpVal + ' bar';
-    document.getElementById('btn-fp-save').disabled = false;
+      'Saved: zero=' + adcMvText(fpMin, 'fuel_pressure') + ', ref=' + adcMvText(fpMax, 'fuel_pressure') + ' @ ' + pressureValueLabel(fpVal);
   }
-  setText('fuelpress-bar-max', fpVal.toFixed(1) + ' bar');
+  setCalibrationPressureRange('fuelpress-bar-max', fpVal);
   setText('cal-fuelpress-range', adcMvText(fpMin, 'fuel_pressure') + ' – ' + adcMvText(fpMax, 'fuel_pressure'));
   for (const [selectId, purpose] of [
     ['oil-zero-reference', 'oil_pressure'],
@@ -934,14 +957,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Show/hide P1/P2 calibration from hardware fitment, not dashboard display preference.
   const p1RowInit = document.getElementById('p1-cal-row');
   const p2RowInit = document.getElementById('p2-cal-row');
+  for (const channel of ['p1','p2'])
+    setCalibrationPressureRange(channel + '-bar-max-label', c.calibration?.[channel + '_val_max'] ?? 10);
   if (p1RowInit) p1RowInit.style.display = hwSensorEnabled(c.hardware, 'p1', 'has_p1') ? '' : 'none';
   if (p2RowInit) p2RowInit.style.display = hwSensorEnabled(c.hardware, 'p2', 'has_p2') ? '' : 'none';
 
   const registryFlame = registryInputById('flame');
   const thr = registryFlame?.digital_threshold_raw;
   document.getElementById('cal-flame-thr').textContent = thr !== undefined ? adcMvText(thr, 'flame') : '—';
-  if (thr !== undefined) document.getElementById('flame-thr-direct').value = Math.round(adcMv(thr, 'flame'));
-  document.getElementById('flame-hyst-direct').value = Math.round(adcMv(registryFlame?.digital_hysteresis_raw ?? 64, 'flame'));
+  if (thr !== undefined) document.getElementById('flame-thr-direct').value = flameSettingMv(thr, 'flame');
+  document.getElementById('flame-hyst-direct').value = flameSettingMv(registryFlame?.digital_hysteresis_raw ?? 64, 'flame');
   document.getElementById('flame-active-high').value = registryFlame?.active_high === false ? '0' : '1';
   updateFlameThrMark(thr);
   if (thr !== undefined && flameThresholdAdvisory(thr, registryFlame?.active_high !== false))
@@ -949,8 +974,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const registryAbFlame = registryInputById('ab_flame');
   const abThr = registryAbFlame?.digital_threshold_raw;
   setText('cal-ab-flame-thr', abThr !== undefined ? adcMvText(abThr, 'ab_flame') : '—');
-  if (abThr !== undefined) document.getElementById('ab-flame-thr-direct').value = Math.round(adcMv(abThr, 'ab_flame'));
-  document.getElementById('ab-flame-hyst-direct').value = Math.round(adcMv(registryAbFlame?.digital_hysteresis_raw ?? 64, 'ab_flame'));
+  if (abThr !== undefined) document.getElementById('ab-flame-thr-direct').value = flameSettingMv(abThr, 'ab_flame');
+  document.getElementById('ab-flame-hyst-direct').value = flameSettingMv(registryAbFlame?.digital_hysteresis_raw ?? 64, 'ab_flame');
   document.getElementById('ab-flame-active-high').value = registryAbFlame?.active_high === false ? '0' : '1';
   updateAbFlameThrMark(abThr);
   if (abThr !== undefined && flameThresholdAdvisory(abThr, registryAbFlame?.active_high !== false))
@@ -963,17 +988,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ab-flame-digital-note').style.display = abFlameThresholdBased ? 'none' : '';
   const mn = c.calibration?.throttle_min_raw, mx = c.calibration?.throttle_max_raw;
   if (mn !== undefined && mx !== undefined) {
-    thMin = mn; thMax = mx;
     document.getElementById('th-lo').textContent = adcMvText(mn, 'throttle');
     document.getElementById('th-hi').textContent = adcMvText(mx, 'throttle');
-    document.getElementById('btn-th-save').disabled = false;
   }
   const imn = c.calibration?.idle_min_raw, imx = c.calibration?.idle_max_raw;
   if (imn !== undefined && imx !== undefined) {
-    idleMin = imn; idleMax = imx;
     document.getElementById('idle-range-lo').textContent = adcMvText(imn, 'idle');
     document.getElementById('idle-range-hi').textContent = adcMvText(imx, 'idle');
-    document.getElementById('btn-idle-save').disabled = false;
   }
 
   // ── Hardware-conditional row visibility (based on hardware settings) ─────────
@@ -1051,6 +1072,7 @@ function applyInputTypeLabels(d) {
 
   if (thType !== throttleInputType) {
     ++_operatorCaptureGeneration.throttle;
+    _operatorCaptureBoot.throttle = null;
     thMin = thMax = null;
     throttleInputType = thType;
     renderThStatus();
@@ -1068,6 +1090,7 @@ function applyInputTypeLabels(d) {
   }
   if (idleType !== idleInputType) {
     ++_operatorCaptureGeneration.idle;
+    _operatorCaptureBoot.idle = null;
     idleMin = idleMax = null;
     idleInputType = idleType;
     renderIdleStatus();
@@ -1122,6 +1145,10 @@ function abFlameFromTelemetryOrHardware(d) {
 
 // Extend the global applyData after the deferred shared bootstrap has loaded
 // app.js. The listener registered in <head> runs first at DOMContentLoaded.
+const calibrationFrames = new EventTarget();
+const CALIBRATION_FRAME_TIMEOUT_MS = 800;
+let calibrationSnapshotId, calibrationFrameBoot;
+let calibrationFrameAt = -Infinity;
 function installCalibrationTelemetryExtension() {
 const _base = window.applyData;
 if (typeof _base !== 'function' || _base._calibrationExtended) return;
@@ -1130,9 +1157,26 @@ window.applyData = function(d) {
   if (!merged) return;
   const previousMode=live.mode;
   live = Object.assign(live || {}, merged, d);
-  if((previousMode&&live.mode!==previousMode)||live.stop_switch_active||
+  const snapshotId = d.cv === 2 ? d.s : d.snapshot_id;
+  const rebooted = calibrationFrameBoot !== undefined && merged.boot_count !== undefined &&
+    merged.boot_count !== calibrationFrameBoot;
+  if (rebooted) {
+    clearOperatorCaptures();
+    clearFluidCaptures();
+    if (oilPts.length || oilCalStarting || oilCalActive)
+      cancelOilCalibration('The ECU restarted. Capture the oil calibration points again.');
+  }
+  if (d !== merged && (snapshotId === undefined || snapshotId !== calibrationSnapshotId ||
+      merged.boot_count !== calibrationFrameBoot)) {
+    calibrationSnapshotId = snapshotId;
+    calibrationFrameBoot = merged.boot_count;
+    calibrationFrameAt = performance.now();
+    calibrationFrames.dispatchEvent(new Event('sample'));
+  }
+  if(rebooted||(previousMode&&live.mode!==previousMode)||live.stop_switch_active||
       (live.stop_switch_configured&&live.stop_switch_healthy===false))
-    cancelCalibrationActuatorWorkers('Engine mode or STOP input changed. Restart calibration manually.');
+    cancelCalibrationActuatorWorkers(rebooted ? 'ECU restarted. Restart calibration manually.' :
+      'Engine mode or STOP input changed. Restart calibration manually.');
   d = live;
   updateAdcSwitchLive(d);
   updateCalibrationCoverage(d);
@@ -1164,7 +1208,7 @@ window.applyData = function(d) {
     setText('cal-fuelpress-raw', adcMvText(d.fuel_press_raw, 'fuel_pressure'));
     if (d.fuel_press !== undefined) {
       const fpValMax = cfg.calibration?.fuel_press_val_max ?? 10;
-      setText('cal-fuelpress', Number(d.fuel_press).toFixed(2) + ' bar');
+      setText('cal-fuelpress', pressureValueLabel(d.fuel_press, 2));
       setDot('fuelpress-h-cal', d.fuel_press_healthy);
       bar('bar-fuelpress', d.fuel_press, 0, fpValMax, d.fuel_press_healthy);
     }
@@ -1178,20 +1222,20 @@ window.applyData = function(d) {
   if (hasP1) {
     setText('cal-p1-raw', adcMvText(d.p1_raw, 'p1'));
     if (d.p1 !== undefined) {
-      setText('cal-p1', Number(d.p1).toFixed(3) + ' bar');
+      setText('cal-p1', pressureValueLabel(d.p1, 3));
       bar('bar-p1', d.p1, 0, cfg.calibration?.p1_val_max ?? 10, true);
     }
   }
   if (hasP2) {
     setText('cal-p2-raw', adcMvText(d.p2_raw, 'p2'));
     if (d.p2 !== undefined) {
-      setText('cal-p2', Number(d.p2).toFixed(3) + ' bar');
+      setText('cal-p2', pressureValueLabel(d.p2, 3));
       bar('bar-p2', d.p2, 0, cfg.calibration?.p2_val_max ?? 10, true);
     }
   }
 
   setText('cal-oil-raw', adcMvText(d.oil_raw, 'oil_pressure'));
-  setText('cal-oil',     d.oil !== undefined && d.oil_healthy !== false ? Number(d.oil).toFixed(3) + ' bar' : '—');
+  setText('cal-oil',     d.oil !== undefined && d.oil_healthy !== false ? pressureValueLabel(d.oil, 3) : '—');
   setText('fp-min-saved', d.fuel_pump_min_pct !== undefined ? Number(d.fuel_pump_min_pct).toFixed(1) : '—');
   setText('cal-oil-pct', d.oil_pct !== undefined ? d.oil_pct + ' %' : '—');
   setText('cal-oil-h',   d.oil_healthy ? 'OK' : 'fault');
@@ -1394,7 +1438,8 @@ function bar(id, val, lo, hi, healthy) {
 }
 
 function calibrationConnected() {
-  return document.getElementById('conn')?.classList.contains('connected') === true;
+  return document.getElementById('conn')?.classList.contains('connected') === true &&
+    !document.body.classList.contains('telemetry-stale');
 }
 // Canonical operator raw fields are control demand translated through the old
 // calibration, and fall back to minimum on faults. Capture the physical ADC
@@ -1403,7 +1448,8 @@ function operatorAdcRaw(data, purpose) {
   const channel = registryInputById(purpose);
   if (channel && [1,9].includes(Number(channel.driver))) {
     const sample = data?.registry_inputs?.find(row => String(row.id) === String(channel.id));
-    return validAdcRaw(sample?.raw) ? sample.raw : NaN;
+    return Number(channel.driver) === 9 ? calibrationI2cRaw(sample) :
+      (validAdcRaw(sample?.raw) ? sample.raw : NaN);
   }
   const raw = data?.[purpose+'_input_raw'];
   return validAdcRaw(raw) ? raw : NaN;
@@ -1415,9 +1461,26 @@ function operatorPercent(raw, low, high) {
 function validAdcRaw(raw) {
   return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= 4095;
 }
+function calibrationI2cRaw(sample) {
+  if (!validAdcRaw(sample?.raw)) return NaN;
+  const fresh = sample.raw_fresh ?? sample.healthy;
+  return fresh === true ? sample.raw : NaN;
+}
+const calibrationAdcPurposes = {
+  oil_raw:'oil_pressure', fuel_press_raw:'fuel_pressure', p1_raw:'p1_pressure',
+  p2_raw:'p2_pressure', oil_temp_raw:'oil_temperature', batt_voltage_raw:'battery_voltage',
+  torque_raw:'torque', thrust_raw:'thrust', fuel_flow_raw:'fuel_flow',
+  flame_raw:'flame',
+  glow_current_raw:'glow_current', igniter_current_raw:'igniter_current',
+  igniter2_current_raw:'igniter2_current', oil_pump_current_raw:'oil_pump_current'
+};
 function liveAdcRaw(key) {
-  const raw = live[key];
-  return calibrationConnected() && validAdcRaw(raw) ? raw : NaN;
+  if (!calibrationConnected()) return NaN;
+  const purpose = calibrationAdcPurposes[key];
+  const channel = purpose && registryInputById(purpose);
+  if (Number(channel?.driver) === 9)
+    return calibrationI2cRaw(live.registry_inputs?.find(row => String(row.id) === String(channel.id)));
+  return validAdcRaw(live[key]) ? live[key] : NaN;
 }
 function adcReferenceMv(channel) {
   const purpose = {p1:'p1_pressure',p2:'p2_pressure'}[channel] || channel;
@@ -1474,70 +1537,131 @@ function configureAdcVoltageControls() {
   document.getElementById('torque-fullscale').parentElement.querySelector('div').textContent = 'Full-scale Nm (at '+adcReferenceMv('torque')/1000+' V):';
 }
 
+function liveFluidAdcRaw(key) {
+  return Number.isInteger(calibrationFrameBoot) && hasFreshCalibrationTelemetry() ? liveAdcRaw(key) : NaN;
+}
+
+function clearFluidCaptures() {
+  const message = 'The ECU restarted. Capture both points again.';
+  if (fpRawZero !== null || fpRawRef !== null) {
+    fpRawZero = fpRawRef = null;
+    document.getElementById('btn-fp-save').disabled = true;
+    setText('fp-pts-status',message);
+  }
+  for (const ch of ['p1','p2']) {
+    const state = _p12State[ch];
+    if (state?.zeroRaw === undefined && state?.refRaw === undefined) continue;
+    delete state.zeroRaw;
+    delete state.refRaw;
+    delete state.refBar;
+    setText(ch+'-zero-captured','—');
+    setText(ch+'-ref-captured','—');
+    setText(ch+'-cal-status',message);
+  }
+  if (_ffState.zeroRaw !== undefined || _ffState.refRaw !== undefined) {
+    delete _ffState.zeroRaw;
+    delete _ffState.refRaw;
+    delete _ffState.refVal;
+    setText('ff-zero-captured','—');
+    setText('ff-ref-captured','—');
+    setText('ff-cal-status',message);
+  }
+  for (const key of Object.keys(_fluidCaptureBoot)) delete _fluidCaptureBoot[key];
+}
+
+function currentFluidCaptureBoot(key) {
+  const boot = _fluidCaptureBoot[key];
+  if (Number.isInteger(boot) && boot === calibrationFrameBoot) return boot;
+  alert('Capture both points for the current ECU session.');
+}
+
 // ── Fuel pressure calibration wizard ─────────────────────────
 function fpCapZero() {
-  const raw = liveAdcRaw('fuel_press_raw');
-  if (!Number.isFinite(raw)) { alert('No fuel pressure raw data yet'); return; }
+  if (!pressurePumpAllowsAmbient()) return;
+  const raw = liveFluidAdcRaw('fuel_press_raw');
+  if (!Number.isFinite(raw)) {
+    fpRawZero = null;
+    document.getElementById('btn-fp-save').disabled = true;
+    setText('fp-pts-status', 'Capture failed. Capture the ambient point again.');
+    alert('No fuel pressure raw data yet');
+    return;
+  }
   fpRawZero = raw;
-  const ambientBar = pressureReferenceValue('fuelpress-zero-reference');
+  _fluidCaptureBoot.fuel_pressure = calibrationFrameBoot;
+  fpAmbientBar = pressureReferenceValue('fuelpress-zero-reference');
   document.getElementById('fp-pts-status').textContent =
-    'Ambient captured: ' + adcMvText(raw, 'fuel_pressure') + ' = ' + pressureValueLabel(ambientBar) +
-    (fpRawRef !== null ? ' | ref: ' + adcMvText(fpRawRef, 'fuel_pressure') + ' — ready to save' : ' | now capture reference point');
+    'Ambient captured: ' + adcMvText(raw, 'fuel_pressure') + ' = ' + pressureValueLabel(fpAmbientBar) +
+    (fpRawRef !== null ? ' | Reference: ' + pressureValueLabel(fpReferenceBar) : ' | Now capture the reference point');
   document.getElementById('btn-fp-save').disabled = (fpRawRef === null);
 }
 
 function fpCapRef() {
-  const raw = liveAdcRaw('fuel_press_raw');
-  if (!Number.isFinite(raw)) { alert('No fuel pressure raw data yet'); return; }
+  fpRawRef = null;
+  document.getElementById('btn-fp-save').disabled = true;
+  const raw = liveFluidAdcRaw('fuel_press_raw');
+  if (!Number.isFinite(raw)) {
+    setText('fp-pts-status', 'Capture failed. Capture the reference point again.');
+    alert('No fuel pressure raw data yet');
+    return;
+  }
+  const bar = fromDispPress(document.getElementById('fp-ref-bar').valueAsNumber);
+  const ambient = pressureReferenceValue('fuelpress-zero-reference');
+  if (!Number.isFinite(bar) || bar <= ambient || bar > 1000) {
+    setText('fp-pts-status', 'Enter a reference pressure above ambient, then capture it.');
+    return;
+  }
   fpRawRef = raw;
+  fpReferenceBar = bar;
+  _fluidCaptureBoot.fuel_pressure = calibrationFrameBoot;
   document.getElementById('fp-pts-status').textContent =
-    'Ref captured: ' + adcMvText(raw, 'fuel_pressure') + (fpRawZero !== null ? ' | ambient: ' + adcMvText(fpRawZero, 'fuel_pressure') + ' — ready to save' : ' | now capture ambient point');
+    'Reference captured: ' + adcMvText(raw, 'fuel_pressure') + ' = ' + pressureValueLabel(fpReferenceBar) +
+    (fpRawZero !== null ? ' | Ambient: ' + pressureValueLabel(fpAmbientBar) : ' | Now capture the ambient point');
   document.getElementById('btn-fp-save').disabled = (fpRawZero === null);
 }
 
-function fpSaveCal() {
-  if (fpRawZero === null || fpRawRef === null) { alert('Capture both points first'); return; }
-  if (fpRawRef <= fpRawZero) { alert('Reference voltage must be greater than the ambient / zero voltage'); return; }
-  const refBar = parseFloat(document.getElementById('fp-ref-bar').value);
-  const ambientBar = pressureReferenceValue('fuelpress-zero-reference');
-  if (isNaN(refBar) || refBar <= ambientBar || refBar > 1000) {
-    alert('Reference pressure must be above the selected ambient value (' + pressureValueLabel(ambientBar) + ').');
-    return;
-  }
-  const fpScale = (adcMv(fpRawRef - fpRawZero, 'fuel_pressure')) / (refBar - ambientBar);
-  const fpZeroMv = adcMv(fpRawZero, 'fuel_pressure') - ambientBar * fpScale;
+async function fpSaveCal() {
+  if (pressurePumpSession && !await stopPressurePump()) return;
+  const rawZero = fpRawZero, rawRef = fpRawRef;
+  if (rawZero === null || rawRef === null) { alert('Capture both points first'); return; }
+  const boot = currentFluidCaptureBoot('fuel_pressure');
+  if (boot === undefined) return;
+  if (rawRef <= rawZero) { alert('Reference voltage must be greater than the ambient / zero voltage'); return; }
+  if (!pressureCapturesMatch('fuelpress-zero-reference', 'fp-ref-bar', fpAmbientBar, fpReferenceBar)) return;
+  const refBar = fpReferenceBar, ambientBar = fpAmbientBar;
+  const fpScale = (adcMv(rawRef - rawZero, 'fuel_pressure')) / (refBar - ambientBar);
+  const fpZeroMv = adcMv(rawZero, 'fuel_pressure') - ambientBar * fpScale;
   const fpRegistryPatch = registryCalibrationPatch('fuel_pressure', {
     analog_zero_mv: fpZeroMv,
     analog_mv_per_unit: fpScale,
-    calibration_points: [{raw:fpRawZero,value:ambientBar},{raw:fpRawRef,value:refBar}]
+    calibration_points: [{raw:rawZero,value:ambientBar},{raw:rawRef,value:refBar}]
   });
-  patchHardwareThenConfig(fpRegistryPatch, () => {
+  saveCalibrationPatch(fpRegistryPatch, () => {
     const registry = registryInputById('fuel_pressure');
     if (registry) {
       registry.analog_zero_mv = fpZeroMv;
       registry.analog_mv_per_unit = fpScale;
-      registry.calibration_points = [{raw:fpRawZero,value:ambientBar},{raw:fpRawRef,value:refBar}];
+      registry.calibration_points = [{raw:rawZero,value:ambientBar},{raw:rawRef,value:refBar}];
     }
   }, { calibration: {
-    fuel_press_raw_min: fpRawZero,
-    fuel_press_raw_max: fpRawRef,
+    fuel_press_raw_min: rawZero,
+    fuel_press_raw_max: rawRef,
     fuel_press_val_max: refBar
-  }}, 'Fuel pressure calibration saved (' + adcMvText(fpRawZero, 'fuel_pressure') + '–' + adcMvText(fpRawRef, 'fuel_pressure') + ' = ' +
-      pressureValueLabel(ambientBar) + '–' + refBar + ' bar)', () => {
+  }}, 'Fuel pressure calibration saved (' + adcMvText(rawZero, 'fuel_pressure') + '–' + adcMvText(rawRef, 'fuel_pressure') + ' = ' +
+      pressureValueLabel(ambientBar) + ' – ' + pressureValueLabel(refBar) + ')', () => {
     if (!cfg.calibration) cfg.calibration = {};
-    cfg.calibration.fuel_press_raw_min = fpRawZero;
-    cfg.calibration.fuel_press_raw_max = fpRawRef;
+    cfg.calibration.fuel_press_raw_min = rawZero;
+    cfg.calibration.fuel_press_raw_max = rawRef;
     cfg.calibration.fuel_press_val_max = refBar;
-    setText('cal-fuelpress-range', adcMvText(fpRawZero, 'fuel_pressure') + ' – ' + adcMvText(fpRawRef, 'fuel_pressure'));
-    setText('fuelpress-bar-max', refBar.toFixed(1) + ' bar');
+    setText('cal-fuelpress-range', adcMvText(rawZero, 'fuel_pressure') + ' – ' + adcMvText(rawRef, 'fuel_pressure'));
+    setCalibrationPressureRange('fuelpress-bar-max', refBar);
     document.getElementById('fp-save-status').textContent = 'Saved.';
-  });
+  }, boot);
 }
 
 function fpClearCal() {
   const mvPerUnit = adcReferenceMv('fuel_pressure') / 10;
   const registryPatch = registryCalibrationPatch('fuel_pressure', { analog_zero_mv: 0, analog_mv_per_unit: mvPerUnit, calibration_points: [] });
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry = registryInputById('fuel_pressure');
     if (registry) { registry.analog_zero_mv = 0; registry.analog_mv_per_unit = mvPerUnit; registry.calibration_points = []; }
   }, { calibration: { fuel_press_raw_min: 0, fuel_press_raw_max: 4095, fuel_press_val_max: 10 } },
@@ -1551,12 +1675,12 @@ function fpClearCal() {
     document.getElementById('btn-fp-save').disabled = true;
     document.getElementById('fp-save-status').textContent = '';
     setText('cal-fuelpress-range', '0 – '+adcReferenceMv('fuel_pressure')+' mV');
-    setText('fuelpress-bar-max', '10 bar');
+    setCalibrationPressureRange('fuelpress-bar-max', 10);
   });
 }
 
 // ── Engine-mode guard for actuator-driving wizard steps ──────
-// The firmware honors SET_OIL_PCT and IGN_TEST in STANDBY and in FAULT
+// The firmware honors SET_OIL_CAL_PCT and IGN_TEST in STANDBY and in FAULT
 // (FAULT is the standby-like repair state — recalibrating there is a
 // legitimate fix path). Without this guard the wizard would sample against
 // a pump/igniter that never moved and silently save a wrong calibration.
@@ -1581,12 +1705,411 @@ function calStandbyGuard(action) {
 // ── Oil calibration wizard ────────────────────────────────────
 let oilCalActive = false;
 let oilPumpAssisted=false;
-function oilCalibrationModeChanged(){
-  document.getElementById('oil-cal-mode-note').textContent=document.getElementById('oil-pump-assisted').checked?'Pump-assisted: the ECU controls the oil pump during calibration.':'Sensor only: apply pressure with an external source. No pump commands are sent.';
+function oilCalibrationPumpConfigured() {
+  // Hardware publishes the same capability flag the ECU checks for pump commands.
+  return cfg.hardware?.actuators?.oil_pump?.enabled === true;
+}
+
+let pressurePumpSession = null;
+let calibrationHardwareEcu = '';
+let calibrationEcuChanged = false;
+
+window.addEventListener('ot-setup-change', () => {
+  if (calibrationHardwareEcu && window.OTConnectedEcuId() !== calibrationHardwareEcu)
+    calibrationEcuChanged = true;
+});
+
+function requireCalibrationEcu() {
+  if (!calibrationHardwareEcu || calibrationEcuChanged || window.OTConnectedEcuId() !== calibrationHardwareEcu)
+    throw new Error('Reload Calibration for the connected ECU before saving.');
+  return calibrationHardwareEcu;
+}
+
+async function readCalibrationConfig(path, expectedEcu) {
+  const {value, ecu} = await window.OTReadJson(path, {withEcu:true});
+  if (ecu !== expectedEcu)
+    throw new Error('The connected ECU changed. Reload Calibration before saving.');
+  requireCalibrationEcu();
+  return value;
+}
+
+function pressurePumpAllowsAmbient() {
+  if (!pressurePumpSession) return true;
+  alert('Stop the calibration pump and let the reading settle before taking this measurement.');
+  return false;
+}
+
+async function confirmPressurePumpDemand(session, expected) {
+  const until = performance.now() + 1500;
+  do {
+    const frame = await nextCalibrationFrame();
+    if (window.OTConnectedEcuId?.() !== session.ecu)
+      throw new Error('The connected ECU changed.');
+    const output = frame.registry_outputs?.find(output => output.id === session.id);
+    if (output?.available !== false && Number.isFinite(output?.demand) &&
+        Math.abs(output.demand - expected) < 0.002) return;
+  } while (performance.now() < until);
+  throw new Error('Live telemetry did not confirm the requested pump output.');
+}
+
+async function stopPressurePump() {
+  const session = pressurePumpSession;
+  if (!session) return true;
+  if (session.stopping) return false;
+  if (window.OTConnectedEcuId?.() !== session.ecu) return false;
+  session.stopping = true;
+  clearInterval(session.timer);
+  try {
+    await session.pending;
+    await postCalCommand({cmd:'PRESSURE_CAL_PUMP', pump_id:session.id, ecu_id:session.ecu, boot_count:session.boot, fParam:0});
+    await confirmPressurePumpDemand(session, 0);
+    pressurePumpSession = null;
+    session.status.textContent = 'Pump demand is zero. Let the reading settle before taking the next measurement.';
+    return true;
+  } catch (error) {
+    session.status.textContent = 'Pump stop unconfirmed. Demand expires without a refresh. ' + error.message;
+    session.stopping = false;
+    return false;
+  }
+}
+
+function startPressurePump(id, demand, status) {
+  const ecu = window.OTConnectedEcuId?.();
+  if (!ecu || ecu !== calibrationHardwareEcu || !Number.isInteger(live.boot_count)) {
+    status.textContent = 'Reload Calibration to read the connected ECU’s pump configuration.';
+    return;
+  }
+  if (pressurePumpSession || (oilPumpAssisted && (oilCalStarting || oilCalActive)) ||
+      !calStandbyGuard('pump-assisted calibration') ||
+      live.mode !== 'STANDBY' || !hasFreshCalibrationTelemetry()) {
+    status.textContent = 'Stop any current calibration pump and wait for live Standby readings.';
+    return;
+  }
+  const session = {id, ecu, boot:live.boot_count, status};
+  pressurePumpSession = session;
+  const refresh = () => {
+    if (session.stopping || session.pending) return;
+    if (window.OTConnectedEcuId?.() !== session.ecu) {
+      suspendPressurePumpForEcuChange();
+      return;
+    }
+    if (!hasFreshCalibrationTelemetry() || live.mode !== 'STANDBY') {
+      void stopPressurePump();
+      return;
+    }
+    session.pending = postCalCommand({cmd:'PRESSURE_CAL_PUMP', pump_id:id, ecu_id:ecu, boot_count:session.boot, fParam:demand})
+      .then(async () => {
+        if (session.stopping) return;
+        await confirmPressurePumpDemand(session, demand);
+        if (!session.stopping) status.textContent = 'Pump demand confirmed. Check the reference instrument.';
+      }).catch(error => {
+        clearInterval(session.timer);
+        if (window.OTConnectedEcuId?.() === session.ecu)
+          status.textContent = 'Pump command failed. Demand expires without a refresh. ' + error.message;
+      }).finally(() => { session.pending = null; });
+  };
+  refresh();
+  session.timer = setInterval(refresh, 1000);
+}
+
+function suspendPressurePumpForEcuChange() {
+  const session = pressurePumpSession;
+  if (!session || window.OTConnectedEcuId?.() === session.ecu) return;
+  clearInterval(session.timer);
+  session.status.textContent = 'The connected ECU changed. Pump demand on the previous ECU expires without a refresh. Reload Calibration to continue.';
+}
+window.addEventListener('ot-setup-change', suspendPressurePumpForEcuChange);
+
+function renderFluidCalibrationControls() {
+  const registry = cfg.hardware?.channel_registry;
+  const purposes = ['oil_pump','coolant_pump','scavenge_pump','fuel_pump','ab_pump'];
+  const pumps = (registry?.outputs || []).filter(pump => !pump.mirror_of &&
+    purposes.includes(pump.purpose) && [4,5,6,11].includes(Number(pump.driver)) &&
+    registryChannelInstalled(pump));
+  for (const id of ['oil-press','fuelpress','p1','p2']) {
+    const row = document.getElementById(id + '-cal-row');
+    if (row) addPressurePumpControls(row, pumps);
+  }
+  addPressurePumpControls(document.getElementById('fuelflow-cal-row'), pumps, true);
+  for (const input of registry?.inputs || []) {
+    const pulse = Number(input.driver) === 2;
+    const flow = ['general_flow','oil_flow','scavenge_flow'].includes(input.purpose) ||
+      (pulse && input.purpose === 'fuel_flow');
+    if ((!flow && !['general_pressure','coolant_pressure'].includes(input.purpose)) ||
+        !(flow ? [1,2,9] : [1,9]).includes(Number(input.driver)) ||
+        input.mirror_of || !registryChannelInstalled(input)) continue;
+    const row = document.createElement('div');
+    row.className = 'sensor-row';
+    row.id = (flow ? 'flow-cal-' : 'pressure-cal-') + input.id;
+    const heading = document.createElement('div');
+    heading.className = 'sensor-name';
+    heading.textContent = input.name || input.id;
+    row.appendChild(heading);
+    document.getElementById('p2-cal-row').after(row);
+    if (pulse) addPulseFlowCapture(row, input);
+    else addNamedFluidCapture(row, input, flow);
+    addPressurePumpControls(row, pumps, flow);
+  }
+}
+
+function addPressurePumpControls(row, pumps, flow = false) {
+  if (!pumps.length) return;
+  const panel = document.createElement('div');
+  panel.className = 'calibration-pump-controls';
+  panel.innerHTML = `<label class="calibration-pump-toggle"><input type="checkbox" title="Show pump selection and controls. The pump starts only after you choose Run pump and confirm."> Use pump for calibration</label>
+    <div data-pump-settings hidden>
+    <p>${flow ? 'Set up a reference flow meter or measure the collected volume.' :
+      'Connect a reference gauge. Stop the pump to capture ambient pressure.'}</p>
+    <label>Pump <select title="Choose the configured pump connected to the test plumbing."><option value="">Choose a pump</option></select></label>
+    <label>Output (%) <input type="number" min="1" max="100" step="any" value="10" title="Set the temporary calibration pump demand."></label>
+    <div class="wiz-buttons"><button type="button">Run pump</button><button type="button">Stop pump</button></div>
+    <p role="status"></p>
+    </div>`;
+  const mode = panel.querySelector('input[type=checkbox]');
+  const settings = panel.querySelector('[data-pump-settings]');
+  settings.id = row.id + '-pump-settings';
+  mode.setAttribute('aria-controls', settings.id);
+  const picker = panel.querySelector('select');
+  for (const pump of pumps) picker.add(new Option(pump.name || pump.id, pump.id));
+  const level = panel.querySelector('input[type=number]');
+  const status = panel.querySelector('[role=status]');
+  const [run, stop] = panel.querySelectorAll('button');
+  let modeRevision = 0;
+  const isRelay = pump => [4,11].includes(Number(pump?.driver));
+  picker.onchange = () => { level.disabled = isRelay(pumps.find(pump => pump.id === picker.value)); };
+  run.onclick = async () => {
+    if (!mode.checked) return;
+    const revision = modeRevision;
+    const pump = pumps.find(candidate => candidate.id === picker.value);
+    if (!pump) { status.textContent = 'Choose a pump first.'; return; }
+    const demand = isRelay(pump) ? 1 : level.valueAsNumber / 100;
+    if (!(demand > 0 && demand <= 1)) { status.textContent = 'Enter an output from 1% to 100%.'; return; }
+    if (!await OTDialog.confirm('Check the test plumbing, isolate fuel and ignition from the engine, and verify the selected pump is connected to the measurement circuit.',
+        {title:'Run ' + (pump.name || pump.id) + '?', confirmText:'Run pump', danger:true})) return;
+    if (mode.checked && revision === modeRevision) startPressurePump(pump.id, demand, status);
+  };
+  stop.onclick = () => stopPressurePump();
+  mode.onchange = async () => {
+    modeRevision++;
+    if (!mode.checked && pressurePumpSession?.status === status) {
+      mode.disabled = true;
+      try {
+        // Keep the status and Stop button available if the ECU cannot confirm zero.
+        mode.checked = !await stopPressurePump();
+      } finally {
+        mode.disabled = false;
+      }
+    }
+    settings.hidden = !mode.checked;
+  };
+  row.appendChild(panel);
+}
+
+function addNamedFluidCapture(row, input, flow) {
+  const form = document.createElement('div');
+  form.className = 'wizard';
+  const unit = flow ? 'L/min' : '<span data-unit="press">' + dispPressUnit() + '</span>';
+  const pressureEntry = flow ? '' : ' data-pressure-entry';
+  const referenceName = flow ? 'zero flow' : 'ambient';
+  form.innerHTML = `<div class="pressure-cal-controls">
+      <label>${flow ? 'Zero flow' : 'Ambient pressure'} (${unit}) <input type="number" step="any" min="0" value="0" title="Reference value at the baseline capture."${flow ? ' readonly' : pressureEntry}></label>
+      <button type="button">Capture ${referenceName}</button>
+    </div>
+    <div class="pressure-cal-controls">
+      <label>Reference ${flow ? 'flow' : 'pressure'} (${unit}) <input type="number" step="any" min="0" title="Enter the value measured by the reference instrument."${pressureEntry}></label>
+      <button type="button">Capture reference</button>
+    </div>
+    <div class="wiz-buttons"><button type="button" disabled>Save calibration</button></div><p role="status"></p>`;
+  const values = form.querySelectorAll('input');
+  const [ambient, reference, save] = form.querySelectorAll('button');
+  const status = form.querySelector('[role=status]');
+  const points = [null, null];
+  let measurement;
+  let saving = false;
+  const clearMeasurement = message => {
+    measurement = undefined;
+    points.fill(null);
+    save.disabled = true;
+    status.textContent = message;
+  };
+  calibrationFrames.addEventListener('sample', () => {
+    if (measurement && measurement.boot_count !== calibrationFrameBoot)
+      clearMeasurement('The ECU restarted. Capture both readings again.');
+  });
+  window.addEventListener('ot-setup-change', () => {
+    if (measurement && measurement.ecu_id !== window.OTConnectedEcuId())
+      clearMeasurement('The connected ECU changed. Reload Calibration.');
+  });
+  const capture = index => {
+    if (saving || (index === 0 && !pressurePumpAllowsAmbient())) return;
+    const ecu = window.OTConnectedEcuId();
+    if (!ecu || ecu !== calibrationHardwareEcu) {
+      clearMeasurement('Reload Calibration to read the connected ECU’s sensor configuration.');
+      return;
+    }
+    const sample = live.registry_inputs?.find(channel => channel.id === input.id);
+    const reading = Number(input.driver) === 9 ? calibrationI2cRaw(sample) : sample?.raw;
+    const shown = values[index].valueAsNumber;
+    const value = flow ? shown : fromDispPress(shown);
+    points[index] = Number.isInteger(calibrationFrameBoot) &&
+      hasFreshCalibrationTelemetry() && validAdcRaw(reading) && value >= 0
+      ? {raw:reading, value} : null;
+    if (points[index] && !measurement) measurement = {ecu_id:ecu, boot_count:calibrationFrameBoot};
+    status.textContent = points[index] ? 'Captured ' + adcMvText(reading,input) + ' at ' + (flow ? value + ' L/min' : pressureValueLabel(value)) + '.'
+      : 'Enter the reference measurement and wait for a fresh sensor reading.';
+    save.disabled = !points.every(Boolean);
+  };
+  ambient.onclick = () => capture(0);
+  reference.onclick = () => capture(1);
+  save.onclick = async () => {
+    if (saving) return;
+    if (!points.every(Boolean) || points[1].value <= points[0].value || points[1].raw === points[0].raw) {
+      status.textContent = 'Capture two distinct readings with the reference value above the baseline.';
+      return;
+    }
+    const captured = measurement;
+    const curve = [...points].sort((a,b) => a.raw - b.raw);
+    saving = true;
+    save.disabled = true;
+    try {
+      if (pressurePumpSession && !await stopPressurePump()) return;
+      await patchHardware(registryCalibrationPatch(input.id, {calibration_points:curve, _capture:captured}), () => {
+        input.calibration_points = curve;
+        status.textContent = flow ? 'Flow calibration saved.' : 'Pressure calibration saved.';
+      }, async () => {
+        if (captured !== measurement) return false;
+        const {ecu, frame} = await readCalibrationSnapshot();
+        if (ecu !== captured.ecu_id) clearMeasurement('The connected ECU changed. Reload Calibration.');
+        else if (frame.boot_count !== captured.boot_count) clearMeasurement('The ECU restarted. Capture both readings again.');
+        return captured === measurement && !pressurePumpSession;
+      });
+    } finally {
+      saving = false;
+      save.disabled = !points.every(Boolean);
+    }
+  };
+  row.appendChild(form);
+}
+
+async function readCalibrationSnapshot() {
+  const response = await fetch('/api/data', {cache:'no-store', signal:AbortSignal.timeout(3000)});
+  if (!response.ok) throw new Error('Could not read live calibration data. Try again.');
+  const ecu = response.headers.get('X-OpenTurbine-ECU');
+  const frame = await response.json();
+  if (!ecu || !Number.isInteger(frame.boot_count))
+    throw new Error('Could not identify the ECU that supplied the calibration data.');
+  return {ecu, frame};
+}
+
+function addPulseFlowCapture(row, input) {
+  const form = document.createElement('div');
+  form.className = 'wizard';
+  form.innerHTML = `<p>Start with flow stopped. Capture the starting count, collect a measured volume, then stop flow and capture the ending count.</p>
+    <div class="wiz-buttons"><button type="button">Capture starting count</button>
+    <button type="button" disabled>Capture ending count</button></div>
+    <label>Collected volume (L) <input type="number" min="0" step="any" title="Enter the measured litres collected between the two pulse counts."></label>
+    <div class="wiz-buttons"><button type="button" disabled>Save calibration</button></div>
+    <p role="status"></p>`;
+  const [start, finish, save] = form.querySelectorAll('button');
+  const volume = form.querySelector('input');
+  const status = form.querySelector('[role=status]');
+  let first = null;
+  let pulses = null;
+  let busy = false;
+  const invalidateMeasurement = (changedEcu = false) => {
+    first = null;
+    pulses = null;
+    status.textContent = changedEcu ? 'The connected ECU changed. Reload Calibration.'
+      : 'The ECU restarted. Capture the starting count again.';
+  };
+  const render = () => {
+    start.disabled = busy;
+    finish.disabled = busy || !first;
+    save.disabled = busy || !pulses || !(volume.valueAsNumber > 0);
+  };
+  calibrationFrames.addEventListener('sample', () => {
+    if (first && first.boot !== calibrationFrameBoot) {
+      invalidateMeasurement();
+      render();
+    }
+  });
+  const capture = async ending => {
+    if (busy || !pressurePumpAllowsAmbient()) return;
+    const baseline = first;
+    if (!ending) first = null;
+    pulses = null;
+    busy = true;
+    render();
+    try {
+      if (!hasFreshCalibrationTelemetry()) throw new Error('Wait for fresh telemetry and capture again.');
+      const {ecu, frame} = await readCalibrationSnapshot();
+      if (ecu !== calibrationHardwareEcu) {
+        invalidateMeasurement(true);
+        return;
+      }
+      if (pressurePumpSession || !calibrationConnected())
+        throw new Error('Stop the pump and reconnect before capturing the pulse counter.');
+      const count = frame.registry_inputs?.find(channel => channel.id === input.id)?.raw;
+      const boot = frame.boot_count;
+      if (!Number.isInteger(count) || count < 0 || !Number.isInteger(boot))
+        throw new Error('No fresh pulse counter available for this sensor.');
+      if (!ending) {
+        first = {count, boot, ecu};
+        status.textContent = 'Starting count captured. Collect a measured volume.';
+      } else {
+        if (!baseline || first !== baseline || baseline.boot !== boot || baseline.ecu !== ecu) {
+          invalidateMeasurement(baseline?.ecu !== ecu);
+          return;
+        }
+        pulses = (count - baseline.count + 0x80000000) % 0x80000000;
+        status.textContent = pulses ? `Counted ${pulses} pulses. Enter the measured volume in litres.`
+          : 'No pulses counted. Check the sensor and repeat the measurement.';
+      }
+    } catch (error) { status.textContent = error.message; }
+    finally { busy = false; render(); }
+  };
+  start.onclick = () => capture(false);
+  finish.onclick = () => capture(true);
+  volume.oninput = render;
+  save.onclick = async () => {
+    if (busy || pressurePumpSession || !pulses || !(volume.valueAsNumber > 0)) return;
+    const baseline = first;
+    const scale = Math.fround(pulses / volume.valueAsNumber);
+    if (!(scale > 0 && Number.isFinite(scale))) {
+      status.textContent = 'Enter a volume that gives a valid pulses-per-litre value.';
+      return;
+    }
+    busy = true;
+    render();
+    try {
+      const capture = {ecu_id:baseline.ecu, boot_count:baseline.boot};
+      await patchHardware(registryCalibrationPatch(input.id, {pulses_per_unit:scale, _capture:capture}), () => {
+        input.pulses_per_unit = scale;
+        status.textContent = `Saved ${Number(scale.toPrecision(7))} pulses/L.`;
+      }, async () => {
+        const {ecu, frame} = await readCalibrationSnapshot();
+        if (!baseline || first !== baseline || frame.boot_count !== baseline.boot || ecu !== baseline.ecu) {
+          invalidateMeasurement(baseline?.ecu !== ecu);
+          return false;
+        }
+        return !pressurePumpSession;
+      });
+    } finally { busy = false; render(); }
+  };
+  row.appendChild(form);
+}
+function oilCalibrationModeChanged() {
+  const pumpMode = document.getElementById('oil-pump-assisted');
+  const configured = oilCalibrationPumpConfigured();
+  document.getElementById('oil-pump-assisted-option').hidden = !configured;
+  if (!configured) pumpMode.checked = false;
+  document.getElementById('oil-cal-mode-note').hidden = !pumpMode.checked;
 }
 let oilCalGeneration = 0;
 let oilCalStarting = false;
 let oilFit = { a:0, b:0, c:0, d:0, x0:0, x1:4095 };
+let renderOilFitSummary = null;
+let oilCaptureBoot = null;
 let oilMinPctCaptured = null;
 
 function oilGoStep(n) {
@@ -1610,93 +2133,154 @@ async function postCalCommand(payload) {
 }
 
 function oilCalStart() {
+  if (!pressurePumpAllowsAmbient()) return;
   if (!calStandbyGuard('oil pressure calibration')) return;
-  oilPumpAssisted=!!document.getElementById('oil-pump-assisted').checked;
-  document.getElementById('oil-pump-assisted').disabled=true;
+  const pumpMode = document.getElementById('oil-pump-assisted');
+  oilCalibrationModeChanged();
+  oilPumpAssisted = pumpMode.checked;
+  pumpMode.disabled = true;
   document.getElementById('oil-pump-cal-controls').hidden=!oilPumpAssisted;
   const generation = ++oilCalGeneration;
   oilCalStarting=true;
   const statusEl = document.getElementById('oil-zero-status');
   const startBtn = document.getElementById('btn-oil-start');
+  function startFailed(message) {
+    if (generation !== oilCalGeneration) return;
+    oilCalStarting = false;
+    statusEl.textContent = message;
+    startBtn.disabled = false;
+    pumpMode.disabled = false;
+  }
 
   // Turn pump off first to capture zero-pressure point
   statusEl.textContent = oilPumpAssisted?'Turning pump off — capturing ambient pressure in 3 s…':'Capturing ambient pressure in 3 s…';
   statusEl.style.display = '';
   startBtn.disabled = true;
 
-  (oilPumpAssisted?postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 }):Promise.resolve()).then(() => {
+  (oilPumpAssisted?postOilCalibrationDuty(0):Promise.resolve()).then(() => {
     if(generation!==oilCalGeneration)return;
     // Wait 3 s for pressure to settle at zero
     setTimeout(async () => {
       if(generation!==oilCalGeneration)return;
+      try { await nextCalibrationFrame(); }
+      catch (error) { startFailed(error.message); return; }
+      if(generation!==oilCalGeneration)return;
       const raw0 = liveAdcRaw('oil_raw');
       if (!Number.isFinite(raw0)) {
-        oilCalStarting=false;
-        statusEl.textContent = 'No live ADC-pin voltage — check connection.';
-        startBtn.disabled = false;
+        startFailed('No live ADC-pin voltage — check connection.');
         return;
       }
       // Auto-insert zero-pressure point
       const zeroBar = parseFloat(document.getElementById('oil-zero-reference')?.value) || 0;
       oilPts = [{ raw: raw0, b: zeroBar }];
+      oilCaptureBoot = calibrationFrameBoot;
       oilMinPctCaptured = null;
       renderOilPts();
-      statusEl.textContent = `Pump-off reference captured: ${adcMvText(raw0, 'oil_pressure')} → ${zeroBar.toFixed(2)} bar`;
+      statusEl.textContent = `Ambient captured: ${adcMvText(raw0, 'oil_pressure')} → ${pressureValueLabel(zeroBar, 2)}`;
 
       // Continue with the pump stopped. The next step deliberately finds the
       // first reliable pump output rather than asking the operator to guess it.
       document.getElementById('oil-pump-pct2').value = '0';
       try {
-        if(oilPumpAssisted)await postCalCommand({ cmd:'SET_OIL_PCT', fParam: 0 });
+        if(oilPumpAssisted)await postOilCalibrationDuty(0);
         if(generation!==oilCalGeneration)return;
         oilCalStarting=false;
         oilCalActive = true;
         oilGoStep(2);
       } catch(e) {
-        if(generation!==oilCalGeneration)return;
-        oilCalStarting=false;
-        statusEl.textContent = 'Pump command failed: ' + e.message;
-        startBtn.disabled = false;
+        startFailed('Pump command failed: ' + e.message);
       }
     }, 3000);
   }).catch(e => {
-    if(generation!==oilCalGeneration)return;
-    oilCalStarting=false;
-    statusEl.textContent = 'Pump command failed: ' + e.message;
-    startBtn.disabled = false;
+    startFailed('Pump command failed: ' + e.message);
   });
 }
 
-function oilSetPump() {
-  if(!oilPumpAssisted)return;
-  if (!calStandbyGuard('changing the oil pump duty')) return;
-  const pct = parseFloat(document.getElementById('oil-pump-pct2').value) || 0;
-  postCalCommand({ cmd:'SET_OIL_PCT', fParam: pct })
-    .catch(e => alert('Pump command failed: ' + e.message));
+// Serialize duty changes so a late response cannot reorder Stop and a
+// previous positive command. Timed workers only send when the lane is idle.
+let _oilDutyQueue = Promise.resolve();
+let _oilDutyPending = 0;
+let _oilDutyKeepAlive = null;
+let _oilMinSweep = null;
+function postOilCalibrationDuty(pct) {
+  const generation = oilCalGeneration;
+  ++_oilDutyPending;
+  const operation = _oilDutyQueue.then(() => {
+    if (generation !== oilCalGeneration) return;
+    if (pct > 0 && !checkOilPumpTelemetry()) return;
+    return postCalCommand({cmd:'SET_OIL_CAL_PCT', fParam:pct});
+  }).finally(() => --_oilDutyPending);
+  _oilDutyQueue = operation.catch(() => {});
+  return operation;
 }
 
-let _oilMinSweep = null;
-function oilMinSweepStart() {
-  if(!oilPumpAssisted)return;
-  if (!calStandbyGuard('the oil-pump sweep')) return;
-  oilMinSweepStop(false);
-  const input=document.getElementById('oil-pump-pct2'); input.value='0';
-  document.getElementById('btn-oil-sweep').disabled=true;
-  document.getElementById('btn-oil-sweep-stop').disabled=false;
-  const started=performance.now();
-  _oilMinSweep=setInterval(() => {
-    const pct=Math.min(100,Math.floor(((performance.now()-started)/1000)*4)/4);
-    input.value=pct.toFixed(2);
-    postCalCommand({cmd:'SET_OIL_PCT',fParam:pct}).catch(()=>oilMinSweepStop());
-    if(pct>=100) oilMinSweepStop();
-  },250);
+function stopOilDutyKeepAlive() {
+  if (_oilDutyKeepAlive) clearInterval(_oilDutyKeepAlive);
+  _oilDutyKeepAlive = null;
 }
-function oilMinSweepStop(keep=true) {
-  if(_oilMinSweep){clearInterval(_oilMinSweep);_oilMinSweep=null;}
-  document.getElementById('btn-oil-sweep').disabled=false;
-  document.getElementById('btn-oil-sweep-stop').disabled=true;
-  if(oilPumpAssisted)postCalCommand({cmd:'SET_OIL_PCT',fParam:0,iParam:0}).catch(()=>{});
-  if(!keep) document.getElementById('oil-pump-pct2').value='0';
+
+function hasFreshCalibrationTelemetry() {
+  return !document.hidden && calibrationConnected() &&
+    performance.now() - calibrationFrameAt <= CALIBRATION_FRAME_TIMEOUT_MS;
+}
+
+function checkOilPumpTelemetry() {
+  if (hasFreshCalibrationTelemetry()) return true;
+  cancelOilCalibration('Fresh telemetry unavailable. Pump demand expires without a refresh. Restart calibration when live readings return.');
+  return false;
+}
+
+function oilSetPump() {
+  if (!oilPumpAssisted || !calStandbyGuard('changing the oil pump duty')) return;
+  const pct = Math.max(0, Math.min(100, Number(document.getElementById('oil-pump-pct2').value) || 0));
+  stopOilDutyKeepAlive();
+  if (_oilMinSweep) oilMinSweepStop();
+  const chosenGeneration = oilCalGeneration;
+  const send = () => postOilCalibrationDuty(pct).catch(e => {
+    if (oilCalGeneration !== chosenGeneration) return;
+    cancelOilCalibration('Pump command failed: ' + e.message + '. Pump demand expires without a refresh. Restart calibration manually.');
+  });
+  send();
+  if (pct > 0) _oilDutyKeepAlive = setInterval(() => {
+    if (!checkOilPumpTelemetry()) return;
+    if (!_oilDutyPending) send();
+  }, 2000);
+}
+
+function oilMinSweepStart() {
+  if (!oilPumpAssisted || !calStandbyGuard('the oil-pump sweep')) return;
+  if (!checkOilPumpTelemetry()) return;
+  oilMinSweepStop(false);
+  const input = document.getElementById('oil-pump-pct2');
+  document.getElementById('btn-oil-sweep').disabled = true;
+  document.getElementById('btn-oil-sweep-stop').disabled = false;
+  const started = performance.now();
+  const generation = oilCalGeneration;
+  _oilMinSweep = setInterval(() => {
+    if (!checkOilPumpTelemetry()) return;
+    const pct = Math.min(100, Math.floor(((performance.now() - started) / 1000) * 4) / 4);
+    if (pct >= 100) { oilMinSweepStop(); return; }
+    if (_oilDutyPending) return;
+    postOilCalibrationDuty(pct).then(() => {
+      if (generation === oilCalGeneration) input.value = pct.toFixed(2);
+    }).catch(() => {
+      if (generation === oilCalGeneration)
+        cancelOilCalibration('Pump command failed. Pump demand expires without a refresh. Restart calibration manually.');
+    });
+  }, 250);
+}
+function oilMinSweepStop(keep = true) {
+  ++oilCalGeneration;
+  stopOilDutyKeepAlive();
+  if (_oilMinSweep) clearInterval(_oilMinSweep);
+  _oilMinSweep = null;
+  document.getElementById('btn-oil-sweep').disabled = false;
+  document.getElementById('btn-oil-sweep-stop').disabled = true;
+  if (!keep) document.getElementById('oil-pump-pct2').value = '0';
+  return oilPumpAssisted ? postOilCalibrationDuty(0).catch(e => {
+    const status = document.getElementById('oil-min-pct-status');
+    if (status) status.textContent = 'Pump stop unconfirmed. Calibration demand expires without a refresh.';
+  }) : Promise.resolve();
 }
 function oilMinimumFound() {
   if (!_oilMinSweep) return;
@@ -1711,8 +2295,6 @@ function oilCalStop() {
   ++oilCalGeneration;
   oilCalStarting=false;
   oilMinSweepStop(true);
-  if(oilPumpAssisted)postCalCommand({ cmd:'SET_OIL_PCT', iParam: 0 })
-    .catch(e => alert('Pump stop command failed: ' + e.message));
   oilCalActive = false;
   document.getElementById('oil-pump-assisted').disabled=false;
   // Reset step-1 button
@@ -1721,6 +2303,35 @@ function oilCalStop() {
   const st = document.getElementById('oil-zero-status');
   if (st) st.style.display = 'none';
 }
+
+function cancelOilCalibration(reason) {
+  ++oilCalGeneration;
+  oilCalStarting = false;
+  oilCalActive = false;
+  oilPts = [];
+  oilCaptureBoot = null;
+  oilMinPctCaptured = null;
+  renderOilPts();
+  document.getElementById('btn-oil-to-3').disabled = true;
+  stopOilDutyKeepAlive();
+  if (_oilMinSweep) clearInterval(_oilMinSweep);
+  _oilMinSweep = null;
+  document.getElementById('oil-pump-assisted').disabled = false;
+  document.getElementById('btn-oil-start').disabled = false;
+  document.getElementById('btn-oil-sweep').disabled = false;
+  document.getElementById('btn-oil-sweep-stop').disabled = true;
+  const status = document.getElementById('oil-zero-status');
+  status.style.display = '';
+  status.textContent = reason;
+  oilGoStep(1);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  if (pressurePumpSession) void stopPressurePump();
+  if (_oilDutyKeepAlive || _oilMinSweep) checkOilPumpTelemetry();
+  if (_fpMinKeepAlive || _fpMinSweep || _fpMinTestRunning) checkFuelPumpTelemetry();
+});
 
 // ── Fuel pump minimum-spin calibration ──────────────────────────────
 // Drives the throttle/fuel-pump ESC at the slider % in STANDBY. The command
@@ -1735,31 +2346,40 @@ function fpMinCancelTimers(){
   if (_fpMinSweep) { clearInterval(_fpMinSweep); _fpMinSweep = null; }
   if (_fpMinKeepAlive) { clearInterval(_fpMinKeepAlive); _fpMinKeepAlive = null; }
 }
+function cancelFuelPumpCalibration(reason, allowStop = false) {
+  ++_fpMinGeneration;
+  fpMinCancelTimers();
+  _fpMinTestRunning = false;
+  _fpMinStopPending = false;
+  document.getElementById('fp-min-slider').disabled = _fpMinSavePending;
+  document.getElementById('btn-fp-test').disabled = _fpMinSavePending;
+  document.getElementById('btn-fp-sweep').disabled = _fpMinSavePending;
+  document.getElementById('btn-fp-stop').disabled = !allowStop;
+  document.getElementById('fp-min-status').textContent = reason;
+}
+
+function checkFuelPumpTelemetry() {
+  if (hasFreshCalibrationTelemetry()) return true;
+  cancelFuelPumpCalibration('Fresh telemetry unavailable. Metering demand expires without a refresh. Verify the output is stopped before restarting the test.', true);
+  return false;
+}
+
 function cancelCalibrationActuatorWorkers(reason){
+  if (pressurePumpSession) void stopPressurePump();
   if(_fpMinTestRunning||_fpMinStopPending||_fpMinSweep||_fpMinKeepAlive){
-    ++_fpMinGeneration;fpMinCancelTimers();_fpMinTestRunning=false;_fpMinStopPending=false;
-    document.getElementById('fp-min-slider').disabled=false;
-    document.getElementById('btn-fp-test').disabled=false;
-    document.getElementById('btn-fp-sweep').disabled=false;
-    document.getElementById('btn-fp-stop').disabled=true;
-    document.getElementById('fp-min-status').textContent=reason;
+    cancelFuelPumpCalibration(reason);
   }
-  if(oilCalStarting||oilCalActive||_oilMinSweep){
-    ++oilCalGeneration;oilCalStarting=false;oilCalActive=false;
-    document.getElementById('oil-pump-assisted').disabled=false;
-    if(_oilMinSweep){clearInterval(_oilMinSweep);_oilMinSweep=null;}
-    document.getElementById('btn-oil-start').disabled=false;
-    document.getElementById('btn-oil-sweep').disabled=false;
-    document.getElementById('btn-oil-sweep-stop').disabled=true;
-    const status=document.getElementById('oil-zero-status');status.style.display='';status.textContent=reason;
+  if(oilCalStarting||oilCalActive||_oilMinSweep||_oilDutyKeepAlive){
+    cancelOilCalibration(reason);
   }
   // No actuator commands here: STOP and mode transitions are owned by the
   // ECU. In particular, never send a calibration zero into a running engine.
 }
 function _fpMinSend() {
-  if(_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending)return;
+  if(_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending)return false;
   const generation=_fpMinGeneration;
   const p = parseFloat(document.getElementById('fp-min-slider').value) || 0;
+  if (p > 0 && !checkFuelPumpTelemetry()) return false;
   postCalCommand({ cmd:'SET_THROTTLE_PCT', fParam:p }).catch(e => {
     if(generation!==_fpMinGeneration)return;
     fpMinStop(true).then(stopped=>{
@@ -1767,12 +2387,13 @@ function _fpMinSend() {
       if(stopped&&s)s.textContent='Pump command failed: '+e.message+'. Metering output stopped; retry explicitly.';
     });
   });
+  return true;
 }
 function fpMinSlide() {
   if(_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending)return;
   const pct = parseFloat(document.getElementById('fp-min-slider').value) || 0;
   document.getElementById('fp-min-live').textContent = pct.toFixed(1) + '%';
-  _fpMinSend();
+  if (!_fpMinSend()) return;
   if (_fpMinKeepAlive) clearInterval(_fpMinKeepAlive);
   if (pct > 0) _fpMinKeepAlive = setInterval(() => {
     if ((parseFloat(document.getElementById('fp-min-slider').value) || 0) > 0) _fpMinSend();
@@ -1781,7 +2402,9 @@ function fpMinSlide() {
 }
 async function fpMinSweepStart() {
   if (_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending||!calStandbyGuard('the fuel-pump sweep')) return;
-  if(!await fpMinStop(false))return;
+  if (!checkFuelPumpTelemetry()) return;
+  const stopping=fpMinStop(false), generation=_fpMinGeneration;
+  if(!await stopping||generation!==_fpMinGeneration||!checkFuelPumpTelemetry())return;
   const sl = document.getElementById('fp-min-slider');
   sl.value = 0;
   document.getElementById('btn-fp-sweep').disabled = true;
@@ -1789,6 +2412,7 @@ async function fpMinSweepStart() {
   document.getElementById('fp-min-status').textContent = 'Sweeping upward at 1% per second…';
   const started = performance.now();
   _fpMinSweep = setInterval(() => {
+    if (!checkFuelPumpTelemetry()) return;
     const pct = Math.min(40, Math.floor(((performance.now() - started) / 1000) * 4) / 4);
     sl.value = pct;
     fpMinSlide();
@@ -1827,6 +2451,7 @@ function fpMinStop(keepValue = true) {
 }
 async function fpMinTest() {
   if (_fpMinTestRunning||_fpMinStopPending||_fpMinSavePending||!calStandbyGuard('the fuel-pump restart test'))return;
+  if (!checkFuelPumpTelemetry()) return;
   const pct=parseFloat(document.getElementById('fp-min-slider').value)||0;
   if(pct<=0){alert('Run the sweep or select a candidate percentage first.');return;}
   const stopping=fpMinStop(true), generation=_fpMinGeneration;
@@ -1840,7 +2465,7 @@ async function fpMinTest() {
   const status=document.getElementById('fp-min-status');
   try {
     for(let n=1;n<=3;n++){
-      if(!current())return;
+      if(!current()||!checkFuelPumpTelemetry())return;
       status.textContent=`Restart test ${n}/3 at ${pct.toFixed(2)}%…`;
       await postCalCommand({cmd:'SET_THROTTLE_PCT',fParam:pct});
       if(!current())return;
@@ -1880,9 +2505,9 @@ async function fpMinSave() {
 }
 
 function captureOilPoint() {
-  const b = parseFloat(document.getElementById('oil-pval').value);
-  if (isNaN(b) || b < 0) { alert('Enter a valid bar value (e.g. 3.5)'); return; }
-  const raw = liveAdcRaw('oil_raw');
+  const b = fromDispPress(document.getElementById('oil-pval').valueAsNumber);
+  if (isNaN(b) || b < 0) { alert('Enter a valid reference pressure in ' + dispPressUnit()); return; }
+  const raw = liveFluidAdcRaw('oil_raw');
   if (!Number.isFinite(raw)) { alert('No live oil-sensor voltage yet'); return; }
   oilPts.push({ raw, b });
   document.getElementById('oil-pval').value = '';
@@ -1902,7 +2527,7 @@ function renderOilPts() {
   const el = document.getElementById('oil-pts');
   if (oilPts.length === 0) { el.textContent = 'Waiting for first point…'; return; }
   el.textContent = oilPts.map((p,i) =>
-    `  ${i+1}. ${adcMvText(p.raw, 'oil_pressure')}  →  ${p.b.toFixed(2)} bar${i===0?' (ambient reference)':''}`
+    `  ${i+1}. ${adcMvText(p.raw, 'oil_pressure')}  →  ${pressureValueLabel(p.b, 2)}${i===0?' (ambient reference)':''}`
   ).join('\n');
 }
 
@@ -1958,15 +2583,19 @@ function computeOilLinearFit(pts) {
   if(!den)return null; const c=num/den; return {a:0,b:0,c,d:my-c*mx};
 }
 function oilUseDatasheet(){
-  const mv=parseFloat(document.getElementById('oil-mv-bar').value), zero=oilPts[0];
-  if(!zero||!Number.isFinite(mv)||mv<=0){alert('Capture zero and enter the sensor sensitivity in mV/bar.');return;}
+  const mv=document.getElementById('oil-mv-bar').valueAsNumber * toDispPress(1), zero=oilPts[0];
+  if(!zero||!Number.isFinite(mv)||mv<=0){alert('Capture zero and enter the sensor sensitivity.');return;}
   const c=(adcReferenceMv('oil_pressure')/4095)/mv, d=zero.b-c*zero.raw;
   const raw1 = zero.raw < 4095 ? 4095 : 0;
   const value1 = c * raw1 + d;
   if (raw1 === zero.raw || value1 <= zero.b) { alert('The datasheet value does not produce a usable increasing pressure range from the captured zero. Check the wiring and sensitivity.'); return; }
   oilPts = [{raw:zero.raw,b:zero.b},{raw:raw1,b:value1}];
   oilFit={a:0,b:0,c,d,x0:0,x1:4095}; oilCalStop(); oilGoStep(3);
-  document.getElementById('oil-fit-summary').innerHTML=`<b>Datasheet straight-line calibration</b><br>Zero: ${adcMvText(zero.raw, 'oil_pressure')} = ${zero.b.toFixed(2)} bar<br>Sensitivity: ${mv} mV/bar`;
+  renderOilFitSummary = () => {
+    document.getElementById('oil-fit-summary').innerHTML =
+      `<b>Datasheet straight-line calibration</b><br>Ambient: ${adcMvText(zero.raw, 'oil_pressure')} = ${pressureValueLabel(zero.b, 2)}<br>Sensitivity: ${(mv / toDispPress(1)).toPrecision(5)} mV/${dispPressUnit()}`;
+  };
+  renderOilFitSummary();
 }
 function fitSse(fit,pts){return pts.reduce((s,p)=>{const x=p.raw,e=((fit.a*x+fit.b)*x+fit.c)*x+fit.d-p.b;return s+e*e;},0);}
 
@@ -1992,7 +2621,7 @@ function oilGoStep3() {
     ssTot += (p.b - yMean) ** 2;
     ssRes += res ** 2;
     return Math.abs(res);
-  })).toFixed(3);
+  }));
   const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1;
   const r2Color = r2 >= 0.999 ? 'var(--green)' : r2 >= 0.99 ? 'var(--yellow)' : 'var(--red)';
 
@@ -2000,22 +2629,30 @@ function oilGoStep3() {
   // the low end of its range, the OIL_ZERO pump-failure fault can never trigger.
   const zeroThresh = (cfg && cfg.oil_advanced && cfg.oil_advanced.zero_bar) || 0.1;
   const barAtLow = ((fit.a*oilFit.x0+fit.b)*oilFit.x0+fit.c)*oilFit.x0+fit.d;
-  const zeroWarn = barAtLow > zeroThresh
-    ? `<br><span style="color:var(--yellow)">⚠ At true-zero pump this curve still reads ~${barAtLow.toFixed(2)} bar, above your Zero-Pressure Threshold (${zeroThresh} bar). OIL_ZERO (pump-failure) protection may never trigger — extend the calibration lower, or raise the threshold.</span>`
-    : '';
-
-  document.getElementById('oil-fit-summary').innerHTML =
-    `<b>Captured sensor curve</b><br>` +
-    `Voltage range: ${adcMvText(oilFit.x0, 'oil_pressure')} – ${adcMvText(oilFit.x1, 'oil_pressure')} &nbsp;|&nbsp; ` +
-    `Max residual: <b>${maxErr} bar</b> &nbsp;|&nbsp; ` +
-    `R² = <b style="color:${r2Color}">${r2.toFixed(5)}</b> &nbsp;|&nbsp; ${oilPts.length} pts` +
-    zeroWarn;
+  renderOilFitSummary = () => {
+    const zeroWarn = barAtLow > zeroThresh
+      ? `<br><span style="color:var(--yellow)">⚠ The curve reads ${pressureValueLabel(barAtLow, 2)} at the low end, above the zero-pressure threshold (${pressureValueLabel(zeroThresh, 2)}). Pump-failure protection may never trigger. Check calibration at low pressure and review the threshold.</span>`
+      : '';
+    document.getElementById('oil-fit-summary').innerHTML =
+      `<b>Captured sensor curve</b><br>` +
+      `Voltage range: ${adcMvText(oilFit.x0, 'oil_pressure')} – ${adcMvText(oilFit.x1, 'oil_pressure')} &nbsp;|&nbsp; ` +
+      `Max residual: <b>${pressureValueLabel(maxErr, 3)}</b> &nbsp;|&nbsp; ` +
+      `R² = <b style="color:${r2Color}">${r2.toFixed(5)}</b> &nbsp;|&nbsp; ${oilPts.length} pts` +
+      zeroWarn;
+  };
+  renderOilFitSummary();
 
   oilCalStop();
   oilGoStep(3);
 }
 
-function saveOilCal() {
+async function saveOilCal() {
+  if (pressurePumpSession && !await stopPressurePump()) return;
+  const boot = oilCaptureBoot;
+  if (!Number.isInteger(boot) || boot !== calibrationFrameBoot) {
+    alert('Capture the oil calibration points for the current ECU session.');
+    return;
+  }
   const sorted = [...oilPts].sort((a,b)=>a.raw-b.raw);
   const unique = sorted.filter((p,i)=>!i || Math.round(p.raw)!==Math.round(sorted[i-1].raw));
   const curve = unique.length <= 6 ? unique : Array.from({length:6},(_,i)=>unique[Math.round(i*(unique.length-1)/5)]);
@@ -2036,7 +2673,7 @@ function saveOilCal() {
     }
   };
   if (oilPumpAssisted && oilMinPctCaptured !== null) settingsPatch.oil = { min_pct: oilMinPctCaptured };
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry = registryInputById('oil_pressure');
     if (registry) registry.calibration_points = curve.map(p=>({raw:Math.round(p.raw),value:p.b}));
   }, settingsPatch, 'Oil pressure calibration saved', () => {
@@ -2044,14 +2681,19 @@ function saveOilCal() {
     // used to wipe the captured points anyway.
     oilGoStep(1);
     oilPts = [];
+    oilCaptureBoot = null;
     renderOilPts();
     document.getElementById('btn-oil-to-3').disabled = true;
     const btn = document.getElementById('btn-oil-start');
     if (btn) btn.disabled = false;
-  });
+  }, boot);
 }
 
 // ── Flame calibration ─────────────────────────────────────────
+function flameSettingMv(raw, purpose) {
+  if (raw === 4095) return adcReferenceMv(purpose);
+  return Math.round(adcMv(raw, purpose) * 10) / 10;
+}
 const _flameBtns = () => ['btn-flame-noise','btn-flame-save','btn-flame-clear']
   .map(id => document.getElementById(id)).filter(Boolean);
 
@@ -2066,25 +2708,34 @@ async function captureFlameNoise() {
                    title:'Igniter firing confirmation', confirmLabel:'Fire igniter', danger:true
                  })) return;
   }
+  clearFlame();
   const btns     = _flameBtns();
   btns.forEach(b => b.disabled = true);
 
   try {
     if (fireIgn) {
+      if (!hasFreshCalibrationTelemetry() || live.igniter_on || live.igniter2_on ||
+          !calStandbyGuard('the igniter noise capture')) {
+        statusEl.textContent = 'Wait for fresh readings with both igniters off before starting the test.';
+        return;
+      }
       statusEl.textContent = 'Starting igniter for noise capture…';
       await postCalCommand({cmd:'IGN_TEST'});
-      await new Promise(r => setTimeout(r, 400)); // let igniter spin up + EMI settle
     }
 
     const samples = [];
     for (let i = 0; i < 5; i++) {
       statusEl.textContent = `Sampling${fireIgn ? ' with igniter active' : ''}… ${i+1}/5`;
-      const d = await nextCalibrationFrame();
-      if (d.flame_raw !== undefined) samples.push(d.flame_raw);
+      const frame = await nextCalibrationFrame();
+      if (frame.igniter_on !== fireIgn || frame.igniter2_on === true) continue;
+      const raw = liveAdcRaw('flame_raw');
+      if (Number.isFinite(raw)) samples.push(raw);
     }
 
-    if (samples.length === 0) {
-      statusEl.textContent = 'No flame data — check connection.';
+    if (samples.length < 3) {
+      statusEl.textContent = fireIgn
+        ? 'Too few valid readings with the igniter on. Check the igniter and its test duration in Tools, then capture again.'
+        : 'Too few valid readings with the igniter off. Wait for it to stop and capture again.';
       return;
     }
 
@@ -2100,6 +2751,7 @@ async function captureFlameNoise() {
     statusEl.textContent = 'Error: ' + e;
   } finally {
     btns.forEach(b => b.disabled = false);
+    document.getElementById('btn-flame-save').disabled = flameNoise === null;
     recomputeFlameThreshold();
   }
 }
@@ -2136,10 +2788,10 @@ function saveMainFlameCondition(thr) {
   const registry = registryInputById('flame');
   if (!registry) { alert('No canonical main flame input is fitted.'); return; }
   const maxHysteresis = Math.max(0, Math.min(2047, 2 * Math.min(thr, 4095 - thr)));
-  const hysteresisMv = Number(document.getElementById('flame-hyst-direct').value);
+  const hysteresisMv = document.getElementById('flame-hyst-direct').valueAsNumber;
   const hysteresis = Math.max(0, Math.min(maxHysteresis,
     Number.isFinite(hysteresisMv) ? adcRawFromMv(hysteresisMv, 'flame')
-      : Number(registry?.digital_hysteresis_raw || 64)));
+      : Number(registry.digital_hysteresis_raw ?? 64)));
   const activeHigh = document.getElementById('flame-active-high').value !== '0';
   const registryPatch = registryCalibrationPatch('flame', {
     digital_threshold_raw: thr, digital_hysteresis_raw: hysteresis, active_high: activeHigh
@@ -2151,28 +2803,34 @@ function saveMainFlameCondition(thr) {
       registry.active_high = activeHigh;
     }
     document.getElementById('cal-flame-thr').textContent = adcMvText(thr, 'flame');
-    document.getElementById('flame-thr-direct').value = Math.round(adcMv(thr, 'flame'));
-    document.getElementById('flame-hyst-direct').value = Math.round(adcMv(hysteresis, 'flame'));
+    document.getElementById('flame-thr-direct').value = flameSettingMv(thr, 'flame');
+    document.getElementById('flame-hyst-direct').value = flameSettingMv(hysteresis, 'flame');
     updateFlameThrMark(thr);
     setText('flame-status', `Main flame threshold set to ${adcMvText(thr, 'flame')}.${flameThresholdAdvisory(thr, activeHigh)}`);
   });
 }
 function saveFlameThresholdDirect() {
-  const mv = Number(document.getElementById('flame-thr-direct').value);
-  if (!Number.isFinite(mv) || mv < 0 || mv > adcReferenceMv('flame')) return;
+  const mv = document.getElementById('flame-thr-direct').valueAsNumber;
+  if (!Number.isFinite(mv) || mv < 0 || mv > adcReferenceMv('flame')) {
+    alert('Enter a flame threshold within the ADC voltage range.');
+    return;
+  }
   const thr = adcRawFromMv(mv, 'flame');
   saveMainFlameCondition(thr);
 }
 function saveAbFlameThresholdDirect() {
-  const mv = Number(document.getElementById('ab-flame-thr-direct').value);
-  if (!Number.isFinite(mv) || mv < 0 || mv > adcReferenceMv('ab_flame')) return;
+  const mv = document.getElementById('ab-flame-thr-direct').valueAsNumber;
+  if (!Number.isFinite(mv) || mv < 0 || mv > adcReferenceMv('ab_flame')) {
+    alert('Enter a flame threshold within the ADC voltage range.');
+    return;
+  }
   const thr = adcRawFromMv(mv, 'ab_flame');
   const registry = registryInputById('ab_flame');
   const maxHysteresis = Math.max(0, Math.min(2047, 2 * Math.min(thr, 4095 - thr)));
-  const hysteresisMv = Number(document.getElementById('ab-flame-hyst-direct').value);
+  const hysteresisMv = document.getElementById('ab-flame-hyst-direct').valueAsNumber;
   const hysteresis = Math.max(0, Math.min(maxHysteresis,
     Number.isFinite(hysteresisMv) ? adcRawFromMv(hysteresisMv, 'ab_flame')
-      : Number(registry?.digital_hysteresis_raw || 64)));
+      : Number(registry?.digital_hysteresis_raw ?? 64)));
   const activeHigh = document.getElementById('ab-flame-active-high').value !== '0';
   const registryPatch = registryCalibrationPatch('ab_flame', {
     digital_threshold_raw: thr, digital_hysteresis_raw: hysteresis, active_high: activeHigh
@@ -2184,8 +2842,8 @@ function saveAbFlameThresholdDirect() {
       registry.digital_hysteresis_raw = hysteresis;
       registry.active_high = activeHigh;
     }
-    document.getElementById('ab-flame-thr-direct').value = Math.round(adcMv(thr, 'ab_flame'));
-    document.getElementById('ab-flame-hyst-direct').value = Math.round(adcMv(hysteresis, 'ab_flame'));
+    document.getElementById('ab-flame-thr-direct').value = flameSettingMv(thr, 'ab_flame');
+    document.getElementById('ab-flame-hyst-direct').value = flameSettingMv(hysteresis, 'ab_flame');
     updateAbFlameThrMark(thr);
     setText('ab-flame-status', `Afterburner flame threshold set to ${adcMvText(thr, 'ab_flame')}.${flameThresholdAdvisory(thr, activeHigh)}`);
   });
@@ -2193,7 +2851,9 @@ function saveAbFlameThresholdDirect() {
 function clearFlame() {
   flameNoise = null;
   document.getElementById('flame-status').textContent = '';
-  document.getElementById('btn-flame-save').disabled = true;
+  const save = document.getElementById('btn-flame-save');
+  save.disabled = true;
+  delete save.dataset.thr;
   updateFlameThrMark(null);
 }
 
@@ -2212,21 +2872,38 @@ async function _captureInputAverage(key) {
       ? receiverValid && Number.isFinite(v) && v >= 500 && v <= 2500 : validAdcRaw(v);
     if (calibrationConnected() && valid) samples.push(v);
   }
-  if (!samples.length) throw new Error('No valid input samples received. Check the connection and signal.');
+  if (samples.length < 2) throw new Error('Too few valid input samples. Check the connection and signal, then capture again.');
   return Math.round(samples.reduce((a,b)=>a+b,0) / samples.length);
 }
 
 async function nextCalibrationFrame() {
-  // The shared page stream already refreshes live at 3 Hz. Sampling that
-  // browser state avoids a second HTTP loop during calibration captures.
-  await new Promise(resolve => setTimeout(resolve, 340));
-  return calibrationConnected() ? (live || {}) : {};
+  const noSample = 'No fresh calibration samples received. Wait for live telemetry and capture again.';
+  if (!calibrationConnected()) throw new Error(noSample);
+  const boot = calibrationFrameBoot;
+  return new Promise((resolve, reject) => {
+    const onSample = () => {
+      clearTimeout(timer);
+      if (boot !== undefined && boot !== calibrationFrameBoot) {
+        reject(new Error('The ECU restarted during capture. Capture again.'));
+      } else if (!calibrationConnected()) {
+        reject(new Error(noSample));
+      } else {
+        resolve(live);
+      }
+    };
+    const timer = setTimeout(() => {
+      calibrationFrames.removeEventListener('sample', onSample);
+      reject(new Error(noSample));
+    }, CALIBRATION_FRAME_TIMEOUT_MS);
+    calibrationFrames.addEventListener('sample', onSample, {once:true});
+  });
 }
 async function captureOperatorEndpoint(role, maximum) {
   if (_operatorCaptureBusy[role]) return;
   const throttle = role === 'throttle', prefix = throttle ? 'th' : 'idle';
   const type = throttle ? throttleInputType : idleInputType;
   const generation = _operatorCaptureGeneration[role];
+  const boot = calibrationFrameBoot;
   const render = throttle ? renderThStatus : renderIdleStatus;
   const assign = value => {
     if (throttle) { if (maximum) thMax=value; else thMin=value; }
@@ -2242,9 +2919,12 @@ async function captureOperatorEndpoint(role, maximum) {
   let failure = '';
   try {
     if (!['adc','servo'].includes(type)) throw new Error('Input is not fitted. Configure it on Hardware before capturing.');
+    if (!Number.isInteger(boot)) throw new Error('Wait for live ECU data before capturing.');
     const value = await _captureInputAverage(role+'_input_'+(type === 'servo' ? 'us' : 'raw'));
+    if (boot !== calibrationFrameBoot) throw new Error('The ECU restarted. Capture both endpoints again.');
     if (generation !== _operatorCaptureGeneration[role]) throw new Error('Input type changed during capture. Capture both endpoints again.');
     assign(value);
+    _operatorCaptureBoot[role] = boot;
     if (throttle) setText(maximum ? 'th-hi' : 'th-lo',inputReadingText(value,type,role));
   } catch (error) {
     failure = error.message;
@@ -2254,6 +2934,22 @@ async function captureOperatorEndpoint(role, maximum) {
     buttons.forEach(button => button.disabled=false);
     render();
     if (failure) status.textContent = 'Capture failed. '+failure;
+  }
+}
+function clearOperatorCaptures() {
+  for (const role of ['throttle','idle']) {
+    if (_operatorCaptureBoot[role] === null && !_operatorCaptureBusy[role]) continue;
+    _operatorCaptureBoot[role] = null;
+    ++_operatorCaptureGeneration[role];
+    if (role === 'throttle') {
+      thMin = thMax = null;
+      renderThStatus();
+      setText('th-status','The ECU restarted. Capture both endpoints again.');
+    } else {
+      idleMin = idleMax = null;
+      renderIdleStatus();
+      setText('idle-status','The ECU restarted. Capture both endpoints again.');
+    }
   }
 }
 function captureThMin() { return captureOperatorEndpoint('throttle',false); }
@@ -2277,6 +2973,10 @@ function saveOperatorCalibration(purpose, minimum, maximum, type) {
     alert('Capture both valid endpoints first.'); return;
   }
   if (minimum === maximum) { alert('Minimum and maximum cannot be identical.'); return; }
+  const boot = _operatorCaptureBoot[purpose];
+  if (!Number.isInteger(boot) || boot !== calibrationFrameBoot) {
+    alert('Capture both endpoints for the current ECU session.'); return;
+  }
   const span=maximum-minimum;
   const saveMin=Math.round(minimum+span*.02), saveMax=Math.round(maximum-span*.01);
   const registry = registryInputById(purpose);
@@ -2284,12 +2984,12 @@ function saveOperatorCalibration(purpose, minimum, maximum, type) {
   if (!servo) fields.calibration_points=[];
   const patch = registry && [1,3,9].includes(Number(registry.driver)) ? registryCalibrationPatch(purpose,fields) : null;
   const calibration = {[purpose+'_min_raw']:saveMin,[purpose+'_max_raw']:saveMax};
-  patchHardwareThenConfig(patch, () => {
+  saveCalibrationPatch(patch, () => {
     if (registry && patch) Object.assign(registry,fields);
   }, {calibration},
   `${purpose === 'idle' ? 'Idle input' : 'Throttle'} calibrated: ${inputReadingText(minimum,type,purpose)} – ${inputReadingText(maximum,type,purpose)}`, () => {
     cfg.calibration = Object.assign(cfg.calibration || {},calibration);
-  });
+  }, boot);
 }
 function saveThrottle() { saveOperatorCalibration('throttle',thMin,thMax,throttleInputType); }
 
@@ -2310,41 +3010,62 @@ function renderIdleStatus() {
 function saveIdle() { saveOperatorCalibration('idle',idleMin,idleMax,idleInputType); }
 
 // ── Hardware patch (no reboot) ────────────────────────────────
-function patchHardware(patch, onOk) {
+function patchHardware(patch, onOk, canSave) {
   const save = async () => {
-    const current = await fetchJsonWithRetry('/api/hardware');
+    const expectedEcu = requireCalibrationEcu();
+    const current = await readCalibrationConfig('/api/hardware', expectedEcu);
+    if (canSave && !await canSave()) return null;
+    requireCalibrationEcu();
     if(!OTConfigPatchChanged(current,patch))return {response:{ok:true},data:{ok:true,unchanged:true}};
-    return window.OTSaveHardwarePatch(patch);
+    return window.OTSaveHardwarePatch(patch, '', null, expectedEcu);
   };
   const request = window.OTWithTelemetryPaused ? window.OTWithTelemetryPaused(save) : save();
   return request
-  .then(({data})=>data)
-  .then(d => {
+  .then(result => {
+    if (!result) return;
+    const {response, data:d} = result;
+    if (!d.unchanged) window.OTSetup?.mark('calibration', response);
     onOk();
     if (d.warn) alert(d.warn);
   })
   .catch(e => alert('Save failed: ' + e.message));
 }
 
-// The firmware deliberately serializes configuration writes.  A calibration
-// that has both a registry representation and a legacy compatibility value
-// must therefore save them in sequence, never as two competing requests.
-function patchHardwareThenConfig(hardwarePatch, onHardwareOk, configPatch, msg, onConfigOk) {
+// Some calibrations update both the input card and the settings used by the ECU.
+async function saveCalibrationPatch(hardwarePatch, onHardwareOk, configPatch, msg, onConfigOk, expectedBoot) {
   if (!hardwarePatch) {
-    patchConfig(configPatch, msg, onConfigOk);
-    return;
+    return patchConfig(configPatch, msg, onConfigOk, expectedBoot);
   }
-  patchHardware(hardwarePatch, () => {
-    if (onHardwareOk) onHardwareOk();
-    // The PATCH response can arrive just before the ECU loop consumes the
-    // already-persisted hardware update and releases ConfigApplyGate. Retry
-    // only that short, known hand-off window; all ordinary saves still expose
-    // a genuine concurrent-write rejection immediately.
-    patchConfig(configPatch, msg, onConfigOk, 20);
-  });
+  try {
+    const expectedEcu = requireCalibrationEcu();
+    const {response, data} = await window.OTSaveHardwarePatch(hardwarePatch, 'calibration', configPatch, expectedEcu, expectedBoot);
+    if (!data.unchanged) window.OTSetup?.mark('calibration', response);
+    onHardwareOk?.();
+    onConfigOk?.();
+    alert(msg);
+    if (data.reboot) window.OTShowRebootOverlay?.({returnPath:'/calibration.html'});
+  } catch (error) {
+    alert('Save failed: ' + error.message);
+  }
 }
 
 // ── NTC oil temp calibration ──────────────────────────────────
+function showNtcCalibrationMethod(registry, legacyCurve = false) {
+  const hasCurve = Number(registry?.temp_interface) === 4 && registry.calibration_points?.length >= 2;
+  const usesCurve = registry ? hasCurve && registry.ntc_use_point_table !== false : legacyCurve;
+  document.getElementById('ntc-active-method').textContent =
+    usesCurve ? 'Active calibration: known-point curve' : 'Active calibration: datasheet values';
+  document.getElementById('btn-ntc-use-curve').hidden = !hasCurve || usesCurve;
+}
+function useSavedNtcCurve() {
+  const registry = registryInputById('oil_temperature');
+  if (Number(registry?.temp_interface) !== 4 || !(registry.calibration_points?.length >= 2)) return;
+  patchHardware(registryCalibrationPatch('oil_temperature', {ntc_use_point_table:true}), () => {
+    registry.ntc_use_point_table = true;
+    showNtcCalibrationMethod(registry);
+    document.getElementById('ntc-status').textContent = 'Saved curve active.';
+  });
+}
 function loadNtcValues() {
   fetch('/api/hardware').then(r=>r.json()).then(hw => {
     const oilt = hw.sensors?.oil_temp || {};
@@ -2359,6 +3080,7 @@ function loadNtcValues() {
     if (betaEl) betaEl.value = beta;
     if (r0El)   r0El.value   = r0;
     if (rfEl)   rfEl.value   = rf;
+    showNtcCalibrationMethod(registry, !!oilt.use_raw_poly);
   }).catch(()=>{});
 }
 function saveNtcCal() {
@@ -2372,7 +3094,9 @@ function saveNtcCal() {
     return;
   }
   const patch = { sensors: { oil_temp: { ntc_beta: beta, ntc_r0: r0, ntc_r_fixed: rf, use_raw_poly:false } } };
-  const registryPatch = registryCalibrationPatch('oil_temperature', { ntc_beta: beta, ntc_r0: r0, ntc_r_fixed: rf });
+  const registryPatch = registryCalibrationPatch('oil_temperature', {
+    ntc_beta: beta, ntc_r0: r0, ntc_r_fixed: rf, ntc_use_point_table:false
+  });
   if (registryPatch && Number(registryInputById('oil_temperature')?.temp_interface) === 4) Object.assign(patch, registryPatch);
   patchHardware(patch, () => {
     if (!cfg.hardware) cfg.hardware = {};
@@ -2384,9 +3108,12 @@ function saveNtcCal() {
     const registry = registryInputById('oil_temperature');
     if (registry && Number(registry.temp_interface) === 4) {
       registry.ntc_beta = beta; registry.ntc_r0 = r0; registry.ntc_r_fixed = rf;
+      registry.ntc_use_point_table = false;
     }
+    cfg.hardware.sensors.oil_temp.use_raw_poly = false;
+    showNtcCalibrationMethod(registry);
     document.getElementById('ntc-status').textContent =
-      'Saved: Beta=' + beta + '  R₀=' + r0 + ' Ω  R_fixed=' + rf + ' Ω';
+      'Datasheet values active: Beta=' + beta + '  R₀=' + r0 + ' Ω  R_fixed=' + rf + ' Ω';
   });
 }
 
@@ -2401,14 +3128,90 @@ function pressureReferenceValue(selectId) {
   const value = Number(document.getElementById(selectId)?.value);
   return Number.isFinite(value) && value > 0.5 ? 1.01325 : 0;
 }
-function pressureValueLabel(value) {
-  return Number(value).toFixed(value > 0.5 ? 3 : 0) + ' bar';
+function pressureCapturesMatch(ambientId, referenceId, capturedAmbient, capturedReference) {
+  if (pressureReferenceValue(ambientId) !== capturedAmbient) {
+    alert('The pressure reference changed. Capture ambient again before saving.');
+    return false;
+  }
+  const entered = fromDispPress(document.getElementById(referenceId).valueAsNumber);
+  if (!Number.isFinite(entered) || Math.abs(entered - capturedReference) > 1e-9) {
+    alert('The reference pressure changed. Capture the reference again before saving.');
+    return false;
+  }
+  if (capturedReference <= capturedAmbient) {
+    alert('Capture a reference pressure above the ambient value.');
+    return false;
+  }
+  return true;
+}
+function pressureValueLabel(value, digits = value === 0 ? 0 : 3) {
+  return toDispPress(Number(value)).toFixed(digits) + ' ' + dispPressUnit();
+}
+function setCalibrationPressureRange(id, value) {
+  const label = document.getElementById(id);
+  label.dataset.pressureLabel = value;
+  label.textContent = pressureValueLabel(value, 1);
+}
+function refreshCalibrationPressureLabels() {
+  for (const label of document.querySelectorAll('[data-pressure-label]')) {
+    const value = Number(label.dataset.pressureLabel);
+    label.textContent = pressureValueLabel(value, value ? 1 : 0);
+  }
+  for (const select of document.querySelectorAll('[data-pressure-reference]')) {
+    select.options[0].textContent = 'Gauge (ambient = ' + pressureValueLabel(0) + ')';
+    select.options[1].textContent = 'Absolute (ambient ≈ ' + pressureValueLabel(1.01325) + ')';
+  }
+}
+function rescaleCalibrationPressureInputs(ratio) {
+  for (const field of document.querySelectorAll('[data-pressure-entry]')) {
+    const scale = field.dataset.pressureEntry === 'inverse' ? 1 / ratio : ratio;
+    if (Number.isFinite(field.valueAsNumber)) field.value = field.valueAsNumber * scale;
+    for (const bound of ['min','max']) if (field[bound]) field[bound] = Number(field[bound]) * scale;
+  }
+}
+let calibrationPressureScale = 1;
+function syncCalibrationPressureUnits() {
+  const scale = toDispPress(1);
+  if (scale !== calibrationPressureScale) rescaleCalibrationPressureInputs(scale / calibrationPressureScale);
+  calibrationPressureScale = scale;
+  refreshCalibrationPressureLabels();
+}
+function refreshCalibrationTemperatureLabels() {
+  for (const label of document.querySelectorAll('[data-temperature-label]'))
+    label.textContent = toDispTemp(Number(label.dataset.temperatureLabel)) + ' ' + dispTempUnit();
+}
+function changeCalibrationUnits(kind) {
+  if (kind === 'temperature') {
+    const field = document.getElementById('oilt-known-temp');
+    const celsius = fromDispTemp(field.valueAsNumber);
+    setTempUnit(tempUnit() === 'C' ? 'F' : 'C', false);
+    if (Number.isFinite(celsius)) field.value = toDispTemp(celsius);
+    refreshCalibrationTemperatureLabels();
+    if (Number.isFinite(live.oil_temp))
+      setText('cal-oiltemp', toDispTemp(live.oil_temp).toFixed(1) + ' ' + dispTempUnit());
+    renderOilTempKnownPoints();
+    return;
+  }
+  setPressUnit(pressUnit() === 'bar' ? 'psi' : 'bar', false);
+  syncCalibrationPressureUnits();
+  renderOilPts();
+  if (document.getElementById('oil-step-3').style.display !== 'none') renderOilFitSummary?.();
+  for (const [key, id, precision] of [['oil','cal-oil',3],['fuel_press','cal-fuelpress',2],['p1','cal-p1',3],['p2','cal-p2',3]]) {
+    if (Number.isFinite(live[key]) && (key !== 'oil' || live.oil_healthy !== false))
+      setText(id, pressureValueLabel(live[key], precision));
+  }
 }
 function restorePressureReference(selectId, purpose) {
   const select = document.getElementById(selectId);
   const points = registryInputById(purpose)?.calibration_points;
   if (!select || !Array.isArray(points) || !points.length) return;
-  select.value = Number(points[0]?.value) > 0.5 ? '1.01325' : '0';
+  // Curve points are ordered by ADC count. A descending transmitter's
+  // ambient point is at the high-count end, but still has the lowest pressure.
+  const values = points.map(point => point?.value);
+  if (!values.every(Number.isFinite)) return;
+  const ambient = Math.min(...values);
+  if (ambient === 0) select.value = '0';
+  else if (Math.abs(ambient - 1.01325) < 0.001) select.value = '1.01325';
 }
 
 const ADC_SWITCH_ROLES = new Set([
@@ -2492,15 +3295,17 @@ async function sampleAdcSwitchRaw(id) {
 async function captureAdcSwitchState(id, active, button) {
   const box = button.closest('[data-channel-id]');
   const status = box.querySelector('[data-adc-status]');
+  const capture = adcSwitchCaptures.get(id) || {};
+  const state = active ? 'active' : 'inactive';
+  delete capture[state];
+  adcSwitchCaptures.set(id, capture);
   button.disabled = true; status.textContent = 'Sampling for 1.5 seconds…';
   let values;
   try { values = await sampleAdcSwitchRaw(id); }
   catch (error) { status.textContent = 'Capture failed: ' + error.message; return; }
   finally { button.disabled = false; }
   if (values.length < 4) { status.textContent = 'No healthy ADC samples received.'; return; }
-  const capture = adcSwitchCaptures.get(id) || {};
-  capture[active ? 'active' : 'inactive'] = values;
-  adcSwitchCaptures.set(id, capture);
+  capture[state] = values;
   status.textContent = `${active?'Active':'Inactive'} captured: ${adcMvText(Math.min(...values), id)}–${adcMvText(Math.max(...values), id)}.`;
   if (capture.active && capture.inactive) calculateAdcSwitchCondition(box, capture);
 }
@@ -2592,9 +3397,12 @@ function saveOilTempKnown(){
       return;
     }
     const points = curve.map(p=>({raw:Math.round(p.raw),value:p.b}));
-    const registryPatch = registryCalibrationPatch('oil_temperature', { calibration_points: points });
+    const ntc = Number(registry.temp_interface) === 4;
+    const fields = ntc ? {calibration_points:points, ntc_use_point_table:true} : {calibration_points:points};
+    const registryPatch = registryCalibrationPatch('oil_temperature', fields);
     if (registryPatch) patchHardware(registryPatch, () => {
-      registry.calibration_points = points;
+      Object.assign(registry, fields);
+      if (ntc) showNtcCalibrationMethod(registry);
       document.getElementById('oilt-known-status').textContent =
         `Known-point sensor curve saved (${points.length} points).`;
     });
@@ -2605,13 +3413,21 @@ function saveOilTempKnown(){
   const rawValues=_oilTempKnownPts.map(p=>p.raw);
   patchHardware({sensors:{oil_temp:{use_raw_poly:true,poly_a:fit.a,poly_b:fit.b,poly_c:fit.c,poly_d:fit.d,
     poly_x_min:Math.min(...rawValues),poly_x_max:Math.max(...rawValues)}}},()=>{
+    showNtcCalibrationMethod(null, true);
     document.getElementById('oilt-known-status').textContent='Known-point curve saved and active.';
   });
 }
 
 // ── Battery voltage calibration ───────────────────────────────
 let _bvComputedDivider = null;
+let _bvSaving = false;
 function captureBattVolt() {
+  if (_bvSaving) return;
+  const save = document.getElementById('btn-bv-save');
+  const status = document.getElementById('bv-status');
+  _bvComputedDivider = null;
+  save.disabled = true;
+  status.textContent = '';
   const known = parseFloat(document.getElementById('bv-known-v').value);
   if (isNaN(known) || known <= 0) { alert('Enter the measured voltage first.'); return; }
   const raw = liveAdcRaw('batt_voltage_raw');
@@ -2624,29 +3440,34 @@ function captureBattVolt() {
   if (_bvComputedDivider < 1 || _bvComputedDivider > 100) {
     alert('Computed divider is outside the supported 1-100 range. Check the measured voltage and wiring.');
     _bvComputedDivider = null;
-    document.getElementById('btn-bv-save').disabled = true;
     return;
   }
-  document.getElementById('bv-status').textContent =
+  status.textContent =
     'ADC pin: ' + adcMvText(raw, 'battery_voltage') + '  Measured: ' + known + ' V  → Divider: ' + _bvComputedDivider;
-  document.getElementById('btn-bv-save').disabled = false;
+  save.disabled = false;
 }
 function saveBattVoltDivider() {
-  if (_bvComputedDivider === null) return;
-  const patch = { sensors: { batt_voltage: { divider: _bvComputedDivider } } };
-  const registryPatch = registryCalibrationPatch('battery_voltage', { analog_divider: _bvComputedDivider });
+  if (_bvSaving || _bvComputedDivider === null) return;
+  const divider = _bvComputedDivider;
+  const save = document.getElementById('btn-bv-save');
+  _bvSaving = true;
+  save.disabled = true;
+  const patch = { sensors: { batt_voltage: { divider } } };
+  const registryPatch = registryCalibrationPatch('battery_voltage', { analog_divider: divider });
   if (registryPatch) Object.assign(patch, registryPatch);
   patchHardware(patch, () => {
     if (!cfg.hardware) cfg.hardware = {};
     if (!cfg.hardware.sensors) cfg.hardware.sensors = {};
     if (!cfg.hardware.sensors.batt_voltage) cfg.hardware.sensors.batt_voltage = {};
-    cfg.hardware.sensors.batt_voltage.divider = _bvComputedDivider;
+    cfg.hardware.sensors.batt_voltage.divider = divider;
     const registry = registryInputById('battery_voltage');
-    if (registry) registry.analog_divider = _bvComputedDivider;
+    if (registry) registry.analog_divider = divider;
     document.getElementById('bv-status').textContent =
-      'Saved divider = ' + _bvComputedDivider;
-    document.getElementById('btn-bv-save').disabled = true;
+      'Saved divider = ' + divider;
     _bvComputedDivider = null;
+  }).finally(() => {
+    _bvSaving = false;
+    save.disabled = _bvComputedDivider === null;
   });
 }
 
@@ -2697,9 +3518,15 @@ function loadCellRaw(kind) {
 }
 function captureLoadCellZero(kind) {
   const raw = loadCellRaw(kind);
-  if (!Number.isFinite(raw)) { alert('No valid live sensor sample is available. Check the device connection.'); return; }
+  const status = document.getElementById(kind+'-lc-status');
+  if (!Number.isFinite(raw)) {
+    _loadCellCal[kind].zero = null;
+    status.textContent = 'Capture failed. Capture zero again before saving.';
+    alert('No valid live sensor sample is available. Check the device connection.');
+    return;
+  }
   _loadCellCal[kind].zero = raw;
-  document.getElementById(kind+'-lc-status').textContent = `Zero captured at ${_loadCellCal[kind].mode==='analog'?forceAdcText(kind,raw):'raw count '+raw}. Apply the known load next.`;
+  status.textContent = `Zero captured at ${_loadCellCal[kind].mode==='analog'?forceAdcText(kind,raw):'raw count '+raw}. Apply the known load next.`;
 }
 function loadToNewtons(value, unit) {
   if (unit === 'kg' || unit === 'kgf') return value * 9.80665;
@@ -2864,7 +3691,12 @@ function savePhaseTorqueKnown() {
 let _torqueZeroRaw = null;
 function captureTorqueZero() {
   const raw = liveAdcRaw('torque_raw');
-  if (!Number.isFinite(raw)) { alert('No torque ADC-pin voltage yet.'); return; }
+  if (!Number.isFinite(raw)) {
+    _torqueZeroRaw = null;
+    document.getElementById('torque-status').textContent = 'Capture failed. Saving the scale alone keeps the saved zero.';
+    alert('No torque ADC-pin voltage yet.');
+    return;
+  }
   _torqueZeroRaw = raw;
   // Convert raw using the configured ADC reference, then offset_Nm = offset_V * scale
   // Store as Nm offset (requires knowing scale first, but we store raw and recompute on save)
@@ -2878,14 +3710,15 @@ function saveTorqueScale() {
     return;
   }
   const scaleNmPerV = fullScale / (adcReferenceMv('torque') / 1000);   // Nm per volt at the configured ADC reference
-  let offsetNm = 0;
-  if (_torqueZeroRaw !== null) {
-    const zeroV = adcMv(_torqueZeroRaw, 'torque') / 1000;
-    offsetNm = zeroV * scaleNmPerV;
-  }
+  const torque = cfg.hardware?.sensors?.torque;
+  const registry = registryInputById('torque');
+  const legacyZeroMv = torque?.scale > 0 ? 1000 * (torque.offset ?? 0) / torque.scale : 0;
+  const savedZeroMv = registry ? Number(registry.analog_zero_mv ?? 0) : legacyZeroMv;
+  const zeroMv = _torqueZeroRaw !== null ? adcMv(_torqueZeroRaw, 'torque') : savedZeroMv;
+  const offsetNm = zeroMv * scaleNmPerV / 1000;
   const patch = { sensors: { torque: { scale: scaleNmPerV, offset: offsetNm } } };
   const registryPatch = registryCalibrationPatch('torque', {
-    analog_zero_mv: offsetNm * 1000.0 / scaleNmPerV,
+    analog_zero_mv: zeroMv,
     analog_mv_per_unit: 1000.0 / scaleNmPerV
   });
   if (registryPatch) Object.assign(patch, registryPatch);
@@ -2895,13 +3728,11 @@ function saveTorqueScale() {
     if (!cfg.hardware.sensors.torque) cfg.hardware.sensors.torque = {};
     cfg.hardware.sensors.torque.scale = scaleNmPerV;
     cfg.hardware.sensors.torque.offset = offsetNm;
-    const registry = registryInputById('torque');
     if (registry) {
-      registry.analog_zero_mv = offsetNm * 1000.0 / scaleNmPerV;
+      registry.analog_zero_mv = zeroMv;
       registry.analog_mv_per_unit = 1000.0 / scaleNmPerV;
     }
-    const msg = 'Saved: scale=' + scaleNmPerV.toFixed(2) + ' Nm/V' +
-      (_torqueZeroRaw !== null ? '  zero offset=' + offsetNm.toFixed(2) + ' Nm' : '');
+    const msg = 'Saved: scale=' + scaleNmPerV.toFixed(2) + ' Nm/V · zero at ' + Math.round(zeroMv) + ' mV';
     document.getElementById('torque-status').textContent = msg;
     document.getElementById('torque-bar-max').textContent = fullScale + ' Nm';
     _torqueZeroRaw = null;
@@ -2909,34 +3740,35 @@ function saveTorqueScale() {
 }
 
 // ── Config patch ──────────────────────────────────────────────
-function patchConfig(patch, msg, onOk, gateRetries = 0) {
-  let apiWarn = '';
-  fetchJsonWithRetry('/api/config').then(current=>{
-    if(!OTConfigPatchChanged(current,patch))return {response:{ok:true},data:{ok:true,unchanged:true}};
-    return window.OTSaveConfigPatch(patch);
-  }).then(({response:r, data:d}) => {
+async function patchConfig(patch, msg, onOk, expectedBoot) {
+  try {
+    const expectedEcu = requireCalibrationEcu();
+    const current = await readCalibrationConfig('/api/config', expectedEcu);
+    if (Number.isInteger(expectedBoot) && expectedBoot !== calibrationFrameBoot)
+      throw new Error('The ECU restarted. Capture both endpoints again.');
+    const {response:r, data:d} = OTConfigPatchChanged(current,patch)
+      ? await window.OTSaveConfigPatch(patch, expectedEcu, expectedBoot)
+      : {response:{ok:true},data:{ok:true,unchanged:true}};
     if (!r.ok || d.ok === false) {
       const error = new Error(d.error || d.reason || ('HTTP ' + r.status));
       error.status = r.status;
       throw error;
     }
-    apiWarn = d.unchanged ? 'No changes to save; calibration already matches.' : d.warn || '';
-  }).then(() => {
-    if (window.OTSetup) OTSetup.mark('calibration');
+    const apiWarn = d.unchanged ? 'No changes to save; calibration already matches.' : d.warn || '';
+    if (!d.unchanged) window.OTSetup?.mark('calibration', r);
     if (onOk) onOk();
     alert(apiWarn ? (msg + '\n' + apiWarn) : msg);
-  }).catch(e => {
-    if (e.status === 409 && gateRetries > 0) {
-      setTimeout(() => patchConfig(patch, msg, onOk, gateRetries - 1), 50);
-      return;
-    }
+    if (d.reboot) window.OTShowRebootOverlay?.({returnPath:'/calibration.html'});
+  } catch(e) {
     alert('Save failed: ' + e.message);
-  });
+  }
 }
 
 // ── P1/P2 two-point calibration ───────────────────────────────
 const _p12State = {};  // {p1:{zeroRaw, refRaw, refBar}, p2:{...}}
 function p12CalMode(ch, mode) {
+  document.getElementById(ch + '-capture-ambient').hidden = mode !== 'physical';
+  document.getElementById(ch + '-zero-captured').hidden = mode !== 'physical';
   document.getElementById(ch + '-mode-physical-panel').style.display = mode === 'physical' ? '' : 'none';
   document.getElementById(ch + '-mode-factory-panel').style.display  = mode === 'factory'  ? '' : 'none';
   document.getElementById(ch + '-mode-physical').className = mode === 'physical' ? 'primary' : '';
@@ -2945,41 +3777,53 @@ function p12CalMode(ch, mode) {
   _p12State[ch].mode = mode;
 }
 function p12CaptureZero(ch) {
-  const raw = liveAdcRaw(ch + '_raw');
+  if (!pressurePumpAllowsAmbient()) return;
+  const state = _p12State[ch] ??= {};
+  delete state.zeroRaw;
+  setText(ch + '-zero-captured', '—');
+  const raw = liveFluidAdcRaw(ch + '_raw');
   if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
-  if (!_p12State[ch]) _p12State[ch] = {};
-  _p12State[ch].zeroRaw = raw;
-  const ambientBar = pressureReferenceValue(ch + '-zero-reference');
+  state.zeroRaw = raw;
+  _fluidCaptureBoot[ch] = calibrationFrameBoot;
+  state.ambientBar = pressureReferenceValue(ch + '-zero-reference');
   document.getElementById(ch + '-zero-captured').textContent =
-    '✓ ' + adcMvText(raw, ch) + ' = ' + pressureValueLabel(ambientBar);
+    '✓ ' + adcMvText(raw, ch) + ' = ' + pressureValueLabel(state.ambientBar);
 }
 function p12CaptureRef(ch) {
-  const raw = liveAdcRaw(ch + '_raw');
-  const bar = parseFloat(document.getElementById(ch + '-ref-bar').value);
+  const state = _p12State[ch] ??= {};
+  delete state.refRaw;
+  delete state.refBar;
+  setText(ch + '-ref-captured', '—');
+  const raw = liveFluidAdcRaw(ch + '_raw');
+  const bar = fromDispPress(document.getElementById(ch + '-ref-bar').valueAsNumber);
   const ambientBar = pressureReferenceValue(ch + '-zero-reference');
   if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + ch.toUpperCase()); return; }
   if (isNaN(bar) || bar <= ambientBar) {
     alert('Reference pressure must be above the selected ambient value (' + pressureValueLabel(ambientBar) + ').'); return;
   }
-  if (!_p12State[ch]) _p12State[ch] = {};
-  _p12State[ch].refRaw = raw;
-  _p12State[ch].refBar = bar;
-  document.getElementById(ch + '-ref-captured').textContent = '✓ ' + adcMvText(raw, ch) + ' @ ' + bar + ' bar';
+  state.refRaw = raw;
+  state.refBar = bar;
+  _fluidCaptureBoot[ch] = calibrationFrameBoot;
+  document.getElementById(ch + '-ref-captured').textContent = '✓ ' + adcMvText(raw, ch) + ' @ ' + pressureValueLabel(bar);
 }
-function p12Save(ch) {
+async function p12Save(ch) {
+  if (pressurePumpSession && !await stopPressurePump()) return;
   const st = _p12State[ch] || {};
   const mode = st.mode || 'physical';
   const ambientBar = pressureReferenceValue(ch + '-zero-reference');
-  let rawMin, rawMax, valMax;
+  let rawMin, rawMax, valMax, boot;
   if (mode === 'physical') {
     if (st.zeroRaw === undefined || st.refRaw === undefined) {
       alert('Capture both zero and reference points first'); return;
     }
+    if (!pressureCapturesMatch(ch + '-zero-reference', ch + '-ref-bar', st.ambientBar, st.refBar)) return;
+    boot = currentFluidCaptureBoot(ch);
+    if (boot === undefined) return;
     rawMin = st.zeroRaw; rawMax = st.refRaw; valMax = st.refBar;
   } else {
     const vZero   = parseFloat(document.getElementById(ch + '-v-zero').value);
     const vMax    = parseFloat(document.getElementById(ch + '-v-max').value);
-    valMax        = parseFloat(document.getElementById(ch + '-v-valmax').value);
+    valMax        = fromDispPress(document.getElementById(ch + '-v-valmax').valueAsNumber);
     if (isNaN(vZero) || isNaN(vMax) || isNaN(valMax) || valMax <= ambientBar) {
       alert('Enter all three factory spec values'); return;
     }
@@ -3002,7 +3846,7 @@ function p12Save(ch) {
     analog_mv_per_unit:mvPerUnit,
     calibration_points:[{raw:rawMin,value:ambientBar},{raw:rawMax,value:valMax}]
   });
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry=registryInputById(purpose);
     if (registry) {
       registry.analog_zero_mv=zeroMv;
@@ -3010,16 +3854,16 @@ function p12Save(ch) {
       registry.calibration_points=[{raw:rawMin,value:ambientBar},{raw:rawMax,value:valMax}];
     }
   }, configPatch, ch.toUpperCase() + ' calibration saved — ambient=' + adcMvText(rawMin, ch) + ' (' +
-      pressureValueLabel(ambientBar) + '), ref=' + adcMvText(rawMax, ch) + ' → ' + valMax + ' bar', () => {
+      pressureValueLabel(ambientBar) + '), ref=' + adcMvText(rawMax, ch) + ' → ' + pressureValueLabel(valMax), () => {
     if (!cfg.calibration) cfg.calibration = {};
     cfg.calibration[ch + '_raw_min'] = rawMin;
     cfg.calibration[ch + '_raw_max'] = rawMax;
     cfg.calibration[ch + '_val_max'] = valMax;
-    document.getElementById(ch + '-bar-max-label').textContent = valMax + ' bar';
+    setCalibrationPressureRange(ch + '-bar-max-label', valMax);
     document.getElementById(ch + '-cal-status').textContent =
       '✓ Saved: ' + pressureValueLabel(ambientBar) + ' @ ' + adcMvText(rawMin, ch) + ',  ' +
-      valMax + ' bar @ ' + adcMvText(rawMax, ch);
-  });
+      pressureValueLabel(valMax) + ' @ ' + adcMvText(rawMax, ch);
+  }, boot);
 }
 function p12Clear(ch) {
   const purpose = ch === 'p1' ? 'p1_pressure' : 'p2_pressure';
@@ -3027,7 +3871,7 @@ function p12Clear(ch) {
   const registryPatch = registryCalibrationPatch(purpose, {
     analog_zero_mv:0, analog_mv_per_unit:mvPerUnit, calibration_points:[]
   });
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry=registryInputById(purpose);
     if (registry) { registry.analog_zero_mv=0; registry.analog_mv_per_unit=mvPerUnit; registry.calibration_points=[]; }
   }, { calibration: { [ch+'_raw_min']:0, [ch+'_raw_max']:4095, [ch+'_val_max']:10 } },
@@ -3036,7 +3880,7 @@ function p12Clear(ch) {
     cfg.calibration[ch + '_raw_min'] = 0;
     cfg.calibration[ch + '_raw_max'] = 4095;
     cfg.calibration[ch + '_val_max'] = 10;
-    document.getElementById(ch + '-bar-max-label').textContent = '10 bar';
+    setCalibrationPressureRange(ch + '-bar-max-label', 10);
     document.getElementById(ch + '-cal-status').textContent = 'Reset to defaults (0–'+adcReferenceMv(ch)+' mV → 0–10 bar)';
     _p12State[ch] = {};
   });
@@ -3045,52 +3889,64 @@ function p12Clear(ch) {
 // ── Fuel flow analog calibration ──────────────────────────────
 const _ffState = {};
 function ffCaptureZero() {
-  const raw = liveAdcRaw('fuel_flow_raw');
+  if (!pressurePumpAllowsAmbient()) return;
+  delete _ffState.zeroRaw;
+  setText('ff-zero-captured', '—');
+  const raw = liveFluidAdcRaw('fuel_flow_raw');
   if (!Number.isFinite(raw)) { alert('No live fuel-flow ADC-pin voltage'); return; }
   _ffState.zeroRaw = raw;
+  _fluidCaptureBoot.fuel_flow = calibrationFrameBoot;
   document.getElementById('ff-zero-captured').textContent = '✓ ' + adcMvText(raw, 'fuel_flow');
 }
 function ffCaptureRef() {
-  const raw = liveAdcRaw('fuel_flow_raw');
+  delete _ffState.refRaw;
+  delete _ffState.refVal;
+  setText('ff-ref-captured', '—');
+  const raw = liveFluidAdcRaw('fuel_flow_raw');
   const val = parseFloat(document.getElementById('ff-ref-val').value);
   if (!Number.isFinite(raw)) { alert('No live fuel-flow ADC-pin voltage'); return; }
   if (isNaN(val) || val <= 0) { alert('Enter a valid reference flow rate'); return; }
   _ffState.refRaw = raw; _ffState.refVal = val;
+  _fluidCaptureBoot.fuel_flow = calibrationFrameBoot;
   document.getElementById('ff-ref-captured').textContent = '✓ ' + adcMvText(raw, 'fuel_flow') + ' @ ' + val;
 }
-function ffSave() {
-  if (_ffState.zeroRaw === undefined || _ffState.refRaw === undefined) {
+async function ffSave() {
+  if (pressurePumpSession && !await stopPressurePump()) return;
+  const {zeroRaw, refRaw, refVal} = _ffState;
+  if (zeroRaw === undefined || refRaw === undefined) {
     alert('Capture both zero and reference points first'); return;
   }
-  if (_ffState.refRaw <= _ffState.zeroRaw) { alert('Reference voltage must be greater than zero voltage'); return; }
+  const boot = currentFluidCaptureBoot('fuel_flow');
+  if (boot === undefined) return;
+  if (refRaw <= zeroRaw) { alert('Reference voltage must be greater than zero voltage'); return; }
   const configPatch = { calibration: {
-    fuel_flow_raw_min: _ffState.zeroRaw,
-    fuel_flow_raw_max: _ffState.refRaw,
-    fuel_flow_val_max: _ffState.refVal
+    fuel_flow_raw_min: zeroRaw,
+    fuel_flow_raw_max: refRaw,
+    fuel_flow_val_max: refVal
   }};
-  const ffScale = (adcMv(_ffState.refRaw - _ffState.zeroRaw, 'fuel_flow')) / _ffState.refVal;
+  const ffScale = (adcMv(refRaw - zeroRaw, 'fuel_flow')) / refVal;
   const registryPatch = registryCalibrationPatch('fuel_flow', {
-    analog_zero_mv: adcMv(_ffState.zeroRaw, 'fuel_flow'),
+    analog_zero_mv: adcMv(zeroRaw, 'fuel_flow'),
     analog_mv_per_unit: ffScale,
-    calibration_points: [{raw:_ffState.zeroRaw,value:0},{raw:_ffState.refRaw,value:_ffState.refVal}]
+    calibration_points: [{raw:zeroRaw,value:0},{raw:refRaw,value:refVal}]
   });
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry = registryInputById('fuel_flow');
-    if (registry) { registry.analog_zero_mv = adcMv(_ffState.zeroRaw, 'fuel_flow'); registry.analog_mv_per_unit = ffScale; registry.calibration_points = [{raw:_ffState.zeroRaw,value:0},{raw:_ffState.refRaw,value:_ffState.refVal}]; }
+    if (registry) { registry.analog_zero_mv = adcMv(zeroRaw, 'fuel_flow'); registry.analog_mv_per_unit = ffScale; registry.calibration_points = [{raw:zeroRaw,value:0},{raw:refRaw,value:refVal}]; }
   }, configPatch, 'Fuel flow calibration saved', () => {
     if (!cfg.calibration) cfg.calibration = {};
-    cfg.calibration.fuel_flow_raw_min = _ffState.zeroRaw;
-    cfg.calibration.fuel_flow_raw_max = _ffState.refRaw;
-    cfg.calibration.fuel_flow_val_max = _ffState.refVal;
-    document.getElementById('ff-bar-max-label').textContent = _ffState.refVal;
+    cfg.calibration.fuel_flow_raw_min = zeroRaw;
+    cfg.calibration.fuel_flow_raw_max = refRaw;
+    cfg.calibration.fuel_flow_val_max = refVal;
+    document.getElementById('ff-bar-max-label').textContent = refVal;
     document.getElementById('ff-cal-status').textContent =
-      '✓ Saved: 0 @ ' + adcMvText(_ffState.zeroRaw, 'fuel_flow') + ',  ' + _ffState.refVal + ' @ ' + adcMvText(_ffState.refRaw, 'fuel_flow');
-  });
+      '✓ Saved: 0 @ ' + adcMvText(zeroRaw, 'fuel_flow') + ',  ' + refVal + ' @ ' + adcMvText(refRaw, 'fuel_flow');
+  }, boot);
 }
 function ffClear() {
   const mvPerUnit = adcReferenceMv('fuel_flow') / 10;
   const registryPatch = registryCalibrationPatch('fuel_flow', { analog_zero_mv: 0, analog_mv_per_unit: mvPerUnit, calibration_points: [] });
-  patchHardwareThenConfig(registryPatch, () => {
+  saveCalibrationPatch(registryPatch, () => {
     const registry = registryInputById('fuel_flow');
     if (registry) { registry.analog_zero_mv = 0; registry.analog_mv_per_unit = mvPerUnit; registry.calibration_points = []; }
   }, { calibration: { fuel_flow_raw_min:0, fuel_flow_raw_max:4095, fuel_flow_val_max:10 } },
@@ -3107,17 +3963,24 @@ function ffClear() {
 // ── Current sensor calibration (glow + igniter) ───────────────
 const _curState = {};
 function curCaptureZero(which) {
+  const state = _curState[which] ??= {};
+  delete state.zeroRaw;
+  delete state.zeroV;
+  setText(which + '-cur-zero-captured', '—');
   const rawKeys = { glow: 'glow_current_raw', ign: 'igniter_current_raw', ign2: 'igniter2_current_raw', oilpump: 'oil_pump_current_raw' };
   const rawKey = rawKeys[which] || (which + '_current_raw');
   const raw = liveAdcRaw(rawKey);
   if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
-  if (!_curState[which]) _curState[which] = {};
-  _curState[which].zeroRaw = raw;
-  _curState[which].zeroV   = (raw / 4095.0) * 3.3;
+  state.zeroRaw = raw;
+  state.zeroV = (raw / 4095.0) * 3.3;
   document.getElementById(which + '-cur-zero-captured').textContent =
     '✓ ' + adcMvText(raw);
 }
 function curCaptureRef(which) {
+  const state = _curState[which] ??= {};
+  delete state.refRaw;
+  delete state.refAmps;
+  setText(which + '-cur-ref-captured', '—');
   const rawKeys = { glow: 'glow_current_raw', ign: 'igniter_current_raw', ign2: 'igniter2_current_raw', oilpump: 'oil_pump_current_raw' };
   const rawKey = rawKeys[which] || (which + '_current_raw');
   const raw = liveAdcRaw(rawKey);
@@ -3125,9 +3988,8 @@ function curCaptureRef(which) {
   const amps  = parseFloat(document.getElementById(refId).value);
   if (!Number.isFinite(raw)) { alert('No live ADC-pin voltage for ' + which + ' current sensor'); return; }
   if (isNaN(amps) || amps <= 0) { alert('Enter a valid reference current in amps'); return; }
-  if (!_curState[which]) _curState[which] = {};
-  _curState[which].refRaw  = raw;
-  _curState[which].refAmps = amps;
+  state.refRaw = raw;
+  state.refAmps = amps;
   document.getElementById(which + '-cur-ref-captured').textContent =
     '✓ ' + adcMvText(raw) + ' @ ' + amps + ' A';
 }

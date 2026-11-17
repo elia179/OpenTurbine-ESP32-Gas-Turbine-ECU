@@ -6,7 +6,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Tools</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261109b',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261109b');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117g',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117g');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 .tool-footer-demand{flex-wrap:wrap}
 .tool-footer-demand .tool-desc{flex:1 1 100%}
@@ -131,16 +131,16 @@ function extraCooldownDescription() {
   const sd = cfgData?.sequence?.shutdown || {};
   const parts = [];
   if (hwCfg?.actuators?.starter?.enabled && sd.cooldown_use_starter !== false) {
-    parts.push(`starter at ${sd.cooldown_starter_pct ?? 40}%`);
+    parts.push(hwCfg.actuators.starter.type === 2 ? 'starter relay on' : `starter at ${sd.cooldown_starter_pct ?? 40}%`);
   }
   if (hwCfg?.actuators?.oil_pump?.enabled && sd.cooldown_use_oil !== false) {
-    parts.push(`oil pump at ${sd.cooldown_oil_pct ?? 30}%`);
+    parts.push(hwCfg.actuators.oil_pump.type === 2 ? 'oil pump relay on' : `oil pump at fixed ${sd.cooldown_oil_pct ?? 30}%`);
   }
   if (hwCfg?.actuators?.oil_scavenge_pump?.enabled && sd.cooldown_use_scavenge === true) {
     parts.push('scavenge pump');
   }
-  if (!parts.length) return 'Extra Cooldown is available only when the shutdown CooldownSpin block has a fitted actuator enabled.';
-  return 'Manual standby cooldown using Sequencer CooldownSpin settings: ' + parts.join(' + ') + '. Duration is set by this Tools slider.';
+  if (!parts.length) return 'Extra Cooldown requires at least one fitted output enabled in the cooldown settings.';
+  return 'Timed manual cooldown using the stored output settings: ' + parts.join(' + ') + '. The slider sets the duration.';
 }
 
 function extraCooldownAvailable() {
@@ -444,7 +444,7 @@ async function postToolCommand(payload) {
   if (body.ok === false) {
     throw new Error(body.error || body.reason || ('HTTP ' + r.status));
   }
-  if (window.OTSetup && !/^TOGGLE_/.test(String(payload.cmd || ''))) OTSetup.mark('tools');
+  if (!stopping && !/^TOGGLE_/.test(payload.cmd)) window.OTSetup?.mark('tools', r);
   return body;
   } catch(e) {
     if(!acknowledged){setToolsConnection(false);throw new Error(stopping?'Stop acknowledgement lost. Output state is unconfirmed; check the ECU connection and physical STOP.':'Command acknowledgement lost. The ECU may have started the test. Reconnect and check outputs before retrying.');}
@@ -794,8 +794,6 @@ window.applyData = function(d) {
     ecState.textContent = ecActive ? 'RUNNING' : 'OFF';
     ecState.className   = 'tool-state ' + (ecActive ? 'active' : 'off');
   }
-  const ecBtn = document.getElementById('btn-EXTRA_COOLDOWN');
-  if (ecBtn) ecBtn.disabled = (d.mode !== 'STANDBY') || ecActive || !extraCooldownAvailable();
 };
 window.applyData._toolsExtended = true;
 }

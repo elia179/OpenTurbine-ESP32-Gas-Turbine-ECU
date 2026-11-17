@@ -23,11 +23,11 @@ async function patch(path,data){
   const page=await browser.newPage(),errors=[],commands=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(new URL(r.url()).pathname==='/api/command')commands.push(r.postData());});
   await page.addInitScript(()=>{for(const k of ['ot_beta_notice_ack_v1','ot_theme_onboarded_v1'])localStorage.setItem(k,'1');});
   await page.goto(base+'/calibration.html?v=20261028a');
-  await page.waitForFunction(()=>typeof saveOperatorCalibration==='function'&&cfg?.hardware&&Number.isFinite(operatorAdcRaw(live,'throttle')),null,{timeout:30000});
+  await page.waitForFunction(()=>typeof saveOperatorCalibration==='function'&&cfg?.hardware&&Number.isInteger(calibrationFrameBoot)&&Number.isFinite(operatorAdcRaw(live,'throttle')),null,{timeout:30000});
   await page.evaluate(()=>{window.__messages=[];window.alert=m=>window.__messages.push(String(m));});
   for(const reversed of [true,false]){
    touched=true;
-   await page.evaluate(reversed=>{window.__messages=[];throttleInputType='adc';thMin=reversed?4095:0;thMax=reversed?0:4095;saveThrottle();},reversed);
+   await page.evaluate(reversed=>{window.__messages=[];throttleInputType='adc';thMin=reversed?4095:0;thMax=reversed?0:4095;_operatorCaptureBoot.throttle=calibrationFrameBoot;saveThrottle();},reversed);
    await page.waitForFunction(()=>window.__messages.length,null,{timeout:30000});
    const messages=await page.evaluate(()=>window.__messages);assert.ok(messages.some(m=>m.startsWith('Throttle calibrated:')),JSON.stringify(messages));
    await sleep(400);
@@ -35,7 +35,7 @@ async function patch(path,data){
    assert.equal(c.min,reversed?41:82);assert.equal(c.max,reversed?4013:4054);assert.equal(!!c.invert,reversed);
    assert.equal(saved.settings.calibration.throttle_min_raw,reversed?4013:82);
    assert.equal(saved.settings.calibration.throttle_max_raw,reversed?41:4054);
-   await page.reload();await page.waitForFunction(()=>calibrationConnected()&&Number.isFinite(operatorAdcRaw(live,'throttle')),null,{timeout:30000});
+   await page.reload();await page.waitForFunction(()=>calibrationConnected()&&Number.isInteger(calibrationFrameBoot)&&Number.isFinite(operatorAdcRaw(live,'throttle')),null,{timeout:30000});
    const shown=await page.evaluate(()=>({bar:parseFloat(document.getElementById('bar-th').style.width),percent:parseFloat(document.getElementById('cal-th-pct').textContent),raw:operatorAdcRaw(live,'throttle')}));
    assert.ok(Math.abs(shown.bar-shown.percent)<=.51,JSON.stringify(shown));
    const data=await read('/api/data'),sample=data.registry_inputs.find(c=>c.id===before.id);

@@ -75,6 +75,30 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       await page.waitForFunction(()=>document.getElementById('cfg-backup-state').textContent==='Error');
       assert.match(await page.locator('#cfg-backup-msg').textContent(),/Backup failed: HTTP 503/);
       await page.unroute('**/api/ecu_config',noEngineFile);
+      let backupReads=0;
+      const interruptedBackup=route=>++backupReads===1?route.abort('connectionclosed'):route.continue();
+      await page.route('**/api/ecu_config',interruptedBackup);
+      const retriedDownload=page.waitForEvent('download',{timeout:10000});
+      retriedDownload.catch(()=>{});
+      await page.evaluate(()=>backupConfig());
+      const retriedFile=JSON.parse(fs.readFileSync(await (await retriedDownload).path(),'utf8'));
+      const expectedBackup=JSON.parse(file.buffer.toString());
+      assert.equal(backupReads,2);
+      assert.deepEqual(retriedFile.hardware,expectedBackup.hardware);
+      assert.deepEqual(retriedFile.settings,expectedBackup.settings);
+      await page.unroute('**/api/ecu_config',interruptedBackup);
+      for (const damaged of [Buffer.from('{"hardware":{}}'), Buffer.from([0x7b,0x22,0xff])]) {
+        const brokenEngineFile=route=>route.fulfill({status:200,contentType:'application/json',body:damaged});
+        await page.route('**/api/ecu_config',brokenEngineFile);
+        const downloaded=page.waitForEvent('download',{timeout:5000});
+        downloaded.catch(()=>{});
+        await page.evaluate(()=>backupConfig());
+        const copy=await downloaded;
+        assert.match(copy.suggestedFilename(),/^OpenTurbine_recovery_/);
+        assert.deepEqual(fs.readFileSync(await copy.path()),damaged);
+        assert.match(await page.locator('#cfg-backup-msg').textContent(),/damaged or incomplete.*complete engine file to restore/i);
+        await page.unroute('**/api/ecu_config',brokenEngineFile);
+      }
       for(const fault of ['error','abort','throw']) {
         await page.goto(base+'/system.html');
         await page.waitForFunction(()=>typeof runtimeMode!=='undefined'&&runtimeMode==='STANDBY');
@@ -93,6 +117,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       const heldRestore=new Promise(resolve=>releaseRestore=resolve);
       const holdPost=async route=>{if(route.request().method()==='POST')await heldRestore;await route.continue();};
       await page.route('**/api/ecu_config',holdPost);
+      await page.evaluate(()=>{OTSetup.mark('hardware');OTSetup.mark('tools');});
       await page.locator('#cfg-restore-file').setInputFiles(file);
       const posted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/api/ecu_config'));
       await page.locator('#ot-dialog-confirm').click();
@@ -103,18 +128,34 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       await page.locator('#cfg-restore-file').setInputFiles(file);
       assert.equal(await page.locator('#cfg-restore-file').inputValue(),'');
       assert.equal(requests,1);
+      assert.ok((await page.evaluate(()=>OTSetup.state())).tools,'pending restore preserves progress until confirmed');
       releaseRestore();
       await page.locator('#reboot-overlay.show').waitFor();
+      assert.deepEqual(await page.evaluate(()=>OTSetup.state()),{},'restored engine file clears the previous setup progress');
       await page.unroute('**/api/ecu_config',holdPost);
       assert.equal(requests,1);
+      await page.request.post(base+'/__sim/reset');
+      await page.request.post(base+'/__sim/scenario/minimal');
+      await page.goto(base+'/system.html');
+      await page.waitForFunction(()=>runtimeMode==='STANDBY');
+      await page.evaluate(()=>{OTSetup.mark('hardware');factoryReset();});
+      await page.locator('#ot-dialog-confirm').click();
+      await page.locator('#ot-dialog-input').fill('RESET');
+      await page.locator('#ot-dialog-confirm').click();
+      await page.locator('#reboot-overlay.show').waitFor();
+      assert.deepEqual(await page.evaluate(()=>OTSetup.state()),{},'factory reset clears the previous setup progress');
       await page.request.post(base+'/__sim/reset');
       for(const role of ['throttle','idle']) {
         const prefix=role==='throttle'?'th':'idle';
         await page.request.post(base+'/__sim/data',{data:{mode:'STANDBY',[role+'_input_type']:'adc',[role+'_input_raw']:1000}});
         await page.goto(base+'/calibration.html');
         await page.waitForFunction(role=>calibrationConnected()&&live[role+'_input_raw']===1000&&live[role+'_input_type']==='adc',role);
-        const captured=async value=>page.waitForFunction(({role,value,maximum})=>
-          (role==='throttle'?(maximum?thMax:thMin):(maximum?idleMax:idleMin))===value&&!_operatorCaptureBusy[role],{role,value:value[0],maximum:value[1]});
+        const captured=async ([value,maximum])=>{
+          await page.waitForFunction(role=>!_operatorCaptureBusy[role],role);
+          const actual=await page.evaluate(({role,maximum})=>
+            role==='throttle'?(maximum?thMax:thMin):(maximum?idleMax:idleMin),{role,maximum});
+          assert.equal(actual,value,await page.locator('#'+prefix+'-status').textContent());
+        };
         const stimulus=async raw=>{
           await page.request.post(base+'/__sim/data',{data:{[role+'_input_raw']:raw}});
           await page.waitForFunction(({role,raw})=>live[role+'_input_raw']===raw,{role,raw});
@@ -123,6 +164,42 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         await stimulus(3000);
         await page.locator('#btn-'+prefix+'-cap-max').click();await captured([3000,true]);
         assert.equal(await page.locator('#btn-'+prefix+'-save').isDisabled(),false);
+        const pausedTelemetry=route=>route.fulfill({status:503,json:{error:'temporarily unavailable'}});
+        await page.route('**/api/telemetry',pausedTelemetry);
+        await page.waitForResponse(r=>r.url().endsWith('/api/telemetry')&&r.status()===503);
+        assert.ok(await page.evaluate(()=>calibrationConnected()),'one missed poll leaves the connection indicator active');
+        await page.locator('#btn-'+prefix+'-cap-max').click();
+        await page.waitForFunction(role=>!_operatorCaptureBusy[role],role);
+        assert.match(await page.locator('#'+prefix+'-status').textContent(),/Capture failed.*fresh/i);
+        assert.equal(await page.locator('#btn-'+prefix+'-save').isDisabled(),true);
+        await page.locator('#ot-dialog-confirm').click();
+        await page.unroute('**/api/telemetry',pausedTelemetry);
+        await page.waitForResponse(r=>r.url().endsWith('/api/telemetry')&&r.ok());
+        await page.locator('#btn-'+prefix+'-cap-max').click();await captured([3000,true]);
+
+        if (role==='throttle') {
+          const frozen=await (await page.request.get(base+'/api/data')).json();
+          const repeated=route=>route.fulfill({json:{...frozen,snapshot_id:42}});
+          await page.route('**/api/telemetry',repeated);
+          await page.waitForFunction(()=>calibrationSnapshotId===42);
+          await page.locator('#btn-th-cap-max').click();
+          await page.waitForFunction(()=>!_operatorCaptureBusy.throttle);
+          assert.match(await page.locator('#th-status').textContent(),/Capture failed.*fresh/i);
+          await page.locator('#ot-dialog-confirm').click();
+          await page.unroute('**/api/telemetry',repeated);
+          await page.waitForResponse(r=>r.url().endsWith('/api/telemetry')&&r.ok());
+          await page.locator('#btn-th-cap-max').click();await captured([3000,true]);
+
+          const nextBoot=await page.evaluate(()=>live.boot_count+1);
+          await page.locator('#btn-th-cap-max').click();
+          await page.request.post(base+'/__sim/data',{data:{boot_count:nextBoot}});
+          await page.waitForFunction(boot=>live.boot_count===boot,nextBoot);
+          await page.waitForFunction(()=>document.getElementById('th-status').textContent.includes('restarted during capture'));
+          await page.locator('#ot-dialog-confirm').click();
+          assert.equal(await page.locator('#btn-th-save').isDisabled(),true);
+          await page.locator('#btn-th-cap-max').click();await captured([3000,true]);
+        }
+
         await stimulus(null);
         await page.locator('#btn-'+prefix+'-cap-min').click();
         assert.equal(await page.locator('#btn-'+prefix+'-save').isDisabled(),true);
@@ -134,8 +211,12 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         await stimulus(1200);
         await page.locator('#btn-'+prefix+'-cap-min').click();await captured([1200,false]);
         assert.equal(await page.locator('#btn-'+prefix+'-save').isDisabled(),false);
-        await page.locator('#btn-'+prefix+'-cap-max').click();
-        await page.request.post(base+'/__sim/data',{data:{[role+'_input_type']:'servo',[role+'_input_us']:1500,['rc_'+role+'_valid']:true}});
+        const typeChange={[role+'_input_type']:'servo',[role+'_input_us']:1500,['rc_'+role+'_valid']:true};
+        await page.evaluate(({prefix,typeChange})=>{
+          document.getElementById('btn-'+prefix+'-cap-max').click();
+          window.applyData({...live,...typeChange});
+        },{prefix,typeChange});
+        await page.request.post(base+'/__sim/data',{data:typeChange});
         await page.waitForFunction(prefix=>document.getElementById(prefix+'-status').textContent.includes('Input type changed'),prefix);
         await page.locator('#ot-dialog-confirm').click();
         await captured([null,false]);await captured([null,true]);

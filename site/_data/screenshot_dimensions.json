@@ -69,7 +69,7 @@
   },
   "current-configured": {
     "width": 1197,
-    "height": 449
+    "height": 473
   },
   "dashboard-n1-advisory": {
     "width": 430,
@@ -93,7 +93,7 @@
   },
   "fan-configured": {
     "width": 1248,
-    "height": 1434
+    "height": 1469
   },
   "fan-hysteresis": {
     "width": 1308,
@@ -105,7 +105,7 @@
   },
   "fuel-configured": {
     "width": 1248,
-    "height": 1298
+    "height": 1296
   },
   "fuel-minimum-calibration": {
     "width": 1308,
@@ -113,7 +113,7 @@
   },
   "i2c-configured": {
     "width": 1248,
-    "height": 581
+    "height": 579
   },
   "idle-input-auto": {
     "width": 838,
@@ -129,19 +129,19 @@
   },
   "level-1-hardware": {
     "width": 1308,
-    "height": 1179
+    "height": 1167
   },
   "level-2-hardware": {
     "width": 1308,
-    "height": 1341
+    "height": 1329
   },
   "level-3-hardware": {
     "width": 1308,
-    "height": 1491
+    "height": 1479
   },
   "light-configured": {
     "width": 1248,
-    "height": 1175
+    "height": 1208
   },
   "main-fuel-controller": {
     "width": 1308,
@@ -164,7 +164,7 @@
     "height": 669
   },
   "n1-warnings-configured": {
-    "width": 1239,
+    "width": 1236,
     "height": 1652
   },
   "n2-configured": {
@@ -176,11 +176,11 @@
     "height": 1611
   },
   "n2-protection": {
-    "width": 1239,
+    "width": 1236,
     "height": 1265
   },
   "oil-circuit-protection": {
-    "width": 1239,
+    "width": 1236,
     "height": 626
   },
   "oil-feedback-settings": {
@@ -197,7 +197,7 @@
   },
   "oil-pump-configured": {
     "width": 1248,
-    "height": 1704
+    "height": 1737
   },
   "oil-switch-protection": {
     "width": 826,
@@ -205,7 +205,7 @@
   },
   "oil-temperature-configured": {
     "width": 1248,
-    "height": 776
+    "height": 774
   },
   "phase-torque-calibration": {
     "width": 1248,
@@ -213,14 +213,14 @@
   },
   "pressure-calibration": {
     "width": 1308,
-    "height": 594
+    "height": 573
   },
   "pressure-configured": {
     "width": 1248,
-    "height": 930
+    "height": 918
   },
   "pressure-protection": {
-    "width": 1239,
+    "width": 1236,
     "height": 1331
   },
   "protection-overview": {
@@ -265,7 +265,7 @@
   },
   "spi-configured": {
     "width": 1248,
-    "height": 258
+    "height": 260
   },
   "start-configured": {
     "width": 1248,
@@ -273,10 +273,10 @@
   },
   "starter-configured": {
     "width": 1248,
-    "height": 1197
+    "height": 1230
   },
   "startup-temperature-protection": {
-    "width": 1203,
+    "width": 1200,
     "height": 885
   },
   "stop-configured": {
@@ -288,7 +288,7 @@
     "height": 1530
   },
   "temperature-warnings-configured": {
-    "width": 1239,
+    "width": 1236,
     "height": 2840
   },
   "throttle-calibration": {
@@ -301,7 +301,7 @@
   },
   "thrust-calibration": {
     "width": 1308,
-    "height": 495
+    "height": 494
   },
   "thrust-configured": {
     "width": 1248,
@@ -313,7 +313,7 @@
   },
   "torque-configured": {
     "width": 1248,
-    "height": 1614
+    "height": 1613
   },
   "tot-configured": {
     "width": 1248,

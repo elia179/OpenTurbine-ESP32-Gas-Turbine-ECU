@@ -340,12 +340,13 @@ function enumNames(source, marker) {
     assert.match(mainSource, /EGT relight recovery rise is 0 - EGT-source relight cannot confirm success", false/);
     assert.match(mainSource, /Relight uses the higher Minimum Running N1 threshold.", false/);
     const configSourceCpp = fs.readFileSync(path.join('src', 'system', 'Config.cpp'), 'utf8');
+    const hardwareSourceCpp = fs.readFileSync(path.join('src', 'system', 'HardwareConfig.cpp'), 'utf8');
+    assert.match(hardwareSourceCpp,
+      /No config; generating compiled defaults[\s\S]*?Config::resetToCompiledDefaults\(\);\s*if \(!saveUnified\(false\)\)[\s\S]*?assign the required Stop switch/,
+      'first boot must save both sections before checking the required PCB Stop input');
     assert.match(configSourceCpp,
-      /Missing settings; adding defaults[\s\S]*if \(!save\(\)\)/,
-      'first boot must complete a hardware-only unified file even while PCB commissioning locks START');
-    assert.doesNotMatch(configSourceCpp,
-      /else if \(!EngineData::instance\(\)\.configLocked\) \{[\s\S]*Missing settings; adding defaults/,
-      'a missing required PCB assignment must not block creation of default settings');
+      /Stored engine file has no settings object[^\n]*\n[\s\S]*?ed\.configStorageFault = true;\s*profileMatch = false;\s*return;/,
+      'an incomplete stored file must inhibit START and remain available for recovery');
     assert.match(configSourceCpp, /return fmaxf\(relightMinRpm, minRpm\)/);
     assert.match(mainSource, /Relight timeout is 0 - the ECU will use its hardcoded 30 second maximum", false/);
     assert.match(mainSource, /START blocked: actuator tool active/);
@@ -382,7 +383,7 @@ function enumNames(source, marker) {
     assert.match(runtimeHardware, /if \(!ed\.faultShutdownActive\) return/);
     assert.match(runtimeHardware, /if \(!c\.installed \|\| !c\.forceSafeOnFault\) continue/);
     assert.match(runtimeHardware, /const float safe = \(core \|\| ed\.dryOilStopActive\)[\s\S]{0,50}\? 0\.0f : constrain\(c\.safeDemand/);
-    assert.match(runtimeHardware, /inline void updateActuators\(\) \{[\s\S]*applyFaultSafeOutputs\(\)/);
+    assert.match(runtimeHardware, /inline void updateActuators\([^\n]*\) \{[\s\S]{0,800}applyFaultSafeOutputs\(\)/);
     assert.match(runtimeHardware, /if \(expo > 0\.0f\) \{[\s\S]*norm = norm \* \(1\.0f - expo\) \+ norm \* norm \* norm \* expo/,
       'maximum Throttle Expo (1.0) must still apply the cubic response curve');
     const abIgnite = fs.readFileSync(path.join('src', 'engine', 'sequencer', 'blocks', 'ABIgnite.h'), 'utf8');
@@ -430,7 +431,7 @@ function enumNames(source, marker) {
     const indexHtml = fs.readFileSync(path.join('data_src', 'index.html'), 'utf8');
     assert.doesNotMatch(indexHtml, /20260612b|20260617b|20260619a|20260625a|20260705a|Primary thermal limit/);
     assert.doesNotMatch(indexHtml, />Not saved<|No calibration saved|No successful test recorded/);
-    assert.match(indexHtml, /Run a safe actuator or dry-sequence test/);
+    assert.match(indexHtml, /Run a safe actuator test/);
     assert.match(webRevision, /^\d{8}[a-z]\d*$/);
     for (const pageName of ['index.html', 'hardware.html', 'controllers.html', 'system.html', 'calibration.html', 'sequence.html', 'log.html', 'tools.html']) {
       const pageSource = fs.readFileSync(path.join('data_src', pageName), 'utf8');
@@ -486,8 +487,8 @@ function enumNames(source, marker) {
     assert.match(webServer, /registerSharedAsset\("\/style\.css", "\/style\.css\.gz", "text\/css"\)/);
     assert.match(webServer, /_sendGzipAsset\(req, asset, mime, SHARED_ASSET_CACHE\)/);
     results.push('shared CSS and JavaScript are revalidated after maintenance updates');
-    assert.match(webServer, /static void _mergeJsonObject\(JsonObject dst, JsonObjectConst patch\)/);
-    assert.equal((webServer.match(/_mergeJsonObject\(current\.as<JsonObject>\(\), patch\.as<JsonObjectConst>\(\)\)/g) || []).length, 2);
+    assert.match(webServer, /_mergeJsonObject\(nested, src\.as<JsonObjectConst>\(\)\)/);
+    assert.equal((webServer.match(/_mergeJsonObject\(current\.as<JsonObject>\(\), (?:patch|settingsPatch)\.as<JsonObjectConst>\(\)/g) || []).length, 3);
     assert.doesNotMatch(webServer, /2-level deep merge/);
     results.push('firmware PATCH handlers use recursive JSON merge for nested objects');
 

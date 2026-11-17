@@ -44,7 +44,7 @@ function _registryFieldLabel(key) {
     torque_interface:'Load-cell sensor interface', hx711_clk:'HX711 clock GPIO', hx711_scale:'HX711 scale', hx711_zero:'HX711 zero',
     temp_interface:'Temperature sensor interface', spi_clk:'SPI clock GPIO', spi_cs:'SPI chip-select GPIO',
     spi_miso:'SPI MISO GPIO', spi_mosi:'SPI MOSI GPIO', tc_type:'Thermocouple type',
-    temp_resolution:'Temperature resolution', ntc_beta:'NTC beta coefficient', ntc_r0:'NTC resistance at 25 C',
+    temp_resolution:'Temperature resolution', ntc_use_point_table:'Use saved NTC curve', ntc_beta:'NTC beta coefficient', ntc_r0:'NTC resistance at 25 C',
     ntc_r_fixed:'NTC fixed resistor', ntc_pullup:'NTC divider orientation',
     safe_demand:'Power-on demand', mirror_of:'Mirrored command source', force_safe_on_fault:'Force safe state on fault', min_run_demand:'Minimum reliable command', pwm_freq_hz:'PWM carrier frequency', pwm_res_bits:'PWM resolution', pwm_zero_mode:'At 0% command', invert:'Signal inversion',
     active_high:'Active polarity', pullup:'Internal pull-up', pulldown:'Internal pull-down',
@@ -112,7 +112,7 @@ function _registryFieldRelevant(direction, channel, key) {
     if (key === 'temp_interface') return channel?.role === 'temperature';
     if (['spi_clk','spi_cs','spi_miso','spi_mosi','tc_type'].includes(key)) return tempInterface >= 1 && tempInterface <= 3;
     if (['temp_resolution'].includes(key)) return tempInterface === 5;
-    if (['ntc_beta','ntc_r0','ntc_r_fixed','ntc_pullup'].includes(key)) return tempInterface === 4;
+    if (['ntc_beta','ntc_r0','ntc_r_fixed','ntc_pullup','ntc_use_point_table'].includes(key)) return tempInterface === 4;
     const torqueInterface = Number(channel?.torque_interface || 0);
     if (key === 'torque_interface') return ['torque','thrust'].includes(String(channel?.role || ''));
     if (['hx711_clk','hx711_scale','hx711_zero'].includes(key)) return torqueInterface === 1;
@@ -147,7 +147,7 @@ function _registryEffectiveValue(key, value, channel) {
     torque_interface:0, hx711_clk:-1, hx711_scale:1, hx711_zero:0,
     temp_interface:0, spi_clk:-1, spi_cs:-1, spi_miso:-1, spi_mosi:-1,
     tc_type:'K', temp_resolution:10, ntc_beta:3950, ntc_r0:10000,
-    ntc_r_fixed:10000, ntc_pullup:true, safe_demand:0, mirror_of:'',
+    ntc_r_fixed:10000, ntc_pullup:true, ntc_use_point_table:true, safe_demand:0, mirror_of:'',
     force_safe_on_fault:false, min_run_demand:0, pwm_freq_hz:5000,
     pwm_zero_mode:0, pwm_res_bits:10, invert:false, active_high:true, pullup:false,
     pulldown:false, has_current:false, current_pin:-1, current_mv_a:100,
@@ -782,12 +782,18 @@ async function _saveHardwareChanges() {
     // performs dependency cleanup and persists the unified file atomically.
     stopHardwareTelemetry();
     await new Promise(resolve => setTimeout(resolve, 250));
+    let expectedEcu;
+    try { expectedEcu = window.OTConfigEditor.requireEcu(); }
+    catch (error) {
+      document.getElementById('save-msg').textContent = error.message;
+      return;
+    }
     const saveCfg = {...cfg};
     delete saveCfg._i2c_discovery;
     const hardwarePatch = mergeHardwareEdits(_loadedHardwareCfg, saveCfg, {});
-    const {response:r,data:j}=await window.OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true);
+    const {response:r,data:j}=await window.OTSavePatch('/api/hardware?source=hardware',hardwarePatch,true,expectedEcu);
     if (r.ok && j.ok === true) {
-      if (window.OTSetup) OTSetup.mark('hardware');
+      window.OTSetup?.mark('hardware', r);
       clearDirty();
       document.getElementById('save-msg').textContent = 'Saved — rebooting…';
       showRebootOverlay(profileChanged ? nextProfileId : '');

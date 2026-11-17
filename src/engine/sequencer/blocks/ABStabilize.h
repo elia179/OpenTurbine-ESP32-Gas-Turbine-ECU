@@ -9,7 +9,7 @@
 //
 //  Waits stabilizeMs to confirm a stable AB burn.
 //  If stabilizeMaxTot > 0 and selected EGT exceeds it, fault.
-//  On Complete: sets abMode = Running.
+//  The ignition sequence promotes to Running after all its blocks finish.
 // ============================================================
 
 class ABStabilize : public IBlock {
@@ -21,7 +21,6 @@ public:
 
     void onEnter() override {
         _startMs = millis();
-        _completed = false;
         Serial.printf("[AB] Stabilize: holding %d ms\n", stabilizeMs);
     }
 
@@ -33,20 +32,6 @@ public:
                      "%s", "AB FLAME EVIDENCE LOST - RELEASE CONTROL TO RETRY");
             return BlockResult::Fault;
         }
-        if ((Config::abFlameMode == 0 || Config::abFlameMode == 3) &&
-            (!ed.abFlameHealthy || !ed.abFlameOn)) {
-            ed.abEvidenceValid = false;
-            snprintf(ed.abFaultReason, sizeof(ed.abFaultReason),
-                     "%s", "AB FLAME LOST DURING STABILIZATION - RELEASE CONTROL TO RETRY");
-            return BlockResult::Fault;
-        }
-        if (Config::abFlameMode == 1 && !Config::primaryEgtHealthy(ed)) {
-            ed.abEvidenceValid = false;
-            snprintf(ed.abFaultReason, sizeof(ed.abFaultReason),
-                     "%s", "EGT INPUT LOST DURING AB STABILIZATION - RELEASE CONTROL TO RETRY");
-            return BlockResult::Fault;
-        }
-
         // EGT guard.
         if (stabilizeMaxTot > 0 && !Config::primaryEgtHealthy(ed)) {
             Serial.println("[AB] Stabilize fault: EGT sensor unavailable");
@@ -59,21 +44,11 @@ public:
             return BlockResult::Fault;
         }
 
-        if ((millis() - _startMs) >= (unsigned long)stabilizeMs) {
-            _completed = true;
+        if ((millis() - _startMs) >= (unsigned long)stabilizeMs)
             return BlockResult::Complete;
-        }
         return BlockResult::Running;
-    }
-
-    void onExit() override {
-        if (!_completed) return;
-        // Signal the AB state machine that AB is now running
-        EngineData::instance().abMode = ABMode::Running;
-        Serial.println("[AB] Stabilize: complete - AB RUNNING");
     }
 
 private:
     unsigned long _startMs = 0;
-    bool          _completed = false;
 };
