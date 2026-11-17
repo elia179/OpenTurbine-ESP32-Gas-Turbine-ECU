@@ -727,8 +727,9 @@ expect('flash persistence is prohibited while engine control is active',
   web.includes('const bool storageWritesSafe = mode == SysMode::STANDBY || mode == SysMode::FAULT') &&
   web.includes('if (storageWriteWindow) FlightRecorder::runEviction()') &&
   web.includes('if (storageWriteWindow) SessionLogger::drainQueue()') &&
-  web.includes('if (storageWriteWindow && !_hwRebootPending && Config::savePending() &&') &&
-  /if \(!_hwRebootPending && _isStandbyLike\(EngineData::instance\(\)\.mode\)\)\s+Config::flushPendingSave\(\)/.test(web) &&
+  web.includes('if (storageWriteWindow && !_hwRebootPending && Config::deferredSaveDue() &&') &&
+  web.includes('if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode)) {') &&
+  web.includes('if (workspace.ownsBackgroundWorkspace())\n                Config::flushPendingSave();') &&
   web.includes('if (storageWriteWindow) Config::flushPendingRuntimeStats()'));
 expect('flash-backed asset responses lease LittleFS against concurrent writes',
   web.includes('class LeasedAssetResponse final : public AsyncAbstractResponse') &&
@@ -1111,7 +1112,8 @@ expect('TX and Classic RX are reserved before Wi-Fi; S3 RX is allocated only for
   web.includes('g_webRxStorage = _allocateWebRxStorage()') &&
   web.includes('#if !defined(OT_PLATFORM_ESP32S3)\n    g_webRxStorage = _allocateWebRxStorage();\n#endif') &&
   web.includes('if (!g_webTxStorage\n#if !defined(OT_PLATFORM_ESP32S3)\n        || !g_webRxStorage') &&
-  web.includes('if (index == 0 && !g_webRxStorage) candidate = _allocateWebRxStorage();') &&
+  web.includes('if (needsStorage) candidate = _allocateWebRxStorage();') &&
+  web.includes('if (s_backgroundRxLoan || uploadInProgress)') &&
   web.includes('g_webRxLen = 0;') &&
   web.includes('released = g_webRxStorage;') &&
   web.includes('if (released) heap_caps_free(released);') &&
@@ -1620,7 +1622,7 @@ expect('Classic engine restore parses staged settings after releasing the receiv
   web.includes('deserializeJson(*uploadedSettings, stagedSettings)'));
 expect('abandoned large read responses cannot strand same-tab page navigation',
   web.includes('A new same-tab read must supersede that response') &&
-  web.includes('if (g_webRxOwner && !g_webRxResponseLease &&') &&
+  web.includes('const bool uploadInProgress = g_webRxOwner && !g_webRxResponseLease &&') &&
   web.includes('g_webRxOwner = req;'));
 expect('session logging keeps usable target-aware filesystem headroom',
   sessionLogger.includes('LittleFS.totalBytes() / 8U') &&

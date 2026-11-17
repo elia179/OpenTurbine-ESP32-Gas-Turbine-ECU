@@ -10,6 +10,10 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.7.5] — 2026-11-17
+
+- Give deferred Classic ESP32 settings saves the upload workspace while it is idle, so a slow settings download can no longer starve the save.
+
 ## [2.7.4] — 2026-11-15
 
 - Keep N1 underspeed shutdown independent of N1-based combustion-loss detection.

@@ -1552,10 +1552,13 @@ void Config::discardPendingSave() {
     s_configSaveRetryAfterMs = 0;
 }
 
+bool Config::deferredSaveDue() {
+    return _savePending && (s_configSaveRetryAfterMs == 0 ||
+        static_cast<long>(millis() - s_configSaveRetryAfterMs) >= 0);
+}
+
 bool Config::flushPendingSave() {
-    if (!_savePending) return false;
-    if (s_configSaveRetryAfterMs != 0 &&
-        static_cast<long>(millis() - s_configSaveRetryAfterMs) < 0) return false;
+    if (!deferredSaveDue()) return false;
     _savePending = false;
     bool ok = save();
     if (!ok) {

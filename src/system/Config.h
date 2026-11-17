@@ -533,7 +533,7 @@ public:
                                            bool prevFuelPress, bool prevBatt,
                                            bool prevSurge, bool prevHotStart);
     static void requestSave();   // Core 1: mark save needed, zero file I/O
-    static bool savePending() { return _savePending; }
+    static bool deferredSaveDue();
     static void discardPendingSave();
     static bool flushPendingSave(); // Core 0 in STANDBY/FAULT: perform deferred save
     static void requestRuntimeStatsSave(); // Core 1: persist hour meter through NVS

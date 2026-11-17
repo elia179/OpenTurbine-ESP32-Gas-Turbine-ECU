@@ -206,6 +206,9 @@ static unsigned long g_webRxClaimMs = 0;
 // Do not let the normal stale-upload timeout reclaim it mid-response.
 static bool g_webRxResponseLease = false;
 static portMUX_TYPE s_webRxMux = portMUX_INITIALIZER_UNLOCKED;
+#if defined(OT_PLATFORM_ESP32)
+static bool s_backgroundRxLoan = false;
+#endif
 
 static WebRxBuffer* _allocateWebRxStorage() {
     return static_cast<WebRxBuffer*>(
@@ -300,7 +303,16 @@ static void _mergeJsonObject(JsonObject dst, JsonObjectConst patch, const char* 
 static bool _claimWebRx(AsyncWebServerRequest* req, size_t index,
                         bool reportConflict = true) {
     WebRxBuffer* candidate = nullptr;
-    if (index == 0 && !g_webRxStorage) candidate = _allocateWebRxStorage();
+    if (index == 0) {
+        portENTER_CRITICAL(&s_webRxMux);
+#if defined(OT_PLATFORM_ESP32)
+        const bool needsStorage = !g_webRxStorage && !s_backgroundRxLoan;
+#else
+        const bool needsStorage = !g_webRxStorage;
+#endif
+        portEXIT_CRITICAL(&s_webRxMux);
+        if (needsStorage) candidate = _allocateWebRxStorage();
+    }
     bool claimed = false;
     portENTER_CRITICAL(&s_webRxMux);
     if (index == 0) {
@@ -311,8 +323,13 @@ static bool _claimWebRx(AsyncWebServerRequest* req, size_t index,
         // observes the owner change and terminates, while its late destructor
         // cannot release the newer claimant. Multi-chunk writes retain their
         // bounded 10 s ownership window and may never be pre-empted.
-        if (g_webRxOwner && !g_webRxResponseLease &&
-            (millis() - g_webRxClaimMs) < 10000UL) {
+        const bool uploadInProgress = g_webRxOwner && !g_webRxResponseLease &&
+            (millis() - g_webRxClaimMs) < 10000UL;
+#if defined(OT_PLATFORM_ESP32)
+        if (s_backgroundRxLoan || uploadInProgress) {
+#else
+        if (uploadInProgress) {
+#endif
             portEXIT_CRITICAL(&s_webRxMux);
             if (candidate) heap_caps_free(candidate);
             if (reportConflict) {
@@ -1398,7 +1415,19 @@ static void _scheduleRestart(const char* reason, uint32_t delayMs);
 // upload can observe the temporarily lent workspace.
 class ClassicRxWorkspaceLoan {
 public:
-    ClassicRxWorkspaceLoan() {
+    explicit ClassicRxWorkspaceLoan(bool background = false) {
+        if (background) {
+            portENTER_CRITICAL(&s_webRxMux);
+            if (!g_webRxOwner && !s_backgroundRxLoan) {
+                s_backgroundRxLoan = true;
+                _background = true;
+            }
+            WebRxBuffer* released = _background ? g_webRxStorage : nullptr;
+            if (_background) g_webRxStorage = nullptr;
+            portEXIT_CRITICAL(&s_webRxMux);
+            if (released) heap_caps_free(released);
+            return;
+        }
         if (g_webRxStorage) {
             heap_caps_free(g_webRxStorage);
             g_webRxStorage = nullptr;
@@ -1406,6 +1435,14 @@ public:
         }
     }
     ~ClassicRxWorkspaceLoan() {
+        if (_background) {
+            auto* replacement = _allocateWebRxStorage();
+            portENTER_CRITICAL(&s_webRxMux);
+            g_webRxStorage = replacement;
+            s_backgroundRxLoan = false;
+            portEXIT_CRITICAL(&s_webRxMux);
+            return;
+        }
         if (_loaned && !g_webRxStorage) {
             g_webRxStorage = static_cast<WebRxBuffer*>(
                 heap_caps_malloc(sizeof(WebRxBuffer), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
@@ -1413,8 +1450,10 @@ public:
         }
     }
     bool loaned() const { return _loaned; }
+    bool ownsBackgroundWorkspace() const { return _background; }
 private:
     bool _loaned = false;
+    bool _background = false;
 };
 #endif
 
@@ -5919,10 +5958,20 @@ void WebServer::tick() {
     // Skip while a reboot is pending: factory reset / config restore just replaced
     // the on-disk file, and a deferred save would overwrite it with the old
     // in-memory settings during the 5 s pre-reboot window.
-    if (storageWriteWindow && !_hwRebootPending && Config::savePending() &&
+    if (storageWriteWindow && !_hwRebootPending && Config::deferredSaveDue() &&
         ConfigApplyGate::tryBeginWebWrite()) {
-        if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode))
+        if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode)) {
+#if defined(OT_PLATFORM_ESP32)
+            // Background appearance and live-tuning saves serialize the same
+            // Settings document as foreground saves. Lend the idle receive
+            // workspace so a slow engine-file reader cannot exhaust its heap.
+            ClassicRxWorkspaceLoan workspace(true);
+            if (workspace.ownsBackgroundWorkspace())
+                Config::flushPendingSave();
+#else
             Config::flushPendingSave();
+#endif
+        }
         ConfigApplyGate::release();
     }
     unsigned long _t4 = millis();
