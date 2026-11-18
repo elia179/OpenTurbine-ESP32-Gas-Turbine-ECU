@@ -15,7 +15,7 @@
 </style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -99,9 +99,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 <div id="seq-validation-banner"></div>
 
 <div class="seq-tabs">
-  <button class="seq-tab active" onclick="switchTab('startup')">Startup</button>
-  <button class="seq-tab"        onclick="switchTab('shutdown')">Shutdown</button>
-  <button class="seq-tab" id="tab-btn-afterburner" onclick="switchTab('afterburner')">Afterburner</button>
+  <button class="seq-tab active" aria-pressed="true" aria-controls="tab-startup" onclick="switchTab('startup')">Startup</button>
+  <button class="seq-tab" aria-pressed="false" aria-controls="tab-shutdown" onclick="switchTab('shutdown')">Shutdown</button>
+  <button class="seq-tab" id="tab-btn-afterburner" aria-pressed="false" aria-controls="tab-afterburner" onclick="switchTab('afterburner')">Afterburner</button>
 </div>
 <p class="seq-card-hint">Steps run from top to bottom. Select a card to see what it does and edit its settings; use the grip to reorder it.</p>
 
@@ -329,7 +329,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 </div>
 
 <div class="save-bar seq-save-bar" id="sequence-save-bar">
-  <div class="save-status" id="save-status">Loading configuration…</div>
+  <div class="save-status" id="save-status" role="status">Loading configuration…</div>
+  <small id="seq-save-restart-note" hidden>Changing cards or actions restarts the ECU. Classic ESP32 also restarts after settings-only saves.</small>
   <button id="seq-discard-btn" onclick="discardSequenceChanges()" disabled>Discard</button>
   <button class="save-btn" id="save-btn" onclick="saveAll()" disabled>Save</button>
 </div>

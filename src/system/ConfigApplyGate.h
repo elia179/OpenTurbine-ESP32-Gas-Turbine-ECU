@@ -11,7 +11,7 @@
 // directions of the old STANDBY-check/START race.
 class ConfigApplyGate {
 public:
-    enum State : uint8_t { Idle, WebWriting, ReadyForCore, CoreApplying, StartTransition };
+    enum State : uint8_t { Idle, WebWriting, ReadyForCore, CoreApplying, StartTransition, BackgroundStorage };
 
     static bool tryBeginWebWrite() {
         uint8_t expected = Idle;
@@ -113,6 +113,11 @@ public:
     static bool tryBeginStartTransition() {
         uint8_t expected = Idle;
         return _state.compare_exchange_strong(expected, StartTransition, std::memory_order_acq_rel);
+    }
+
+    static bool tryBeginBackgroundStorage() {
+        uint8_t expected = Idle;
+        return _state.compare_exchange_strong(expected, BackgroundStorage, std::memory_order_acq_rel);
     }
 
     static void release() { _state.store(Idle, std::memory_order_release); }

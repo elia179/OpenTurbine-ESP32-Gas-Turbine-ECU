@@ -39,9 +39,18 @@ const {chromium,firefox,webkit}=require('playwright');
    }),[true,false,false]);
    // Every offered duration must agree with the actual firmware validator.
    await p.waitForFunction(()=>engineMode==='STANDBY');await p.locator('#btn-test-settings').click();
+   const save=p.locator('#btn-save-test-settings');
+   const beforePreference=writes.length;
+   await p.locator('#tool-always-confirm').uncheck();
+   await save.click();
+   await p.locator('#test-settings-modal').waitFor({state:'hidden'});
+   await p.locator('#tools-save-feedback').filter({hasText:'Browser preference saved'}).waitFor();
+   assert.equal(await p.evaluate(()=>localStorage.getItem(TOOL_CONFIRMATION_SKIP_KEY)),'1');
+   assert.equal(writes.length,beforePreference);
+   await p.locator('#btn-test-settings').click();
    const seconds=await p.locator('.test-setting[data-kind="seconds"]').evaluateAll(a=>a.map(x=>({key:x.dataset.key,min:Number(x.min),max:Number(x.max)})));
    for(const x of seconds)assert.deepEqual([x.min,x.max],limits[x.key],x.key);
-   const glow=p.locator('[data-key="glow_test_ms"]'),save=p.locator('#test-settings-modal button',{hasText:'Save settings'});
+   const glow=p.locator('[data-key="glow_test_ms"]');
    const before=writes.length;
    for(const value of ['','0','0.05','60.01']){
     await glow.fill(value);await save.click();assert.match(await p.locator('#test-settings-status').innerText(),/enter 0.1–60 seconds/);
@@ -51,6 +60,7 @@ const {chromium,firefox,webkit}=require('playwright');
    await percent.fill('101');await save.click();assert.match(await p.locator('#test-settings-status').innerText(),/enter 0–100%/);assert.equal(writes.length,before);
    await percent.fill('0');await p.locator('[data-key="fuel_sol_test_ms"]').fill('0.05');await save.click();
    await p.locator('#test-settings-modal').waitFor({state:'hidden'});
+   await p.locator('#tools-save-feedback').filter({hasText:'Saved'}).waitFor();
    const saved=await(await p.request.get(base+'/api/config')).json();assert.equal(saved.tools.glow_test_ms,100);assert.equal(saved.tools.fuel_sol_test_ms,50);assert.equal(saved.tools.start_test_pct,0);
    // Repeated settings refresh must not duplicate friendly output-name suffixes.
    assert.equal(await p.evaluate(()=>{syncDynamicToolText();syncDynamicToolText();return TOOLS.find(t=>t.id==='FUEL_PRIME').desc.split('Fitted output:').length-1;}),1);
@@ -61,7 +71,33 @@ const {chromium,firefox,webkit}=require('playwright');
    await p.evaluate(()=>{const t=TOOLS.find(t=>t.id==='GLOW_TEST');t.durationMs=5000;startProgress(t);});
    await p.clock.runFor(2100);assert.equal(await p.locator('#state-GLOW_TEST').innerText(),'Active');
    assert.equal(await p.locator('#prog-GLOW_TEST').getAttribute('class'),'prog-fill running');
-   await p.clock.runFor(5000);assert.deepEqual(errors,[]);await p.close();
+   await p.clock.runFor(5000);
+   await p.reload();
+   await p.locator('#btn-test-settings:not([disabled])').click();
+   let submitted;
+   const restart = async route => {
+     if (route.request().method() !== 'PATCH') return route.continue();
+     submitted = {body:route.request().postDataJSON(),ecu:new URL(route.request().url()).searchParams.get('ecu_id')};
+     const response=await route.fetch();
+     await route.fulfill({response,json:{...await response.json(),reboot:true}});
+   };
+   await p.route('**/api/config?*',restart);
+   await p.evaluate(() => {
+     const showReboot = window.OTShowRebootOverlay;
+     window.OTShowRebootOverlay = options => showReboot({...options,seconds:3});
+   });
+   await glow.fill('2.5');
+   await save.click();
+   await p.locator('#reboot-overlay.show').waitFor();
+   assert.deepEqual(submitted,{body:{tools:{glow_test_ms:2500}},ecu:'0123456789ab'});
+   await p.clock.runFor(3200);
+   await p.locator('#btn-test-settings:not([disabled])').click();
+   assert.equal(await glow.inputValue(),'2.5');
+   await p.route('**/api/config',route=>route.fulfill({status:500,json:{error:'test load failure'}}));
+   await p.reload();
+   await p.getByText('Tool settings and fitted hardware could not be loaded.',{exact:false}).waitFor();
+   assert.equal(await p.locator('#btn-test-settings').isDisabled(),true);
+   assert.deepEqual(errors,[]);await p.close();
    console.log(`${name} ${gzip?'gzip':'source'}: firmware-matched setting limits, no invalid writes, linked/removed/core ownership, escaped names and restart countdown passed`);
   }}finally{await browser.close();}
  }

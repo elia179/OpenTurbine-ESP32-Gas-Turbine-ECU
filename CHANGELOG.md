@@ -10,6 +10,42 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+- Give engine STOP priority over afterburner STOP and keep the dashboard STOP available when readings are stale.
+- Serialize background flash writes and maintenance admission with START. Reduce full-snapshot work and avoid unnecessary full reads during setup.
+
+- Verify an interrupted settings save against the stored fields on the same ECU and keep the draft when the outcome is uncertain.
+- Show connection and busy status on the dashboard, retry transient telemetry failures, and add direct links for common reasons START is unavailable.
+- Let Dashboard STOP end Extra Cooldown and submit confirmed START without downloading Hardware again.
+- Return to Log → Session Data after a logging settings save restarts the Classic ESP32.
+- Require a fresh START confirmation when its options change, fit the dialog to short screens, and use the startup count already on the Dashboard.
+- Save only edited Tools settings on the same ECU, reconnect after a save-triggered restart, and keep browser preferences local.
+- Retry a failed recording settings load with Session Data's Refresh button.
+- Explain save rejections that restart the ECU, keep editor drafts on reconnect, and show when saved changes are still applying.
+- Keep save confirmations visible on narrow settings pages and after the Tools settings dialog closes.
+- Distinguish a save verified in ECU storage from an applied sequence, and verify sequence apply on the original ECU.
+- Keep the editor connection working when the user cancels a browser reload with unsaved changes.
+- Refresh the selected Logs tab, keep event actions on event views, and warn before discarding unsaved recording settings. Keep the recording settings lock in sync with ECU status.
+- Keep Tools mode confirmations tied to the setting shown, and explain when a lost connection prevents a change.
+- Clarify what Bench Mode does and show whether the safety checks are enabled or bypassed.
+- Reload System after an ECU restart even when returning to a specific section. Return firmware and web updates to their update controls, and show the new Wi-Fi name when a restore changes it.
+- Ask once when discarding settings, and include unsaved System edits in the factory reset confirmation.
+- Ask users to save or discard System edits before a manual update, and lock editing during the upload.
+- Distinguish an unconfirmed final update response from an explicit rejection. Explain how to unlock event history when standby snapshots are enabled.
+- Keep factory reset controls locked while waiting for a reply. If the reply is lost, ask the user to check the ECU before retrying.
+- Keep failed speed, exhaust temperature, and oil-pressure readings out of Dashboard gauges and limit warnings.
+- Hide unused Dashboard limit rows and label the configured fuel-pressure minimum without implying that it is active.
+- Keep Dashboard governor speed and shaft power consistent with sensor availability.
+- Group Dashboard unit controls and use plain language for storage, event log, and reset details.
+- Use Sequence card names in Dashboard progress, abort, and shutdown fault messages.
+- Keep all Logs tabs visible and expanded protection fields inside their cards on narrow screens.
+- Clarify the physical Stop requirement and optional Start switch. Guide users from fitted hardware to calibration before setting protection limits.
+- Match the persistent Dashboard Bench Mode warning to the START confirmation and clarify what to check before acknowledging a fault.
+- Keep keyboard focus inside START and Tool settings dialogs, support Escape to cancel, and expose the selected Logs and Sequence views to assistive technology.
+- Keep the current page visible in the mobile navigation when opening a page directly.
+- Clarify why afterburner light-up or pump calibration is unavailable, preserve Hardware save rejection details, and align Dashboard and Sequence tooltips with actual behavior.
+- Explain when an event-log clear was accepted but cannot be verified, and remove stale session previews and download controls after deletion.
+- Preview engine-file identity before restore and confirm the stored setup after restart. Setup Tool now also compares the upgrade result with its pre-update backup.
+
 ## [2.7.5] — 2026-11-17
 
 - Give deferred Classic ESP32 settings saves the upload workspace while it is idle, so a slow settings download can no longer starve the save.

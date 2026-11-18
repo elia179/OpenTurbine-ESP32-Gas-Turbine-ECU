@@ -610,5 +610,6 @@ async function reloadConfigPage() {
   if (_cfgDirty && !await OTDialog.confirm('Discard every unsaved configuration change?', {
     title:'Discard changes', confirmLabel:'Discard', danger:true
   })) return;
+  _clearDirty();
   location.reload();
 }

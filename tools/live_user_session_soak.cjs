@@ -518,10 +518,10 @@ async function json(response, label) {
     await restoreRequest;
     await page.waitForFunction(() => {
       const text = document.getElementById('cfg-backup-msg')?.textContent || '';
-      return /reboot|restored|restore failed/i.test(text);
+      return /engine file saved|setup was verified|restore failed|unconfirmed|could not be verified/i.test(text);
     }, null, { timeout:60000 });
     const restoreMessage = await page.locator('#cfg-backup-msg').textContent();
-    assert.doesNotMatch(restoreMessage || '', /failed|error/i,
+    assert.doesNotMatch(restoreMessage || '', /failed|error|unconfirmed|could not be verified/i,
       `System reported an engine-file restore failure: ${restoreMessage}`);
     await page.waitForTimeout(5000);
     let restoredConfig;

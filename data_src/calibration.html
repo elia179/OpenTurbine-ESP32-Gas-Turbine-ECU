@@ -7,7 +7,7 @@
 <title>OpenTurbine — Calibration</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -37,7 +37,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       </select>
       <span id="calibration-jump-count"></span>
     </div>
-    <p id="calibration-empty" hidden>No fitted inputs or outputs need calibration.</p>
+    <p id="calibration-empty" hidden>No calibration is available for the saved setup. <a href="/hardware.html">Review fitted hardware</a>.</p>
+    <small id="calibration-save-note" hidden>Save each calibration in its card. Some settings saves restart the ECU.</small>
   </div>
 
   <div class="sensor-row" id="thrust-cal-row" style="display:none">
@@ -711,6 +712,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
 </main>
+<div id="calibration-save-feedback" class="save-feedback" role="status"></div>
 
 <script>
 let live = {};
@@ -821,6 +823,7 @@ function refreshCalibrationJump() {
   if (count) count.textContent = `${rows.length} fitted calibration${rows.length === 1 ? '' : 's'}`;
   wrap.hidden = rows.length < 2;
   document.getElementById('calibration-empty').hidden = !cfg.hardware || rows.length > 0;
+  document.getElementById('calibration-save-note').hidden = rows.length === 0;
 }
 function jumpToCalibration(id) {
   const target = document.getElementById(id);
@@ -1694,9 +1697,7 @@ function calStandbyGuard(action) {
     return false;
   }
   if (mode !== 'STANDBY' && mode !== 'FAULT') {
-    alert('Engine mode is ' + mode + '.\n\n' + action.charAt(0).toUpperCase() + action.slice(1) +
-          ' requires STANDBY — the ECU ignores calibration actuator commands in any other mode, ' +
-          'so the captured values would be wrong.');
+    alert('Engine mode is ' + mode + '. Stop the engine before ' + action + '.');
     return false;
   }
   return true;
@@ -1779,12 +1780,12 @@ function startPressurePump(id, demand, status) {
     status.textContent = 'Reload Calibration to read the connected ECU’s pump configuration.';
     return;
   }
-  if (pressurePumpSession || (oilPumpAssisted && (oilCalStarting || oilCalActive)) ||
-      !calStandbyGuard('pump-assisted calibration') ||
-      live.mode !== 'STANDBY' || !hasFreshCalibrationTelemetry()) {
-    status.textContent = 'Stop any current calibration pump and wait for live Standby readings.';
-    return;
-  }
+  const blocked = pressurePumpSession || (oilPumpAssisted && (oilCalStarting || oilCalActive))
+    ? 'Stop the current calibration pump first.'
+    : !hasFreshCalibrationTelemetry() ? 'Wait for fresh ECU readings.'
+    : live.mode !== 'STANDBY' ? 'Pump-assisted calibration requires STANDBY.' : '';
+  if (blocked) { status.textContent = blocked; return; }
+  if (!calStandbyGuard('starting the calibration pump')) return;
   const session = {id, ecu, boot:live.boot_count, status};
   pressurePumpSession = session;
   const refresh = () => {
@@ -3009,7 +3010,14 @@ function renderIdleStatus() {
 }
 function saveIdle() { saveOperatorCalibration('idle',idleMin,idleMax,idleInputType); }
 
-// ── Hardware patch (no reboot) ────────────────────────────────
+function reportCalibrationSaveError(error) {
+  const feedback = document.getElementById('calibration-save-feedback');
+  if (!window.OTShowSaveRollback(error, () => window.OTShowSaveNotice(feedback, 'Calibration was not saved. ' + error.message))) {
+    alert(error.message);
+  }
+}
+
+// ── Hardware patch ───────────────────────────────────────────
 function patchHardware(patch, onOk, canSave) {
   const save = async () => {
     const expectedEcu = requireCalibrationEcu();
@@ -3026,9 +3034,14 @@ function patchHardware(patch, onOk, canSave) {
     const {response, data:d} = result;
     if (!d.unchanged) window.OTSetup?.mark('calibration', response);
     onOk();
+    if (d.reboot) window.OTShowRebootOverlay?.({returnPath:'/calibration.html'});
+    else if (d.applying || d.unchanged) {
+      window.OTShowSaveNotice(document.getElementById('calibration-save-feedback'),
+        d.unchanged ? 'No changes to save' : window.OTSavedMessage(d));
+    }
     if (d.warn) alert(d.warn);
   })
-  .catch(e => alert('Save failed: ' + e.message));
+  .catch(reportCalibrationSaveError);
 }
 
 // Some calibrations update both the input card and the settings used by the ECU.
@@ -3042,10 +3055,11 @@ async function saveCalibrationPatch(hardwarePatch, onHardwareOk, configPatch, ms
     if (!data.unchanged) window.OTSetup?.mark('calibration', response);
     onHardwareOk?.();
     onConfigOk?.();
-    alert(msg);
+    alert([msg, data.warn, data.reboot ? 'The ECU is restarting.' :
+      data.applying ? 'The ECU is applying the changes.' : ''].filter(Boolean).join('\n'));
     if (data.reboot) window.OTShowRebootOverlay?.({returnPath:'/calibration.html'});
   } catch (error) {
-    alert('Save failed: ' + error.message);
+    reportCalibrationSaveError(error);
   }
 }
 
@@ -3757,10 +3771,11 @@ async function patchConfig(patch, msg, onOk, expectedBoot) {
     const apiWarn = d.unchanged ? 'No changes to save; calibration already matches.' : d.warn || '';
     if (!d.unchanged) window.OTSetup?.mark('calibration', r);
     if (onOk) onOk();
-    alert(apiWarn ? (msg + '\n' + apiWarn) : msg);
+    alert([d.unchanged ? '' : msg, apiWarn, d.reboot ? 'The ECU is restarting.' :
+      d.applying ? 'The ECU is applying the changes.' : ''].filter(Boolean).join('\n'));
     if (d.reboot) window.OTShowRebootOverlay?.({returnPath:'/calibration.html'});
   } catch(e) {
-    alert('Save failed: ' + e.message);
+    reportCalibrationSaveError(e);
   }
 }
 

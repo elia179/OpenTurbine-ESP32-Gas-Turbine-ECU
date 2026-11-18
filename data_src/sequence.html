@@ -16,7 +16,7 @@
 </style>
 <title>OpenTurbine - Sequence</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 #seq-validation-banner { margin-bottom: .6rem; }
 .seq-val-error, .seq-val-warn {
@@ -100,9 +100,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 <div id="seq-validation-banner"></div>
 
 <div class="seq-tabs">
-  <button class="seq-tab active" onclick="switchTab('startup')">Startup</button>
-  <button class="seq-tab"        onclick="switchTab('shutdown')">Shutdown</button>
-  <button class="seq-tab" id="tab-btn-afterburner" onclick="switchTab('afterburner')">Afterburner</button>
+  <button class="seq-tab active" aria-pressed="true" aria-controls="tab-startup" onclick="switchTab('startup')">Startup</button>
+  <button class="seq-tab" aria-pressed="false" aria-controls="tab-shutdown" onclick="switchTab('shutdown')">Shutdown</button>
+  <button class="seq-tab" id="tab-btn-afterburner" aria-pressed="false" aria-controls="tab-afterburner" onclick="switchTab('afterburner')">Afterburner</button>
 </div>
 <p class="seq-card-hint">Steps run from top to bottom. Select a card to see what it does and edit its settings; use the grip to reorder it.</p>
 
@@ -330,7 +330,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 </div>
 
 <div class="save-bar seq-save-bar" id="sequence-save-bar">
-  <div class="save-status" id="save-status">Loading configuration…</div>
+  <div class="save-status" id="save-status" role="status">Loading configuration…</div>
+  <small id="seq-save-restart-note" hidden>Changing cards or actions restarts the ECU. Classic ESP32 also restarts after settings-only saves.</small>
   <button id="seq-discard-btn" onclick="discardSequenceChanges()" disabled>Discard</button>
   <button class="save-btn" id="save-btn" onclick="saveAll()" disabled>Save</button>
 </div>
@@ -1829,8 +1830,9 @@ function switchTab(tab) {
   hideBlockInfo();
   const tabs = ['startup','shutdown','afterburner','rules'];
   document.querySelectorAll('.seq-tab').forEach((btn) => {
-    const t = btn.getAttribute('onclick')?.match(/switchTab\('(\w+)'\)/)?.[1];
-    if (t) btn.classList.toggle('active', t === tab);
+    const selected = btn.getAttribute('aria-controls') === 'tab-' + tab;
+    btn.classList.toggle('active', selected);
+    btn.setAttribute('aria-pressed', String(selected));
   });
   tabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
@@ -2295,15 +2297,25 @@ function renderAllTabsWithLiveIdle() {
   });
 }
 
+let sequenceSnapshotPending = null;
+let sequenceSnapshotAt = -Infinity;
 async function refreshSequenceLiveData() {
-  try {
-    const r = await fetch('/api/data', { cache: 'no-store' });
-    if (!r.ok) return;
-    const d = await r.json();
-    lastIdleRaw = d.idle_input_raw ?? lastIdleRaw;
-    if (d.mode !== undefined) updateEngineMode(d.mode);
-    if (d.seq_issues !== undefined) _applySeqValidation(d);
-  } catch (_) {}
+  if (sequenceSnapshotPending) return sequenceSnapshotPending;
+  if (performance.now() - sequenceSnapshotAt < 1000) return;
+  sequenceSnapshotPending = (async () => {
+    try {
+      const r = await fetch('/api/data', {cache:'no-store', signal:AbortSignal.timeout(3000)});
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d._snapshot_deferred) return;
+      sequenceSnapshotAt = performance.now();
+      lastIdleRaw = d.idle_input_raw ?? lastIdleRaw;
+      if (d.mode !== undefined) updateEngineMode(d.mode);
+      if (d.seq_issues !== undefined) _applySeqValidation(d);
+    } catch (_) {}
+  })();
+  try { await sequenceSnapshotPending; }
+  finally { sequenceSnapshotPending = null; }
 }
 
 function renderFast(tab) {
@@ -2580,8 +2592,8 @@ function buildCard(bname, idx, tab) {
 
   // Timeout badge
   let toPill = '';
-  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If this wait fails, the sequencer enters a fault state.">Timeout: fault</span>`;
-  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If this wait fails, the current start or sequence is aborted.">Timeout: abort</span>`;
+  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If the maximum wait expires, the sequencer reports a fault.">Timeout: fault</span>`;
+  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If the maximum wait expires, this sequence aborts.">Timeout: abort</span>`;
   else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
   // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
   if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';
@@ -4023,7 +4035,6 @@ function prepareSequenceTelemetryNavigation() {
   stopStatusPoll();
 }
 window.addEventListener('pagehide', stopSequenceTelemetry);
-window.addEventListener('beforeunload', stopSequenceTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareSequenceTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopSequenceTelemetry);
 window.addEventListener('pageshow', event => {
@@ -4065,7 +4076,7 @@ function sequenceIssueDestination(issue) {
 
 function _applySeqValidation(d) {
   const issues   = d.seq_issues   || [];
-  const hasErr   = d.seq_has_errors || false;
+  const hasErr   = d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode);
   const banner   = document.getElementById('seq-validation-banner');
   if (!banner) return;
 
@@ -4237,7 +4248,7 @@ async function _saveSequenceChanges() {
   }
   const warnings = _validateSequence(startup);
   if (warnings.length && !await OTDialog.confirm('Sequence warnings:\n\n' + warnings.map(w => '- ' + w).join('\n') + '\n\nSave anyway?', {title:'Sequence safety warnings', confirmText:'Save anyway', danger:true})) return;
-  setSaveStatus('Saving engine file...');
+  setSaveStatus('Saving…');
   const editingSurface=document.querySelector('main');if(editingSurface)editingSurface.inert=true;
   try {
     if (typeof stopSequenceTelemetry === 'function') stopSequenceTelemetry();
@@ -4262,57 +4273,53 @@ async function _saveSequenceChanges() {
       if (JSON.stringify(loadedHwCfg[key]) !== JSON.stringify(hwCfg[key]) && hwCfg[key] !== undefined)
         hardwarePatch[key] = cloneSequenceJson(hwCfg[key]);
     });
+    const expectedEcu = window.OTConfigEditor.requireEcu();
     let result;
     if (Object.keys(hardwarePatch).length) {
-      result = await window.OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, window.OTConfigEditor.requireEcu());
+      result = await window.OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, expectedEcu);
     } else if (Object.keys(settingsPatch).length) {
-      result = await window.OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu());
+      result = await window.OTSavePatch('/api/config', settingsPatch, false, expectedEcu);
     }
     const rebooting = result?.data.reboot === true;
-    if (result?.data.applying === true && !rebooting) {
+    const applying = result?.data.applying === true && !rebooting;
+    if (applying) {
       setSaveStatus('Saved — applying…');
-      await confirmSequenceSettingsApplied(settingsPatch);
+      await confirmSequenceSettingsApplied(settingsPatch, expectedEcu);
     }
     if (result) window.OTSetup?.mark('sequence', result.response);
-    clearSequenceDirty(rebooting ? 'Saved — rebooting…' : 'Saved');
-    if (rebooting) startRebootCountdown();
+    clearSequenceDirty(rebooting ? 'Saved — ECU restarting…' :
+      applying ? 'Saved and applied' : result ? window.OTSavedMessage(result.data) : 'No changes to save');
+    if (rebooting) startRebootCountdown(expectedEcu);
     else {
       loadedCfg = cloneSequenceJson(cfg);
       startSequenceTelemetryForPlatform();
     }
   } catch (error) {
     setSaveStatus('Warning: ' + error.message);
-    if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
+    if (!window.OTShowSaveRollback(error, startSequenceTelemetryForPlatform)) startSequenceTelemetryForPlatform();
   }
 }
 
-async function confirmSequenceSettingsApplied(patch) {
+async function confirmSequenceSettingsApplied(patch, expectedEcu) {
   const deadline = Date.now() + 8000;
   const read = async path => {
-    const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(1500)});
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    // The ECU can drop reads while applying settings.
+    const snapshot = await window.OTReadJson(path, {withEcu:true, attempts:1, timeoutMs:1500}).catch(() => null);
+    if (snapshot?.ecu && snapshot.ecu !== expectedEcu)
+      throw new Error('The connected ECU changed before the apply could be confirmed. Reconnect to the original ECU and reload Sequence to check the saved values.');
+    return snapshot?.ecu === expectedEcu ? snapshot.value : null;
   };
-  const matches = (settings, changes) => Object.entries(changes).every(([key, value]) => {
-    const current = settings?.[key];
-    if (value !== null && typeof value === 'object') return matches(current, value);
-    if (typeof value === 'number' && typeof current === 'number')
-      return Math.abs(current - value) <= Math.max(1e-6, Math.abs(value) * 1e-6);
-    return current === value;
-  });
   while (Date.now() < deadline) {
-    try {
-      const status = await read('/api/status');
-      if (status.config_apply_busy === false && matches(await read('/api/config'), patch)) return;
-    } catch (_) {} // The ECU can drop status polls while applying settings.
+    const status = await read('/api/status');
+    if (status?.config_apply_busy === false && window.OTStoredFieldsMatch(await read('/api/config'), patch)) return;
     await new Promise(resolve => setTimeout(resolve, 300));
   }
   throw new Error('The ECU acknowledged the save, but applying the new settings could not be confirmed. Reload Sequence and verify the saved values before starting.');
 }
 
-function startRebootCountdown() {
+function startRebootCountdown(expectedEcu) {
   if (typeof window.OTShowRebootOverlay === 'function') {
-    window.OTShowRebootOverlay({returnPath:'/sequence.html'});
+    window.OTShowRebootOverlay({returnPath:'/sequence.html', expectedEcu});
     return;
   }
   const overlay = document.getElementById('reboot-overlay');
@@ -4348,6 +4355,8 @@ function updateSequenceSaveControls() {
   const discard = document.getElementById('seq-discard-btn');
   if (save) save.disabled = _seqLoading || _seqSavePending || !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
   if (discard) discard.disabled = _seqLoading || _seqSavePending || !_seqDirty;
+  const restartNote = document.getElementById('seq-save-restart-note');
+  if (restartNote) restartNote.hidden = !_seqDirty || _seqSavePending;
 }
 
 let _sequenceEditSnap = null;

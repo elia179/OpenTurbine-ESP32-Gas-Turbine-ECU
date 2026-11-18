@@ -13,6 +13,36 @@ struct ResultSlot {
 ResultSlot s_results[8];
 volatile uint32_t s_nextRequestId = 1;
 portMUX_TYPE s_resultMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE s_stopMux = portMUX_INITIALIZER_UNLOCKED;
+OTPacket s_engineStop{OTCommand::STOP};
+bool s_engineStopPending = false;
+}
+
+bool CommandQueue::pushEmergencyStop(const OTPacket& pkt) {
+    if (!_queue || pkt.cmd != OTCommand::STOP) return false;
+    portENTER_CRITICAL(&s_stopMux);
+    // A browser STOP must not replace a pending result-bearing remote STOP.
+    if (!s_engineStopPending || !s_engineStop.requestId || pkt.requestId) s_engineStop = pkt;
+    s_engineStopPending = true;
+    portEXIT_CRITICAL(&s_stopMux);
+    return true;
+}
+
+bool CommandQueue::drainEmergencyStop(CommandHandler handler) {
+    if (!_queue || !handler) return false;
+    OTPacket packet{OTCommand::STOP};
+    portENTER_CRITICAL(&s_stopMux);
+    const bool pending = s_engineStopPending;
+    if (pending) {
+        packet = s_engineStop;
+        s_engineStopPending = false;
+    }
+    portEXIT_CRITICAL(&s_stopMux);
+    if (!pending) return false;
+    handler(packet);
+    // Work already queued, including AB_STOP, is superseded by engine STOP.
+    xQueueReset(_queue);
+    return true;
 }
 
 uint32_t CommandQueue::nextRequestId() {

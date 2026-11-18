@@ -952,7 +952,7 @@ function renderSystemSetup() {
             <button type="button" id="cfg-restore-btn" onclick="document.getElementById('cfg-restore-file').click()">Upload &amp; restore…</button>
           </label>
         </div>
-        <div id="cfg-backup-msg" style="font-size:.72rem;margin-top:.45rem;display:none"></div>
+        <div id="cfg-backup-msg" role="status" style="font-size:.72rem;margin-top:.45rem;display:none"></div>
       </div>`;
   const factoryResetFields = `
       <div class="cfg-field" style="grid-column:1/-1">
@@ -1005,7 +1005,18 @@ function renderSystemSetup() {
   const frBtn = document.getElementById('btn-factory-reset');
   if (frBtn) frBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
   const cfgRestoreBtn = document.getElementById('cfg-restore-btn');
-  if (cfgRestoreBtn) cfgRestoreBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+  if (cfgRestoreBtn) {
+    cfgRestoreBtn.disabled = _engineFileRestoreBusy || !['STANDBY', 'FAULT'].includes(runtimeMode);
+    if (window._otRestoredEngineVerified) {
+      const state = document.getElementById('cfg-backup-state');
+      const message = document.getElementById('cfg-backup-msg');
+      state.textContent = 'Verified';
+      state.className = 'tool-state done';
+      message.textContent = 'The ECU restarted and the saved engine setup was verified.';
+      message.style.color = 'var(--green)';
+      message.style.display = '';
+    }
+  }
   // The section dependency controls Configured/Explore visibility. A disabled
   // link must not prevent preparing display references in Explore.
   ['cl_n1','cl_n2','cl_tw','cl_ow','cl_fw','cl_bw'].forEach(key => setCfgFieldHardHidden(key, false));

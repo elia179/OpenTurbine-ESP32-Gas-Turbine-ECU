@@ -124,6 +124,8 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.equal(await page.locator(`#getting-started-banner a[href="/hardware.html?v=${webRevision}"]`).count(), 1);
     assert.equal(await page.locator(`#getting-started-banner a[href="/controllers.html?v=${webRevision}"]`).count(), 1);
     assert.equal(await page.locator(`#getting-started-banner a[href="/calibration.html?v=${webRevision}"]`).count(), 1);
+    assert.deepEqual(await page.locator('#getting-started-banner [data-setup-step]').evaluateAll(rows =>
+      rows.map(row => row.dataset.setupStep)), ['hardware','calibration','config','sequence','tools']);
     await page.evaluate(() => { OTSetup.mark('hardware'); OTSetup.mark('tools'); });
     await page.reload();
     await page.waitForSelector('#getting-started-banner');
@@ -176,12 +178,17 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
 
     const blankResponse = await page.request.post(`${base}/__sim/blank`);
     assert.equal(blankResponse.ok(), true);
+    await page.request.patch(`${base}/api/hardware`, {data:{controls:{start_pin:-1}}});
     const hardwareLink = guide.locator('[data-setup-step="hardware"] a');
     assert.equal(await hardwareLink.isVisible(), false);
     await guide.locator('#gs-progress').click();
     await hardwareLink.click();
     await page.waitForURL('**/hardware.html*');
     await page.locator('#hardware-profile-section').waitFor({state:'visible'});
+    assert.match(await text(page, '#required-controls-note'), /assign a Stop switch before saving Hardware.*Assign a Start switch if you use one/i);
+    const optionalStart = page.locator('[data-workflow-key="start"] .registry-status');
+    assert.equal(await optionalStart.textContent(),'Optional');
+    assert.equal(await optionalStart.evaluate(el=>el.classList.contains('registry-status-error')),false);
     await page.locator('button[onclick="addRegistryChannel(\'input\')"]').click();
     await page.locator('#registry-add-catalog .registry-add-option', { hasText: 'TOT / EGT' }).click();
     assert.equal(await page.locator('#registry-add-modal').isVisible(), false);
@@ -840,7 +847,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.waitForSelector('#save-recap-modal', { state: 'visible' });
     assert.match(await text(page, '#save-recap-body'), /Stop switch.*Pull-up resistor.*Enabled.*Disabled/is);
     assert.match(await text(page, '#save-recap-body'), /Stop switch.*Pull-down resistor.*Disabled.*Enabled/is);
-    assert.match(await text(page, '#save-recap-subtitle'), /reboot/i);
+    assert.match(await text(page, '#save-recap-subtitle'), /ECU will restart/i);
     assert.match(await text(page, '#save-recap-confirm-btn'), /Save.*Reboot/i);
     await page.locator('#save-recap-modal button', { hasText: 'Cancel' }).click();
     await page.reload();
@@ -873,7 +880,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     assert.match(await text(page, '#save-recap-body'), /Status LED/i);
     assert.match(await text(page, '#save-recap-body'), /Enabled/i);
     assert.match(await text(page, '#save-recap-body'), /Disabled/i);
-    assert.match(await text(page, '#save-recap-subtitle'), /reboot/i);
+    assert.match(await text(page, '#save-recap-subtitle'), /ECU will restart/i);
     assert.match(await text(page, '#save-recap-confirm-btn'), /Save.*Reboot/i);
     await page.locator('#save-recap-modal button', { hasText: 'Cancel' }).click();
     results.push('hardware cards keep actions aligned, mark removal as destructive, and recap indicator removal before reboot');
@@ -1003,7 +1010,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
       await page.locator('#ot-dialog-confirm').click();
     await page.waitForSelector('#save-recap-modal', { state: 'visible' });
     assert.match(await text(page, '#save-recap-subtitle'), /updated on the device/i);
-    assert.doesNotMatch(await text(page, '#save-recap-subtitle'), /reboot/i);
+    assert.doesNotMatch(await text(page, '#save-recap-subtitle'), /ECU will restart/i);
     await page.locator('#save-recap-confirm-btn').click();
     await page.waitForFunction(() => document.querySelector('#save-msg').textContent.includes('Saved'));
     assert.match(await text(page, '#save-msg'), /Saved/i);
@@ -1273,7 +1280,7 @@ async function assertNoSevereLayoutIssues(page, route, viewport) {
     await page.locator('#session-list-wrap').getByText('No session files found', {exact:true}).waitFor();
     await page.unroute('**/api/session/list');
     assert.match(await text(page, 'body'), /No session|No data|empty|CSV/i);
-    assert.match(await page.locator('button[onclick="loadLog()"]').getAttribute('title') || '', /event history.*run summary/i);
+    assert.match(await page.locator('#log-refresh').getAttribute('title') || '', /refresh the selected log tab/i);
     assert.match(await page.locator('button[onclick="askClear(\'eventlog\')"]').getAttribute('title') || '', /permanently delete.*event history/i);
     assert.match(await page.locator('#tab-session').getAttribute('title') || '', /per-run CSV/i);
     assert.match(await page.locator('#session-current-download').getAttribute('title') || '', /currently open session CSV/i);

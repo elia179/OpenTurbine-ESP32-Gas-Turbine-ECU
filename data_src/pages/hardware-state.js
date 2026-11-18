@@ -178,7 +178,6 @@ function applyHardwareTelemetry(d) {
   }
 }
 window.addEventListener('pagehide', stopHardwareTelemetry);
-window.addEventListener('beforeunload', stopHardwareTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareHardwareTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopHardwareTelemetry);
 window.addEventListener('pageshow', event => {
@@ -392,7 +391,7 @@ function populate() {
   }
   const controlsNote = document.getElementById('required-controls-note');
   if (controlsNote && pcbProfileActive())
-    controlsNote.innerHTML = '<strong>Required controls:</strong> add the Stop switch (and Start switch when used) below, then choose the labelled PCB connection. GPIO routing and available electrical modes come from the flashed PCB profile; choose the active state that matches the connected switch.';
+    controlsNote.innerHTML = '<strong>Physical controls:</strong> add a Stop switch before saving Hardware. Add a Start switch if you use one. Choose the labelled PCB connection and the active state for each fitted switch.';
 
   const c = cfg.controls || {};
   v('f-stop-pol', c.stop_active_h ? '1' : '0');

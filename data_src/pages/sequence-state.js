@@ -166,8 +166,9 @@ function switchTab(tab) {
   hideBlockInfo();
   const tabs = ['startup','shutdown','afterburner','rules'];
   document.querySelectorAll('.seq-tab').forEach((btn) => {
-    const t = btn.getAttribute('onclick')?.match(/switchTab\('(\w+)'\)/)?.[1];
-    if (t) btn.classList.toggle('active', t === tab);
+    const selected = btn.getAttribute('aria-controls') === 'tab-' + tab;
+    btn.classList.toggle('active', selected);
+    btn.setAttribute('aria-pressed', String(selected));
   });
   tabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
@@ -632,15 +633,25 @@ function renderAllTabsWithLiveIdle() {
   });
 }
 
+let sequenceSnapshotPending = null;
+let sequenceSnapshotAt = -Infinity;
 async function refreshSequenceLiveData() {
-  try {
-    const r = await fetch('/api/data', { cache: 'no-store' });
-    if (!r.ok) return;
-    const d = await r.json();
-    lastIdleRaw = d.idle_input_raw ?? lastIdleRaw;
-    if (d.mode !== undefined) updateEngineMode(d.mode);
-    if (d.seq_issues !== undefined) _applySeqValidation(d);
-  } catch (_) {}
+  if (sequenceSnapshotPending) return sequenceSnapshotPending;
+  if (performance.now() - sequenceSnapshotAt < 1000) return;
+  sequenceSnapshotPending = (async () => {
+    try {
+      const r = await fetch('/api/data', {cache:'no-store', signal:AbortSignal.timeout(3000)});
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d._snapshot_deferred) return;
+      sequenceSnapshotAt = performance.now();
+      lastIdleRaw = d.idle_input_raw ?? lastIdleRaw;
+      if (d.mode !== undefined) updateEngineMode(d.mode);
+      if (d.seq_issues !== undefined) _applySeqValidation(d);
+    } catch (_) {}
+  })();
+  try { await sequenceSnapshotPending; }
+  finally { sequenceSnapshotPending = null; }
 }
 
 function renderFast(tab) {

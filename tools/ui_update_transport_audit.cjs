@@ -32,13 +32,22 @@ const {chromium,firefox,webkit}=require('playwright');
     }
    });
    const result=await p.evaluate(async()=>{
-    const actualFetch=window.fetch,actualTimer=window.setTimeout,actualXHR=window.XMLHttpRequest,actualOverlay=window.OTShowRebootOverlay;let overlays=0;const result=[];
+    const actualFetch=window.fetch,actualTimer=window.setTimeout,actualXHR=window.XMLHttpRequest,actualOverlay=window.OTShowRebootOverlay,actualAlert=window.alert;let overlays=0;const result=[];
     window.OTShowRebootOverlay=()=>overlays++;
     try{
+     const messages=[];
+     window.alert=message=>messages.push(message);
+     window.fetch=()=>{throw Error('A pending draft must not reach the update endpoint');};
+     _cfgDirty=true;
+     await startSystemOTA({files:[new File(['image'],'firmware.bin')],value:'chosen'});
+     startSystemWebAssetsUpdate({files:[new File(['asset'],'theme.js.gz')],value:'chosen'});
+     if(messages.length!==2||messages.some(message=>!message.includes('Save or discard'))||!_cfgDirty)throw Error('Updates did not explain or preserve pending edits');
+     _cfgDirty=false;
      for(const body of ['{}','null','not JSON','{"ok":false,"error":"denied"}','{"ok":"true"}']){
-      let writes=0;window.fetch=async()=>{writes++;return new Response(body,{status:200});};
+      let writes=0;window.fetch=async()=>{if(!document.getElementById('cfg-form').inert)throw Error('Editor remained active during upload');writes++;return new Response(body,{status:200});};
       await startSystemOTA({files:[new File(['image'],'firmware.bin')],value:'chosen'});
-      if(writes!==1||document.getElementById('ota-state').textContent!=='Error'||document.getElementById('ota-btn').disabled)throw Error('invalid firmware acknowledgement accepted/retried');
+      const expected=body.includes('"ok":false')?'Error':'Unconfirmed';
+      if(writes!==1||document.getElementById('ota-state').textContent!==expected||document.getElementById('ota-btn').disabled||document.getElementById('cfg-form').inert)throw Error('invalid firmware acknowledgement accepted/retried or editor stayed locked');
       result.push(body);
      }
      let writes=0;window.fetch=async()=>{writes++;return new Response('{"ok":true}',{status:503});};
@@ -49,8 +58,15 @@ const {chromium,firefox,webkit}=require('playwright');
       let writes=0;
       window.fetch=async(url,options)=>{writes++;const stalled=()=>new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError'))));return bodyStall?{ok:true,json:stalled}:stalled();};
       await startSystemOTA({files:[new File(['image'],'firmware.bin')],value:'chosen'});
-      if(writes!==5||document.getElementById('ota-state').textContent!=='Error'||overlays)throw Error('stalled update not bounded');
+      if(writes!==5||document.getElementById('ota-state').textContent!=='Unconfirmed'||overlays)throw Error('stalled final update not bounded or outcome misreported');
      }
+     let finalAttempts=0;
+     window.fetch=async()=>{
+      if (++finalAttempts===1) throw new TypeError('final response lost');
+      return new Response('{"ok":false,"error":"no upload in progress"}',{status:409});
+     };
+     await startSystemOTA({files:[new File(['image'],'firmware.bin')],value:'chosen'});
+     if(finalAttempts!==2||document.getElementById('ota-state').textContent!=='Unconfirmed')throw Error('a rejected retry cannot prove the original final chunk failed');
      const offsets=[];window.fetch=async url=>{offsets.push(Number(new URL(url,location.origin).searchParams.get('offset')));if(offsets.length===1)throw new TypeError('lost response');return new Response('{"ok":true}',{status:200});};
      await startSystemOTA({files:[new File([new Uint8Array(9000)],'firmware.bin')],value:'chosen'});
      if(JSON.stringify(offsets)!=='[0,0,4096,8192]'||overlays!==1||!document.getElementById('ota-state').textContent.startsWith('Done'))throw Error('chunk retry or progress wrong');
@@ -62,8 +78,17 @@ const {chromium,firefox,webkit}=require('playwright');
       for(let n=0;n<100&&!/^(Error|Done)/.test(document.getElementById('assets-state').textContent);n++)await new Promise(resolve=>actualTimer(resolve,5));
       if(writes!==(success?12:1)||document.getElementById('assets-state').textContent.startsWith('Done')!==success)throw Error('web assets accepted bad acknowledgement/HTTP status');
      }
+     let assetWrites=0;
+     window.XMLHttpRequest=class{
+      constructor(){this.upload={};}
+      open(){} setRequestHeader(){}
+      send(){this.status=200;this.responseText=++assetWrites===12?'not JSON':'{"ok":true}';queueMicrotask(()=>this.onload());}
+     };
+     startSystemWebAssetsUpdate({files,value:'chosen'});
+     for(let n=0;n<100&&document.getElementById('assets-state').textContent!=='Unconfirmed';n++)await new Promise(resolve=>actualTimer(resolve,5));
+     if(assetWrites!==12||document.getElementById('assets-state').textContent!=='Unconfirmed')throw Error('malformed final web update acknowledgement misreported');
      if(overlays!==2)throw Error('false reboot overlay');return result.length;
-    }finally{window.fetch=actualFetch;window.setTimeout=actualTimer;window.XMLHttpRequest=actualXHR;window.OTShowRebootOverlay=actualOverlay;}
+    }finally{window.fetch=actualFetch;window.setTimeout=actualTimer;window.XMLHttpRequest=actualXHR;window.OTShowRebootOverlay=actualOverlay;window.alert=actualAlert;}
    });assert.equal(result,5);console.log(`${name} ${packed?'compressed':'source'}: strict firmware/web acknowledgements, bounded header/body stalls, exact-offset retries and complete progress passed`);await p.close();
   }}finally{await browser.close();}
  }

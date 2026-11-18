@@ -46,6 +46,15 @@ const {guidedFixture}=require('./guided_build_fixture.cjs');
    assert.equal(await page.evaluate(()=>hwCfg.oil_loops[1].low_pressure_bar),first.low_pressure_bar);
    await page.setViewportSize({width:390,height:844});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);
+   await page.setViewportSize({width:320,height:740});
+   await page.evaluate(()=>document.querySelectorAll('details').forEach(el=>el.open=true));
+   const clippedProtectionFields=await page.locator('[data-group="safety"] .protection-card :is(input,select)').evaluateAll(fields =>
+    fields.filter(field=>{
+     if (!field.getClientRects().length) return false;
+     const bounds=field.getBoundingClientRect();
+     return bounds.right>Math.min(innerWidth,field.closest('.protection-card').getBoundingClientRect().right)+1;
+    }).map(field=>field.id || field.getAttribute('aria-label')));
+   assert.deepEqual(clippedProtectionFields,[]);
    const warnings=await page.evaluate(async()=>{
     const messages=[];OTDialog.alert=async text=>messages.push(text);OTDialog.confirm=async text=>{messages.push(text);return true;};
     const n1=controllerInputs('n1_speed')[0];

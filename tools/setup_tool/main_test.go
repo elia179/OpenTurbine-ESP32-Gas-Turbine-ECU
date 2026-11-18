@@ -20,6 +20,26 @@ import (
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
+func TestCompareUpdatedEngineSetup(t *testing.T) {
+	backup := []byte(`{"hardware":{"profile_id":"Bench","startup_seq":["Wait"]},"settings":{"profile_id":"Bench","calibration":{"limit":2},"stats":{"boots":1}}}`)
+	for _, test := range []struct {
+		name, saved, summary string
+		wantError            bool
+	}{
+		{"counter change", `{"settings":{"stats":{"boots":2},"calibration":{"limit":2.0},"profile_id":"Bench"},"hardware":{"startup_seq":["Wait"],"profile_id":"Bench"}}`, "match the backup", false},
+		{"changed calibration", `{"hardware":{"profile_id":"Bench","startup_seq":["Wait"]},"settings":{"profile_id":"Bench","calibration":{"limit":4}}}`, "Review Settings", false},
+		{"wrong profile", `{"hardware":{"profile_id":"Other"},"settings":{"profile_id":"Other"}}`, "", true},
+		{"missing section", `{"hardware":{"profile_id":"Bench"}}`, "", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			summary, err := compareUpdatedEngineSetup(backup, []byte(test.saved))
+			if (err != nil) != test.wantError || !strings.Contains(summary, test.summary) {
+				t.Fatalf("compareUpdatedEngineSetup() = %q, %v", summary, err)
+			}
+		})
+	}
+}
+
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }

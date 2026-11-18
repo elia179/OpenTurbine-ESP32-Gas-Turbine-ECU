@@ -183,10 +183,28 @@
 
   // Shared by every page, including the lightweight Hardware and Sequence
   // pages that intentionally do not load the dashboard telemetry script.
+  window.OTShowSaveRollback = function (error, onReconnect) {
+    if (!error?.rebooting) return false;
+    window.OTShowRebootOverlay({
+      expectedEcu:error.expectedEcu,
+      message:'Changes weren’t saved. The ECU is restarting to restore the previous setup.',
+      detail:error.message,
+      onReconnect
+    });
+    return true;
+  };
+  window.OTShowSaveNotice = function (element, message) {
+    clearTimeout(element._saveNoticeTimer);
+    element.textContent = message;
+    element.setAttribute('data-save-notice', '');
+    element._saveNoticeTimer = setTimeout(function () { element.removeAttribute('data-save-notice'); }, 4500);
+  };
   window.OTShowRebootOverlay = function (options) {
     options = options || {};
     var nextWifiName = String(options.nextWifiName || '');
+    var expectedEcu = options.expectedEcu || window.OTConnectedEcuId?.();
     var returnPath = options.returnPath || location.pathname || '/';
+    var destination = new URL(returnPath, location.href);
     var seconds = Math.max(3, Number(options.seconds || 12));
     var esc = function (value) {
       return String(value).replace(/[&<>"']/g, function (ch) {
@@ -200,15 +218,17 @@
       document.body.appendChild(overlay);
     }
     overlay.className = 'rebooting-overlay show';
-    overlay.innerHTML = '<div class="spinner"></div><div>Device rebooting — reconnecting…</div>' +
+    overlay.innerHTML = '<div class="spinner"></div><div class="reboot-title" role="status"></div>' +
       '<div id="reboot-wifi-note" style="font-size:.82rem;color:var(--text);max-width:32rem;text-align:center;line-height:1.45"></div>' +
       '<div id="reboot-timer" style="font-size:.85rem;color:var(--dim)"></div>';
     var note = overlay.querySelector('#reboot-wifi-note');
     var timer = overlay.querySelector('#reboot-timer');
+    overlay.querySelector('.reboot-title').textContent = options.message || 'Device rebooting — reconnecting…';
     var target = 'http://192.168.4.1' + returnPath;
     note.innerHTML = nextWifiName
       ? 'Wi-Fi name changed. Connect to <strong>' + esc(nextWifiName) + '</strong>, then open <a href="' + target + '" style="color:var(--accent)">192.168.4.1</a>.'
       : 'Keep this page open while the ECU restarts. If it does not reconnect, open <a href="' + target + '" style="color:var(--accent)">192.168.4.1</a>.';
+    if (options.detail) note.prepend(document.createTextNode(options.detail + ' '));
     if (window._otRebootOverlayTimer) clearInterval(window._otRebootOverlayTimer);
     var remaining = seconds;
     timer.textContent = 'Reconnecting in ~' + remaining + 's…';
@@ -218,17 +238,35 @@
       if (remaining > 0) return;
       clearInterval(window._otRebootOverlayTimer);
       window._otRebootOverlayTimer = null;
-      if (nextWifiName) {
-        timer.textContent = 'Connect to Wi-Fi “' + nextWifiName + '”, then reopen 192.168.4.1.';
-        return;
+      async function poll() {
+        try {
+          var response = await fetch('/api/status', {cache:'no-store', signal:AbortSignal.timeout(2500)});
+          var connectedEcu = response.headers.get('X-OpenTurbine-ECU');
+          var status = response.ok ? await response.json() : null;
+          if (status && expectedEcu && !connectedEcu) {
+            var identity = await fetch('/api/telemetry', {cache:'no-store', signal:AbortSignal.timeout(2500)});
+            connectedEcu = identity.ok ? identity.headers.get('X-OpenTurbine-ECU') : '';
+            await identity.text();
+          }
+          if (status && (!expectedEcu || connectedEcu === expectedEcu) && !status.restart_pending) {
+            if (options.onReconnect) {
+              overlay.classList.remove('show');
+              options.onReconnect();
+            } else if (destination.origin === location.origin &&
+                       destination.pathname === location.pathname && destination.search === location.search) {
+              // Assigning a URL with a fragment can keep the old document and overlay alive.
+              if (destination.hash !== location.hash) history.replaceState(history.state, '', destination.href);
+              location.reload();
+            } else {
+              location.assign(destination.href);
+            }
+            return;
+          }
+        } catch (_) {}
+        timer.textContent = nextWifiName ? 'Waiting for Wi-Fi “' + nextWifiName + '”…' : 'Waiting for the ECU to reconnect…';
+        window._otRebootOverlayTimer = setTimeout(poll, 1500);
       }
-      var poll = setInterval(function () {
-        fetch('/api/status', {cache:'no-store'}).then(function (response) {
-          if (!response.ok) return;
-          clearInterval(poll);
-          location.href = returnPath;
-        }).catch(function () {});
-      }, 1000);
+      poll();
     }, 1000);
     return overlay;
   };
@@ -368,6 +406,14 @@
       reconcileFromDevice();
       renderPicker(document.getElementById('appearance-picker'));
       initializeFullscreen();
+      var activePage = document.querySelector('nav a.active');
+      if (activePage) {
+        activePage.setAttribute('aria-current', 'page');
+        var nav = activePage.closest('nav');
+        var linkBounds = activePage.getBoundingClientRect();
+        var navBounds = nav.getBoundingClientRect();
+        if (linkBounds.right > navBounds.right) nav.scrollLeft += linkBounds.right - navBounds.right + 8;
+      }
       document.documentElement.classList.add('ot-theme-ready');
       document.documentElement.removeAttribute('data-ot-assets-retrying');
       return true;
@@ -423,7 +469,8 @@
       var progress = Array.from(bar.querySelectorAll('.save-msg,.save-status,#save-status')).some(function(el){
         return /^\s*(?:saving|uploading|rebooting|restarting)(?:\s*(?:…|\.{3}|$)|\s+\d)/i.test(el.textContent);
       });
-      return progress || /failed|error|could not|cannot save|warning:/i.test(bar.textContent);
+      return progress || !!bar.querySelector('[data-save-notice]') ||
+        /failed|error|could not|cannot save|warning:/i.test(bar.textContent);
     }
     function pinned() {
       var active=document.activeElement;
@@ -473,7 +520,7 @@
     window.addEventListener('hashchange',reveal);
     document.querySelectorAll(modalSelector).forEach(function(el){new MutationObserver(update).observe(el,{attributes:true,attributeFilter:['style','class']});});
     if(window.ResizeObserver)new ResizeObserver(update).observe(bar);
-    new MutationObserver(update).observe(bar,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','disabled']});
+    new MutationObserver(update).observe(bar,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','disabled','data-save-notice']});
     window.OTScrollControls={reveal:reveal,refresh:function(){manualOpen=false;update();}};
     window.addEventListener('storage',function(e){if(e.key==='ot_auto_scroll_controls'){manualOpen=false;update();}});
     update();

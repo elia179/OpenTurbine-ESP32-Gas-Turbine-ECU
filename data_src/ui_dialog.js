@@ -13,8 +13,41 @@
     return result;
   };
 
-  // All pages require an explicit acknowledgement before reporting a save.
-  // Never replay a write when its response was lost: it may already be stored.
+  // Compare the edited fields with the stored file, allowing for the ECU's
+  // floating-point precision. Arrays must have the same length and order.
+  window.OTStoredFieldsMatch = function matches(stored, edited) {
+    if (Array.isArray(edited)) return Array.isArray(stored) && stored.length === edited.length &&
+      edited.every((value, index) => matches(stored[index], value));
+    if (edited && typeof edited === 'object') return stored && typeof stored === 'object' &&
+      !Array.isArray(stored) && Object.entries(edited).every(([key, value]) => matches(stored[key], value));
+    if (typeof edited === 'number' && typeof stored === 'number')
+      return Math.abs(stored - edited) <= Math.max(1e-6, Math.abs(edited) * 1e-6);
+    return stored === edited;
+  };
+
+  // Verify an ambiguous response by reading flash from the same ECU. Never
+  // replay a write automatically or infer success from connectivity alone.
+  async function verifyStoredPatch(url, patch, expectedEcu) {
+    if (!expectedEcu || !Object.keys(patch).length) return null;
+    const {value, ecu} = await window.OTReadJson('/api/ecu_config', {
+      attempts: 10, timeoutMs: 3000, budgetMs: 22000, withEcu: true
+    });
+    if (ecu !== expectedEcu) return null;
+    const hardware = url.split('?')[0] === '/api/hardware';
+    const {_settings_patch: settingsPatch, channel_registry_calibration: calibration, ...fields} = patch;
+    if (!window.OTStoredFieldsMatch(hardware ? value?.hardware : value?.settings, fields) ||
+        (settingsPatch && !window.OTStoredFieldsMatch(value?.settings, settingsPatch))) return null;
+    if (hardware && calibration) {
+      const {id, _capture, ...values} = calibration;
+      const channel = value?.hardware?.channel_registry?.inputs?.find(input => input.id === id);
+      if (!channel || !window.OTStoredFieldsMatch(channel, values)) return null;
+    }
+    const status = await window.OTReadJson('/api/status', {attempts:1, timeoutMs:1800, withEcu:true}).catch(() => null);
+    if (status?.ecu && status.ecu !== expectedEcu) return null;
+    return {response:new Response(null, {headers:{'X-OpenTurbine-ECU':ecu}}),
+      data:{ok:true, verified:true, reboot:status?.ecu === ecu && status.value?.restart_pending === true}};
+  }
+
   window.OTSavePatch = async function (url, patch, returnRejections = false, expectedEcu = '', expectedBoot) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -30,17 +63,25 @@
       const data = await response.json().catch(() => null);
       // Some pages render validation rejections themselves; preserve their response contract.
       if ((!response.ok || data?.ok === false) && returnRejections) return {response, data:data ?? {}};
-      if (!response.ok || data?.ok === false)
-        throw new Error(data?.detail || data?.error || data?.reason || `Save HTTP ${response.status}`);
-      if (data?.ok !== true)
-        throw new Error('Save outcome is unconfirmed: no valid success acknowledgement. Verify the current settings before retrying.');
-      return {response, data};
+      if (!response.ok || data?.ok === false) {
+        const detail = [data?.error || data?.reason, data?.detail].filter(Boolean).join('. ');
+        const error = new Error(detail || `Save HTTP ${response.status}`);
+        error.rebooting = data?.rebooting === true;
+        error.expectedEcu = expectedEcu;
+        throw error;
+      }
+      if (data?.ok === true) return {response, data};
     } catch (error) {
-      if (controller.signal.aborted || error instanceof TypeError)
-        throw new Error('Save outcome is unconfirmed because the ECU response was lost. Reconnect and verify the current settings before retrying.');
-      throw error;
+      if (!controller.signal.aborted && !(error instanceof TypeError)) throw error;
     } finally { clearTimeout(timeout); }
+    const verified = await verifyStoredPatch(url, patch, expectedEcu).catch(() => null);
+    if (verified) return verified;
+    throw new Error('Save unconfirmed. Your edits are still here. Reconnect to the same ECU and check the saved values before retrying.');
   };
+
+  window.OTSavedMessage = (data = {}) => data.applying === true
+    ? 'Saved · ECU applying changes…'
+    : data.verified ? 'Saved to ECU storage' : 'Saved';
 
   // A page changing Hardware and Settings sends both diffs in one request.
   window.OTSaveHardwarePatch = function (patch, source = '', settings = null, expectedEcu = '', expectedBoot) {
@@ -193,7 +234,6 @@
     });
   };
   window.addEventListener('pagehide', abortPageFetches);
-  window.addEventListener('beforeunload', abortPageFetches);
   window.addEventListener('pageshow', event => {
     if (event.persisted && pageFetchController.signal.aborted) {
       pageFetchController = new AbortController();

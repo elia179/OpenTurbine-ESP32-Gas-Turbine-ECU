@@ -721,6 +721,10 @@ void SessionLogger::tick() {
 }
 
 // ── Core 0: persist queued rows once engine outputs are safe ───
+bool SessionLogger::hasPendingWrites() {
+    return _startPending || _endPending || (_open && queuedRows());
+}
+
 void SessionLogger::drainQueue() {
     // Both flags are normally observed together after a run because this
     // function is deliberately not called while engine control is active.

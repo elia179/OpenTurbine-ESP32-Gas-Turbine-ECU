@@ -57,8 +57,8 @@ function buildCard(bname, idx, tab) {
 
   // Timeout badge
   let toPill = '';
-  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If this wait fails, the sequencer enters a fault state.">Timeout: fault</span>`;
-  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If this wait fails, the current start or sequence is aborted.">Timeout: abort</span>`;
+  if (def?.timeout_action === 'fault')    toPill = `<span class="timeout-pill fault" title="If the maximum wait expires, the sequencer reports a fault.">Timeout: fault</span>`;
+  else if (def?.timeout_action === 'abort')   toPill = `<span class="timeout-pill abort" title="If the maximum wait expires, this sequence aborts.">Timeout: abort</span>`;
   else if (def?.timeout_action === 'continue')toPill = `<span class="timeout-pill cont" title="If the maximum wait expires, continue to the next block.">Timeout: continue</span>`;
   // A timed hold completing normally (for example AB stabilization) is not a timeout failure.
   if (bname === 'OilPrime' && !sensorEnabled('oil_press')) toPill = '';

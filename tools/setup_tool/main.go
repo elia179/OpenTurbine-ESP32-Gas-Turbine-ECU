@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -2414,6 +2415,11 @@ func (j *Job) runExistingUpdate() {
 	}
 	j.backupPath = bpath
 	j.addLog("Engine file backup saved: " + bpath)
+	backup, err := os.ReadFile(bpath)
+	if err != nil {
+		j.fail(fmt.Errorf("Could not read the saved engine file before updating: %w", err))
+		return
+	}
 
 	target, err := chooseTargetForOTA(pkg)
 	if err != nil {
@@ -2477,6 +2483,7 @@ func (j *Job) runExistingUpdate() {
 		return
 	}
 
+	var setupSummary string
 	for {
 		started := time.Now()
 		report := func(message string) {
@@ -2489,6 +2496,16 @@ func (j *Job) runExistingUpdate() {
 			err = verifyUpdatedECUWithProgress(version, target, pkg.Manifest.Targets[target].BuildID, assets, report)
 		}
 		if err == nil {
+			report("Checking the saved engine setup against the backup…")
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			var saved []byte
+			saved, err = readVerificationURL(ctx, ecuBaseURL+"/api/ecu_config", nil)
+			cancel()
+			if err == nil {
+				setupSummary, err = compareUpdatedEngineSetup(backup, saved)
+			}
+		}
+		if err == nil {
 			break
 		}
 		j.addLog("Verification incomplete: " + err.Error())
@@ -2499,7 +2516,38 @@ func (j *Job) runExistingUpdate() {
 			return
 		}
 	}
-	j.success("Update complete", "Verified OpenTurbine "+version+" for "+friendlyTarget(target)+".\nFirmware identity and all "+strconv.Itoa(len(assets))+" dashboard files match the update package.\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
+	j.success("Update complete", "Verified OpenTurbine "+version+" for "+friendlyTarget(target)+".\nFirmware identity and all "+strconv.Itoa(len(assets))+" dashboard files match the update package.\n\n"+setupSummary+"\n\nYour complete engine file was saved here:\n"+bpath+"\n\nOpen http://192.168.4.1 and check the setup before using fuel.")
+}
+
+func compareUpdatedEngineSetup(backup, saved []byte) (string, error) {
+	type engineSetup struct {
+		Hardware map[string]any `json:"hardware"`
+		Settings map[string]any `json:"settings"`
+	}
+	var before, after engineSetup
+	if err := json.Unmarshal(backup, &before); err != nil {
+		return "", fmt.Errorf("Could not read the backed-up setup: %w", err)
+	}
+	if err := json.Unmarshal(saved, &after); err != nil {
+		return "", fmt.Errorf("Could not read the saved setup after the update: %w", err)
+	}
+	profile, _ := before.Hardware["profile_id"].(string)
+	if profile == "" || after.Hardware["profile_id"] != profile || after.Settings["profile_id"] != profile {
+		return "", errors.New("The saved engine profile could not be confirmed after the update. Keep the backup and check the ECU setup.")
+	}
+	delete(before.Settings, "stats")
+	delete(after.Settings, "stats")
+	var changed []string
+	if !reflect.DeepEqual(before.Hardware, after.Hardware) {
+		changed = append(changed, "Hardware")
+	}
+	if !reflect.DeepEqual(before.Settings, after.Settings) {
+		changed = append(changed, "Settings")
+	}
+	if len(changed) > 0 {
+		return "Engine profile: " + profile + ". Review " + strings.Join(changed, " and ") + " against the backup before use. The saved values differ after the update.", nil
+	}
+	return "Saved hardware and settings for “" + profile + "” match the backup.", nil
 }
 
 type firmwareIdentity struct {

@@ -45,9 +45,9 @@ Setup order: **Hardware → Controllers → System → Calibration → Sequence 
 4. For a clean install, choose **Development board**, a compatible bundled **Official OpenTurbine PCB**, or a chip-matched **Custom PCB profile** supplied with the PCB design.
 5. Follow the Setup Tool, then join the board Wi-Fi and open the address it shows (normally `http://192.168.4.1`).
 
-Keep only one OpenTurbine browser tab open at a time. This applies to both
-Classic ESP32 and ESP32-S3 ECUs; close an old dashboard tab before opening the
-panel in another tab, window, browser, phone, or computer.
+Use one dashboard tab for the most responsive live readings, especially on
+Classic ESP32. If the dashboard reports that the ECU is busy, it retries on its
+own. Closing spare tabs can help if the message persists.
 
 If Windows warns about the Setup Tool, confirm that you used the official link above. Choose **More info → Run anyway** when Windows offers it. Do not disable Windows security or use an installer from another website. Normal installation does not require understanding or checking file hashes; [advanced verification](docs/WINDOWS_FLASHER_INSTALL.md#optional-advanced-checksum-verification) is optional.
 

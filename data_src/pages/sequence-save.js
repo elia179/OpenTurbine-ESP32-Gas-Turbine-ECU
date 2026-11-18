@@ -126,7 +126,7 @@ async function _saveSequenceChanges() {
   }
   const warnings = _validateSequence(startup);
   if (warnings.length && !await OTDialog.confirm('Sequence warnings:\n\n' + warnings.map(w => '- ' + w).join('\n') + '\n\nSave anyway?', {title:'Sequence safety warnings', confirmText:'Save anyway', danger:true})) return;
-  setSaveStatus('Saving engine file...');
+  setSaveStatus('Saving…');
   const editingSurface=document.querySelector('main');if(editingSurface)editingSurface.inert=true;
   try {
     if (typeof stopSequenceTelemetry === 'function') stopSequenceTelemetry();
@@ -151,57 +151,53 @@ async function _saveSequenceChanges() {
       if (JSON.stringify(loadedHwCfg[key]) !== JSON.stringify(hwCfg[key]) && hwCfg[key] !== undefined)
         hardwarePatch[key] = cloneSequenceJson(hwCfg[key]);
     });
+    const expectedEcu = window.OTConfigEditor.requireEcu();
     let result;
     if (Object.keys(hardwarePatch).length) {
-      result = await window.OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, window.OTConfigEditor.requireEcu());
+      result = await window.OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, expectedEcu);
     } else if (Object.keys(settingsPatch).length) {
-      result = await window.OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu());
+      result = await window.OTSavePatch('/api/config', settingsPatch, false, expectedEcu);
     }
     const rebooting = result?.data.reboot === true;
-    if (result?.data.applying === true && !rebooting) {
+    const applying = result?.data.applying === true && !rebooting;
+    if (applying) {
       setSaveStatus('Saved — applying…');
-      await confirmSequenceSettingsApplied(settingsPatch);
+      await confirmSequenceSettingsApplied(settingsPatch, expectedEcu);
     }
     if (result) window.OTSetup?.mark('sequence', result.response);
-    clearSequenceDirty(rebooting ? 'Saved — rebooting…' : 'Saved');
-    if (rebooting) startRebootCountdown();
+    clearSequenceDirty(rebooting ? 'Saved — ECU restarting…' :
+      applying ? 'Saved and applied' : result ? window.OTSavedMessage(result.data) : 'No changes to save');
+    if (rebooting) startRebootCountdown(expectedEcu);
     else {
       loadedCfg = cloneSequenceJson(cfg);
       startSequenceTelemetryForPlatform();
     }
   } catch (error) {
     setSaveStatus('Warning: ' + error.message);
-    if(typeof startSequenceTelemetryForPlatform==='function')startSequenceTelemetryForPlatform();
+    if (!window.OTShowSaveRollback(error, startSequenceTelemetryForPlatform)) startSequenceTelemetryForPlatform();
   }
 }
 
-async function confirmSequenceSettingsApplied(patch) {
+async function confirmSequenceSettingsApplied(patch, expectedEcu) {
   const deadline = Date.now() + 8000;
   const read = async path => {
-    const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(1500)});
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    // The ECU can drop reads while applying settings.
+    const snapshot = await window.OTReadJson(path, {withEcu:true, attempts:1, timeoutMs:1500}).catch(() => null);
+    if (snapshot?.ecu && snapshot.ecu !== expectedEcu)
+      throw new Error('The connected ECU changed before the apply could be confirmed. Reconnect to the original ECU and reload Sequence to check the saved values.');
+    return snapshot?.ecu === expectedEcu ? snapshot.value : null;
   };
-  const matches = (settings, changes) => Object.entries(changes).every(([key, value]) => {
-    const current = settings?.[key];
-    if (value !== null && typeof value === 'object') return matches(current, value);
-    if (typeof value === 'number' && typeof current === 'number')
-      return Math.abs(current - value) <= Math.max(1e-6, Math.abs(value) * 1e-6);
-    return current === value;
-  });
   while (Date.now() < deadline) {
-    try {
-      const status = await read('/api/status');
-      if (status.config_apply_busy === false && matches(await read('/api/config'), patch)) return;
-    } catch (_) {} // The ECU can drop status polls while applying settings.
+    const status = await read('/api/status');
+    if (status?.config_apply_busy === false && window.OTStoredFieldsMatch(await read('/api/config'), patch)) return;
     await new Promise(resolve => setTimeout(resolve, 300));
   }
   throw new Error('The ECU acknowledged the save, but applying the new settings could not be confirmed. Reload Sequence and verify the saved values before starting.');
 }
 
-function startRebootCountdown() {
+function startRebootCountdown(expectedEcu) {
   if (typeof window.OTShowRebootOverlay === 'function') {
-    window.OTShowRebootOverlay({returnPath:'/sequence.html'});
+    window.OTShowRebootOverlay({returnPath:'/sequence.html', expectedEcu});
     return;
   }
   const overlay = document.getElementById('reboot-overlay');
@@ -237,6 +233,8 @@ function updateSequenceSaveControls() {
   const discard = document.getElementById('seq-discard-btn');
   if (save) save.disabled = _seqLoading || _seqSavePending || !_seqDirty || (engineMode !== 'STANDBY' && engineMode !== 'FAULT');
   if (discard) discard.disabled = _seqLoading || _seqSavePending || !_seqDirty;
+  const restartNote = document.getElementById('seq-save-restart-note');
+  if (restartNote) restartNote.hidden = !_seqDirty || _seqSavePending;
 }
 
 let _sequenceEditSnap = null;

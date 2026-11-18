@@ -7,16 +7,23 @@ const {chromium}=require('playwright');
   if(packed)await p.route(/\/(?:calibration\.html|app\.js|ui_dialog\.js)(?:\?.*)?$/,r=>{const file=new URL(r.request().url()).pathname.split('/').pop();return r.fulfill({contentType:file.endsWith('html')?'text/html':'application/javascript',body:gunzipSync(fs.readFileSync('data/'+file+'.gz'))});});
   await p.goto(base+'/calibration.html');await p.waitForFunction(()=>calibrationHardwareEcu && cfg.hardware);
   const result=await p.evaluate(async()=>{
-   const actualFetch=window.fetch,actualAlert=window.alert;const messages=[];let callbacks=0,writes=0;
+   const actualFetch=window.fetch,actualAlert=window.alert,actualOverlay=window.OTShowRebootOverlay;
+   const messages=[];let callbacks=0,writes=0,rollback;
    window.alert=message=>messages.push(message);
+   window.OTShowRebootOverlay=options=>{rollback=options;};
    try{
-    for(const body of ['{}','null','not JSON','{"ok":false,"error":"rejected"}','{"ok":true}']){
+    for(const body of ['{}','null','not JSON','{"ok":false,"error":"rejected"}',
+      '{"ok":false,"error":"rejected","detail":"invalid output","rebooting":true}','{"ok":true,"applying":true}']){
      window.fetch=async(url,options)=>options?.method==='PATCH'?(writes++,new Response(body,{status:200})):actualFetch(url,options);
      await patchHardware({channel_registry_calibration:{id:'unassigned-test-input',scale:123.456}},()=>callbacks++);
     }
-    return {callbacks,writes,messages};
-   }finally{window.fetch=actualFetch;window.alert=actualAlert;}
-  });assert.equal(result.callbacks,1);assert.equal(result.writes,5);assert.equal(result.messages.length,4);assert(result.messages.slice(0,3).every(s=>s.includes('unconfirmed')));assert(result.messages[3].includes('rejected'));
+    return {callbacks,writes,messages,rollback:{message:rollback?.message,detail:rollback?.detail,ecu:rollback?.expectedEcu}};
+   }finally{window.fetch=actualFetch;window.alert=actualAlert;window.OTShowRebootOverlay=actualOverlay;}
+  });assert.equal(result.callbacks,1);assert.equal(result.writes,6);assert.equal(result.messages.length,4);assert(result.messages.slice(0,3).every(s=>s.includes('unconfirmed')));assert(result.messages[3].includes('rejected'));
+  assert.match(result.rollback.message,/weren’t saved/);
+  assert.equal(result.rollback.detail,'rejected. invalid output');
+  assert.equal(result.rollback.ecu,'0123456789ab');
+  await p.locator('#calibration-save-feedback').filter({hasText:'ECU applying changes'}).waitFor();
   console.log('PASS '+(packed?'compressed':'source')+' calibration callbacks require an explicit save acknowledgement');await p.close();
  }}finally{await browser.close();}process.exit(0);
 })().catch(e=>{console.error(e);process.exit(1)});

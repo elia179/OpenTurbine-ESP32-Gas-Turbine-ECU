@@ -130,10 +130,10 @@ async function restoreEngineFile(base, original) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const confirm = page.locator('#ot-dialog-confirm:visible');
       if (await confirm.count()) await confirm.click();
-      if (/Saved.*rebooting/i.test(await page.locator('#save-status').textContent().catch(() => ''))) break;
+      if (/Saved.*(?:rebooting|restarting)/i.test(await page.locator('#save-status').textContent().catch(() => ''))) break;
       await page.waitForTimeout(350);
     }
-    await page.waitForFunction(() => /Saved.*rebooting/i.test(document.getElementById('save-status')?.textContent || ''), null, { timeout:30000 });
+    await page.waitForFunction(() => /Saved.*(?:rebooting|restarting)/i.test(document.getElementById('save-status')?.textContent || ''), null, { timeout:30000 });
     console.log('Sequence save accepted; waiting for the deliberate ECU reboot.');
     await page.close();
 

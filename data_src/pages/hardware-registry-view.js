@@ -799,7 +799,7 @@ function renderBuiltinInputSummary() {
     key,
     title,
     detail: `${detail} · Digital input · GPIO ${(pin ?? -1) >= 0 ? pin : 'not set'} · ${activeHigh ? 'Active HIGH' : 'Active LOW'}`,
-    status: rawPinStatus(pin),
+    status: key === 'start' && (pin ?? -1) < 0 ? 'Optional' : rawPinStatus(pin),
     pin,
     activeHigh,
     pullup,
@@ -839,7 +839,7 @@ function renderBuiltinInputSummary() {
     <div class="registry-card-summary">
       <div><strong>${escapeHtmlText(row.title)}</strong><div class="hw-desc">${escapeHtmlText(row.detail)}</div></div>
       <div class="registry-card-actions">
-        <span class="registry-status ${row.status === 'Ready' ? 'registry-status-ok' : 'registry-status-error'}">${escapeHtmlText(row.status)}</span>
+        <span class="registry-status ${row.status === 'Ready' ? 'registry-status-ok' : row.status === 'Optional' ? '' : 'registry-status-error'}">${escapeHtmlText(row.status)}</span>
         ${row.target ? '' : `<button type="button" data-card-edit aria-expanded="${_workflowEditOpen.has(row.key)}" onclick="toggleWorkflowEditor('${row.key}')">${_workflowEditOpen.has(row.key) ? 'Done' : 'Edit'}</button>`}
       </div>
     </div>

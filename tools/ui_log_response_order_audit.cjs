@@ -15,7 +15,14 @@ const {chromium,firefox,webkit}=require('playwright');
    if(gzip)await p.route(/\/(log\.html|app\.js|style\.css|theme\.js)(?:\?.*)?$/,async r=>{
     const file=new URL(r.request().url()).pathname.split('/').pop();await r.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+file+'.gz'))});
    });
-   await p.request.post(base+'/__sim/reset');await p.goto(base+'/log.html');await p.locator('#tab-session').click();
+   await p.request.post(base+'/__sim/reset');await p.goto(base+'/log.html');
+   await p.waitForFunction(()=>document.documentElement.classList.contains('ot-theme-ready'));
+   await p.setViewportSize({width:320,height:740});
+   const tabBounds = await p.locator('.log-tabs button').evaluateAll(buttons =>
+    buttons.map(button => button.getBoundingClientRect().right <= innerWidth));
+   assert.deepEqual(tabBounds,[true,true,true]);
+   await p.setViewportSize({width:1024,height:768});
+   await p.locator('#tab-session').click();
    await p.waitForFunction(()=>typeof _sessionTabLoad!=='undefined'&&_sessionTabLoad===null);
    const lists=[],current=[],past=[];
    await p.route('**/api/session/list',r=>{lists.push(r);});
@@ -39,6 +46,20 @@ const {chromium,firefox,webkit}=require('playwright');
    await reply(current[2],csv(5,500));await p.evaluate(()=>__currentC);
    assert.match(await p.locator('#session-rows').innerText(),/5 rows/);assert.equal(await p.evaluate(()=>_sessionPreviewRun),77);assert.equal(await p.evaluate(()=>_sessionRows.length),2);
    assert.match(await p.locator('#session-preview-msg').innerText(),/Run #77/);let attempts=0,permanent=false;
+   await p.evaluate(()=>{window.__pendingCurrent=loadSessionPreview();});
+   const pendingCurrent=await captured(current,4);
+   const emptyList=route=>route.fulfill({json:[]});
+   await p.route('**/api/session/list',emptyList);
+   await p.evaluate(async()=>{
+    const confirm=OTDialog.confirm;OTDialog.confirm=async()=>true;
+    try{await askClear('sessions');}finally{OTDialog.confirm=confirm;}
+   });
+   await reply(pendingCurrent,csv(5,500));
+   await p.evaluate(()=>__pendingCurrent);
+   assert.equal(await p.locator('#session-current-download').isDisabled(),true);
+   assert.equal(await p.locator('#session-rows').textContent(),'No current session log');
+   assert.equal(await p.locator('#session-preview-msg').textContent(),'No session files found');
+   await p.unroute('**/api/session/list',emptyList);
    await p.route('**/api/log/csv',route=>{
      attempts++;
      const status=permanent?400:attempts===1?429:attempts===2?503:200;
@@ -84,7 +105,16 @@ const {chromium,firefox,webkit}=require('playwright');
    let eventAttempts=0;
    await p.route('**/api/log',r=>{eventAttempts++;return reply(r,eventAttempts===1?JSON.stringify({error:'ECU is busy'}):'[{"t":1,"ev":"BOOT"}]',eventAttempts===1?503:200);});
    await p.evaluate(()=>loadLog());assert.equal(eventAttempts,2);
-   assert.match(await p.locator('#log-count').innerText(),/1 recent events/);
+   assert.equal(await p.locator('#log-count').innerText(),'1 recent event');
+   let lockedReads=0;
+   await p.route('**/api/log',route=>{lockedReads++;return reply(route,'{"error":"event history locked"}',423);});
+   const clearMessage=await p.evaluate(async()=>{
+    const confirm=OTDialog.confirm,alert=window.alert;let message;
+    OTDialog.confirm=async()=>true;window.alert=text=>{message=text;};
+    try{await askClear('eventlog');return message;}finally{OTDialog.confirm=confirm;window.alert=alert;}
+   });
+   assert.match(clearMessage,/accepted the clear request.*history is currently locked.*Session Data/);
+   assert.equal(lockedReads,1);
    assert.deepEqual(errors,[]);await p.close();
    console.log(`${name} ${gzip?'gzip':'source'}: session response ordering, busy download retries and permanent-error handling passed`);
   }}finally{await browser.close();}

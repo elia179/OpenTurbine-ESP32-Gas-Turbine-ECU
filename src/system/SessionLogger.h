@@ -30,6 +30,7 @@ public:
     static void endSession();    // request persist + close; call at STANDBY
     static void tick();          // Core 1: snapshot → byte-ring push (no file I/O)
     static void drainQueue();    // Core 0: persist only in STANDBY/FAULT
+    static bool hasPendingWrites();
     static uint32_t droppedRows();
     static uint32_t queuedRows();
     static uint32_t capacityRows();

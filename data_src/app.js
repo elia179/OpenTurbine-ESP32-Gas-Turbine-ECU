@@ -79,7 +79,7 @@ const SEQUENCE_BLOCK_LABELS = {
   OilPumpOn:'Oil Pump On', OilPumpOff:'Oil Pump Off', OilScavengeOn:'Scavenge On', OilScavengeOff:'Scavenge Off',
   StarterOff:'Starter Off', ImmediateCut:'Immediate Fuel and Ignition Cut', RPMDrop:'Wait for Rotor to Slow',
   CooldownSpin:'Cooldown', FinalStop:'Wait for Complete Stop', FuelPulse:'Pulse Main Fuel Shutoff',
-  WaitTOTCool:'Wait for Safe Restart Temperature', ThrottleSet:'Set Main Fuel Demand',
+  WaitTOTCool:'Wait for Safe Restart Temperature', ThrottleSet:'Set Main Fuel Demand', SetOutput:'Set Output',
   WaitForInput:'Wait for External Input', WaitForInputOff:'Wait for External Input to Release',
   ABPumpOn:'Afterburner Fuel Pump On', ABPumpOff:'Afterburner Fuel Pump Off', ABIgnOn:'Afterburner Igniter On',
   ABIgnOff:'Afterburner Igniter Off', ABSolOpen:'Afterburner Fuel Valve Open', ABSolClose:'Afterburner Fuel Valve Close',
@@ -93,8 +93,10 @@ const SEQUENCE_BLOCK_LABELS = {
 function sequenceBlockLabel(id) { return SEQUENCE_BLOCK_LABELS[id] || id || '—'; }
 function friendlyEventText(text) {
   const value = String(text || '');
-  const match = /^Seq:\s*(.+)$/.exec(value);
-  return match ? `Sequence: ${sequenceBlockLabel(match[1])}` : value;
+  const match = /^(Seq|Aborted at|Shutdown fault at):\s*(.+)$/.exec(value);
+  if (!match) return value;
+  const prefix = match[1] === 'Seq' ? 'Sequence' : match[1];
+  return `${prefix}: ${sequenceBlockLabel(match[2])}`;
 }
 
 // ── Unit preferences (persisted in localStorage) ─────────────
@@ -977,8 +979,11 @@ async function withGlobalTelemetryPaused(work, timeoutMs = 2500) {
 }
 window.OTWithTelemetryPaused = withGlobalTelemetryPaused;
 
+let telemetryBackoffUntil = 0;
+let telemetryUnavailable = '';
 async function restTelemetryFallbackNow() {
   if (!isLiveTelemetryPage() || document.hidden || _telemetryPauseDepth > 0 || _restFallbackInFlight || _telemetryTextInFlight) return;
+  if (Date.now() < telemetryBackoffUntil) return;
   const freshForMs = Math.max(250, Math.floor(desiredPullPeriodMs() * 0.8));
   if (_lastMsgMs && Date.now() - _lastMsgMs < freshForMs) return;
   _restFallbackInFlight = true;
@@ -991,15 +996,25 @@ async function restTelemetryFallbackNow() {
       if (Number(d?.cv) === 2 && d.tr !== undefined)
         _pendingTelemetryTextRevision = Number(d.tr) >>> 0;
       _lastMsgMs = Date.now();
+      telemetryUnavailable = '';
       setConnectionState(true, 'Connected');
       applyData(d);
+    } else if (isDashboardPage()) {
+      const busy = [409, 429, 503].includes(r.status);
+      await r.text();
+      telemetryUnavailable = busy ? 'ECU busy' : 'Live data unavailable';
+      const retrySeconds = Number(r.headers.get('Retry-After')) || 1;
+      telemetryBackoffUntil = Date.now() + Math.min(5000, Math.max(1000, retrySeconds * 1000));
+      setConnectionState(false, telemetryUnavailable);
     }
   } catch (_) {
+    telemetryUnavailable = 'Connection lost';
+    if (isDashboardPage()) telemetryBackoffUntil = Date.now() + 1000;
     setConnectionState(false, 'Disconnected');
   } finally {
     clearTimeout(timeout);
     _restFallbackInFlight = false;
-    if (_telemetryPauseDepth === 0 && _pendingTelemetryTextRevision !== null &&
+    if (!telemetryUnavailable && _telemetryPauseDepth === 0 && _pendingTelemetryTextRevision !== null &&
         _pendingTelemetryTextRevision !== _telemetryTextRevision)
       requestTelemetryTextRevision(_pendingTelemetryTextRevision);
   }
@@ -1014,7 +1029,7 @@ async function requestTelemetryTextRevision(revision) {
   const requestedRevision = wanted;
   let succeeded = false;
   try {
-    const r = await fetch('/api/telemetry_text', { cache:'no-store' });
+    const r = await fetch('/api/telemetry_text', { cache:'no-store', signal:AbortSignal.timeout(2500) });
     if (r.ok) {
       const textState = await r.json();
       applyData(textState);
@@ -1067,9 +1082,10 @@ function startStatusHeartbeat() {
     try {
       const r = await fetch('/api/status', { cache: 'no-store' });
       setConnectionState(r.ok, r.ok ? 'Connected' : 'Disconnected');
-      if (r.ok && isConfigPage()) {
+      if (r.ok && (isConfigPage() || window.OTUpdateLogLock)) {
         const status = await r.json();
-        applyData(status);
+        if (isConfigPage()) applyData(status);
+        window.OTUpdateLogLock?.(status, r.headers.get('X-OpenTurbine-ECU'));
       }
     } catch (_) {
       setConnectionState(false, 'Disconnected');
@@ -1305,10 +1321,10 @@ function applyData(d) {
     });
   }
   // Coerce to Number so formatting works even if JSON sent as int
-  setText('n1',  d.n1  !== undefined ? fmtInt(d.n1)  : '—');
+  setText('n1',  d.n1  !== undefined && d.n1_healthy !== false ? fmtInt(d.n1)  : '—');
   const n1Card = document.getElementById('n1-card');
   if (n1Card && d.has_n1 !== undefined) n1Card.style.display = d.has_n1 ? '' : 'none';
-  setText('n2',  d.n2  !== undefined ? fmtInt(d.n2)  : '—');
+  setText('n2',  d.n2  !== undefined && d.n2_healthy !== false ? fmtInt(d.n2)  : '—');
   const n2Card = document.getElementById('n2-card');
   if (n2Card && d.has_n2 !== undefined) n2Card.style.display = d.has_n2 ? '' : 'none';
   setText('tot', d.tot !== undefined && d.tot_healthy !== false ? toDispTemp(Number(d.tot)).toFixed(0) : '—');
@@ -1318,12 +1334,12 @@ function applyData(d) {
   setText('max-n2',  d.max_n2  !== undefined ? fmtInt(d.max_n2) : '—');
   if (d.n1_rpm_accel !== undefined) {
     const rate = Math.round(Number(d.n1_rpm_accel));
-    setText('n1-rate-val', Number.isFinite(rate)
+    setText('n1-rate-val', d.n1_healthy !== false && Number.isFinite(rate)
       ? (rate > 0 ? '+' : '') + fmtInt(rate) + ' rpm/s' : '—');
   }
   if (d.n2_rpm_accel !== undefined) {
     const rate = Math.round(Number(d.n2_rpm_accel));
-    setText('n2-rate-val', Number.isFinite(rate)
+    setText('n2-rate-val', d.n2_healthy !== false && Number.isFinite(rate)
       ? (rate > 0 ? '+' : '') + fmtInt(rate) + ' rpm/s' : '—');
   }
   setText('max-tot', d.max_tot !== undefined ? toDispTemp(Number(d.max_tot)).toFixed(0) : '—');
@@ -1476,8 +1492,9 @@ function applyData(d) {
   if (d.log_max_records !== undefined) setText('sys-log-max',   d.log_max_records);
   if (d.boot_count     !== undefined) setText('sys-boot-count',  d.boot_count);
   if (d.reset_reason   !== undefined) {
-    const reasons = ['UNKNOWN','POWER_ON','EXT','SW','PANIC','INT_WDT','TASK_WDT','WDT','DEEPSLEEP','BROWNOUT','SDIO'];
-    setText('sys-reset-reason', reasons[d.reset_reason] || d.reset_reason);
+    const reasons = ['Unknown','Power on','External reset','Software restart','Firmware crash',
+      'Interrupt watchdog','Task watchdog','Watchdog','Wake from deep sleep','Low supply voltage','SDIO reset'];
+    setText('sys-reset-reason', reasons[d.reset_reason] || `Unknown (${d.reset_reason})`);
   }
 
   // Flame progress bar + threshold marker
@@ -1654,6 +1671,8 @@ function applyData(d) {
   // START is disabled with an explanation instead of accepting the click
   // and rejecting it server-side (backend remains the authority).
   const acknowledgeToStart = d.mode === 'FAULT' && d.fault_latched === true && d.fault_clear_allowed === true;
+  const sequenceBlocksStart = d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode);
+  const sequenceIssue = Array.isArray(d.seq_issues) ? d.seq_issues.find(issue => issue?.error) : null;
   let startBlock = '';
   if (!running) {
     if (d.mode === 'FAULT')                startBlock = String(faultDescriptionText(d) || d.hardware_fault || d.last_event || 'ECU startup validation failed');
@@ -1662,10 +1681,10 @@ function applyData(d) {
     else if (d.profile_match === false)    startBlock = 'Profile mismatch — upload a matching config';
     // (boot config-load failure enters FAULT mode, caught above; telemetry
     // config_locked means "running, edits locked" and never applies here)
-    else if (d.extra_cooldown_active)      startBlock = 'Extra cooldown is running — stop it on Tools';
-    else if (d.seq_has_structural_errors)  startBlock = Number(d.startup_seq_count) === 0
-      ? 'Startup sequence is empty.' : 'Sequence setup has errors.';
-    else if (d.seq_has_errors && !d.bench_mode) startBlock = 'Startup sequence needs hardware that is not configured.';
+    else if (d.extra_cooldown_active)      startBlock = 'Extra cooldown is running. Press STOP to end it.';
+    else if (sequenceBlocksStart)         startBlock = Number(d.startup_seq_count) === 0
+      ? 'Startup sequence is empty.' : sequenceIssue?.msg || (d.seq_has_structural_errors
+        ? 'Sequence setup needs attention.' : 'Startup sequence needs hardware that is not configured.');
     else if (Array.isArray(d.di_channels) &&
              d.di_channels.some(ch => ch && ch.pin >= 0 && ch.state && ch.role === 'inhibit_start'))
                                            startBlock = 'Start-inhibit input is active';
@@ -1675,24 +1694,29 @@ function applyData(d) {
   const sbr = document.getElementById('start-block-reason');
   if (sbr) {
     // stop-switch has its own warning line — avoid doubling it
-    const setupWarnings=(d.seq_issues||[]).filter(i=>/inactive this run|Controller removed; block inactive/.test(i.msg||''));
-    const show = (startBlock && !d.stop_switch_active) || setupWarnings.length;
+    const setupWarnings=(d.seq_issues||[]).filter(i=>!i.error && /inactive this run|Controller removed; block inactive/.test(i.msg||''));
+    const emptyShown = startBlock === 'Startup sequence is empty.' && document.getElementById('empty-seq-banner');
+    const show = (startBlock && !emptyShown && !d.stop_switch_active) || setupWarnings.length;
     // .stop-warn defaults to display:none in CSS, so an empty inline value
     // would leave the reason invisible even while START is disabled.
     sbr.style.display = show ? 'block' : 'none';
     if (show) {
       sbr.textContent = startBlock ? (acknowledgeToStart ? '⚠ Acknowledge fault before starting: ' : '⚠ START unavailable: ') + startBlock : '⚠ ' + setupWarnings.map(i=>i.msg).join('; ');
-      if (Number(d.startup_seq_count) !== 0 &&
-          (setupWarnings.length || d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode))) {
+      const next = d.mode === 'FAULT' ? faultSettingsDestination(d, inputFaultContext(d)) :
+        d.config_storage_fault || d.profile_match === false ? {url:'/system.html#system-backup-restore', label:'Open Backup & restore'} :
+        d.extra_cooldown_active ? null :
+        sequenceBlocksStart || setupWarnings.length ? {url:'/sequence.html#seq-validation-banner', label:'Review Sequence'} :
+        startBlock === 'Start-inhibit input is active' ? {url:'/hardware.html#hardware-inputs-panel', label:'Review inputs'} : null;
+      if (next) {
         const link = document.createElement('a');
-        link.href = '/sequence.html?v=20261117s';
-        link.textContent = ' Review Sequence →';
+        link.href = next.url;
+        link.textContent = ' ' + next.label + ' →';
         sbr.appendChild(link);
       }
     }
   }
   const limitedAllowed = d.mode === 'STANDBY' && d.limited_start_allowed === true;
-  setDisabled('btn-stop',  !running);
+  setDisabled('btn-stop',  !running && !d.extra_cooldown_active);
   setHwActive('btn-start', !!d.start_switch_active);
   setHwActive('btn-stop',  !!d.stop_switch_active);
 
@@ -1748,7 +1772,7 @@ function applyData(d) {
     clearFaultButton.title = d.dry_oil_stop_active
       ? 'Oil-pump coastdown is still active; the fault cannot be cleared yet.'
       : (d.fault_clear_allowed
-          ? 'Acknowledge this fault and return the stopped ECU to STANDBY. Reboot also clears faults.'
+          ? 'Correct the cause before acknowledging this fault. The ECU checks readiness before returning to STANDBY.'
           : 'The ECU is not yet safe or ready to clear this fault.');
   }
 
@@ -1778,12 +1802,26 @@ function applyData(d) {
     const rate = Number(d.egt_rise_rate ?? d.tot_rise_rate);
     const rateText = toDispTempDelta(rate).toFixed(1) + ' ' + dispTempUnit() + '/s';
     const primary = selectedEgtKey(d);
-    setText('tot-rise-rate-val', primary === 'tot' ? rateText : '—');
-    setText('tit-rise-rate-val', primary === 'tit' ? rateText : '—');
+    setText('tot-rise-rate-val', primary === 'tot' && d.tot_healthy !== false ? rateText : '—');
+    setText('tit-rise-rate-val', primary === 'tit' && d.tit_healthy !== false ? rateText : '—');
   }
 
   // ── Color gauges + approach-to-limit warnings ────────────
-  if (d.n1 !== undefined) {
+  function showUnavailableReading(key) {
+    const label = document.getElementById(key + '-abs-label');
+    if (label) {
+      label.textContent = 'N/A';
+      label.title = 'Sensor reading unavailable';
+    }
+    const warning = document.getElementById(key + '-approach-warn');
+    if (warning) warning.style.display = 'none';
+  }
+  function showUnavailableGauge(key) {
+    setShutdownGaugeBar(key + '-gauge-bar', NaN, 0);
+    showUnavailableReading(key);
+  }
+  if (d.n1_healthy === false) showUnavailableGauge('n1');
+  else if (d.n1 !== undefined) {
     const n1Limit = Number(d.rpm_limit || 0);
     const n1LimitActive = d.rpm_limit_active === true;
     const pct = n1Limit > 0 ? Number(d.n1) / n1Limit * 100 : 0;
@@ -1799,9 +1837,10 @@ function applyData(d) {
     const absLbl = document.getElementById('n1-abs-label');
     if (absLbl) absLbl.textContent = n1Limit > 0
       ? fmtInt(d.n1) + ' / ' + fmtInt(n1Limit) + ' RPM' + (n1LimitActive ? '' : ' · advisory only')
-      : fmtInt(d.n1) + ' RPM / OFF';
+      : '';
   }
-  if (d.n2 !== undefined) {
+  if (d.n2_healthy === false) showUnavailableGauge('n2');
+  else if (d.n2 !== undefined) {
     // This is the independent hard N2 shutdown limit. Gradual N2 pullback
     // points are separate control settings and must not be shown as a trip.
     const n2Limit = Number(d.n2_limit || 0);
@@ -1819,14 +1858,15 @@ function applyData(d) {
     const absLbl = document.getElementById('n2-abs-label');
     if (absLbl) absLbl.textContent = n2Limit > 0
       ? fmtInt(d.n2) + ' / ' + fmtInt(n2Limit) + ' RPM' + (n2LimitActive ? '' : ' · advisory only')
-      : fmtInt(d.n2) + ' RPM / OFF';
+      : '';
   }
   const selectedEgtSource = selectedEgtKey(d);
   const isPrimaryTot = selectedEgtSource === 'tot';
   const isPrimaryTit = selectedEgtSource === 'tit';
   const startupEgtLimit = d.mode === 'STARTUP' ? Number(d.startup_egt_limit || 0) : 0;
 
-  if (d.tot !== undefined) {
+  if (d.tot_healthy === false) showUnavailableGauge('tot');
+  else if (d.tot !== undefined) {
     const totLimit = Number(d.tot_limit || 0);
     const activeTotLimit = isPrimaryTot && startupEgtLimit > 0 ? startupEgtLimit : totLimit;
     const totLimitActive = d.egt_limit_active === true && isPrimaryTot && activeTotLimit > 0;
@@ -1845,9 +1885,12 @@ function applyData(d) {
     if (absLbl) absLbl.textContent = activeTotLimit > 0
       ? toDispTemp(Number(d.tot)).toFixed(0) + ' / ' + toDispTemp(activeTotLimit).toFixed(0)
         + ' ' + dispTempUnit() + (totLimitActive ? '' : ' · advisory only')
-      : toDispTemp(Number(d.tot)).toFixed(0) + ' ' + dispTempUnit() + ' / OFF';
+      : '';
   }
-  if (d.oil !== undefined) {
+  if (d.oil_healthy === false) {
+    setLowLimitStatus('oil', NaN, 0, false, false);
+    showUnavailableReading('oil');
+  } else if (d.oil !== undefined) {
     const oilMin = Number(d.oil_running_min || 0);
     const oilAdvisory = oilMin > 0 && (d.mode === 'RUNNING' || d.mode === 'SHUTDOWN');
     const oilLimitActive = d.oil_running_min_active === true && oilAdvisory;
@@ -1866,13 +1909,11 @@ function applyData(d) {
       if (warn) warn.style.display = 'none';
     }
     const absLbl = document.getElementById('oil-abs-label');
+    if (absLbl?.title === 'Sensor reading unavailable') absLbl.removeAttribute('title');
     if (absLbl) absLbl.textContent = oilAdvisory
       ? toDispPress(Number(d.oil)).toFixed(1) + ' / ≥' + toDispPress(oilMin).toFixed(1)
         + ' ' + dispPressUnit() + (oilLimitActive ? '' : ' · advisory only')
-      : oilMin > 0
-        ? toDispPress(Number(d.oil)).toFixed(1) + ' ' + dispPressUnit()
-          + ' / RUNNING ONLY'
-      : toDispPress(Number(d.oil)).toFixed(1) + ' ' + dispPressUnit() + ' / OFF';
+      : '';
   }
 
   // ── Firmware version (shown once on first telemetry frame) ──
@@ -1887,26 +1928,22 @@ function applyData(d) {
     sparkNow - _lastSparkSampleMs >= SPARK_SAMPLE_PERIOD_MS;
   if (sampleSparklines) {
     _lastSparkSampleMs = sparkNow;
-    if (d.n1 !== undefined) {
+    if (d.n1 !== undefined && d.n1_healthy !== false) {
       pushSparkline(_sparkN1, Number(d.n1));
       drawSparkline('n1-sparkline', _sparkN1, 'var(--accent)');
-    }
-    if (d.n2 !== undefined) {
+    } else if (d.n1_healthy === false) drawSparkline('n1-sparkline', [], 'var(--accent)');
+    if (d.n2 !== undefined && d.n2_healthy !== false) {
       pushSparkline(_sparkN2, Number(d.n2));
       drawSparkline('n2-sparkline', _sparkN2, 'var(--accent)');
-    }
+    } else if (d.n2_healthy === false) drawSparkline('n2-sparkline', [], 'var(--accent)');
     if (d.tot !== undefined && d.tot_healthy !== false) {
       pushSparkline(_sparkTot, Number(d.tot));
       drawSparkline('tot-sparkline', _sparkTot, 'var(--accent)');
-    } else if (d.tot_healthy === false) {
-      drawSparkline('tot-sparkline', [], 'var(--accent)');
-    }
+    } else if (d.tot_healthy === false) drawSparkline('tot-sparkline', [], 'var(--accent)');
     if (d.tit !== undefined && d.tit_healthy !== false) {
       pushSparkline(_sparkTit, Number(d.tit));
       drawSparkline('tit-sparkline', _sparkTit, 'var(--accent)');
-    } else if (d.tit_healthy === false) {
-      drawSparkline('tit-sparkline', [], 'var(--accent)');
-    }
+    } else if (d.tit_healthy === false) drawSparkline('tit-sparkline', [], 'var(--accent)');
     if (d.has_oil_temp && d.oil_temp !== undefined) {
       pushSparkline(_sparkOilTemp, Number(d.oil_temp));
       drawSparkline('oil-temp-sparkline', _sparkOilTemp, 'var(--accent)');
@@ -1953,7 +1990,7 @@ function applyData(d) {
           ? toDispTemp(Number(d.oil_temp)).toFixed(0) + ' / '
             + toDispTemp(oilTempLimit).toFixed(0) + ' ' + dispTempUnit()
             + (oilTempLimitActive ? '' : ' · advisory only')
-          : toDispTemp(Number(d.oil_temp)).toFixed(0) + ' ' + dispTempUnit() + ' / OFF';
+          : '';
       }
     }
   }
@@ -1966,7 +2003,8 @@ function applyData(d) {
       setText('tit', d.tit !== undefined && d.tit_healthy !== false ? toDispTemp(Number(d.tit)).toFixed(0) : '—');
       setText('max-tit', d.max_tit !== undefined ? toDispTemp(Number(d.max_tit)).toFixed(0) : '—');
       setDot('tit-health', d.tit_healthy, lbl('tit'));
-      if (d.tit !== undefined) {
+      if (d.tit_healthy === false) showUnavailableGauge('tit');
+      else if (d.tit !== undefined) {
         const titLimit = Number(d.tit_limit || 0);
         const activeTitLimit = isPrimaryTit && startupEgtLimit > 0 ? startupEgtLimit : titLimit;
         const titLimitActive = d.egt_limit_active === true && isPrimaryTit && activeTitLimit > 0;
@@ -1985,7 +2023,7 @@ function applyData(d) {
         if (absLbl) absLbl.textContent = activeTitLimit > 0
           ? toDispTemp(Number(d.tit)).toFixed(0) + ' / ' + toDispTemp(activeTitLimit).toFixed(0)
             + ' ' + dispTempUnit() + (titLimitActive ? '' : ' · advisory only')
-          : toDispTemp(Number(d.tit)).toFixed(0) + ' ' + dispTempUnit() + ' / OFF';
+          : '';
       } else {
         const warn = document.getElementById('tit-approach-warn');
         if (warn) warn.style.display = 'none';
@@ -2010,10 +2048,7 @@ function applyData(d) {
         if (absLbl) absLbl.textContent = fuelAdvisory
           ? toDispPress(Number(d.fuel_press)).toFixed(1) + ' / ≥' + toDispPress(fuelPressMin).toFixed(1)
             + ' ' + dispPressUnit() + (fuelLimitActive ? '' : ' · advisory only')
-          : fuelPressMin > 0
-            ? toDispPress(Number(d.fuel_press)).toFixed(1) + ' ' + dispPressUnit()
-              + ' / RUNNING ONLY'
-          : toDispPress(Number(d.fuel_press)).toFixed(1) + ' ' + dispPressUnit() + ' / OFF';
+          : fuelPressMin > 0 ? 'Configured minimum: ' + toDispPress(fuelPressMin).toFixed(1) + ' ' + dispPressUnit() : '';
       }
     }
   }
@@ -2030,7 +2065,9 @@ function applyData(d) {
         const battMin = Number(d.batt_volt_min || 0);
         const battLimitActive = d.batt_volt_min_active === true && battMin > 0;
         setText('batt-volt-min', battMin > 0
-          ? battMin.toFixed(1) + (battLimitActive ? '' : ' (advisory only)') : 'OFF');
+          ? battMin.toFixed(1) + ' V' + (battLimitActive ? '' : ' (advisory only)') : '');
+        const battMinLabel = document.getElementById('batt-volt-min-label');
+        if (battMinLabel) battMinLabel.hidden = !(battMin > 0);
         if (d.batt_voltage !== undefined) {
           setLowLimitStatus('batt-voltage', d.batt_voltage, battMin, battMin > 0,
             battLimitActive);
@@ -2057,8 +2094,9 @@ function applyData(d) {
         : speedSource === 2 ? {value:d.n2,healthy:d.n2_healthy} : null;
       const speedRow = document.getElementById('torque-speed-row');
       if (speedRow) speedRow.style.display = torqueSpeed ? '' : 'none';
-      if (torqueSpeed) setText('torque-speed', torqueSpeed.healthy !== false && Number.isFinite(Number(torqueSpeed.value))
-        ? fmtInt(Number(torqueSpeed.value)) : '—');
+      const speed = torqueSpeed?.value;
+      const speedAvailable = speed != null && Number.isFinite(Number(speed)) && torqueSpeed.healthy !== false;
+      if (torqueSpeed) setText('torque-speed', speedAvailable ? fmtInt(Number(speed)) : 'N/A');
       const powerRow = document.getElementById('torque-power-row');
       // Compact telemetry carries a numeric zero even when the slower full
       // snapshot reports no phase speed source. Keep the optional power row
@@ -2066,12 +2104,12 @@ function applyData(d) {
       // Shaft power is valid only when the phase-torque reference pickup also
       // supplies an explicitly selected speed. Never infer that an unrelated
       // N2 sensor is mounted on the torque-measurement shaft.
-      const hasPower = speedSource > 0 &&
-        d.turbo_power_w !== undefined && d.turbo_power_w !== null;
-      if (powerRow) powerRow.style.display = hasPower ? '' : 'none';
-      if (hasPower) {
-        const kw = Number(d.turbo_power_w) / 1000;
-        setText('turbo-power', kw.toFixed(2));
+      if (powerRow) powerRow.style.display = speedSource > 0 ? '' : 'none';
+      if (speedSource > 0) {
+        const power = d.turbo_power_w;
+        const powerAvailable = d.torque_healthy !== false && speedAvailable && Number(speed) > 0 &&
+          power != null && Number.isFinite(Number(power));
+        setText('turbo-power', powerAvailable ? (Number(power) / 1000).toFixed(2) : 'N/A');
       }
     }
   }
@@ -2176,7 +2214,7 @@ function applyData(d) {
     if (capabilityCard) capabilityCard.style.display = d.has_governor ? '' : 'none';
     if (d.has_governor) {
       setText('gov-target-rpm', d.governor_target_rpm !== undefined ? fmtInt(d.governor_target_rpm) : '—');
-      setText('gov-n2-actual',  d.n2 !== undefined ? fmtInt(d.n2) : '—');
+      setText('gov-n2-actual', d.n2_healthy === false ? 'N/A' : d.n2 !== undefined ? fmtInt(d.n2) : '—');
       setText('gov-state', d.governor_controller_state || 'Off');
       const govMode = document.getElementById('gov-mode');
       if (govMode) {
@@ -2479,6 +2517,13 @@ function applyData(d) {
       const manualAb = Number(d.ab_trigger_source ?? 0) === 0;
       const canFire = manualAb && d.mode === 'RUNNING' && (abMode === 'Off' || abMode === 'Fault');
       setDisabled('btn-ab-fire', !canFire);
+      const fireButton = document.getElementById('btn-ab-fire');
+      if (fireButton) fireButton.title = !manualAb ? 'The configured afterburner trigger controls light-up.' :
+        d.mode !== 'RUNNING' ? 'Manual afterburner light-up is available only while the engine is RUNNING.' :
+        d.limp_mode ? 'Afterburner is unavailable in reduced-power mode.' :
+        !d.has_ab_pump && !d.has_ab_sol ? 'Configure an afterburner fuel output in Hardware first.' :
+        !canFire ? 'Wait for the afterburner to stop before requesting another light-up.' :
+        'Review the live conditions before requesting the afterburner light-up sequence.';
       // STOP: only enabled when AB is active
       const abActive = abMode === 'Arming' || abMode === 'Igniting' || abMode === 'Running' || abMode === 'ShuttingDown';
       setDisabled('btn-ab-stop', !abActive);
@@ -2767,12 +2812,14 @@ function formatUptime(s) {
 
 // ── REST helpers ──────────────────────────────────────────────
 function sendCmd(url) {
-  return fetch(url, { method: 'POST' })
+  const stopLabel = url === '/api/stop' ? 'STOP' : url === '/api/ab-stop' ? 'Afterburner STOP' : '';
+  const stopUnconfirmed = `${stopLabel} unconfirmed. Check the ECU state or use physical STOP.`;
+  return fetch(url, {method:'POST', ...(stopLabel ? {signal:AbortSignal.timeout(2500)} : {})})
     .then(async r => {
       let d = {};
       try { d = await r.json(); } catch {}
       if (!r.ok || !d.ok) {
-        const msg = d.error || ('HTTP ' + r.status);
+        const msg = d.error || (stopLabel && r.ok ? stopUnconfirmed : 'HTTP ' + r.status);
         console.warn('Command failed', d);
         alert(msg);
       }
@@ -2780,7 +2827,7 @@ function sendCmd(url) {
     })
     .catch(e => {
       console.error('Network error', e);
-      alert('Network error: ' + e.message);
+      alert(stopLabel ? stopUnconfirmed : 'Network error: ' + e.message);
       return { ok:false, error:e.message };
     });
 }
@@ -2802,6 +2849,7 @@ async function clearFault() {
 }
 
 function sendAbCmd(cmd) {
+  if (cmd === 'AB_STOP') return sendCmd('/api/ab-stop');
   fetch('/api/command', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2876,7 +2924,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide', stopGlobalTelemetry);
-window.addEventListener('beforeunload', stopGlobalTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareGlobalTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopGlobalTelemetry);
 
@@ -2904,7 +2951,7 @@ async function loadDashboardSnapshot(attempt = 0) {
   if (_dashboardSnapshotRequest) return _dashboardSnapshotRequest;
   if (_dashboardBootstrapRetryTimer) return false;
   setDashboardSnapshotLoading(!_dashboardSnapshotReady);
-  const retry = () => {
+  const retry = (waitMs = 0) => {
     if (!isDashboardPage() || document.hidden || _dashboardBootstrapRetryTimer) return;
     // The first full snapshot carries fitted hardware and limit scales, which
     // compact live frames cannot reconstruct. Retry even on HTTP/network
@@ -2912,12 +2959,18 @@ async function loadDashboardSnapshot(attempt = 0) {
     _dashboardBootstrapRetryTimer = setTimeout(() => {
       _dashboardBootstrapRetryTimer = null;
       loadDashboardSnapshot(attempt + 1);
-    }, attempt < 5 ? 350 + attempt * 200 : 10000);
+    }, Math.max(waitMs, attempt < 5 ? 350 + attempt * 200 : 10000));
   };
   _dashboardSnapshotRequest = (async () => {
   try {
-    const response = await fetch('/api/data', { cache: 'no-store', signal:AbortSignal.timeout(10000) });
-    if (!response.ok) { retry(); return false; }
+    const response = await fetch('/api/data', {
+      cache:'no-store', headers:{'X-OpenTurbine-Dashboard':'1'}, signal:AbortSignal.timeout(10000)
+    });
+    if (!response.ok) {
+      const retrySeconds = Number(response.headers.get('Retry-After')) || 0;
+      retry(Math.min(10000, retrySeconds * 1000));
+      return false;
+    }
     const data = await response.json();
     if (data?._snapshot_deferred) { retry(); return false; }
     if (data?.rpm_limit === undefined || !data?.labels ||
@@ -2971,10 +3024,15 @@ function setTelemetryStale(stale, ageMs = 0) {
   }
   banner.style.display = _telemetryStale ? '' : 'none';
   if (_telemetryStale) {
-    banner.textContent = `TELEMETRY STALE - last update ${formatTelemetryAge(ageMs)} ago`;
+    const stop = document.getElementById('btn-stop');
+    if (stop) stop.disabled = false;
+    const reason = telemetryUnavailable || 'Live data delayed';
+    const message = _lastMsgMs ? `${reason} · Last reading ${formatTelemetryAge(ageMs)} ago` : `${reason} · Waiting for live readings`;
+    if (banner.textContent !== message) banner.textContent = message;
     ['btn-start','btn-ab-fire'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.disabled = true;
+      if (el && id === 'btn-ab-fire') el.title = 'Wait for fresh ECU readings before requesting light-up.';
     });
   }
 }
@@ -2993,7 +3051,11 @@ function formatTelemetryAge(ageMs) {
 function startStaleMonitor() {
   if (_staleTimer || !isLiveTelemetryPage()) return;
   _staleTimer = setInterval(() => {
-    if (!_lastMsgMs || document.hidden) return;
+    if (document.hidden) return;
+    if (!_lastMsgMs) {
+      if (telemetryUnavailable) setTelemetryStale(true);
+      return;
+    }
     const age = Date.now() - _lastMsgMs;
     const staleAfter = Math.max(2500, desiredPullPeriodMs() * 3 + 500);
     setTelemetryStale(age > staleAfter, age);
@@ -3396,7 +3458,7 @@ function faultDescriptionText(data) {
   if(match[1]==='STARTUP_ABORT') {
     const block=match[2]||'UNKNOWN';
     const help={OilPrime:'Oil prime did not reach target pressure. Check oil level, pump wiring, duty and oil lines; use Oil Prime in Tools.',OilPump:'Oil prime did not reach target pressure. Check oil level, pump wiring, duty and oil lines; use Oil Prime in Tools.',FlameConfirm:'Flame was not detected in time. Check fuel supply, fuel shutoff, igniter and flame threshold; use Igniter Test in Tools.',Spool:'Spool RPM was not reached in time. Check starter, throttle calibration and fuel flow; review Sequence timeout.'};
-    return `Startup aborted at sequence step: ${block}.\nWhat to do: ${help[block]||'Check the Event Log, sensors and actuators before retrying.'}`;
+    return `Startup aborted at sequence step: ${sequenceBlockLabel(block)}.\nWhat to do: ${help[block]||'Check the Event Log, sensors and actuators before retrying.'}`;
   }
 
   const messages={"PCB_OUTPUT_STAGE_FAULT":"PCB output stage stopped: inspect the reported driver/output fault and its wiring or load, then acknowledge the fault. Firmware clears and verifies recoverable driver faults with outputs off. Hard failures that stop the heartbeat, or hardware rail/heartbeat latch trips, require physical RESET (EN) or power-cycle.","STARTUP_OVERTEMP":"Startup overtemperature: the immediate starting temperature limit was reached. Inspect the fuel schedule, airflow and temperature settings before another start.","STARTUP_TEMP_DWELL":"Startup temperature stayed above its sustained limit for the allowed time. Check acceleration, airflow and fuel delivery before another start.","STARTUP_TEMP_SENSOR":"Startup temperature protection lost its selected sensor. Check wiring and sensor health before another start.","OVERSPEED":"Engine over-speed: RPM exceeded the safety limit.\nWhat to do: Wait for the engine to cool down fully. Check your RPM limit setting in Controllers and verify throttle calibration before the next start.","N2_OVERSPEED":"N2 over-speed: power-turbine RPM exceeded its hard shutdown limit.\nWhat to do: Do not restart until the driven load, shaft, coupling, N2 pickup, governor or propeller control, and configured N2 limit have been inspected.","P1_HIGH":"P1 pressure remained above its hard shutdown limit.\nWhat to do: Inspect the pressure pickup and calibration, compressor system, fuel schedule, and configured P1 trip before restarting.","P2_HIGH":"P2 pressure remained above its hard shutdown limit.\nWhat to do: Inspect the pressure pickup and calibration, downstream restriction, fuel schedule, and configured P2 trip before restarting.","TORQUE_HIGH":"Shaft torque remained above its hard shutdown limit.\nWhat to do: Inspect the driven load, coupling and torque calibration, then verify the configured torque trip before restarting.","OVERTEMP":"Over-temperature: selected engine temperature source (TOT/TIT) exceeded the limit.\nWhat to do: Allow the engine to cool. Check your fuel flow, throttle calibration, and configured EGT limit. Inspect the turbine for damage if this was severe.","LOW_OIL":"Low oil pressure during operation.\nWhat to do: Do not restart until you have checked the oil level, oil pump, oil lines, and fittings for leaks. Verify oil pressure sensor calibration.","OIL_ZERO":"Oil pressure read near zero - possible pump failure or broken fitting.\nWhat to do: Inspect oil pump, lines, and fittings before any restart. Do not run the engine until oil supply is confirmed.","OIL_FLOW_LOW":"A monitored oil pump did not produce the configured minimum flow for the confirmation time.\nWhat to do: Check oil level, pump operation, filters, lines and flow-meter calibration before restarting.","FLAMEOUT":"Combustion-loss shutdown: the independent monitor confirmed loss for its configured time.\nWhat to do: Check fuel supply, fuel valve, and the selected flameout sensor/source. Inspect the cause before another start.","RELIGHT_FAILED":"Automatic relight failed: combustion did not recover within the configured relight window, or N1 fell below the safe firing speed.\nWhat to do: Check fuel delivery, the selected relight trigger and confirmation sensors, and the selected ignition device before restarting.","UNDERSPEED":"Under-speed: RPM dropped below the minimum running threshold.\nWhat to do: Check fuel supply and throttle settings. Verify the RPM sensor is reading correctly.","HOT_START":"Hot start aborted: exhaust temperature was still too high to start safely.\nWhat to do: Wait for the engine to cool further before attempting another start. Increase the cool-down time if this keeps happening.","TIT_OVERTEMP":"Turbine inlet temperature (TIT) exceeded the safety limit.\nWhat to do: Allow full cool-down. Check combustion system, fuel flow, and verify TIT limit is correct for your engine. Inspect turbine wheel for damage.","OIL_TEMP_HIGH":"Engine oil temperature too high.\nWhat to do: Allow the engine to cool down. Check oil cooler (if fitted), oil level, and flow rate. Reduce run duration until the cause is found.","FUEL_PRESS_LOW":"Fuel pressure dropped below the minimum threshold during operation.\nWhat to do: Check fuel tank level, fuel filter, pump, and lines. Inspect for leaks or blockages before attempting another run.","BATT_LOW":"Battery / bus voltage too low - risk of control system brownout.\nWhat to do: Charge or replace the battery. Check power wiring for resistance. Do not run the engine until the voltage is stable above the limit.","SURGE":"Compressor surge detected: N1 RPM is oscillating abnormally.\nWhat to do: The engine has been shut down to prevent compressor damage. Check throttle slew rate settings, compressor inlet for blockage, and reduce throttle advance rate to prevent recurrence.","OUTPUT_OVERCURRENT":"%s current remained above its configured shutdown limit.\nWhat to do: Check that output's load, driver, wiring and current-sensor calibration before restarting.","OIL_PRESSURE_LOW":"%s pressure remained below this oil loop's configured minimum.\nWhat to do: Check oil level, pump, lines, relief/accumulator arrangement and pressure-sensor calibration before clearing the fault.","OIL_FEEDBACK_LOST":"%s pressure feedback was lost for longer than this oil loop permits.\nWhat to do: Check the selected pressure sensor, wiring and calibration before clearing the fault."};

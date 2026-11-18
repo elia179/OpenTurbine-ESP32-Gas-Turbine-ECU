@@ -106,7 +106,7 @@ settings; recommission it instead of assuming an old file is safe.
 6. After installation, join the Wi-Fi network created by the ECU and browse to `http://192.168.4.1`.
 7. Complete the safety acknowledgement and first-run prompts.
 
-Keep exactly one OpenTurbine browser tab open at a time. This applies to both Classic ESP32 and ESP32-S3 ECUs. Close the old dashboard before opening it in another tab, window, browser, phone, or computer.
+Use one dashboard tab for the most responsive live readings, especially on Classic ESP32. The dashboard automatically retries when the ECU is busy. Close spare tabs if the message persists.
 
 If the Wi-Fi appears but the page does not, stay connected to that network and type the numeric address directly. See [Troubleshooting]({{ '/troubleshooting/' | relative_url }}) if needed.
 

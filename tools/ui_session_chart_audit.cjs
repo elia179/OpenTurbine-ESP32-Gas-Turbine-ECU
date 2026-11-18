@@ -63,6 +63,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       const refresh=page.waitForRequest(r=>r.url().endsWith('/api/session/log?run=42'));
       await page.locator('#session-preview-refresh').click();await refresh;
       await page.waitForFunction(()=>document.getElementById('session-preview-msg').textContent==='Run #42 - 2 rows');
+      await page.locator('#tab-events').click();
       const empty=route=>route.fulfill({status:200,contentType:'application/x-ndjson',body:''});
       await page.route('**/api/log/raw',empty);
       const emptyReady=page.waitForEvent('download');
@@ -75,8 +76,10 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       await page.route('**/api/log/raw',rejection);
       await page.getByRole('button',{name:'Event NDJSON',exact:true}).click();
       await page.locator('#ot-dialog-message').waitFor({state:'visible'});
-      assert.equal(await page.locator('#ot-dialog-message').textContent(),'Raw log download requires STANDBY with standby logging disabled');
+      assert.match(await page.locator('#ot-dialog-message').textContent(), /STANDBY or FAULT.*Session Data/);
       await page.getByRole('button',{name:'OK',exact:true}).click();await page.unroute('**/api/log/raw',rejection);
+      await page.locator('#tab-session').click();
+      await page.waitForFunction(()=>!_sessionTabLoad);
       const unavailable=async route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Recorder is busy. Try again.'})});
       await page.route('**/api/session/log?run=42',unavailable);
       await page.locator('#session-preview-refresh').click();

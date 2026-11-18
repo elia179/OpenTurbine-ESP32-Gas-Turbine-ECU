@@ -17,7 +17,8 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       await page.request.post(base+'/__sim/scenario/minimal');
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
       let requests=0;
-      page.on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/api/ecu_config'))requests++;});
+      const engineFile = /\/api\/ecu_config(?:\?|$)/;
+      page.on('request',r=>{if(r.method()==='POST'&&engineFile.test(r.url()))requests++;});
       if(bundle==='packaged') await page.route(/\/(system|calibration)\.html(?:\?.*)?$/,route=>route.fulfill({status:200,contentType:'text/html',body:gunzipSync(fs.readFileSync(path.resolve(__dirname,'../data/'+new URL(route.request().url()).pathname.slice(1)+'.gz')))}));
       await page.addInitScript(()=>{
         localStorage.setItem('ot_beta_notice_ack_v1','1');localStorage.setItem('ot_theme_onboarded_v1','1');
@@ -54,7 +55,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       assert.equal(await page.locator('#assets-files').inputValue(),'');
       for(const fault of ['network','json']) {
         const badTelemetry=route=>fault==='network'?route.abort('failed'):route.fulfill({status:200,contentType:'application/json',body:'not JSON'});
-        await page.route('**/api/data',badTelemetry);
+        await page.route('**/api/status',badTelemetry);
         await page.evaluate(()=>{document.getElementById('cfg-backup-state').textContent='Ready';});
         const downloaded=page.waitForEvent('download',{timeout:5000});
         // Observe a failed download promise too, so an assertion cannot leave an unhandled rejection.
@@ -67,7 +68,7 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         assert.deepEqual(saved.hardware,original.hardware);
         assert.deepEqual(saved.settings,original.settings);
         assert.equal(saved._backup_meta.fw_version,'unknown');
-        await page.unroute('**/api/data',badTelemetry);
+        await page.unroute('**/api/status',badTelemetry);
       }
       const noEngineFile=route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"busy"}'});
       await page.route('**/api/ecu_config',noEngineFile);
@@ -104,8 +105,8 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
         await page.waitForFunction(()=>typeof runtimeMode!=='undefined'&&runtimeMode==='STANDBY');
         await page.evaluate(kind=>{window.failEngineFileRead=kind;window.fileReadFaultDelivered=false;},fault);
         await page.locator('#cfg-restore-file').setInputFiles(file);
-        await page.locator('#ot-dialog-confirm').click();
         await page.waitForFunction(()=>window.fileReadFaultDelivered);
+        await page.waitForFunction(()=>document.getElementById('cfg-backup-state').textContent==='Error');
         assert.equal(await page.locator('#cfg-restore-btn').isDisabled(),false,'file-read failure must unlock retry');
         assert.equal(await page.locator('#cfg-restore-file').inputValue(),'');
         assert.equal(await page.locator('#cfg-backup-state').textContent(),'Error');
@@ -116,10 +117,10 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       let releaseRestore;
       const heldRestore=new Promise(resolve=>releaseRestore=resolve);
       const holdPost=async route=>{if(route.request().method()==='POST')await heldRestore;await route.continue();};
-      await page.route('**/api/ecu_config',holdPost);
+      await page.route(engineFile,holdPost);
       await page.evaluate(()=>{OTSetup.mark('hardware');OTSetup.mark('tools');});
       await page.locator('#cfg-restore-file').setInputFiles(file);
-      const posted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/api/ecu_config'));
+      const posted=page.waitForRequest(r=>r.method()==='POST'&&engineFile.test(r.url()));
       await page.locator('#ot-dialog-confirm').click();
       const payload=(await posted).postDataJSON();
       assert.ok(payload.hardware&&payload.settings);
@@ -132,17 +133,48 @@ const executablePath=roots.flatMap(root=>[path.join(root,'Google','Chrome','Appl
       releaseRestore();
       await page.locator('#reboot-overlay.show').waitFor();
       assert.deepEqual(await page.evaluate(()=>OTSetup.state()),{},'restored engine file clears the previous setup progress');
-      await page.unroute('**/api/ecu_config',holdPost);
+      await page.unroute(engineFile,holdPost);
       assert.equal(requests,1);
       await page.request.post(base+'/__sim/reset');
       await page.request.post(base+'/__sim/scenario/minimal');
       await page.goto(base+'/system.html');
       await page.waitForFunction(()=>runtimeMode==='STANDBY');
-      await page.evaluate(()=>{OTSetup.mark('hardware');factoryReset();});
+      let resetRequests=0, heldReset;
+      await page.locator('#card-factory-reset').evaluate(section=>{
+        for(let node=section;node;node=node.parentElement) if(node.tagName==='DETAILS')node.open=true;
+      });
+      const loseResetReply=route=>{resetRequests++;heldReset=route;};
+      await page.route('**/api/factory_reset',loseResetReply);
+      await page.evaluate(()=>{
+        const field=document.getElementById('cf-tm_lh');
+        field.value=String(Number(field.value)+50);
+        field.dispatchEvent(new Event('input',{bubbles:true}));
+        collectConfigFields();
+        OTSetup.mark('hardware');
+        factoryReset();
+      });
+      assert.match(await page.locator('#ot-dialog-message').textContent(),/Unsaved System edits will also be discarded/);
+      await page.locator('#ot-dialog-confirm').click();
+      await page.locator('#ot-dialog-input').fill('RESET');
+      await page.locator('#ot-dialog-confirm').click();
+      await page.waitForFunction(()=>_factoryResetPending);
+      await page.evaluate(()=>{applyData({mode:'STANDBY'});factoryReset();});
+      assert.equal(await page.locator('#btn-factory-reset').isDisabled(),true);
+      for(let attempt=0;attempt<100&&!heldReset;attempt++) await new Promise(resolve=>setTimeout(resolve,5));
+      assert.ok(heldReset);
+      assert.equal(resetRequests,1);
+      await heldReset.abort('connectionclosed');
+      await page.locator('#factory-reset-msg').filter({hasText:'Reset unconfirmed'}).waitFor();
+      assert.equal(await page.evaluate(()=>_cfgDirty),true);
+      assert.ok((await page.evaluate(()=>OTSetup.state())).hardware);
+      assert.equal(await page.locator('#reboot-overlay.show').count(),0);
+      await page.unroute('**/api/factory_reset',loseResetReply);
+      await page.evaluate(()=>{void factoryReset();});
       await page.locator('#ot-dialog-confirm').click();
       await page.locator('#ot-dialog-input').fill('RESET');
       await page.locator('#ot-dialog-confirm').click();
       await page.locator('#reboot-overlay.show').waitFor();
+      assert.equal(await page.evaluate(()=>_cfgDirty),false,'an acknowledged reset must not prompt again about drafts');
       assert.deepEqual(await page.evaluate(()=>OTSetup.state()),{},'factory reset clears the previous setup progress');
       await page.request.post(base+'/__sim/reset');
       for(const role of ['throttle','idle']) {

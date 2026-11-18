@@ -726,7 +726,7 @@ async function saveHardware() {
   const renamedWifi = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
   const profileWillChange = renamedWifi !== (_loadedProfileId || 'OpenTurbine');
   subtitle.textContent = changes.length + ' field' + (changes.length > 1 ? 's' : '') +
-    ' changed. Hardware saves require a reboot — the device will restart.' +
+    ' changed. The ECU will restart.' +
     (profileWillChange ? ` Its Wi-Fi network name will change to “${renamedWifi}”; reconnect to that network afterward.` : '') +
     (idleSourceWillChange ? ' Review the highlighted Automatic Idle feedback-source fallback before continuing.' : '');
 
@@ -786,6 +786,7 @@ async function _saveHardwareChanges() {
     try { expectedEcu = window.OTConfigEditor.requireEcu(); }
     catch (error) {
       document.getElementById('save-msg').textContent = error.message;
+      startStatusPoll();
       return;
     }
     const saveCfg = {...cfg};
@@ -795,20 +796,21 @@ async function _saveHardwareChanges() {
     if (r.ok && j.ok === true) {
       window.OTSetup?.mark('hardware', r);
       clearDirty();
-      document.getElementById('save-msg').textContent = 'Saved — rebooting…';
-      showRebootOverlay(profileChanged ? nextProfileId : '');
+      const rebooting = j.reboot === true;
+      document.getElementById('save-msg').textContent = rebooting ? 'Saved — ECU restarting…' : window.OTSavedMessage(j);
+      if (rebooting) showRebootOverlay(profileChanged ? nextProfileId : '');
+      else startStatusPoll();
     } else {
       const message = friendlyHardwareSaveError(j);
-      document.getElementById('save-msg').textContent = j.rebooting
-        ? 'Not saved — restoring the previous setup…'
-        : 'Not saved — ' + message;
-      alert('Hardware was not saved.\n\n' + message);
-      if (j.rebooting) showRebootOverlay('');
-      else updateSaveButton();
+      document.getElementById('save-msg').textContent = 'Not saved — ' + message;
+      if (!window.OTShowSaveRollback({rebooting:j.rebooting, expectedEcu, message}, startStatusPoll)) {
+        alert('Hardware was not saved.\n\n' + message);
+        startStatusPoll();
+      }
     }
   } catch(e) {
-    document.getElementById('save-msg').textContent = 'Save status unconfirmed — verify before retrying';
-    alert('The ECU did not confirm whether Hardware was saved.\n\n'+e.message+'\n\nReconnect and reload Hardware to verify the setup before retrying.');
+    document.getElementById('save-msg').textContent = e.message;
+    startStatusPoll();
     updateSaveButton();
   }
 }
@@ -833,9 +835,9 @@ function friendlyHardwareSaveError(response) {
   ];
   const match = map.find(([key]) => detail.includes(key));
   if (match) return match[1];
-  return response?.error
-    ? `${response.error}. Review the Requirements section and any red device cards, then try again.`
-    : 'The ECU rejected the setup. Review the Requirements section and any red device cards, then try again.';
+  const reason = response?.error || response?.reason;
+  if (reason && rawDetail && reason !== rawDetail) return `${reason.replace(/[.]+$/, '')}. ${rawDetail}`;
+  return reason || rawDetail || 'The ECU did not give a reason. Check the connection and try the Hardware save again.';
 }
 
 function showRebootOverlay(nextWifiName = '') {

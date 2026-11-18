@@ -37,6 +37,9 @@ const expectedVersion=fs.readFileSync('src/system/version.h','utf8').match(/#def
     await button.waitFor({state:'visible'});
     for(const width of [800,400]){
       await page.setViewportSize({width,height:1000});
+      // A tap can leave the fullscreen button hovered in Chromium's touch
+      // emulation. Compare both controls in their neutral state.
+      await page.mouse.move(0,0);
       await page.waitForTimeout(500); // Let the shared button transitions settle.
       const styles=await page.evaluate(()=>{
         const props=['fontFamily','fontSize','fontWeight','letterSpacing','textTransform','padding','borderRadius','border','backgroundColor','color','minHeight'];

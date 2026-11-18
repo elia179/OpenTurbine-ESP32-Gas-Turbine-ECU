@@ -1,4 +1,5 @@
 #include "../../src/system/CommandQueue.h"
+#include "../../src/system/ConfigApplyGate.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -6,6 +7,10 @@
 
 static std::vector<OTCommand> handled;
 static void capture(const OTPacket& packet) { handled.push_back(packet.cmd); }
+static void refill(const OTPacket& packet) {
+    capture(packet);
+    assert(CommandQueue::push(packet));
+}
 
 int main() {
     assert(CommandQueue::begin());
@@ -30,6 +35,32 @@ int main() {
     assert(CommandQueue::pushEmergencyFront({OTCommand::AB_STOP}));
     CommandQueue::drain(capture);
     assert(handled.size() == 1 && handled[0] == OTCommand::AB_STOP);
+
+    // Cancelling afterburner work cannot erase an already accepted engine STOP.
+    handled.clear();
+    assert(CommandQueue::pushEmergencyStop({OTCommand::STOP}));
+    assert(CommandQueue::pushEmergencyFront({OTCommand::AB_STOP}));
+    CommandQueue::drain(capture);
+    assert(handled.size() == 1 && handled[0] == OTCommand::STOP);
+
+    // Stop still preempts ordinary work when a producer keeps the FIFO busy.
+    handled.clear();
+    assert(CommandQueue::push({OTCommand::RESET_PEAKS}));
+    CommandQueue::drain(refill);
+    assert(handled.size() == CommandQueue::QUEUE_DEPTH);
+    assert(CommandQueue::pushEmergencyStop({OTCommand::STOP}));
+    CommandQueue::drain(capture);
+    assert(handled.size() == CommandQueue::QUEUE_DEPTH + 1 && handled.back() == OTCommand::STOP);
+
+    // Background storage and the final START decision exclude each other.
+    assert(ConfigApplyGate::tryBeginBackgroundStorage());
+    assert(!ConfigApplyGate::tryBeginStartTransition());
+    assert(!ConfigApplyGate::tryBeginWebWrite());
+    ConfigApplyGate::release();
+    assert(ConfigApplyGate::tryBeginStartTransition());
+    assert(!ConfigApplyGate::tryBeginBackgroundStorage());
+    ConfigApplyGate::release();
+    assert(!ConfigApplyGate::busy());
 
     // Request decisions are correlated and preserve exact rejection text.
     const uint32_t id = CommandQueue::nextRequestId();

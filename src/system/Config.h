@@ -538,6 +538,7 @@ public:
     static bool flushPendingSave(); // Core 0 in STANDBY/FAULT: perform deferred save
     static void requestRuntimeStatsSave(); // Core 1: persist hour meter through NVS
     static bool flushPendingRuntimeStats(); // Core 0 in STANDBY/FAULT: deferred NVS write
+    static bool runtimeStatsSaveDue();
     static bool runtimeStatsPending() { return _runtimeStatsSavePending; }
     static bool runtimeStatsHealthy() { return _runtimeStatsError == 0; }
     static uint8_t runtimeStatsError() { return _runtimeStatsError; }

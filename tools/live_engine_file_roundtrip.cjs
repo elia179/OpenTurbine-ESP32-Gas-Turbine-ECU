@@ -104,8 +104,8 @@ async function waitForProfile(expected, beforeBoot, suppliedFile = false, before
     const expected = restoreFile ? JSON.parse(restoreBuffer.toString('utf8')) : before;
     await page.locator('#cfg-restore-file').setInputFiles({name:'OpenTurbine-roundtrip.json', mimeType:'application/json', buffer:restoreBuffer});
     await page.locator('#ot-dialog-confirm:visible').click();
-    await page.waitForFunction(() => /rebooting|error|failed/i.test(document.getElementById('cfg-backup-state')?.textContent || ''), null, {timeout:30000});
-    assert.match(await page.locator('#cfg-backup-state').textContent(), /rebooting/i,
+    await page.waitForFunction(() => /restart|verified|unconfirmed|error/i.test(document.getElementById('cfg-backup-state')?.textContent || ''), null, {timeout:45000});
+    assert.match(await page.locator('#cfg-backup-state').textContent(), /restart|verified/i,
       await page.locator('#cfg-backup-msg').textContent());
     console.log('Browser upload and restore accepted.');
     await waitForProfile(expected, beforeBoot, !!restoreFile, beforeLive.uptime_s, capturedAt);

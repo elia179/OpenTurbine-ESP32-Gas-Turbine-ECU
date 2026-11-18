@@ -461,7 +461,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'PATCH' && (url.pathname === '/api/config' || url.pathname === '/api/hardware') &&
         expectedEcu !== null && expectedEcu !== (state.data.mock_ecu_id || '0123456789ab'))
       return sendJson(res, 409, {error:'The connected ECU changed. Reload before saving.'});
-    if (req.method === 'GET' && (url.pathname === '/api/data' || url.pathname === '/api/telemetry')) return sendJson(res, 200, state.data);
+    if (req.method === 'GET' && url.pathname === '/api/data')
+      return sendJson(res, 200, {startup_seq_count:state.hardware.startup_seq?.length || 0, ...state.data});
+    if (req.method === 'GET' && url.pathname === '/api/telemetry') return sendJson(res, 200, state.data);
     if (req.method === 'GET' && url.pathname === '/api/status') return sendJson(res, 200, {
       ok: true, mode: state.data.mode, locked: !!state.data.config_locked,
       dev_mode: !!state.data.dev_mode, config_apply_busy: false
@@ -622,6 +624,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/stop') {
       state.data = scenarios.minimal();
+      return sendJson(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/ab-stop') {
+      state.commands.push({ cmd: 'AB_STOP' });
       return sendJson(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/api/command') {

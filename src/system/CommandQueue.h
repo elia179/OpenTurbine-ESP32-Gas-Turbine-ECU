@@ -95,7 +95,7 @@ public:
         return xQueueSendToFront(_queue, &pkt, 0) == pdTRUE;
     }
 
-    // Safety-priority commands supersede pending web/cluster commands.
+    // Afterburner STOP supersedes queued requests; engine STOP has its own slot.
     static bool pushEmergencyFront(const OTPacket& pkt) {
         if (!_queue) return false;
         // A cancellation command supersedes everything already pending. This
@@ -105,23 +105,26 @@ public:
         return pushFront(pkt);
     }
 
-    static bool pushEmergencyStop(const OTPacket& pkt) {
-        return pushEmergencyFront(pkt);
-    }
+    static bool pushEmergencyStop(const OTPacket& pkt);
+    static bool drainEmergencyStop(CommandHandler handler);
 
-    // Called from Core 1 (ECU loop) — drains all pending commands
+    // Bound command processing even if Core 0 keeps refilling the queue.
     static void drain(CommandHandler handler) {
         if (!_queue || !handler) return;
         OTPacket pkt;
-        while (xQueueReceive(_queue, &pkt, 0) == pdTRUE) {
+        for (int i = 0; i < QUEUE_DEPTH; ++i) {
+            if (drainEmergencyStop(handler)) return;
+            if (xQueueReceive(_queue, &pkt, 0) != pdTRUE) return;
+            if (drainEmergencyStop(handler)) return;
             handler(pkt);
             if (pkt.cmd == OTCommand::STOP) {
                 // Close the race with producers that queued work after STOP
                 // was inserted but before it reached the ECU-core boundary.
                 xQueueReset(_queue);
-                break;
+                return;
             }
         }
+        drainEmergencyStop(handler);
     }
 
 private:

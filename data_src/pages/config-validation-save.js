@@ -695,7 +695,9 @@ async function saveConfig() {
     ? String(hwCfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine' : '';
   subtitle.textContent = changes.length + ' field' + (changes.length > 1 ? 's' : '') +
     ' will be updated on the device.' +
-    (renamedWifi ? ` Saving will restart the ECU and change its Wi-Fi network name to “${renamedWifi}”. Reconnect to that network afterward.` : '') +
+    (renamedWifi ? ` The ECU will restart as Wi-Fi network “${renamedWifi}”. Connect to it after the restart.` :
+      _controllerHardwareDirty || _systemHardwareDirty ? ' The ECU will restart.' :
+      runtimeMode === 'RUNNING' ? '' : ' Classic ESP32 restarts after saving settings.') +
     (inactiveChanges.length
       ? ` ${inactiveChanges.length} amber-marked value${inactiveChanges.length === 1 ? ' is' : 's are'} being saved for future hardware and will remain inactive for now.`
       : '');
@@ -743,13 +745,15 @@ async function _saveControllerChanges(payload, saveMsg, confirmButton) {
       throw Error('Sequence changed since the review. Reload Controllers and review the changes again.');
     Object.assign(hardwarePatch,cleanup.patch);
   }
-  const {response} = await window.OTSaveHardwarePatch(hardwarePatch, 'controllers', payload, window.OTConfigEditor.requireEcu());
+  const {response, data} = await window.OTSaveHardwarePatch(hardwarePatch, 'controllers', payload, window.OTConfigEditor.requireEcu());
+  const rebooting = data.reboot === true;
   window.OTSetup?.mark('config', response);
   _clearDirty();
-  saveMsg.textContent = '✓ Saved — ECU rebooting…';
+  window.OTShowSaveNotice(saveMsg, rebooting ? 'Saved — ECU restarting…' : window.OTSavedMessage(data));
   saveMsg.style.color = 'var(--green)';
-  if (confirmButton) confirmButton.disabled = true;
-  window.OTShowRebootOverlay?.({returnPath:CONFIG_SURFACE === 'system' ? '/system.html' : '/controllers.html'});
+  if (confirmButton) confirmButton.disabled = rebooting;
+  if (rebooting) window.OTShowRebootOverlay?.({returnPath:'/controllers.html'});
+  else if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
 }
 
 // OT_CONTROLLERS_ONLY_END
@@ -767,7 +771,7 @@ async function _saveSystemChanges(payload, saveMsg, confirmButton) {
   const nextWifiName = _systemHardwareChangedPaths.has('profile_id')
     ? String(hwCfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine' : '';
   _clearDirty();
-  saveMsg.textContent = rebooting ? '✓ Saved — ECU rebooting…' : '✓ Saved';
+  window.OTShowSaveNotice(saveMsg, rebooting ? 'Saved — ECU restarting…' : window.OTSavedMessage(data));
   saveMsg.style.color = 'var(--green)';
   if (confirmButton) confirmButton.disabled = rebooting;
   if (rebooting) window.OTShowRebootOverlay?.({nextWifiName, returnPath:'/system.html'});
@@ -802,10 +806,11 @@ async function _doSave() {
   try { await _performConfigSave(); }
   catch (error) {
     const msg = document.getElementById('save-msg');
-    msg.textContent = '✗ ' + (error?.message || error);
+    msg.textContent = '✗ ' + error;
     msg.style.color = '#f55';
     const confirm = document.getElementById('save-recap-confirm-btn');
     if (confirm) confirm.disabled = false;
+    window.OTShowSaveRollback(error, () => startTelemetryBoot());
   } finally { _setConfigSavePending(false); }
 }
 
@@ -833,21 +838,15 @@ async function _performConfigSave() {
     payload.rules = JSON.parse(JSON.stringify(cfg.rules || []));
     payload.controller_schema = Number(cfg.controller_schema || 1);
   }
-  if (_controllerHardwareDirty) {
-    return _saveControllerChanges(payload, saveMsg, cb).catch(error => {
-      saveMsg.textContent = '✗ ' + (error?.message || error);
-      saveMsg.style.color = '#f55';
-      if (cb) cb.disabled = false;
-      if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
-    });
-  }
-  if (_systemHardwareDirty) {
-    return _saveSystemChanges(payload, saveMsg, cb).catch(error => {
-      saveMsg.textContent = '✗ ' + (error?.message || error);
-      saveMsg.style.color = '#f55';
-      if (cb) cb.disabled = false;
-      if (typeof startTelemetryBoot === 'function') startTelemetryBoot();
-    });
+  if (_controllerHardwareDirty || _systemHardwareDirty) {
+    try {
+      return await (_controllerHardwareDirty
+        ? _saveControllerChanges(payload, saveMsg, cb)
+        : _saveSystemChanges(payload, saveMsg, cb));
+    } catch (error) {
+      if (!error.rebooting && typeof startTelemetryBoot === 'function') startTelemetryBoot();
+      throw error;
+    }
   }
   // A Classic ESP32 can be close to its largest-contiguous-block limit while
   // a live REST response owns its transmit buffer. Pause new polling briefly
@@ -885,10 +884,10 @@ async function _performConfigSave() {
         window.OTShowRebootOverlay?.({returnPath:CONFIG_SURFACE === 'system' ? '/system.html' : '/controllers.html'});
         return;
       }
-      saveMsg.textContent = (d.warn ? 'Saved — ' + d.warn :
+      window.OTShowSaveNotice(saveMsg, d.warn ? 'Saved — ' + d.warn :
         (d.persist === 'deferred_until_safe'
-          ? '✓ Live update queued — saves permanently after STOP'
-          : (d.live_now ? '✓ Applied live — ' : '✓ Saved — ') + new Date().toLocaleTimeString()));
+          ? 'Live update queued · flash save deferred until STOP'
+          : d.live_now ? 'Applied live' : window.OTSavedMessage(d)));
       saveMsg.style.color = d.warn ? 'var(--yellow)' : 'var(--green)';
       if (cb) cb.disabled = false;
     } else {

@@ -1614,13 +1614,17 @@ void Config::loadRuntimeStats() {
     if (savedRuns > runCount) runCount = savedRuns;
 }
 
+static uint32_t s_lastStatsAttemptMs = 0;
+static uint32_t s_statsRetryDelayMs = 1000;
+
+bool Config::runtimeStatsSaveDue() {
+    return _runtimeStatsSavePending && (!s_lastStatsAttemptMs || millis() - s_lastStatsAttemptMs >= s_statsRetryDelayMs);
+}
+
 bool Config::flushPendingRuntimeStats() {
-    if (!_runtimeStatsSavePending) return false;
-    static uint32_t lastAttemptMs = 0;
-    static uint32_t retryDelayMs = 1000;
+    if (!runtimeStatsSaveDue()) return false;
     const uint32_t now = millis();
-    if (lastAttemptMs && now - lastAttemptMs < retryDelayMs) return false;
-    lastAttemptMs = now;
+    s_lastStatsAttemptMs = now;
     char runKey[14];
     char startKey[14];
     char rcKey[14];
@@ -1630,7 +1634,7 @@ bool Config::flushPendingRuntimeStats() {
     Preferences stats;
     if (!stats.begin("ot", false)) {
         _runtimeStatsError = 1;
-        retryDelayMs = retryDelayMs < 15000 ? retryDelayMs * 2 : 30000;
+        s_statsRetryDelayMs = s_statsRetryDelayMs < 15000 ? s_statsRetryDelayMs * 2 : 30000;
         Serial.println("[Config] WARNING: failed to open NVS for accumulated runtime");
         return false;
     }
@@ -1640,13 +1644,13 @@ bool Config::flushPendingRuntimeStats() {
     stats.end();
     if (writtenRun == 0 || writtenStarts == 0 || writtenRuns == 0) {
         _runtimeStatsError = 2;
-        retryDelayMs = retryDelayMs < 15000 ? retryDelayMs * 2 : 30000;
+        s_statsRetryDelayMs = s_statsRetryDelayMs < 15000 ? s_statsRetryDelayMs * 2 : 30000;
         Serial.println("[Config] WARNING: accumulated runtime NVS write failed");
         return false;
     }
     _runtimeStatsSavePending = false;
     _runtimeStatsError = 0;
-    retryDelayMs = 1000;
+    s_statsRetryDelayMs = 1000;
     return true;
 }
 

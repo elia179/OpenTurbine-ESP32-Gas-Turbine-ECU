@@ -7,7 +7,7 @@
 <title>OpenTurbine</title>
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <script>document.documentElement.setAttribute('data-dashboard-accents','on');try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body data-page="dashboard">
 <nav>
@@ -45,8 +45,8 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <summary>Setup steps</summary>
     <ol class="gs-steps">
       <li data-setup-step="hardware" data-setup-done="Hardware saved in this browser"><a href="/hardware.html">Describe fitted hardware and assign pins</a><span class="gs-step-state">No hardware save recorded</span></li>
-      <li data-setup-step="config" data-setup-done="Controllers saved in this browser"><a href="/controllers.html">Configure outputs and verify safety limits</a><span class="gs-step-state">No controller save recorded</span></li>
       <li data-setup-step="calibration" data-setup-done="Calibration saved in this browser"><a href="/calibration.html">Calibrate fitted sensors and actuators</a><span class="gs-step-state">No calibration save recorded</span></li>
+      <li data-setup-step="config" data-setup-done="Controllers saved in this browser"><a href="/controllers.html">Configure outputs and verify safety limits</a><span class="gs-step-state">No controller save recorded</span></li>
       <li data-setup-step="sequence" data-setup-done="Sequence saved in this browser"><a href="/sequence.html">Review startup and shutdown sequences</a><span class="gs-step-state">No sequence save recorded</span></li>
       <li data-setup-step="tools" data-setup-done="Actuator test command accepted"><a href="/tools.html">Run a safe actuator test</a><span class="gs-step-state">No actuator test command recorded</span></li>
     </ol>
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   </div>
 
   <div id="bench-banner" style="display:none;background:color-mix(in srgb, var(--accent) 12%, transparent);border:1px solid color-mix(in srgb, var(--accent) 60%, transparent);border-radius:7px;padding:.55rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--accent);font-weight:700;text-align:center">
-    ⚠ BENCH MODE ACTIVE — Sequence runs on timers only, no sensor verification, safety bypassed.
+    ⚠ BENCH MODE ACTIVE — Sequences can continue after failed checks. Output actions still run. Keep fuel disabled.
     <a href="/tools.html" style="color:var(--accent);text-decoration:underline;font-weight:400;margin-left:.5rem">Disable in Tools →</a>
   </div>
   <div id="logging-health-banner" style="display:none;background:color-mix(in srgb, var(--yellow) 7%, transparent);border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:7px;padding:.55rem 1rem;margin-bottom:.6rem;font-size:.82rem;color:var(--yellow);text-align:center">
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <a id="fault-calibration-link" href="/calibration.html">Check calibration</a>
       <a id="fault-limits-link" href="/controllers.html">Review limits</a>
       <a id="fault-tools-link" href="/tools.html">Standby diagnostics</a>
-      <button id="btn-clear-fault" type="button" style="display:none" onclick="clearFault()" title="Acknowledge this fault after the engine is stopped and all outputs are safely off. Reboot also clears faults.">Clear fault</button>
+      <button id="btn-clear-fault" type="button" style="display:none" onclick="clearFault()" title="Correct the cause and verify the engine and outputs are stopped before acknowledging the fault.">Clear fault</button>
     </div>
   </div>
   <div id="limited-run-banner" class="error-banner" style="display:none">
@@ -157,18 +157,16 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     </div>
   </section>
 
-  <!-- Unit toggle -->
+  <!-- Dashboard toolbar -->
   <div class="dashboard-view-controls">
-    <span>Units:</span>
-    <button id="unit-temp-btn"  onclick="setTempUnit(tempUnit()==='C'?'F':'C')"
-      style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">°C</button>
-    <button id="unit-press-btn" onclick="setPressUnit(pressUnit()==='bar'?'psi':'bar')"
-      style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">bar</button>
-    <button id="reset-peaks-btn" onclick="resetPeaks()" title="Clear session max values (after a bench spike or sensor glitch)"
-      style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Reset peaks</button>
-    <button id="dashboard-fullscreen-btn" style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit" type="button" aria-pressed="false" hidden>Fullscreen</button>
-    <button id="dashboard-card-edit-btn" onclick="toggleDashboardCardEdit()" aria-pressed="false"
-      style="font-size:.7rem;padding:.15rem .55rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:pointer;font-family:inherit">Edit cards</button>
+    <div class="unit-controls" role="group" aria-label="Display units">
+      <span>Units</span>
+      <button id="unit-temp-btn" type="button" onclick="setTempUnit(tempUnit()==='C'?'F':'C')">°C</button>
+      <button id="unit-press-btn" type="button" onclick="setPressUnit(pressUnit()==='bar'?'psi':'bar')">bar</button>
+    </div>
+    <button id="reset-peaks-btn" class="dashboard-layout-action" type="button" onclick="resetPeaks()" title="Clear recorded maximum readings">Reset peaks</button>
+    <button id="dashboard-fullscreen-btn" class="dashboard-layout-action" type="button" aria-pressed="false" hidden>Fullscreen</button>
+    <button id="dashboard-card-edit-btn" class="dashboard-layout-action" type="button" onclick="toggleDashboardCardEdit()" aria-pressed="false">Edit cards</button>
     <button id="dashboard-arrange-btn" class="dashboard-layout-action" type="button" onclick="activateDashboardCustomLayout()" title="Put movable cards in one personal section so you can drag them into any order" hidden>Arrange cards</button>
     <button id="dashboard-reset-btn" class="dashboard-layout-action" type="button" onclick="resetDashboardLayout()" hidden>Restore default layout</button>
     <div id="dashboard-hidden-cards" class="dashboard-hidden-cards" hidden></div>
@@ -228,7 +226,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <span id="n2-approach-warn" class="gauge-approach-warn" style="display:none">⚠ approaching hard limit</span>
       <canvas class="sparkline" id="n2-sparkline"></canvas>
     </div>
-    <div class="card" id="oil-card" style="display:none" title="Bearing oil pressure. 'demand' is the ECU target pressure; a proportional pump is adjusted to maintain it. When running oil-pressure protection is configured and enabled, pressure below its limit for the confirmation time causes a fault shutdown.">
+    <div class="card" id="oil-card" style="display:none" title="Bearing oil pressure. Pressure target is the requested pressure when an oil-pressure controller is active. See Shutdown &amp; Protection for limits and monitored phases.">
       <div class="label"><span id="lbl-oil">Oil Press</span> (<span data-unit="press">bar</span>) <span id="oil-health" class="dot"></span></div>
       <div class="value small" id="oil">—</div>
       <div class="oil-sub" id="oil-target-row" style="display:none">pressure target: <span id="oil-demand-val">—</span> <span data-unit="press">bar</span></div>
@@ -283,7 +281,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="card" id="batt-card" style="display:none">
       <div class="label"><span id="lbl-batt">Battery</span> V <span id="batt-health" class="dot"></span></div>
       <div class="value small" id="batt-voltage">—</div>
-      <div class="peak-val">max <span id="max-batt-voltage">—</span> · min limit: <span id="batt-volt-min">—</span> V</div>
+      <div class="peak-val">max <span id="max-batt-voltage">—</span><span id="batt-volt-min-label" hidden> · min limit: <span id="batt-volt-min"></span></span></div>
       <canvas class="sparkline" id="batt-sparkline"></canvas>
     </div>
     <div class="card" id="torque-card" style="display:none">
@@ -352,7 +350,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <section id="governor-section" style="display:none;margin-bottom:.5rem">
     <div class="card small" id="governor-card">
       <div class="label">Automatic <span data-input-name="n2_speed">N2 Speed</span> Control <span id="gov-mode" style="display:none;font-size:.6rem;padding:.05rem .4rem;border-radius:999px;border:1px solid var(--border);color:var(--dim);vertical-align:middle;letter-spacing:.03em"></span></div>
-      <div class="oil-sub"><span data-input-name="n2_speed">N2</span> configured target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; N2 actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
+      <div class="oil-sub"><span data-input-name="n2_speed">N2</span> configured target: <span id="gov-target-rpm">—</span> RPM &nbsp;|&nbsp; <span data-input-name="n2_speed">N2</span> actual: <span id="gov-n2-actual">—</span> RPM &nbsp;|&nbsp; <span id="gov-state">Off</span></div>
     </div>
   </section>
 
@@ -497,7 +495,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <div class="label">Last Event</div>
       <div class="last-event-val" id="last-event">—</div>
     </div>
-    <div class="card small" id="uptime-card" title="Time since the ECU last powered on. Resets on every reboot.">
+    <div class="card small" id="uptime-card" title="Time since the ECU last started or restarted.">
       <div class="label">Uptime</div>
       <div class="value small" id="uptime">—</div>
     </div>
@@ -509,7 +507,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
         &nbsp; Total: <span id="hour-run-time">—</span>
       </div>
     </div>
-    <div class="card small" id="relight-card" style="display:none;grid-column:1/-1" title="Auto-relight: if combustion is lost while N1 is still above the minimum windmill RPM, the ECU re-ignites automatically. Flame, N1, or selected EGT can confirm success. Shows armed state and attempt count vs the configured limit.">
+    <div class="card small" id="relight-card" style="display:none;grid-column:1/-1" title="Shows whether automatic relight is armed and how many attempts it has made. Relight uses the configured trigger, minimum N1 speed, and confirmation method.">
       <div class="label">Relight</div>
       <div class="value small" id="relight-status">—</div>
       <div class="oil-sub" id="manual-relight-note" style="display:none;color:var(--yellow)">Throttle held above idle — relight active</div>
@@ -520,9 +518,9 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     </div>
     <div class="card small" id="system-card" style="grid-column:1/-1" title="ECU storage health. Flash is the onboard LittleFS filesystem used for config, logs and session data. Low free space triggers automatic eviction of old session files.">
       <div class="label">System</div>
-      <div class="oil-sub">Flash: <span id="sys-flash-free">—</span> KB free · <span id="sys-flash-used">—</span> / <span id="sys-flash-total">—</span> KB used</div>
-      <div class="oil-sub">Log: <span id="sys-log-records">—</span> / <span id="sys-log-max">—</span> records</div>
-      <div class="oil-sub">Boot #<span id="sys-boot-count">—</span> &nbsp;·&nbsp; Last reset: <span id="sys-reset-reason">—</span></div>
+      <div class="oil-sub">Storage: <span id="sys-flash-free">—</span> KB free · <span id="sys-flash-used">—</span> of <span id="sys-flash-total">—</span> KB used</div>
+      <div class="oil-sub">Event log: <span id="sys-log-records">—</span> of <span id="sys-log-max">—</span> records</div>
+      <div class="oil-sub">Boot #<span id="sys-boot-count">—</span> · Last reset: <span id="sys-reset-reason">—</span></div>
       <details class="command-details dashboard-card-details"><summary>System links</summary>
         <div class="dashboard-card-links"><a href="/log.html">View log</a></div>
       </details>
@@ -555,14 +553,14 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
 </div>
 
 <!-- Start confirmation dialog -->
-<div id="start-confirm-overlay" style="display:none">
+<div id="start-confirm-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="start-confirm-title" aria-describedby="start-confirm-text">
   <div id="start-confirm-box">
-    <h3>Start Engine?</h3>
+    <h3 id="start-confirm-title">Start Engine?</h3>
     <p id="start-confirm-text">This will begin the startup sequence. Make sure the area is clear and the engine is ready to run.</p>
     <div id="start-confirm-checks" class="start-confirm-checks" aria-live="polite"></div>
     <div class="btns">
-      <button id="btn-confirm-start" onclick="confirmStart()">Confirm Start</button>
       <button class="danger" onclick="cancelStart()">Cancel</button>
+      <button id="btn-confirm-start" onclick="confirmStart()">Confirm Start</button>
     </div>
   </div>
 </div>
@@ -654,35 +652,40 @@ async function showStartConfirm() {
     if (!await clearFault()) return;
     try {
       for(let attempt=0;attempt<8;attempt++){
-        const response=await fetch('/api/data',{cache:'no-store'});
-        if(!response.ok)throw new Error('HTTP '+response.status);
-        applyData(await response.json());
-        if(_lastData?.mode==='STANDBY')break;
+        const response=await fetch('/api/status',{cache:'no-store',signal:AbortSignal.timeout(1500)});
+        if(response.ok && (await response.json()).mode==='STANDBY') {
+          await loadDashboardSnapshot();
+          break;
+        }
         await new Promise(resolve=>setTimeout(resolve,150));
       }
     } catch(error){alert('Could not verify the cleared fault. Check the live dashboard before starting.');return;}
     if(_telemetryStale || _lastData?.mode!=='STANDBY'){alert('The ECU has not returned to STANDBY. Review the remaining fault.');return;}
   }
+  renderStartChecks();
+  document.getElementById('start-confirm-overlay').style.display = 'flex';
+}
+
+function startConfirmationOptions(data) {
+  const limited = data?.mode === 'STANDBY' && data.limited_start_allowed === true;
+  return {limited, bench:!!data?.bench_mode, sensor:limited ? data.limited_start_sensor : null};
+}
+
+let displayedStartOptions;
+function renderStartChecks(changed = false) {
+  const d = _lastData || {};
+  const options = displayedStartOptions = startConfirmationOptions(d);
+  const {limited, bench, sensor} = options;
   const text = document.getElementById('start-confirm-text');
   if (text) {
-    const bench = !!(_lastData && _lastData.bench_mode);
     text.textContent = bench
-      ? 'BENCH MODE is active. The sequence will run on timers and sensor verification is bypassed. Use only for dry bench testing with fuel disabled.'
+      ? 'BENCH MODE is active. The sequence can continue after failed checks. Configured output actions still run. Use only for dry bench testing with fuel disabled.'
       : 'This will begin the startup sequence. Make sure the area is clear and the engine is ready to run.';
     text.style.color = bench ? 'var(--red)' : '';
     text.style.fontWeight = bench ? '700' : '';
   }
-  renderStartChecks();
-  document.getElementById('start-confirm-overlay').style.display = 'flex';
-  fetch('/api/hardware', { cache:'no-store' })
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
-    .then(hw => renderStartChecks(Array.isArray(hw.startup_seq) ? hw.startup_seq.length : null))
-    .catch(() => renderStartChecks(null, true));
-}
-function renderStartChecks(sequenceCount, sequenceUnavailable = false) {
   const box = document.getElementById('start-confirm-checks');
   if (!box) return;
-  const d = _lastData || {};
   const rows = [];
   const health = ok => ok === false ? '<strong class="bad">FAULT</strong>' : '<strong class="good">OK</strong>';
   const numeric = (value, digits = 0) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—';
@@ -696,9 +699,9 @@ function renderStartChecks(sequenceCount, sequenceUnavailable = false) {
   if (d.has_oil_press) rows.push([lbl('oil_press'), numeric(toDispPress(d.oil), 2) + ' ' + dispPressUnit() + ' · ' + health(d.oil_healthy)]);
   rows.push(['STOP input', d.stop_switch_active ? '<strong class="bad">ACTIVE</strong>' : 'Released']);
   rows.push(['Safety state', d.bench_mode ? '<strong class="bad">BENCH MODE — BYPASSED</strong>' : 'Normal checks']);
-  rows.push(['Startup sequence', sequenceUnavailable ? 'Could not read — ECU will still validate START' :
-    (Number.isInteger(sequenceCount) ? sequenceCount + ' block' + (sequenceCount === 1 ? '' : 's') : 'Checking…')]);
-  const limited = d.mode === 'STANDBY' && d.limited_start_allowed === true;
+  const sequenceCount = d.startup_seq_count;
+  rows.push(['Startup sequence', Number.isInteger(sequenceCount)
+    ? sequenceCount + ' block' + (sequenceCount === 1 ? '' : 's') : 'ECU will check on START']);
   const normalButton = document.getElementById('btn-confirm-start');
   if (normalButton) {
     normalButton.disabled = false;
@@ -707,15 +710,16 @@ function renderStartChecks(sequenceCount, sequenceUnavailable = false) {
   }
   const limitedNote = limited
     ? '<div class="start-confirm-checks-note" style="color:var(--yellow)"><strong>' +
-      escapeHtmlText(String(d.limited_start_sensor || 'Required sensor')) +
+      escapeHtmlText(String(sensor || 'Required sensor')) +
       ' feedback is unavailable.</strong> Reduced-power start keeps the configured fuel cap, disables afterburner, and bypasses only startup confirmation that depends on this unavailable sensor. Actuator actions, timers, and every unrelated interlock remain active.</div>'
     : '';
   box.innerHTML = '<div class="start-confirm-checks-title">Live ECU start checks</div>' +
     rows.map(([name, value]) => `<div class="start-confirm-checks-row"><span>${escapeHtmlText(name)}</span><span>${value}</span></div>`).join('') +
-    limitedNote + '<div class="start-confirm-checks-note">Live state is checked again when you confirm.</div>';
+    limitedNote + '<div class="start-confirm-checks-note">' +
+    (changed ? '<strong>Start conditions changed. Review and confirm again.</strong>' : 'Live state is checked again when you confirm.') + '</div>';
 }
 function confirmStart() {
-  const limited = _lastData?.mode === 'STANDBY' && _lastData?.limited_start_allowed === true;
+  const {limited, bench, sensor} = startConfirmationOptions(_lastData);
   const dashboardStart = document.getElementById('btn-start');
   const mode = (_lastData && _lastData.mode) || 'unknown';
   if (_telemetryStale || !_lastData || mode !== 'STANDBY' || (dashboardStart?.disabled && !limited)) {
@@ -724,16 +728,13 @@ function confirmStart() {
     alert('START is no longer available: ' + reason + '.\n\nReview the live dashboard state and try again.');
     return;
   }
-  document.getElementById('start-confirm-overlay').style.display = 'none';
-  // Guard: verify startup sequence is non-empty before sending start
-  fetch('/api/hardware').then(r => r.json()).then(hw => {
-    const seq = hw.startup_seq || [];
-    if (seq.length === 0) {
-      alert('Startup sequence is empty.\n\nGo to Sequence and add the oil, starter, ignition, fuel, confirmation, and timing blocks required by this engine before starting.');
-      return;
-    }
-    _doStart(limited);
-  }).catch(() => _doStart(limited)); // if fetch fails, proceed and let firmware handle it
+  if (limited !== displayedStartOptions?.limited || bench !== displayedStartOptions?.bench ||
+      sensor !== displayedStartOptions?.sensor) {
+    renderStartChecks(true);
+    return;
+  }
+  cancelStart();
+  return _doStart(limited);
 }
 async function _doStart(limited = false) {
   // Spinner/feedback state: disable button and change text
@@ -768,6 +769,7 @@ async function _doStart(limited = false) {
   }
 }
 function cancelStart() {
+  displayedStartOptions = undefined;
   document.getElementById('start-confirm-overlay').style.display = 'none';
 }
 async function confirmAbFire() {
@@ -789,6 +791,9 @@ async function confirmAbFire() {
 // Close on overlay click
 document.getElementById('start-confirm-overlay').addEventListener('click', function(e) {
   if (e.target === this) cancelStart();
+});
+document.getElementById('start-confirm-overlay').addEventListener('keydown', event => {
+  if (event.key === 'Escape') cancelStart();
 });
 
 // Getting Started banner — show on first visit, hide once dismissed. Shared

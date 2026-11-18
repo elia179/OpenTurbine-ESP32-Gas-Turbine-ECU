@@ -723,14 +723,14 @@ expect('logging UI offers each fitted general sensor independently',
   logHtml.includes("purpose.startsWith('general_')") &&
   logHtml.includes('session_log.registry_inputs') &&
   !logHtml.includes('data-bit="general_inputs"'));
-expect('flash persistence is prohibited while engine control is active',
-  web.includes('const bool storageWritesSafe = mode == SysMode::STANDBY || mode == SysMode::FAULT') &&
-  web.includes('if (storageWriteWindow) FlightRecorder::runEviction()') &&
-  web.includes('if (storageWriteWindow) SessionLogger::drainQueue()') &&
-  web.includes('if (storageWriteWindow && !_hwRebootPending && Config::deferredSaveDue() &&') &&
-  web.includes('if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode)) {') &&
-  web.includes('if (workspace.ownsBackgroundWorkspace())\n                Config::flushPendingSave();') &&
-  web.includes('if (storageWriteWindow) Config::flushPendingRuntimeStats()'));
+const backgroundStorage = web.slice(web.indexOf('void WebServer::tick()'), web.indexOf('// Successful OTA uses'));
+expect('flash persistence claims the START gate, then rechecks mode and physical outputs',
+  /ConfigApplyGate::tryBeginBackgroundStorage\(\)[\s\S]*_isStandbyLike\(EngineData::instance\(\).mode\)[\s\S]*!_outputsActiveForOta\(\)[\s\S]*_beginStorageWriteWindow\(\)/.test(backgroundStorage) &&
+  ['FlightRecorder::runEviction()', 'SessionLogger::drainQueue()', 'Config::flushPendingSave()',
+   'Config::flushPendingRuntimeStats()'].every(write =>
+    backgroundStorage.indexOf(write) > backgroundStorage.indexOf('_beginStorageWriteWindow()') &&
+    backgroundStorage.indexOf(write) < backgroundStorage.indexOf('ConfigApplyGate::release()')) &&
+  backgroundStorage.includes('if (workspace.ownsBackgroundWorkspace()) Config::flushPendingSave();'));
 expect('flash-backed asset responses lease LittleFS against concurrent writes',
   web.includes('class LeasedAssetResponse final : public AsyncAbstractResponse') &&
   web.includes('++s_activeAssetResponses') &&
@@ -740,7 +740,7 @@ expect('flash-backed asset responses lease LittleFS against concurrent writes',
   web.includes('~LeasedAssetResponse() override') &&
   web.includes('_releaseAssetResponseLease();') &&
   web.includes('s_storageWriteActive = true') &&
-  web.includes('if (storageWriteWindow) _endStorageWriteWindow()'));
+  backgroundStorage.includes('_endStorageWriteWindow();'));
 expect('config UI PATCH sends only recap-listed changed fields',
   configHtml.includes('const changedKeys = new Set(_buildChanges().map(change => change.key))') &&
   configHtml.includes('if (!changedKeys.has(field.key)) return') &&
@@ -821,7 +821,7 @@ expect('protocol-owned HTTP response headers do not allocate STL nodes at send t
   pioHook.includes('without allocating std::list nodes'));
 expect('Classic rejects unrelated HTTP work while an atomic config apply owns its candidate buffer',
   web.includes('request->method() == HTTP_GET &&') &&
-  web.includes('(ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||') &&
+  web.includes('(_configReadBusy() || _maintenanceUploadInProgress() ||') &&
   web.includes('AsyncBasicResponse builds several throwing STL header nodes'));
 const firmwareUpload = web.slice(web.indexOf('_server.on("/api/firmware_chunk"'),
                                  web.indexOf('_server.on("/api/web_asset_chunk"'));
@@ -1252,7 +1252,10 @@ expect('calibration writes require the ECU whose setup was loaded',
   calibrationHtml.includes('calibrationEcuChanged = true;') &&
   calibrationHtml.includes('OTSaveConfigPatch(patch, expectedEcu, expectedBoot)') &&
   calibrationHtml.includes("OTSaveHardwarePatch(patch, '', null, expectedEcu)") &&
-  web.split('if (_rejectWrongConfigEcu(req, index)) return;').length === 3);
+  ['/api/config", HTTP_PATCH', '/api/hardware", HTTP_PATCH', '/api/ecu_config", HTTP_POST'].every(route => {
+    const handler = web.indexOf(route);
+    return handler >= 0 && web.slice(handler, handler + 450).includes('if (_rejectWrongConfigEcu(req, index)) return;');
+  }));
 expect('all configured I2C engine outputs participate in pre-start readiness, including cooling fans',
   hardware.includes('!strcmp(p, "cooling_fan")') &&
   hardware.includes('unavailableEngineI2cOutput()'));
@@ -1308,8 +1311,9 @@ expect('coolant pressure offers the same local and shared-I2C analog adapters as
 expect('sequence saves send only page-owned setting and hardware patches',
   sequenceHtml.includes('loadedHwCfg = cloneSequenceJson(hwCfg)') &&
   sequenceHtml.includes('loadedCfg = cloneSequenceJson(cfg)') &&
-  sequenceHtml.includes("OTSavePatch('/api/config', settingsPatch, false, window.OTConfigEditor.requireEcu())") &&
-  sequenceHtml.includes("OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, window.OTConfigEditor.requireEcu())") &&
+  sequenceHtml.includes('const expectedEcu = window.OTConfigEditor.requireEcu()') &&
+  sequenceHtml.includes("OTSavePatch('/api/config', settingsPatch, false, expectedEcu)") &&
+  sequenceHtml.includes("OTSaveHardwarePatch(hardwarePatch, 'sequence', settingsPatch, expectedEcu)") &&
   sequenceHtml.includes('sequenceSettingsPatch(loadedCfg, cfg)') &&
   sequenceHtml.includes('of Object.values(CONFIG_SECTIONS)') &&
   !sequenceHtml.includes("fetch('/api/ecu_config', {method:'POST'"));
@@ -1580,14 +1584,14 @@ expect('central runtime data has no write-only AB adapter or protected-throttle 
 expect('full telemetry defers without a conflict when the bounded response workspace is busy',
   web.includes('bool allowDeferredSnapshot = false') &&
   web.includes('{\\"_snapshot_deferred\\":true}') &&
-  web.includes('_sendBorrowedWebRxJson(req, g_webTxBuf, n, 200, true);') &&
+  web.includes('_sendBorrowedWebRxJson(req, g_webTxBuf, written, 200, true);') &&
   webApp.includes('async function loadDashboardSnapshot(attempt = 0)') &&
   webApp.includes('data?._snapshot_deferred') &&
   webApp.includes('loadDashboardSnapshot(attempt + 1)'));
 expect('both targets reject low-heap reads through the framework-safe abort path',
   web.includes('#if defined(OT_PLATFORM_ESP32) || defined(OT_PLATFORM_ESP32S3)') &&
   web.includes('request->method() == HTTP_GET &&') &&
-  web.includes('(ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||') &&
+  web.includes('(_configReadBusy() || _maintenanceUploadInProgress() ||') &&
   web.includes('const uint32_t minimumHeap = apiRead ? 24576 : 8192;') &&
   web.includes('const uint32_t minimumBlock = apiRead ? 8192 : 2048;') &&
   web.includes('ESP.getFreeHeap() < minimumHeap || ESP.getMaxAllocHeap() < minimumBlock)') &&
@@ -1696,7 +1700,7 @@ const webAssetUpload = web.slice(web.indexOf('_server.on("/api/web_asset_chunk"'
                                 web.indexOf('const bool ok = _commitWebAssetGeneration();'));
 expect('web asset upload leases belong only to an admitted body and release on disconnect',
   webAssetUpload.indexOf('Another web asset chunk is in progress') < webAssetUpload.indexOf('_assetUploadOwner = req;') &&
-  webAssetUpload.indexOf('Unexpected web asset chunk or offset') < webAssetUpload.indexOf('_beginMaintenanceWriteWindow()') &&
+  webAssetUpload.indexOf('Unexpected web asset chunk or offset') < webAssetUpload.indexOf('_beginIdleMaintenanceWriteWindow()') &&
   webAssetUpload.includes('if (_assetUploadOwner == req) _finishAssetUpload();') &&
   webAssetUpload.indexOf('if (_assetUploadOwner != req) return;') < webAssetUpload.indexOf('_assetTempFile.write(data, len)'));
 expect('web assets and JSON replies declare the server one-response lifecycle',
@@ -1800,6 +1804,7 @@ expect('event-log clear verifies removal and preserves queued post-clear events 
     flightRecorder.indexOf('s_clearPending = false;', flightRecorder.indexOf('s_lastError = 4;')));
 expect('Log UI reports a clear timeout and decodes event clear storage failures',
   logHtml.includes("'event log clear failed'") &&
-  logHtml.includes("throw new Error('ECU did not confirm that the event log was cleared')"));
+  logHtml.includes('the result could not be verified. Refresh the event history before retrying.') &&
+  logHtml.includes('event history is currently locked.'));
 
 console.log(`Safety regression audit passed (${checks.length} checks).`);

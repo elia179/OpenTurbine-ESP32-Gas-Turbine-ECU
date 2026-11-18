@@ -19,7 +19,11 @@ Configure only fitted hardware, then its controllers, calibration and sequences.
 5. Review the selected chip, COM port and hardware profile, then choose **Erase board and install** at the final confirmation. The tool checks the board again before erasing and reports checking, erasing and writing/verification separately.
 6. After installation, join the board's **OpenTurbine** Wi-Fi network and open `http://192.168.4.1`. Fresh defaults have no Wi-Fi password until you set one.
 
-For normal upgrades, choose **Update and keep my setup**. That Wi-Fi path saves a complete engine-file backup and updates firmware and web pages without resetting the existing setup. Confirm the initial board Wi-Fi connection once. The tool checks both restarts, the installed firmware identity and every dashboard file automatically. If Windows leaves the board network, reconnect when prompted; a final verification retry only checks the uploaded files.
+For normal upgrades, choose **Update and keep my setup**. That Wi-Fi path saves a complete engine-file backup and updates firmware and web pages without resetting the existing setup. The tool checks both restarts, the firmware version, the dashboard files, and the saved engine setup against the backup. If Windows leaves the board network, reconnect when prompted. **Retry final verification** repeats the checks without uploading again.
+
+When you save settings in the browser, the page indicates when the ECU will restart. Calibration has a Save control in each relevant card. If a save response is interrupted, the page checks the stored fields on the same ECU. A save marked **Unconfirmed** leaves the edits open for you to check before retrying.
+
+To restore an engine file, open **System → Maintenance → Backup & restore**. Review the engine name and both boards before confirming. A file with an unknown source board can still be restored. If the file came from a different chip, review its GPIO assignments. The ECU validates the submitted configuration and the page checks it after the restart.
 
 If a requested download says **Not Found**, that release asset is not published. Do not download an installer offered by an unrelated third party. Official releases belong at [github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases](https://github.com/elia179/OpenTurbine-ESP32-Gas-Turbine-ECU/releases).
 

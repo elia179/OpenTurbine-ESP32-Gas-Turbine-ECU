@@ -12,6 +12,24 @@ const viewports = [
   { name: 'wide-desktop', width: 1920, height: 1080 },
 ];
 
+async function openPage(page, route) {
+  if (!page.url().startsWith(base + '/'))
+    return page.goto(base + route, {waitUntil:'domcontentloaded'});
+  // Follow the normal same-origin link path so the outgoing page can drain
+  // telemetry. WebKit reports abruptly cancelled fetches as access errors.
+  const [response] = await Promise.all([
+    page.waitForNavigation({waitUntil:'domcontentloaded'}),
+    page.evaluate(path => {
+      const link = document.createElement('a');
+      link.href = path;
+      link.setAttribute('data-ot-warning-link', '');
+      document.body.append(link);
+      link.click();
+    }, route),
+  ]);
+  return response;
+}
+
 (async () => {
   globalThis.OT_UI_SIM_PORT = port;
   await import('./ui_mock_server.mjs');
@@ -50,7 +68,7 @@ const viewports = [
           localStorage.setItem('ot_theme_onboarded_v1', '1');
         });
         for (const route of pages) {
-          const response = await page.goto(base + route, { waitUntil: 'domcontentloaded' });
+          const response = await openPage(page, route);
           assert.ok(response && response.ok(), `${name}/${viewport.name} failed ${route}`);
           assert.ok(await page.locator('body').isVisible(), `${name}/${viewport.name} blank ${route}`);
           // window.innerWidth includes a non-overlay vertical scrollbar while
@@ -79,7 +97,7 @@ const viewports = [
           fallback.on('pageerror',error=>fallbackErrors.push(error.message));
           await fallback.route('**/theme.js*',route=>route.fulfill({status:503,body:''}));
           for(const route of ['/controllers.html','/system.html']){
-            await fallback.goto(base+route,{waitUntil:'domcontentloaded'});
+            await openPage(fallback, route);
             assert.ok(await fallback.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth<=2),
               `${name}/tablet fallback navigation widens ${route} when theme assets are unavailable`);
             assert.ok(await fallback.evaluate(()=>{const nav=document.querySelector('nav');nav.scrollLeft=nav.scrollWidth;const link=nav.querySelector('.ot-nav-system');return !link||link.getBoundingClientRect().right<=window.innerWidth+2;}),
@@ -88,7 +106,7 @@ const viewports = [
           assert.deepEqual(fallbackErrors,[],`${name}/tablet fallback JavaScript errors`);
           await fallback.close();
         }
-        await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
+        await openPage(page, '/');
         await page.locator('#dashboard-card-edit-btn').click();
         await page.locator('#dashboard-arrange-btn').click();
         assert.ok(await page.locator('#dashboard-custom-section').isVisible(),

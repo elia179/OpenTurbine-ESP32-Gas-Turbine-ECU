@@ -91,6 +91,23 @@ function installedBrowser() {
     await scenario(page, 'full');
     await waitShown(page, '#getting-started-banner', false);
     assert.equal(await text(page, '#fw-version'), 'vsim-1.0.0');
+    assert.equal(await text(page, '#sys-reset-reason'), 'Power on');
+    const units = page.getByRole('group',{name:'Display units'});
+    assert.equal(await units.locator('button').count(),2);
+    const sequenceEvents = await page.evaluate(() => [
+      friendlyEventText('Seq: SetOutput'),
+      friendlyEventText('Aborted at: SafetyHold'),
+      friendlyEventText('Shutdown fault at: FinalStop'),
+      friendlyEventText('Seq: Custom oil check'),
+      faultDescriptionText({fault_description:'STARTUP_ABORT: SafetyHold'}).split('\n')[0]
+    ]);
+    assert.deepEqual(sequenceEvents, [
+      'Sequence: Set Output',
+      'Aborted at: Final Startup Checks',
+      'Shutdown fault at: Wait for Complete Stop',
+      'Sequence: Custom oil check',
+      'Startup aborted at sequence step: Final Startup Checks.'
+    ]);
     assert.equal(await text(page, '#registry-input-value-operator_throttle'), '50.0');
     assert.equal(await text(page, '#registry-input-value-operator_idle'), '28.0');
     assert.equal(await page.evaluate(() =>
@@ -296,6 +313,20 @@ function installedBrowser() {
     await page.evaluate(() => setTelemetryStale(false));
     results.push('compact switch/operator inputs stay out of sensor cards and stale telemetry stays below navigation');
 
+    const afterburnerHelp = await page.evaluate(() => {
+      const saved = {ab_trigger_source:0,limp_mode:false,..._lastData};
+      const button = document.getElementById('btn-ab-fire');
+      const titles = [{mode:'STANDBY'}, {mode:'RUNNING',limp_mode:true},
+        {mode:'RUNNING',ab_trigger_source:1}].map(change => {
+        applyData({...saved,...change});
+        return button.title;
+      });
+      applyData(saved);
+      return titles;
+    });
+    assert.match(afterburnerHelp[0], /only while the engine is RUNNING/);
+    assert.match(afterburnerHelp[1], /unavailable in reduced-power mode/);
+    assert.match(afterburnerHelp[2], /configured afterburner trigger/);
     await page.locator('#btn-ab-fire').click();
     assert.equal(await text(page, '#ot-dialog-title'), 'Fire afterburner?');
     assert.match(await text(page, '#ot-dialog-message'), /AB igniter, fuel valve, and fuel pump.*N1.*RPM.*TOT.*°C/is);
@@ -398,9 +429,9 @@ function installedBrowser() {
       has_tot: true, has_tit: true, egt_source: 1, tot: 24, tot_healthy: true,
       has_oil_press: true, oil: 0, oil_healthy: true
     } });
-    await page.waitForFunction(() => document.getElementById('mode-badge')?.textContent === 'STANDBY');
+    await page.waitForFunction(() => document.getElementById('mode-badge')?.textContent === 'STANDBY' &&
+      Number.isInteger(_lastData?.startup_seq_count));
     await page.evaluate(() => showStartConfirm());
-    await page.waitForFunction(() => !document.getElementById('start-confirm-checks')?.textContent?.includes('Checking'));
     const startChecks = await text(page, '#start-confirm-checks');
     assert.match(startChecks, /ECU mode\s*STANDBY/i);
     assert.match(startChecks, /N1\s*0 RPM\s*·\s*OK/i);
@@ -428,7 +459,7 @@ function installedBrowser() {
     assert.equal(startBlockVisibility.disabled, true);
     assert.equal(startBlockVisibility.visible, true);
     assert.match(startBlockVisibility.text, /START unavailable.*hardware that is not configured/i);
-    assert.match(startBlockVisibility.link, /^\/sequence\.html\?v=\d{8}[a-z]$/);
+    assert.match(startBlockVisibility.link, /^\/sequence\.html(?:\?v=\d{8}[a-z])?#seq-validation-banner$/);
     assert.equal(startBlockVisibility.stopVisible, true);
     assert.equal(startBlockVisibility.reasonHiddenForStop, true);
     const staleStartRequestSent = await page.evaluate(() => {
@@ -436,7 +467,7 @@ function installedBrowser() {
       let sent = false;
       const originalFetch = window.fetch;
       window.fetch = (...args) => {
-        if (String(args[0]).includes('/api/hardware')) sent = true;
+        if (String(args[0]).startsWith('/api/start')) sent = true;
         return originalFetch(...args);
       };
       confirmStart();
@@ -460,6 +491,9 @@ function installedBrowser() {
     await page.waitForFunction(() => Number(_lastData?.tot) === 812);
     assert.equal(await text(page, '#tot'), '—');
     assert.equal(await page.evaluate(() => _sparkTot.length), failedTotSparkLength);
+    assert.equal(await text(page, '#tot-abs-label'), 'N/A');
+    assert.equal(await page.locator('#tot-abs-label').getAttribute('title'), 'Sensor reading unavailable');
+    assert.equal(await page.locator('#tot-approach-warn').isVisible(), false);
     await page.evaluate(() => showStartConfirm());
     assert.equal(await page.locator('#btn-limited-start').count(), 0);
     assert.equal(await page.locator('#btn-confirm-limited-start').count(), 0);
@@ -473,6 +507,17 @@ function installedBrowser() {
     results.push('one eligible sensor failure changes the single confirmation action to reduced-power start and keeps failed readings stable');
     await scenario(page, 'full');
     await page.waitForFunction(() => _lastData?.mode === 'RUNNING' && Number(_lastData?.throttle_demand) === 0.61);
+    const speed = await page.evaluate(() => {
+      const before = {..._lastData};
+      applyData({...before, n1:99999, n1_rpm_accel:500, n1_healthy:false});
+      const read = id => document.getElementById(id);
+      const failed = [read('n1').textContent, read('n1-rate-val').textContent,
+        read('n1-abs-label').textContent, read('n1-approach-warn').style.display];
+      applyData({...before, n1_healthy:true});
+      return {failed, restored:read('n1').textContent};
+    });
+    assert.deepEqual(speed.failed, ['—','—','N/A','none']);
+    assert.notEqual(speed.restored, '—');
 
     assert.equal((await text(page, '#getting-started-banner')).match(/[⚙🔧📋🔨▶]/u), null);
     assert.equal(await page.locator('.gs-steps a').first().evaluate(el => getComputedStyle(el).color), 'rgb(245, 245, 247)');
@@ -485,8 +530,10 @@ function installedBrowser() {
       has_n1: true, n1_healthy: true
     } });
     await page.waitForFunction(() => getComputedStyle(document.getElementById('throttle-feedback-inhibit-note')).display !== 'none');
-    await page.waitForFunction(() => document.getElementById('tit-rise-rate-val')?.textContent?.includes('2.5'));
+    assert.equal(await text(page, '#tit-rise-rate-val'), '—');
     assert.equal(await text(page, '#tot-rise-rate-val'), '—');
+    await page.request.post(`${base}/__sim/data`, { data: { tit_healthy: true } });
+    await page.waitForFunction(() => document.getElementById('tit-rise-rate-val')?.textContent?.includes('2.5'));
     await page.request.post(`${base}/__sim/data`, { data: { tit_healthy: true, egt_source: 1, throttle_feedback_inhibited:false } });
     await page.waitForFunction(() => getComputedStyle(document.getElementById('throttle-feedback-inhibit-note')).display === 'none');
     await page.waitForFunction(() => document.getElementById('tot-rise-rate-val')?.textContent?.includes('2.5'));
@@ -686,11 +733,10 @@ function installedBrowser() {
       tit: 720,
       tit_limit: 0
     } });
-    await page.waitForFunction(() => document.getElementById('oil-abs-label')?.textContent?.includes('/ OFF'));
-    assert.match(await text(page, '#fuel-press-abs-label'), /\/ OFF$/);
-    assert.equal(await text(page, '#batt-volt-min'), 'OFF');
-    assert.match(await text(page, '#tit-abs-label'), /\/ OFF$/);
-    assert.match(await text(page, '#n2-abs-label'), /RPM \/ OFF$/);
+    await page.waitForFunction(() => _lastData?.oil_running_min === 0);
+    for (const id of ['oil-abs-label', 'fuel-press-abs-label', 'tit-abs-label', 'n2-abs-label'])
+      assert.equal(await text(page, '#' + id), '');
+    assert.equal(await page.locator('#batt-volt-min-label').isVisible(), false);
     results.push('dashboard zero-disabled thresholds clear stale gauge limits instead of retaining old values');
     await scenario(page, 'full');
     await page.locator('#unit-temp-btn').click();
@@ -790,7 +836,7 @@ function installedBrowser() {
     if (await page.locator('#ot-dialog-confirm').isVisible().catch(() => false))
       await page.locator('#ot-dialog-confirm').click();
     await page.locator('#save-recap-confirm-btn').click();
-    await page.waitForFunction(() => document.querySelector('#save-msg')?.textContent.includes('saves permanently after STOP'));
+    await page.waitForFunction(() => document.querySelector('#save-msg')?.textContent.includes('flash save deferred until STOP'));
     saved = await state(page);
     assert.equal(saved.last_config_patch.throttle.ramp_up_ms, 1700);
     await page.request.post(`${base}/__sim/data`, { data: { mode:'STANDBY', dev_mode:true, config_locked:false } });
@@ -1797,11 +1843,12 @@ function installedBrowser() {
     assert.ok(backupFile.hardware && backupFile.settings && backupFile._backup_meta,
       'System download should contain a complete engine file and backup metadata');
     await page.locator('#cfg-restore-file').setInputFiles(backupPath);
+    await page.locator('#ot-dialog-confirm').waitFor();
     assert.match(await text(page, '#ot-dialog-title'), /Restore complete engine file/i);
     const restorePost = page.waitForRequest(req => new URL(req.url()).pathname === '/api/ecu_config' && req.method() === 'POST');
     await page.locator('#ot-dialog-confirm').click();
     await restorePost;
-    await page.waitForFunction(() => /Config restored/i.test(document.getElementById('cfg-backup-msg')?.textContent || ''));
+    await page.waitForFunction(() => /Engine file saved/i.test(document.getElementById('cfg-backup-msg')?.textContent || ''));
     results.push('System downloads and uploads a complete engine file through its browser controls');
     const compactedOutputs = await page.evaluate(() => {
       const outputs = [
@@ -1882,7 +1929,7 @@ function installedBrowser() {
     assert.equal(recoveredRun.runS, 86);
     assert.equal(recoveredRun.peakN1, 67100);
     const logSource = fs.readFileSync(path.join(__dirname, '..', 'data_src', 'log.html'), 'utf8');
-    assert.match(logSource, /tab === 'summary' \|\| tab === 'events'\) loadLog\(\)/);
+    assert.match(logSource, /activeLogTab === 'session' \? loadSessionTab\(\) : loadLog\(\)/);
     results.push('completed-run summary recovers from the bounded event window even when START_ATTEMPT is older');
 
     await page.evaluate(() => renderSummary([], 8));

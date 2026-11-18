@@ -1,4 +1,13 @@
 let _engineFileRestoreBusy = false;
+let _factoryResetPending = false;
+window.addEventListener('ot-setup-change', () => {
+  if (!window.OTConnectedEcuId()) return;
+  try {
+    if (sessionStorage.getItem('ot_restore_verified') !== window.OTConnectedEcuId()) return;
+    window._otRestoredEngineVerified = true;
+    sessionStorage.removeItem('ot_restore_verified');
+  } catch (_) {}
+});
 // ── Dev Mode toggle ───────────────────────────────────────────
 // ── Live sensor badge helpers ─────────────────────────────────
 // Map from field key → function that returns badge text from telemetry data
@@ -138,7 +147,7 @@ window.applyData = function(d) {
   // Loop diagnostics and factory reset / restore button state
   updateLoopDiagnostics(d);
   const frBtn = document.getElementById('btn-factory-reset');
-  if (frBtn) frBtn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+  if (frBtn) frBtn.disabled = _factoryResetPending || !['STANDBY', 'FAULT'].includes(runtimeMode);
   const cfgRestoreBtn = document.getElementById('cfg-restore-btn');
   if (cfgRestoreBtn) cfgRestoreBtn.disabled = _engineFileRestoreBusy || !['STANDBY', 'FAULT'].includes(runtimeMode);
 
@@ -204,11 +213,13 @@ window.updateLoopDiagnostics = updateLoopDiagnostics;
 
 // OT_SYSTEM_ONLY_BEGIN
 async function factoryReset() {
+  if (_factoryResetPending) return;
   if (typeof runtimeMode !== 'undefined' && runtimeMode !== 'STANDBY' && runtimeMode !== 'FAULT') {
     alert('Factory reset is only permitted in STANDBY or FAULT.');
     return;
   }
-  if (!await OTDialog.confirm('⚠ Factory Reset\n\nThis will permanently ERASE:\n• Engine settings and sequences\n• Hardware assignments\n• All calibration\n• Wi-Fi password\n• Event and session logs\n\nDownload a complete engine file first if you may need this setup.', {
+  const draftWarning = _cfgDirty ? '\n\nUnsaved System edits will also be discarded.' : '';
+  if (!await OTDialog.confirm('⚠ Factory Reset\n\nThis will permanently ERASE:\n• Engine settings and sequences\n• Hardware assignments\n• All calibration\n• Wi-Fi password\n• Event and session logs\n\nDownload a complete engine file first if you may need this setup.' + draftWarning, {
     title: 'Factory reset this ECU?', confirmText: 'Continue', danger: true
   })) return;
   const typed = await OTDialog.prompt('Type RESET to erase this ECU and reboot with built-in defaults.', {
@@ -218,29 +229,44 @@ async function factoryReset() {
     alert('Factory reset cancelled. Nothing was erased.');
     return;
   }
+  if (!systemMaintenanceAllowed()) {
+    alert('Factory reset is only permitted in STANDBY or FAULT.');
+    return;
+  }
+  if (_factoryResetPending) return;
   const msg = document.getElementById('factory-reset-msg');
   const btn = document.getElementById('btn-factory-reset');
+  const expectedEcu = window.OTConnectedEcuId?.();
+  _factoryResetPending = true;
   if (btn) btn.disabled = true;
-  fetch('/api/factory_reset', { method: 'POST' })
-    .then(async r => {
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.ok === false) throw new Error(d.error || d.reason || ('HTTP ' + r.status));
-      return {response:r, data:d};
-    })
-    .then(({response, data:d}) => {
-      if (d.ok) {
-        window.OTSetup?.clear(response);
-        if (msg) { msg.textContent = 'Reset sent — device rebooting…'; msg.style.color = 'var(--yellow)'; msg.style.display = ''; }
-        window.OTShowRebootOverlay?.({returnPath:'/system.html'});
-      } else {
-        if (msg) { msg.textContent = d.error || 'Reset failed'; msg.style.color = 'var(--red)'; msg.style.display = ''; }
-        if (btn) btn.disabled = false;
-      }
-    })
-    .catch(e => {
-      if (msg) { msg.textContent = 'Reset request failed: ' + e.message; msg.style.color = 'var(--red)'; msg.style.display = ''; }
-      if (btn) btn.disabled = false;
+  if (msg) {
+    msg.textContent = 'Waiting for the ECU to confirm the reset…';
+    msg.style.color = 'var(--dim)';
+    msg.style.display = '';
+  }
+  const reply = await (async () => {
+    const response = await fetch('/api/factory_reset', {method:'POST', signal:AbortSignal.timeout(20000)});
+    return {response, data:await response.json()};
+  })().catch(() => null);
+  if (reply?.response.ok && reply.data?.ok === true) {
+    window.OTSetup?.clear(reply.response);
+    _clearDirty();
+    if (msg) msg.textContent = 'Factory reset accepted. The ECU is restarting.';
+    window.OTShowRebootOverlay?.({
+      returnPath:'/system.html', expectedEcu,
+      message:'Factory reset accepted. The ECU is restarting.',
+      detail:'The ECU Wi-Fi name or password may have changed.'
     });
+    return;
+  }
+  _factoryResetPending = false;
+  if (btn) btn.disabled = !systemMaintenanceAllowed();
+  if (msg) {
+    const rejection = reply?.data?.error || reply?.data?.reason ||
+      (reply?.data?.ok === false ? 'The ECU rejected the reset.' : '');
+    msg.textContent = rejection || 'Reset unconfirmed. Reconnect to the ECU and check its setup before retrying. The Wi-Fi name or password may have changed.';
+    msg.style.color = rejection ? 'var(--red)' : 'var(--yellow)';
+  }
 }
 
 function compactEngineFileForRestore(text) {
@@ -272,6 +298,7 @@ function compactEngineFileForRestore(text) {
 }
 
 async function backupConfig() {
+  window._otRestoredEngineVerified = false;
   const msg = document.getElementById('cfg-backup-msg');
   const state = document.getElementById('cfg-backup-state');
   const fetchEngineFile = async () => {
@@ -296,7 +323,7 @@ async function backupConfig() {
       if (!complete) return {blob:savedFile, profilePart:'recovery_', complete:false};
       // Live status only annotates the backup; losing it must not discard a
       // complete engine file that has already been read successfully.
-      const live = await fetchJsonWithTimeout('/api/data', 3000).catch(() => null) || {};
+      const live = await fetchJsonWithTimeout('/api/status', 3000).catch(() => null) || {};
       cfg._backup_meta = {
         timestamp:    new Date().toISOString(),
         fw_version:   live.fw_version || 'unknown',
@@ -354,6 +381,7 @@ async function restoreConfig(input) {
   const file = input.files[0];
   if (!file) return;
   if (_engineFileRestoreBusy) { input.value = ''; return; }
+  window._otRestoredEngineVerified = false;
   const msg = document.getElementById('cfg-backup-msg');
   const btn = document.getElementById('cfg-restore-btn');
   const state = document.getElementById('cfg-backup-state');
@@ -365,11 +393,55 @@ async function restoreConfig(input) {
   // Own the operation before opening an asynchronous confirmation dialog.
   _engineFileRestoreBusy = true;
   if (btn) btn.disabled = true;
-  let confirmed = false;
+  const failRestore = (message, unconfirmed = false) => {
+    _engineFileRestoreBusy = false;
+    if (state) {
+      state.textContent = unconfirmed ? 'Unconfirmed' : 'Error';
+      state.className = 'tool-state fault';
+    }
+    if (msg) {
+      msg.textContent = (unconfirmed ? '' : 'Restore failed: ') + message;
+      msg.style.color = 'var(--red)';
+      msg.style.display = '';
+    }
+    if (btn) btn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
+    input.value = '';
+  };
+  let confirmed = false, incoming, ecu, bootCount;
   try {
-    confirmed = await OTDialog.confirm('Restore complete engine file from "' + file.name + '"?\n\nThis replaces hardware assignments, settings, sequences, calibration, profile/Wi-Fi details, and runtime statistics, then reboots. Current event and session logs remain on this ECU.\n\nDownload the current engine file first if it may be needed.', {
+    const content = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      const failure = () => reject(new Error('Could not read the engine file. Select the file again to retry.'));
+      reader.onerror = reader.onabort = failure;
+      reader.onload = () => resolve(reader.result);
+      try { reader.readAsText(file); } catch (_) { failure(); }
+    });
+    try { incoming = JSON.parse(content); }
+    catch (_) { throw new Error('Select a valid OpenTurbine engine file (.json).'); }
+    if (![incoming?.hardware, incoming?.settings].every(value => value && typeof value === 'object' && !Array.isArray(value)))
+      throw new Error('The file must contain hardware and settings.');
+    const profile = incoming.hardware.profile_id;
+    if (profile && incoming.settings.profile_id && profile !== incoming.settings.profile_id)
+      throw new Error('The hardware and settings sections name different engines. Select a complete backup.');
+    ecu = window.OTConfigEditor.requireEcu();
+    const status = await window.OTReadJson('/api/status', {withEcu:true, timeoutMs:2500, budgetMs:5000});
+    if (status.ecu && status.ecu !== ecu) throw new Error('The connected ECU changed. Reload System before restoring.');
+    bootCount = status.value.boot_count;
+    const board = await window.OTReadJson('/api/device_info', {withEcu:true, attempts:1, timeoutMs:1800}).catch(() => null);
+    if (board?.ecu && board.ecu !== ecu) throw new Error('The connected ECU changed. Reload System before restoring.');
+    const chip = incoming.hardware.platform === 'esp32s3' ? 'ESP32-S3' :
+      incoming.hardware.platform === 'esp32' ? 'ESP32' : '';
+    const destination = board?.value?.chip || '';
+    const boardInfo = `Engine: ${profile || 'Unknown'}\nBackup board: ${chip || 'Unknown'}\nConnected board: ${destination || 'Unknown'}`;
+    const warning = chip && destination && chip !== destination
+      ? '\n\nThis backup came from a different chip. Review its GPIO assignments. The ECU validates them before replacing the current setup.' : '';
+    const drafts = _cfgDirty ? ' Unsaved System edits will be discarded.' : '';
+    confirmed = await OTDialog.confirm(`Restore “${file.name}”?\n\n${boardInfo}${warning}\n\nThis replaces the engine setup and restarts the ECU. Event and session logs are kept.${drafts}`, {
       title: 'Restore complete engine file?', confirmText: 'Restore and reboot', danger: true
     });
+  } catch (error) {
+    failRestore(error.message);
+    return;
   } finally {
     if (!confirmed) {
       _engineFileRestoreBusy = false;
@@ -394,77 +466,89 @@ async function restoreConfig(input) {
     state.textContent = 'Restoring…';
     state.className   = 'tool-state active';
   }
-  const failRestore = (message, unconfirmed = false) => {
-    _engineFileRestoreBusy = false;
-    if (state) {
-      state.textContent = unconfirmed ? 'Unconfirmed' : 'Error';
-      state.className = 'tool-state fault';
-    }
-    if (msg) {
-      msg.textContent = (unconfirmed ? '' : 'Restore failed: ') + message;
-      msg.style.color = 'var(--red)';
-      msg.style.display = '';
-    }
-    if (btn) btn.disabled = !['STANDBY', 'FAULT'].includes(runtimeMode);
-    input.value = '';
-  };
-  const reader = new FileReader();
-  reader.onerror = () => failRestore('Could not read the engine file. Select the file again to retry.');
-  reader.onabort = () => failRestore('Reading the engine file was cancelled. Select the file again to retry.');
-  reader.onload = ev => {
-    const postRestore = async () => {
-      const payload = compactEngineFileForRestore(ev.target.result);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        return await fetch('/api/ecu_config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload,
-          signal: controller.signal
-        });
-      } catch (_) {
-        // Reconnection alone cannot prove that the uploaded file was applied.
-        // Never repeat an uncertain restore automatically.
-        const error = new Error('Restore outcome is unconfirmed because the ECU response was lost. The file was not sent again. Reconnect and download the current engine file to verify it before retrying.');
-        error.restoreUnconfirmed = true;
-        throw error;
-      } finally {
-        clearTimeout(timeout);
-      }
+  if (msg) {
+    msg.textContent = 'Sending engine file…';
+    msg.style.color = '';
+    msg.style.display = '';
+  }
+  let acknowledged = false;
+  try {
+    const query = new URLSearchParams({ecu_id:ecu});
+    if (Number.isInteger(bootCount)) query.set('boot_count', bootCount);
+    const payload = compactEngineFileForRestore(JSON.stringify(incoming));
+    const submitted = JSON.parse(payload);
+    const send = async () => {
+      const response = await fetch('/api/ecu_config?' + query.toString(), {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:payload, signal:AbortSignal.timeout(15000)
+      });
+      return {response, data:await response.json().catch(() => null)};
     };
-    postRestore()
-    .then(async r => {
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.ok === false) {
-        const detail = d.detail === 'profile_desc'
-          ? 'Engine description must fit within 63 UTF-8 bytes.' : d.detail;
-        throw new Error((d.error || d.reason || ('HTTP ' + r.status)) + (detail ? ': ' + detail : ''));
+    const reply = await (window.OTWithTelemetryPaused ? window.OTWithTelemetryPaused(send) : send())
+      .catch(error => {
+        if (error instanceof TypeError || ['TimeoutError', 'AbortError'].includes(error.name)) return null;
+        throw error;
+      });
+    if (reply && (!reply.response.ok || reply.data?.ok === false)) {
+      const detail = reply.data?.detail === 'profile_desc'
+        ? 'Engine description must fit within 63 UTF-8 bytes.' : reply.data?.detail;
+      throw new Error((reply.data?.error || reply.data?.reason || ('HTTP ' + reply.response.status)) +
+        (detail ? ': ' + detail : ''));
+    }
+    acknowledged = reply?.data?.ok === true;
+    const nextName = incoming.hardware.profile_id;
+    const nextWifiName = nextName && nextName !== hwCfg?.profile_id ? nextName : '';
+    if (acknowledged && !Number.isInteger(bootCount)) {
+      window.OTSetup?.clear(reply.response);
+      _clearDirty();
+      if (state) { state.textContent = 'Saved — ECU restarting…'; state.className = 'tool-state done'; }
+      if (msg) msg.textContent = 'Engine file saved. Check the setup after the ECU restarts.';
+      window.OTShowRebootOverlay?.({returnPath:'/system.html#system-backup-restore', expectedEcu:ecu, nextWifiName});
+      return;
+    }
+    if (msg) msg.textContent = nextWifiName
+      ? `After the restart, connect to Wi-Fi “${nextWifiName}” to verify the engine file.`
+      : 'Waiting for the ECU to restart and verify the engine file…';
+    const verify = async () => {
+      if (!Number.isInteger(bootCount)) return null;
+      const deadline = Date.now() + 35000;
+      while (Date.now() < deadline) {
+        try {
+          const status = await window.OTReadJson('/api/status', {withEcu:true, attempts:1, timeoutMs:1800});
+          if (status.ecu !== ecu) return null;
+          if (Number.isInteger(status.value.boot_count) && status.value.boot_count !== bootCount &&
+              !status.value.restart_pending) {
+            if (status.value.config_storage_fault || status.value.profile_match === false) return null;
+            const saved = await window.OTReadJson('/api/ecu_config', {withEcu:true, attempts:1, timeoutMs:3500});
+            if (saved.ecu !== ecu) return null;
+            const {stats, ...settings} = submitted.settings;
+            return window.OTStoredFieldsMatch(saved.value?.hardware, submitted.hardware) &&
+              window.OTStoredFieldsMatch(saved.value?.settings, settings)
+              ? new Response(null, {headers:{'X-OpenTurbine-ECU':ecu}}) : null;
+          }
+        } catch (_) {} // Reconnect and retry reads only.
+        await new Promise(resolve => setTimeout(resolve, 1100));
       }
-      return {response:r, data:d};
-    })
-    .then(({response, data:d}) => {
-      if (d.ok) {
-        window.OTSetup?.clear(response);
-        if (state) {
-          state.textContent = 'Done — rebooting…';
-          state.className   = 'tool-state done';
-        }
-        if (msg) {
-          msg.textContent = 'Config restored. Device is rebooting.';
-          msg.style.color = 'var(--green)';
-          msg.style.display = '';
-        }
-        window.OTShowRebootOverlay?.({returnPath:'/system.html'});
-      } else {
-        throw new Error(d.error || 'Unknown error');
-      }
-    })
-    .catch(e => failRestore(e.message, e.restoreUnconfirmed));
+      return null;
+    };
+    const verified = await (window.OTWithTelemetryPaused ? window.OTWithTelemetryPaused(verify) : verify());
+    if (!verified) {
+      failRestore(acknowledged
+        ? 'The ECU saved the file, but its loaded setup could not be verified. Reconnect and download the current engine file to check it.'
+        : 'Restore outcome is unconfirmed. The file was not sent again. Reconnect and download the current engine file to verify it before retrying.', true);
+      return;
+    }
+    window.OTSetup?.clear(verified);
+    _clearDirty();
+    // Reload editor values from the verified board before allowing another save.
+    try { sessionStorage.setItem('ot_restore_verified', ecu); } catch (_) {}
+    history.replaceState(history.state, '', '#system-backup-restore');
+    location.reload();
+  } catch (error) {
+    failRestore(error.message);
+  } finally {
     input.value = '';
-  };
-  try { reader.readAsText(file); }
-  catch (_) { failRestore('Could not read the engine file. Select the file again to retry.'); }
+  }
 }
 window.restoreConfig = restoreConfig;
 
@@ -1192,30 +1276,38 @@ function systemMaintenanceAllowed() {
   return ['STANDBY', 'FAULT'].includes(runtimeMode);
 }
 
+function canStartSystemUpdate(input) {
+  const reason = !systemMaintenanceAllowed() ? 'Updates can start in STANDBY or FAULT.' :
+    _cfgSavePending ? 'Wait for the current save or update to finish.' :
+    _cfgDirty ? 'Save or discard your System changes before starting an update.' : '';
+  if (!reason) return true;
+  input.value = '';
+  alert(reason);
+  return false;
+}
+
 async function startSystemOTA(input) {
   const file = input.files?.[0];
-  if (!file) return;
-  if (!systemMaintenanceAllowed()) {
-    alert('Engine must be in STANDBY (or FAULT) before flashing firmware.');
-    input.value = '';
-    return;
-  }
+  if (!file || !canStartSystemUpdate(input)) return;
   const btn = document.getElementById('ota-btn');
   const state = document.getElementById('ota-state');
   const track = document.getElementById('ota-prog-track');
   const fill = document.getElementById('ota-prog-fill');
   const msg = document.getElementById('ota-msg');
+  _setConfigSavePending(true);
   btn.disabled = true;
   track.style.display = '';
   fill.style.width = '0%';
   state.textContent = 'Uploading…';
   state.className = 'maintenance-state';
   msg.style.display = 'none';
-  const fail = message => {
-    state.textContent = 'Error'; state.className = 'maintenance-state fault';
-    msg.textContent = message; msg.style.color = 'var(--red)'; msg.style.display = '';
+  const fail = (message, unconfirmed = false) => {
+    state.textContent = unconfirmed ? 'Unconfirmed' : 'Error'; state.className = 'maintenance-state fault';
+    msg.textContent = message; msg.style.color = unconfirmed ? 'var(--yellow)' : 'var(--red)'; msg.style.display = '';
     btn.disabled = false;
+    _setConfigSavePending(false);
   };
+  const unconfirmed = () => fail('Firmware update unconfirmed. Reconnect and check the installed firmware version before retrying.', true);
   input.value = '';
   try {
     if (file.size === 0) throw new Error('The selected firmware file is empty. Choose a complete firmware.bin and try again.');
@@ -1250,14 +1342,21 @@ async function startSystemOTA(input) {
         } finally {clearTimeout(timeout);}
         // Only transport loss is retried at this same idempotent chunk offset.
         // Received rejections and invalid acknowledgements stop immediately.
-        if (!response.ok || result?.ok === false)
+        if (!response.ok || result?.ok === false) {
+          if (final && error) return unconfirmed();
           throw new Error(result?.error || `HTTP ${response.status}`);
-        if (result?.ok !== true)
-          throw new Error('Update outcome is unconfirmed: no valid acknowledgement. Reconnect and verify the installed firmware before retrying.');
+        }
+        if (result?.ok !== true) {
+          if (final) return unconfirmed();
+          throw new Error('The ECU did not confirm an upload chunk. Reconnect and try again.');
+        }
         error=null;
         break;
       }
-      if (error || !response?.ok) throw error || new Error('Firmware chunk rejected');
+      if (error || !response?.ok) {
+        if (final) return unconfirmed();
+        throw error || new Error('Firmware chunk rejected');
+      }
       const pct = Math.round(end / file.size * 100);
       fill.style.width = pct + '%';
       state.textContent = `Uploading ${pct}%`;
@@ -1266,7 +1365,8 @@ async function startSystemOTA(input) {
     state.textContent = 'Done — rebooting…'; state.className = 'maintenance-state done';
     msg.textContent = 'Firmware updated. Reconnect to the ECU Wi-Fi after it restarts.';
     msg.style.color = 'var(--green)'; msg.style.display = '';
-    window.OTShowRebootOverlay?.({returnPath:'/system.html'});
+    _setConfigSavePending(false);
+    window.OTShowRebootOverlay?.({returnPath:'/system.html#manual-update-tools'});
   } catch (error) {
     fail('Firmware update failed: ' + (error?.message || 'network error — reconnect and try again'));
   }
@@ -1274,12 +1374,7 @@ async function startSystemOTA(input) {
 
 function startSystemWebAssetsUpdate(input) {
   const files = Array.from(input.files || []);
-  if (!files.length) return;
-  if (!systemMaintenanceAllowed()) {
-    alert('Engine must be in STANDBY (or FAULT) before updating web assets.');
-    input.value = '';
-    return;
-  }
+  if (!files.length || !canStartSystemUpdate(input)) return;
   const required = ['calibration.html.gz','controllers.html.gz','hardware.html.gz','index.html.gz',
     'log.html.gz','sequence.html.gz','app.js.gz','style.css.gz','system.html.gz',
     'theme.js.gz','ui_dialog.js.gz','tools.html.gz'];
@@ -1300,6 +1395,7 @@ function startSystemWebAssetsUpdate(input) {
   const track = document.getElementById('assets-prog-track');
   const fill = document.getElementById('assets-prog-fill');
   const msg = document.getElementById('assets-msg');
+  _setConfigSavePending(true);
   btn.disabled = true;
   track.style.display = '';
   fill.style.width = '0%';
@@ -1309,14 +1405,17 @@ function startSystemWebAssetsUpdate(input) {
   const ordered = required.map(name => files.find(file => file.name === name));
   const totalBytes = ordered.reduce((sum, file) => sum + file.size, 0);
   let completedBytes = 0;
-  const fail = message => {
-    state.textContent = 'Error'; state.className = 'maintenance-state fault';
-    msg.textContent = message; msg.style.color = 'var(--red)'; msg.style.display = '';
+  const fail = (message, unconfirmed = false) => {
+    state.textContent = unconfirmed ? 'Unconfirmed' : 'Error'; state.className = 'maintenance-state fault';
+    msg.textContent = message; msg.style.color = unconfirmed ? 'var(--yellow)' : 'var(--red)'; msg.style.display = '';
     btn.disabled = false;
+    _setConfigSavePending(false);
   };
+  const unconfirmed = () => fail('Web update unconfirmed. Reconnect and reload the interface to check whether the new pages are installed before retrying.', true);
   const sendNext = (index, offset = 0, attempt = 0) => {
     const file = ordered[index];
     const end = Math.min(offset + 8192, file.size);
+    const lastChunk = index + 1 === ordered.length && end === file.size;
     const chunk = file.slice(offset, end);
     const xhr = new XMLHttpRequest();
     let retryScheduled = false;
@@ -1332,8 +1431,16 @@ function startSystemWebAssetsUpdate(input) {
     };
     xhr.onload = () => {
       try {
-        const result = JSON.parse(xhr.responseText);
-        if (xhr.status < 200 || xhr.status >= 300 || result?.ok !== true) throw new Error(result?.error || 'No valid web-update acknowledgement');
+        let result;
+        try { result = JSON.parse(xhr.responseText); } catch (_) {}
+        if (xhr.status < 200 || xhr.status >= 300 || result?.ok === false) {
+          if (lastChunk && attempt > 0) return unconfirmed();
+          throw new Error(result?.error || 'HTTP ' + xhr.status);
+        }
+        if (result?.ok !== true) {
+          if (lastChunk) return unconfirmed();
+          throw new Error('The ECU did not confirm an upload chunk. Reconnect and try again.');
+        }
         completedBytes += chunk.size;
         if (end < file.size) return sendNext(index, end);
         if (index + 1 < ordered.length) return sendNext(index + 1);
@@ -1341,7 +1448,8 @@ function startSystemWebAssetsUpdate(input) {
         state.textContent = 'Done — rebooting…'; state.className = 'maintenance-state done';
         msg.textContent = 'Web pages updated; configuration and logs were retained.';
         msg.style.color = 'var(--green)'; msg.style.display = '';
-        window.OTShowRebootOverlay?.({returnPath:'/system.html'});
+        _setConfigSavePending(false);
+        window.OTShowRebootOverlay?.({returnPath:'/system.html#manual-update-tools'});
       } catch (error) { fail('Web asset update failed: ' + error.message); }
     };
     const retryTransport = () => {
@@ -1350,13 +1458,15 @@ function startSystemWebAssetsUpdate(input) {
       if (attempt < 4) {
         state.textContent = `Connection interrupted — retrying ${attempt + 1}/4…`;
         setTimeout(() => sendNext(index, offset, attempt + 1), 800);
+      } else if (lastChunk) {
+        unconfirmed();
       } else {
         fail('Network error — reconnect and select the complete asset set again.');
       }
     };
     xhr.onerror = retryTransport;
     xhr.ontimeout = retryTransport;
-    xhr.send(chunk);
+    try { xhr.send(chunk); } catch (error) { fail('Web asset update failed: ' + error.message); }
   };
   sendNext(0);
   input.value = '';

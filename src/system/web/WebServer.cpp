@@ -486,6 +486,15 @@ static bool _isStandbyLike(SysMode mode) {
     return mode == SysMode::STANDBY || mode == SysMode::FAULT;
 }
 
+// Establish maintenance ownership under the same gate used by START.
+static bool _claimIdleMaintenance() {
+    if (!ConfigApplyGate::tryBeginWebWrite()) return false;
+    if (_isStandbyLike(EngineData::instance().mode) && !_outputsActiveForOta() && !_hwRebootPending)
+        return true;
+    ConfigApplyGate::release();
+    return false;
+}
+
 static bool _awaitConfigApply(uint32_t generation, bool& succeeded) {
     const uint32_t started = millis();
     while (millis() - started < 500UL) {
@@ -837,7 +846,9 @@ static const char* _startPreflightRejectReason(bool allowEligibleSensorOverride 
         return "Configuration is locked or profile ID does not match";
     }
     if (ConfigApplyGate::busy()) {
-        return "Configuration update is still being applied";
+        return ConfigApplyGate::state() == ConfigApplyGate::BackgroundStorage
+            ? "ECU is saving to flash. Try START again."
+            : "Configuration update is still being applied";
     }
     if (ed.startSwitchConfigured && (!ed.startSwitchHealthy || !ed.startSwitchReady)) {
         return !ed.startSwitchHealthy
@@ -1545,6 +1556,11 @@ static AsyncWebServer  _server(80);
 static DNSServer       _dns;                 // captive portal DNS
 static char s_setupEcuId[13] = {};
 
+static bool _configReadBusy() {
+    const auto state = ConfigApplyGate::state();
+    return state != ConfigApplyGate::Idle && state != ConfigApplyGate::BackgroundStorage;
+}
+
 static bool _rejectWrongConfigEcu(AsyncWebServerRequest* req, size_t index) {
     const auto* expected = req->getParam("ecu_id");
     if (expected && expected->value() != s_setupEcuId) {
@@ -1599,7 +1615,7 @@ public:
         const uint32_t minimumBlock = 8192;
 #endif
         if (request && request->method() == HTTP_GET &&
-            (ConfigApplyGate::busy() || _maintenanceUploadInProgress() ||
+            (_configReadBusy() || _maintenanceUploadInProgress() ||
              !g_webTxStorage ||
              ESP.getFreeHeap() < minimumHeap || ESP.getMaxAllocHeap() < minimumBlock)) {
             // abort() marks the request sent before closing its client. Calling
@@ -1627,7 +1643,8 @@ public:
         const String& path = request->url();
         const bool setupRead = method == HTTP_GET &&
             (path == "/api/data" || path == "/api/telemetry" ||
-             path == "/api/hardware" || path == "/api/config" || path == "/api/session/status");
+             path == "/api/hardware" || path == "/api/config" || path == "/api/session/status" ||
+             path == "/api/status" || path == "/api/device_info" || path == "/api/ecu_config");
         const bool setupWrite = (method == HTTP_PATCH &&
             (path == "/api/hardware" || path == "/api/config")) ||
             (method == HTTP_POST && (path == "/api/command" ||
@@ -1717,6 +1734,13 @@ static void _endMaintenanceWriteWindow() {
     portENTER_CRITICAL(&s_assetResponseMux);
     s_maintenanceWriteActive = false;
     portEXIT_CRITICAL(&s_assetResponseMux);
+}
+
+static bool _beginIdleMaintenanceWriteWindow() {
+    if (!_beginMaintenanceWriteWindow()) return false;
+    if (_claimIdleMaintenance()) return true;
+    _endMaintenanceWriteWindow();
+    return false;
 }
 
 static void _endStorageWriteWindow() {
@@ -2408,12 +2432,16 @@ static size_t _buildTelemetryText(char* buf, size_t len, JsonDocument& doc) {
     return _serializeJsonBounded(doc, buf, len);
 }
 
-static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool full) {
+#if defined(OT_PLATFORM_ESP32S3)
+static void _sendWorkspaceSnapshot(AsyncWebServerRequest* req, JsonDocument& doc);
+#endif
+
+static void _sendTelemetrySnapshot(AsyncWebServerRequest* req, JsonDocument& doc) {
     alignas(EngineData) uint8_t snapshotStorage[sizeof(EngineData)];
     const uint32_t snapshotVersion = EngineData::readPublishedSnapshot(snapshotStorage, sizeof(snapshotStorage));
     const auto& ed = *reinterpret_cast<const EngineData*>(snapshotStorage);
     doc.clear();
-    doc["_full_snapshot"] = full;
+    doc["_full_snapshot"] = true;
     doc["snapshot_id"] = snapshotVersion;
     const float p1Bar = ed.p1;
     const float p2Bar = ed.p2;
@@ -2790,7 +2818,7 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
     // ── Slow fields — sent on connect + every ~30 s ───────────────────────
     // Hardware config flags, safety limits, labels, calibration raw values,
     // boot/session stats.  These never change during normal engine operation.
-    if (full) {
+    {
         // Lets Dashboard report an empty startup sequence without opening a
         // second large /api/hardware transfer alongside this full snapshot.
         doc["startup_seq_count"]      = HardwareConfig::startupSeqLen;
@@ -3079,9 +3107,36 @@ static size_t _buildTelemetry(char* buf, size_t len, JsonDocument& doc, bool ful
             ch["current_healthy"] = ed.registryOutputCurrentHealthy[i];
         }
     }
-    if (measureJson(doc) >= len)
+#if defined(OT_PLATFORM_ESP32S3)
+    // The response serializes now, while the snapshot's linked strings are
+    // still in scope. Only Classic's asynchronous tree fallback needs copies.
+    _sendWorkspaceSnapshot(req, doc);
+#else
+    const size_t size = doc.overflowed() ? 0 : measureJson(doc);
+    if (size >= sizeof(g_webTxBuf)) {
         _ownLinkedJsonValues(doc.as<JsonVariant>());
-    return _serializeJsonBounded(doc, buf, len);
+        if (!doc.overflowed()) {
+            auto* response = new (std::nothrow) StreamedJsonResponse(std::move(doc));
+            if (response) {
+                _finalizeJsonResponse(response);
+                req->send(response);
+                return;
+            }
+        }
+    } else if (size) {
+        const size_t written = serializeJson(doc, g_webTxBuf, sizeof(g_webTxBuf));
+        doc.clear();
+        doc.shrinkToFit();
+        if (written == size) {
+            _sendBorrowedWebRxJson(req, g_webTxBuf, written, 200, true);
+            return;
+        }
+    }
+    doc.clear();
+    doc.shrinkToFit();
+    req->send(503, "application/json",
+              "{\"error\":\"Not enough memory for a complete telemetry snapshot; retry\"}");
+#endif
 }
 
 #if defined(OT_PLATFORM_ESP32S3)
@@ -3225,42 +3280,29 @@ void WebServer::_setupRoutes() {
     // GET /api/data — live snapshot. Uses g_webTxBuf (static) to avoid a 6 KB stack
     // allocation inside the async TCP task callback (task stack is ~8 KB).
     _server.on("/api/data", HTTP_GET, [](AsyncWebServerRequest* req) {
+        // A normal dashboard takes one full snapshot and then polls compact
+        // telemetry. Stagger simultaneous browser bootstraps during control.
+        if (req->hasHeader("X-OpenTurbine-Dashboard")) {
+            static uint32_t lastDashboardSnapshot = 0;
+            const uint32_t now = millis();
+            if (lastDashboardSnapshot && now - lastDashboardSnapshot < 1500 &&
+                (!_isStandbyLike(EngineData::instance().mode) || _outputsActiveForOta())) {
+                auto* response = req->beginResponse(503, "application/json",
+                    "{\"error\":\"Dashboard snapshot busy; retry shortly\"}");
+                response->addHeader("Retry-After", "1");
+                _finalizeJsonResponse(response);
+                req->send(response);
+                return;
+            }
+            lastDashboardSnapshot = now;
+        }
 #if defined(OT_PLATFORM_ESP32S3)
         JsonWorkspaceAllocator workspace(g_webTxBuf, sizeof(g_webTxBuf), _allowSnapshotAllocation);
         JsonDocument doc(&workspace);
-        _buildTelemetry(nullptr, 0, doc, true);
-        _sendWorkspaceSnapshot(req, doc);
-        return;
 #else
         static JsonDocument doc;   // static: avoids re-allocating ArduinoJson heap every call
-        size_t n = _buildTelemetry(g_webTxBuf, sizeof(g_webTxBuf), doc, true);
-        if (doc.overflowed()) {
-            doc.clear();
-            doc.shrinkToFit();
-            req->send(503, "application/json",
-                      "{\"error\":\"Not enough memory for a complete telemetry snapshot; retry\"}");
-            return;
-        }
-        if (n >= sizeof(g_webTxBuf)) {
-            auto* resp = new (std::nothrow) StreamedJsonResponse(std::move(doc));
-            if (!resp) {
-                doc.clear();
-                doc.shrinkToFit();
-                req->send(503, "application/json",
-                          "{\"error\":\"Not enough memory for telemetry response; retry\"}");
-                return;
-            }
-            _finalizeJsonResponse(resp);
-            req->send(resp);
-            return;
-        }
-        // The full boot snapshot builds a large ArduinoJson tree. Retaining its
-        // pool on Classic ESP32 can starve a following hardware/configuration
-        // POST even though the serialized frame is already safe in g_webTxBuf.
-        doc.clear();
-        doc.shrinkToFit();
-        _sendBorrowedWebRxJson(req, g_webTxBuf, n, 200, true);
 #endif
+        _sendTelemetrySnapshot(req, doc);
     });
 
     // GET /api/status
@@ -3273,7 +3315,7 @@ void WebServer::_setupRoutes() {
         // allocation error.  Drop this disposable poll before constructing a
         // response.  The browser already retries status requests, while the
         // configuration gate remains authoritative and START stays blocked.
-        if (ConfigApplyGate::busy()) {
+        if (_configReadBusy()) {
             if (req->client()) req->abort();
             return;
         }
@@ -3282,15 +3324,18 @@ void WebServer::_setupRoutes() {
         snprintf(buf, sizeof(buf),
             "{\"mode\":\"%s\",\"locked\":%s,\"dev_mode\":%s,\"profile_match\":%s,\"config_apply_busy\":%s,"
             "\"free_heap\":%u,\"max_alloc_heap\":%u,"
-            "\"http_time_wait\":%u}",
+            "\"http_time_wait\":%u,\"boot_count\":%lu,\"config_storage_fault\":%s,\"restart_pending\":%s,"
+            "\"fw_version\":\"" OT_VERSION "\",\"uptime_s\":%lu}",
             sysModeStr(ed.mode),
             Config::isLocked() ? "true" : "false",
             ed.devMode ? "true" : "false",
             Config::profileMatch ? "true" : "false",
-            ConfigApplyGate::busy() ? "true" : "false",
+            _configReadBusy() ? "true" : "false",
             static_cast<unsigned>(ESP.getFreeHeap()),
             static_cast<unsigned>(ESP.getMaxAllocHeap()),
-            static_cast<unsigned>(s_httpTimeWaitPcbs));
+            static_cast<unsigned>(s_httpTimeWaitPcbs), (unsigned long)ed.bootCount,
+            ed.configStorageFault ? "true" : "false", _hwRebootPending ? "true" : "false",
+            (unsigned long)(ed.uptimeMs / 1000));
         AsyncWebServerResponse* resp = req->beginResponse(200, "application/json", buf);
         _finalizeJsonResponse(resp);
         req->send(resp);
@@ -4107,6 +4152,18 @@ void WebServer::_setupRoutes() {
         }
     });
 
+    // STOP paths do not need the configuration/upload receive workspace.
+    _server.on("/api/ab-stop", HTTP_POST, [](AsyncWebServerRequest* req) {
+        const OTPacket packet{ OTCommand::AB_STOP };
+        if (const char* reject = _commandPreflightRejectReason(packet)) {
+            _sendCommandReject(req, 409, reject);
+        } else if (CommandQueue::pushEmergencyFront(packet)) {
+            req->send(200, "application/json", "{\"ok\":true}");
+        } else {
+            req->send(503, "application/json", "{\"ok\":false,\"error\":\"Afterburner STOP could not be queued\"}");
+        }
+    });
+
     // POST /api/command — generic command dispatch
     _server.on("/api/command", HTTP_POST,
         [](AsyncWebServerRequest* req) {},
@@ -4412,12 +4469,12 @@ void WebServer::_setupRoutes() {
                     return;
                 }
                 if (!_otaInProgress) {
-                    if (_assetUploadInProgress || _configUploadOwner ||
-                        !_isStandbyLike(EngineData::instance().mode) || _outputsActiveForOta()) {
+                    if (_assetUploadInProgress || _configUploadOwner || !_claimIdleMaintenance()) {
                         req->send(409, "application/json", "{\"ok\":false,\"error\":\"Engine must be idle to upload firmware\"}");
                         return;
                     }
                     _otaInProgress = true;
+                    ConfigApplyGate::release();
                     _otaError = false;
                     _otaChunkReceived = 0;
                     _releaseLiveTelemetryWorkspace();
@@ -4514,7 +4571,7 @@ void WebServer::_setupRoutes() {
                 }
                 if (!_assetUploadInProgress) {
                     if (!_isStandbyLike(EngineData::instance().mode) || _otaInProgress ||
-                        _configUploadOwner || _outputsActiveForOta() || !_beginMaintenanceWriteWindow()) {
+                        _configUploadOwner || _outputsActiveForOta() || !_beginIdleMaintenanceWriteWindow()) {
                         req->send(409, "application/json",
                                   "{\"ok\":false,\"error\":\"Engine must be idle and ECU storage available to update web assets\"}");
                         return;
@@ -4526,6 +4583,7 @@ void WebServer::_setupRoutes() {
                     _assetLastComplete = -1;
                     _assetLastCompleteSize = 0;
                     _assetUploadInProgress = true;
+                    ConfigApplyGate::release();
                     if (LittleFS.exists(WEB_ASSET_MARKER)) {
                         if (LittleFS.exists(WEB_ASSET_MARKER_BACKUP))
                             LittleFS.remove(WEB_ASSET_MARKER_BACKUP);
@@ -5561,6 +5619,7 @@ void WebServer::_setupRoutes() {
         nullptr,
         [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
             UploadLock lock;
+            if (_rejectWrongConfigEcu(req, index)) return;
             if (index == 0) {
                 if (_configUploadOwner) {
                     req->send(409, "application/json",
@@ -5582,12 +5641,12 @@ void WebServer::_setupRoutes() {
                         "{\"error\":\"Wait for the current settings save to finish before restoring an engine file\"}");
                     return;
                 }
-                if (!_beginMaintenanceWriteWindow()) {
+                if (!_beginIdleMaintenanceWriteWindow()) {
                     req->send(503, "application/json",
                         "{\"error\":\"ECU storage is busy; retry the restore shortly\"}");
                     return;
                 }
-                _openConfigUpload(req, total);
+                _openConfigUpload(req, total, true);
             }
             if (!_appendConfigUpload(req, data, len, index, total)) return;
 
@@ -5925,7 +5984,6 @@ bool WebServer::begin() {
 }
 
 void WebServer::tick() {
-    unsigned long _t0 = millis();
     _dns.processNextRequest();
     {
         static unsigned long lastTcpMaintenanceMs = 0;
@@ -5937,71 +5995,44 @@ void WebServer::tick() {
                 s_tcpMaintenancePending = false;
         }
     }
-    unsigned long _t1 = millis();
-    const SysMode mode = EngineData::instance().mode;
-    // SPI-flash program/erase operations suspend the other ESP32 core while
-    // caches are disabled. LittleFS/NVS persistence must therefore never run
-    // while the ECU is controlling an engine. Producers keep bounded RAM
-    // queues during STARTUP/RUNNING/SHUTDOWN and drain them once outputs are
-    // already safe in STANDBY or FAULT.
-    // LittleFS program/erase and an AsyncFileResponse read must not overlap.
-    // On Classic this could make an otherwise healthy gzip response end before
-    // its declared Content-Length. The response lease is released on normal
-    // completion and on aborted page navigation, so queued record/session
-    // writes simply drain on the next web-task tick.
-    const bool storageWritesSafe = mode == SysMode::STANDBY || mode == SysMode::FAULT;
-    const bool storageWriteWindow = storageWritesSafe && _beginStorageWriteWindow();
-    if (storageWriteWindow) FlightRecorder::runEviction();
-    unsigned long _t2 = millis();
-    if (storageWriteWindow) SessionLogger::drainQueue();
-    unsigned long _t3 = millis();
-    // Skip while a reboot is pending: factory reset / config restore just replaced
-    // the on-disk file, and a deferred save would overwrite it with the old
-    // in-memory settings during the 5 s pre-reboot window.
-    if (storageWriteWindow && !_hwRebootPending && Config::deferredSaveDue() &&
-        ConfigApplyGate::tryBeginWebWrite()) {
-        if (!_hwRebootPending && _isStandbyLike(EngineData::instance().mode)) {
+    // Flash programming can pause both cores. Claim the START/configuration
+    // gate and then recheck the mode before entering a real storage window.
+    // Keep idle web ticks out of this gate so START ordinarily proceeds freely.
+    static bool fsStatsReady = false;
+    static uint32_t lastFsStats = 0;
+    const uint32_t now = millis();
+    const bool refreshFsStats = !fsStatsReady || now - lastFsStats >= 10000;
+    if (_isStandbyLike(EngineData::instance().mode) && !_hwRebootPending &&
+        !_maintenanceUploadInProgress() &&
+        (FlightRecorder::hasPendingWrites() || SessionLogger::hasPendingWrites() ||
+         Config::deferredSaveDue() || Config::runtimeStatsSaveDue() || refreshFsStats) &&
+        ConfigApplyGate::tryBeginBackgroundStorage()) {
+        if (_isStandbyLike(EngineData::instance().mode) && !_hwRebootPending &&
+            !_maintenanceUploadInProgress() && !_outputsActiveForOta() &&
+            _beginStorageWriteWindow()) {
+            FlightRecorder::runEviction();
+            SessionLogger::drainQueue();
+            if (Config::deferredSaveDue()) {
 #if defined(OT_PLATFORM_ESP32)
-            // Background appearance and live-tuning saves serialize the same
-            // Settings document as foreground saves. Lend the idle receive
-            // workspace so a slow engine-file reader cannot exhaust its heap.
-            ClassicRxWorkspaceLoan workspace(true);
-            if (workspace.ownsBackgroundWorkspace())
-                Config::flushPendingSave();
+                // Lend the idle receive workspace on Classic so a slow
+                // engine-file reader cannot starve the deferred save.
+                ClassicRxWorkspaceLoan workspace(true);
+                if (workspace.ownsBackgroundWorkspace()) Config::flushPendingSave();
 #else
-            Config::flushPendingSave();
+                Config::flushPendingSave();
 #endif
+            }
+            Config::flushPendingRuntimeStats();
+            if (refreshFsStats) {
+                s_fsTotal = LittleFS.totalBytes() / 1024;
+                s_fsUsed = LittleFS.usedBytes() / 1024;
+                lastFsStats = now;
+                fsStatsReady = true;
+            }
+            _endStorageWriteWindow();
         }
         ConfigApplyGate::release();
     }
-    unsigned long _t4 = millis();
-    if (storageWriteWindow) Config::flushPendingRuntimeStats();
-    unsigned long _t5 = millis();
-    // LittleFS erase/program operations can legitimately take hundreds of
-    // milliseconds. Do not print a routine timing line immediately after the
-    // flash-cache stall: on Classic ESP32 that UART activity can race the
-    // network task and amplify a harmless deferred save into severe heap and
-    // TCP pressure. Persistence failures still report their exact error.
-
-    // ── LittleFS stats cache ──────────────────────────────────
-    // Refresh every 10 s from webTask so _buildTelemetry never has to call
-    // usedBytes() from inside the async_tcp task context (avoids FS mutex
-    // contention / priority inversion with SessionLogger writes).
-    {
-        static bool _fsStatInit = false;
-        static unsigned long _fsStatMs = 0;
-        unsigned long now = millis();
-        // Compute on the very first webTask tick, then refresh every 10 s.
-        // Without the init flag the cache stays 0 for the first 10 s after boot,
-        // so the dashboard shows a scary "0 KB free · 0 / 0 KB used".
-        if (storageWriteWindow && (!_fsStatInit || now - _fsStatMs >= 10000)) {
-            _fsStatInit = true;
-            _fsStatMs  = now;
-            s_fsTotal  = LittleFS.totalBytes() / 1024;
-            s_fsUsed   = LittleFS.usedBytes()  / 1024;
-        }
-    }
-    if (storageWriteWindow) _endStorageWriteWindow();
 
     // Successful OTA uses the normal delayed restart scheduler below. Keeping
     // _otaPendingRestart asserted excludes its completed upload from the
@@ -6039,7 +6070,7 @@ void WebServer::tick() {
     // clients have seen the AP disappear cleanly.
     if (_hwRebootPending && (long)(millis() - _hwRebootScheduledMs) >= 0) {
         const char* blocker = OutputActivity::firstPhysicalDemand(false);
-        if (blocker || !_isStandbyLike(mode)) {
+        if (blocker || !_isStandbyLike(EngineData::instance().mode)) {
             snprintf(_pendingRestartBlocker, sizeof(_pendingRestartBlocker), "%s",
                      blocker ? blocker : "engine is not in a safe mode");
             _hwRebootScheduledMs = millis() + 1000UL;

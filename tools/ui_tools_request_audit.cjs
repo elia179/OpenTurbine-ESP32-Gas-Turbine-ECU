@@ -71,6 +71,25 @@ const {chromium,firefox,webkit}=require('playwright');
     frame=invalid;await p.evaluate(()=>pollToolsTelemetry());assert.equal(await p.evaluate(()=>toolsTelemetryAvailable),false);assert.ok(await p.locator('#btn-GLOW_TEST').isDisabled());
    }
    frame=compact;await p.evaluate(()=>pollToolsTelemetry());assert.ok(await p.locator('#btn-GLOW_TEST').isEnabled());assert.equal(count,4);
+   for (const [selector,field] of [
+    ['#btn-dev-mode','dev_mode'],
+    ['#btn-TOGGLE_BENCH_MODE','bench_mode'],
+    ['#btn-TOGGLE_SAFETY_CHECKS','skip_safety_checks']
+   ]) {
+    await p.evaluate(()=>{
+     __toolAlerts.length=0;
+     applyData({mode:'STANDBY',dev_mode:true,bench_mode:true,skip_safety_checks:true});
+    });
+    await p.locator(selector).click();
+    await p.locator('#ot-dialog-confirm').waitFor({state:'visible'});
+    await p.evaluate(field=>applyData({mode:'STANDBY',[field]:false}),field);
+    await p.locator('#ot-dialog-confirm').click();
+    await p.waitForFunction(()=>__toolAlerts.at(-1)?.includes('changed while the confirmation was open'));
+    assert.equal(count,4);
+   }
+   await p.evaluate(()=>setToolsConnection(false));
+   assert.ok(await p.locator('#btn-dev-mode').isDisabled());
+   assert.match(await p.locator('#btn-dev-mode').getAttribute('title'),/connection unavailable/);
    assert.deepEqual(errors,[]);await p.close();
    console.log(`${name} ${gzip?'gzip':'source'}: single pending request, settings lock, fresh confirmation checks, offline status, bounded lost-ack timeout, no retries and malformed-ack rejection passed`);
   }}finally{await browser.close();}

@@ -82,7 +82,7 @@ async function text(page, selector) {
     assert.match(JSON.stringify(dirty.changes), /Engine \/ Wi-Fi name.*sanity-renamed-engine/);
     await page.evaluate(() => saveConfig());
     await page.waitForSelector('#save-recap-modal', {state:'visible'});
-    assert.match(await text(page, '#save-recap-subtitle'), /Wi-Fi network name to “sanity-renamed-engine”.*Reconnect/i);
+    assert.match(await text(page, '#save-recap-subtitle'), /restart as Wi-Fi network “sanity-renamed-engine”.*Connect/i);
     await page.locator('#save-recap-confirm-btn').click();
     await page.waitForSelector('#reboot-overlay.rebooting-overlay.show');
     assert.match(await text(page, '#reboot-overlay'), /Device rebooting.*sanity-renamed-engine/is);
@@ -158,7 +158,7 @@ async function text(page, selector) {
     const pendingBackup = page.waitForEvent('download');
     await page.locator('#cfg-backup-btn').click();
     const backup = await pendingBackup;
-    await page.route('**/api/ecu_config', route => route.request().method() === 'POST'
+    await page.route(/\/api\/ecu_config(?:\?|$)/, route => route.request().method() === 'POST'
       ? route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'hardware section rejected',detail:'profile_desc'})})
       : route.continue());
     await page.locator('#cfg-restore-file').setInputFiles(await backup.path());

@@ -354,6 +354,14 @@ button.primary:hover { background: color-mix(in srgb,var(--accent) 85%,#000); bo
   color: var(--dim);
   font-size: .7rem;
 }
+.dashboard-view-controls .unit-controls,
+.calibration-workspace .unit-controls {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  color: var(--dim);
+  font-size: .7rem;
+}
 .dashboard-hide-card{display:none;position:absolute;right:.42rem;top:.38rem;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--dim);font-size:1rem;line-height:1;cursor:pointer;z-index:2}
 body.dashboard-card-editing .dashboard-hide-card{display:block}
 .dashboard-drag-handle{display:none;position:absolute;left:.42rem;top:.38rem;width:30px;height:30px;min-height:0;padding:0;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--dim);cursor:grab;touch-action:none;z-index:2}
@@ -450,6 +458,7 @@ section:has(> .dashboard-user-hidden:only-child){display:none!important}
   margin-top: 0.3rem;
   letter-spacing: 0.02em;
 }
+.gauge-abs-label:empty { display: none; }
 /* Approach-to-limit warning shown under the gauge bar (sibling of the
    abs label, not its parent — style the warn span itself). */
 .gauge-approach-warn {
@@ -691,12 +700,15 @@ button.sensor-view-scale:hover, button.sensor-view-scale:focus-visible { color: 
   padding: 1.6rem 2rem;
   max-width: 360px;
   width: 90%;
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   text-align: center;
   box-shadow: 0 24px 60px rgba(0,0,0,0.6);
 }
 #start-confirm-box h3 { margin-bottom: 0.65rem; font-size: 1.05rem; font-family: var(--font-ui); }
 #start-confirm-box p  { font-size: 0.83rem; color: var(--text-2); margin-bottom: 0.85rem; }
-#start-confirm-box .btns { display: flex; gap: 0.65rem; justify-content: center; }
+#start-confirm-box .btns { display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: center; }
 .start-confirm-checks {
   margin: 0 0 1.15rem;
   border: 1px solid var(--border);
@@ -830,6 +842,22 @@ input[type=range] { accent-color: var(--accent); cursor: pointer; }
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 .save-msg { font-size: 0.78rem; color: var(--dim); flex: 1; min-width: 120px; }
+.save-feedback {
+  position: fixed;
+  z-index: 95;
+  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  max-width: calc(100% - 2rem);
+  padding: .65rem .9rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: .8rem;
+  pointer-events: none;
+}
+.save-feedback:not([data-save-notice]) { display: none; }
+.reboot-title { text-align: center; }
 .cfg-desc a, .cfg-field > a { color: var(--accent); text-underline-offset: .18em; }
 .sequence-actions { margin:1rem 0; padding:.85rem; border:1px solid var(--border-light); border-top:3px solid var(--accent); border-radius:8px; }
 .sequence-action-phase { color:var(--dim); font-size:.75rem; margin:.65rem 0 .35rem; }
@@ -854,6 +882,7 @@ body.ot-short-controls.ot-save-attention .ot-managed-save {
   width:auto; max-width:1100px; margin:0 auto; z-index:90;
   transform:none;
 }
+body.ot-save-attention > .save-bar.ot-managed-save,
 body.ot-short-controls.ot-save-attention .ot-managed-save { display:flex; flex-wrap:wrap; }
 body.ot-short-controls.ot-has-unsaved .ot-managed-save:not(.is-dirty) { display:flex; flex-wrap:wrap; }
 body.ot-short-controls.ot-save-attention .ot-managed-save .save-msg {
@@ -1431,7 +1460,6 @@ main.hw-installed-view .hw-section:not(#hardware-buses-panel):not(#hardware-inpu
   flex-wrap:wrap;
 }
 .calibration-workspace .cfg-workspace-title{margin:0;font-size:1.05rem;letter-spacing:.02em}
-.calibration-workspace .unit-controls{display:flex;align-items:center;gap:.3rem;color:var(--dim);font-size:.7rem}
 .calibration-workspace .unit-controls button{min-height:34px;padding:.28rem .65rem;font-size:.69rem}
 .calibration-jump:not([hidden]) {
   display:flex;
@@ -1836,6 +1864,16 @@ select option.pin-inonly { color: #5ba3e0; }
 .tab-btn:hover  { background: none; color: var(--text); }
 .tab-btn:active { background: none; }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+.log-event-count { margin: -.5rem 0 .75rem; font-size: .72rem; color: var(--dim); }
+.log-event-count:empty { display: none; }
+@media (max-width: 420px) {
+  .log-tabs .tab-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: .25rem;
+    letter-spacing: 0;
+  }
+}
 
 .run-card {
   background: var(--surface-2);

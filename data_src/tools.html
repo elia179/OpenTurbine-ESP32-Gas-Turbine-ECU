@@ -6,7 +6,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Tools</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.setAttribute('data-ot-app','true');s.text=c;document.head.appendChild(s);},{once:true});</script>
 <style>
 .tool-footer-demand{flex-wrap:wrap}
 .tool-footer-demand .tool-desc{flex:1 1 100%}
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
       <p class="page-subtitle">STANDBY/FAULT commissioning, actuator tests, and developer controls.</p>
     </div>
     <div class="page-heading-actions">
-      <button id="btn-test-settings" onclick="openTestSettings()" title="Edit actuator-test durations, output levels, and the shared safety confirmation preference.">Tool settings</button>
+      <button id="btn-test-settings" onclick="openTestSettings()" title="Edit actuator-test durations, output levels, and the shared safety confirmation preference." disabled>Tool settings</button>
     </div>
   </div>
   <div id="tools-status-row" style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.1rem">
@@ -52,17 +52,18 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <span id="lock-warn" style="font-size:.75rem;color:var(--red);display:none">Stop engine before using actuator tools</span>
   </div>
 
-  <div id="test-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeTestSettings()">
+  <div id="test-settings-modal" role="dialog" aria-modal="true" aria-labelledby="test-settings-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeTestSettings()" onkeydown="if(event.key==='Escape')closeTestSettings()">
     <div class="test-settings-card">
-      <div class="test-settings-head"><div><b class="test-settings-title">Tool settings</b><div class="test-settings-subtitle">Set safe limits for manual hardware tests. Opening this page does not run an actuator.</div></div><button onclick="closeTestSettings()">Close</button></div>
+      <div class="test-settings-head"><div><b id="test-settings-title" class="test-settings-title">Tool settings</b><div class="test-settings-subtitle">Set safe limits for manual hardware tests.</div></div><button onclick="closeTestSettings()">Close</button></div>
       <div class="test-settings-scroll"><div id="test-settings-body"></div></div>
-      <div class="test-settings-foot"><div style="display:flex;gap:.6rem;justify-content:flex-end"><button onclick="closeTestSettings()">Cancel</button><button class="primary" onclick="saveTestSettings()">Save settings</button></div>
-      <div id="test-settings-status" style="font-size:.75rem;color:var(--dim);margin-top:.4rem"></div></div>
+      <div class="test-settings-foot"><div style="display:flex;gap:.6rem;justify-content:flex-end"><button onclick="closeTestSettings()">Cancel</button><button id="btn-save-test-settings" class="primary" onclick="saveTestSettings()">Save settings</button></div>
+      <div id="test-settings-status" role="status" style="font-size:.75rem;color:var(--dim);margin-top:.4rem"></div></div>
     </div>
   </div>
 
   <div id="tool-area"></div>
 </main>
+<div id="tools-save-feedback" class="save-feedback" role="status"></div>
 
 <script>
 // ── Tool definitions ──────────────────────────────────────────
@@ -106,6 +107,8 @@ let activeStart = 0;
 const toolProgressRuns=new Map();
 let toolRequestPending=false;
 let toolsTelemetryAvailable=false;
+let toolConfigLoaded = false;
+let toolSettingsSaving = false;
 let engineMode  = null;
 let liveData    = {};
 let hwCfg       = {};
@@ -229,6 +232,7 @@ function syncRegistryOutputTools(){
 }
 function openTestSettings(){
   if(activeTick||toolRequestPending||!toolsTelemetryAvailable){alert('Wait for the current test and a connected ECU before editing test settings.');return;}
+  if (!toolConfigLoaded || toolSettingsSaving) return;
   if(engineMode!=='STANDBY'&&engineMode!=='FAULT'){alert('Bench-test settings can only be changed in STANDBY or FAULT.');return;}
   const body=document.getElementById('test-settings-body');
   let alwaysConfirm=true;
@@ -263,9 +267,17 @@ function openTestSettings(){
   document.getElementById('test-settings-status').textContent='';
   document.getElementById('test-settings-modal').style.display='flex';
 }
-function closeTestSettings(){document.getElementById('test-settings-modal').style.display='none';}
+function closeTestSettings(){
+  if (!toolSettingsSaving) document.getElementById('test-settings-modal').style.display='none';
+}
 async function saveTestSettings(){
-  if(activeTick||toolRequestPending||!toolsTelemetryAvailable){document.getElementById('test-settings-status').textContent='Wait for the current test and a connected ECU before saving.';return;}
+  const status = document.getElementById('test-settings-status');
+  if (toolSettingsSaving) return;
+  if(activeTick||toolRequestPending||!toolsTelemetryAvailable){status.textContent='Wait for the current test and a connected ECU before saving.';return;}
+  if (!toolConfigLoaded || !isStandbyLike(engineMode)) {
+    status.textContent = 'Load Tool settings on the connected ECU in STANDBY or FAULT before saving.';
+    return;
+  }
   const toolsPatch={};
   for(const el of document.querySelectorAll('.test-setting')){
     const raw=el.value.trim(), v=Number(raw);
@@ -274,22 +286,67 @@ async function saveTestSettings(){
     const maximum=seconds?60:100;
     if(!raw||!Number.isFinite(v)||v<minimum||v>maximum){
       const name=el.closest('.test-setting-row')?.querySelector('.test-setting-name')?.textContent||'Test';
-      document.getElementById('test-settings-status').textContent=`${name}: enter ${minimum}–${maximum}${seconds?' seconds':'%'}.`;
+      status.textContent=`${name}: enter ${minimum}–${maximum}${seconds?' seconds':'%'}.`;
       el.focus();return;
     }
-    toolsPatch[el.dataset.key]=el.dataset.kind==='seconds'?Math.round(v*1000):v;
+    const original = Number(el.defaultValue);
+    const value = seconds ? Math.round(v * 1000) : v;
+    if (value !== (seconds ? Math.round(original * 1000) : original)) toolsPatch[el.dataset.key] = value;
   }
-  const saved=await window.OTSaveConfigPatch({tools:toolsPatch});
-  const r=saved.response,d=saved.data; if(!r.ok||d.ok===false){document.getElementById('test-settings-status').textContent='Save failed: '+(d.error||d.reason||r.status);return;}
+  const confirmation = document.getElementById('tool-always-confirm');
+  if (!confirmation) return;
+  const preferenceChanged = confirmation.checked !== confirmation.defaultChecked;
+  const save = document.getElementById('btn-save-test-settings');
+  const body = document.getElementById('test-settings-body');
+  toolSettingsSaving = true;
+  save.disabled = body.inert = true;
+  status.textContent = 'Saving…';
   try{
-    if(document.getElementById('tool-always-confirm')?.checked) localStorage.removeItem(TOOL_CONFIRMATION_SKIP_KEY);
-    else localStorage.setItem(TOOL_CONFIRMATION_SKIP_KEY,'1');
-    Object.keys(localStorage).filter(key=>key.startsWith('ot_tool_confirmation_skip:')).forEach(key=>localStorage.removeItem(key));
-  }catch(_){}
-  cfgData.tools={...(cfgData.tools||{}),...toolsPatch};
-  TOOLS.forEach(t=>{const k=t.configKey?.split('.')[1];if(k&&toolsPatch[k]!=null)t.durationMs=toolsPatch[k];});
-  syncRegistryOutputTools();syncDynamicToolText();
-  renderTools(); document.getElementById('test-settings-status').textContent='Saved.'; setTimeout(closeTestSettings,500);
+    let saved;
+    let ecu;
+    if (Object.keys(toolsPatch).length) {
+      ecu = window.OTConfigEditor.requireEcu();
+      if (!await window.OTWaitForPageTelemetryIdle()) throw new Error('Live status is busy. Try saving again.');
+      const {response, data} = await window.OTSaveConfigPatch({tools:toolsPatch}, ecu);
+      if (!response.ok || data?.ok !== true) throw new Error(data?.error || data?.reason || 'HTTP ' + response.status);
+      saved = data;
+      cfgData.tools = {...cfgData.tools, ...toolsPatch};
+      TOOLS.forEach(t => {
+        const key = t.configKey?.split('.')[1];
+        if (toolsPatch[key] != null) t.durationMs = toolsPatch[key];
+      });
+      syncRegistryOutputTools();
+      syncDynamicToolText();
+      renderTools();
+    }
+    let preferenceMessage = '';
+    if (preferenceChanged) {
+      try {
+        if (confirmation.checked) localStorage.removeItem(TOOL_CONFIRMATION_SKIP_KEY);
+        else localStorage.setItem(TOOL_CONFIRMATION_SKIP_KEY,'1');
+        preferenceMessage = 'Browser preference saved';
+      } catch (_) {
+        preferenceMessage = 'Browser preference couldn’t be saved';
+      }
+    }
+    document.getElementById('test-settings-modal').style.display = 'none';
+    if (saved?.reboot === true) {
+      toolConfigLoaded = false;
+      stopToolsTelemetry();
+      setAllButtons(true);
+      window.OTShowRebootOverlay?.({
+        returnPath:'/tools.html', expectedEcu:ecu, message:'Tool settings saved. The ECU is restarting.'
+      });
+    } else {
+      const message = [saved && window.OTSavedMessage(saved), preferenceMessage].filter(Boolean).join('. ');
+      window.OTShowSaveNotice(document.getElementById('tools-save-feedback'), message || 'No changes to save');
+    }
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    toolSettingsSaving = false;
+    save.disabled = body.inert = false;
+  }
 }
 
 // ── Render ────────────────────────────────────────────────────
@@ -372,15 +429,15 @@ function renderTools() {
     </div>
     <div class="tool-card" id="card-TOGGLE_SAFETY_CHECKS" style="display:none;border-color:var(--red)">
       <div class="tool-header">
-        <div class="tool-name" style="color:var(--red)">Skip Safety Checks</div>
-        <div class="tool-state off" id="state-TOGGLE_SAFETY_CHECKS">Active</div>
+        <div class="tool-name" style="color:var(--red)">Safety Checks</div>
+        <div class="tool-state off" id="state-TOGGLE_SAFETY_CHECKS">Enabled</div>
       </div>
       <div class="tool-footer">
         <div class="tool-desc" style="color:var(--dim)">
-          Disables overspeed, overtemp, low-oil, and flameout monitors.
-          Engine will not protect itself. Use only for sensor/wiring tests — never with fuel.
+          Bypassing disables overspeed, overtemperature, low-oil, and flameout checks.
+          Use only for dry bench testing with fuel disabled.
         </div>
-        <button id="btn-TOGGLE_SAFETY_CHECKS" onclick="toggleSafetyChecks()" class="danger">Toggle</button>
+        <button id="btn-TOGGLE_SAFETY_CHECKS" onclick="toggleSafetyChecks()" class="danger" disabled>Toggle</button>
       </div>
     </div>
   </div>`;
@@ -401,18 +458,17 @@ function renderTools() {
         below remain available in STANDBY or FAULT with confirmation.
         <b style="color:var(--red)">Never enable during engine operation.</b>
       </div>
-      <button id="btn-dev-mode" onclick="toggleDevMode()" class="danger">Enable Dev Mode</button>
+      <button id="btn-dev-mode" onclick="toggleDevMode()" class="danger" disabled>Enable Dev Mode</button>
     </div>
   </div>
-  <div class="tool-card" id="card-TOGGLE_BENCH_MODE" title="Bench Mode bypasses safety fault shutdowns and sensor waits for dry testing only." style="display:none;border-color:var(--yellow);margin-top:.55rem">
+  <div class="tool-card" id="card-TOGGLE_BENCH_MODE" title="Dry bench testing only. Sequences can continue after failed checks. Configured output actions still run." style="display:none;border-color:var(--yellow);margin-top:.55rem">
     <div class="tool-header">
-      <div class="tool-name" style="color:var(--yellow)">Bench Mode (No Fault Stops)</div>
+      <div class="tool-name" style="color:var(--yellow)">Bench Mode</div>
       <div class="tool-state off" id="state-TOGGLE_BENCH_MODE">OFF</div>
     </div>
     <div class="tool-footer">
       <div class="tool-desc" style="color:var(--dim)">
-        Makes sequencer sensor/fault waits complete for dry actuator and timing testing.
-        It also bypasses safety fault shutdowns.
+        Sequences can continue after failed checks or faults. Configured output actions still run.
         <b style="color:var(--yellow)">Enable Developer Mode first. STANDBY/FAULT only. Never use with fuel or a running engine.</b>
       </div>
       <button id="btn-TOGGLE_BENCH_MODE" onclick="toggleBenchMode()" class="danger" disabled>Enable Bench Mode</button>
@@ -447,7 +503,13 @@ async function postToolCommand(payload) {
   if (!stopping && !/^TOGGLE_/.test(payload.cmd)) window.OTSetup?.mark('tools', r);
   return body;
   } catch(e) {
-    if(!acknowledged){setToolsConnection(false);throw new Error(stopping?'Stop acknowledgement lost. Output state is unconfirmed; check the ECU connection and physical STOP.':'Command acknowledgement lost. The ECU may have started the test. Reconnect and check outputs before retrying.');}
+    if (!acknowledged) {
+      setToolsConnection(false);
+      if (stopping) throw new Error('Stop acknowledgement lost. Output state is unconfirmed. Check the ECU connection and physical STOP.');
+      if (payload.cmd.startsWith('TOGGLE_'))
+        throw new Error('Command acknowledgement lost. The setting may have changed. Reconnect and check its current state before retrying.');
+      throw new Error('Command acknowledgement lost. The ECU may have started the test. Reconnect and check outputs before retrying.');
+    }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -610,8 +672,19 @@ function timedToolBlockReason(tool, cooldownActive, forcedOff) {
 function setAllButtons(forcedOff) {
   forcedOff=forcedOff||toolRequestPending||!toolsTelemetryAvailable;
   const settings=document.getElementById('btn-test-settings');
-  if(settings)settings.disabled=forcedOff||!!activeTick||!isStandbyLike(engineMode);
+  if(settings)settings.disabled=forcedOff||!toolConfigLoaded||!!activeTick||!isStandbyLike(engineMode);
   const inStandby = isStandbyLike(engineMode);
+  for (const [id, field] of [
+    ['btn-dev-mode', 'dev_mode'],
+    ['btn-TOGGLE_BENCH_MODE', 'bench_mode'],
+    ['btn-TOGGLE_SAFETY_CHECKS', 'skip_safety_checks']
+  ]) {
+    const button = document.getElementById(id);
+    if (!button) continue;
+    const reason = modeToolBlockReason(field);
+    button.disabled = !!reason;
+    button.title = reason;
+  }
   const ecActive = !!(liveData && liveData.extra_cooldown_active);
   TOOLS.forEach(t => {
     const btn = document.getElementById('btn-' + t.id);
@@ -631,13 +704,15 @@ function setAllButtons(forcedOff) {
   const ecBtn = document.getElementById('btn-EXTRA_COOLDOWN');
   if (ecBtn) {
     const stopReason = stopToolBlockReason();
-    const reason = forcedOff ? 'Another actuator tool is active.' :
+    const reason = !toolsTelemetryAvailable ? 'ECU connection unavailable. Wait for fresh telemetry.' :
+      toolRequestPending ? 'Waiting for ECU acknowledgement.' :
+      forcedOff ? 'Another actuator tool is active.' :
       stopReason || (!inStandby ? `Extra Cooldown is available only in STANDBY or FAULT (current mode: ${engineMode || 'unknown'}).` :
       (ecActive ? 'Extra Cooldown is already running.' : ''));
     ecBtn.disabled = forcedOff || !inStandby || ecActive || !extraCooldownAvailable() || !!stopReason;
     ecBtn.title = reason;
     const card = document.getElementById('card-EXTRA_COOLDOWN');
-    if (card && reason) card.title = reason;
+    if (card) card.title = reason || extraCooldownDescription();
   }
 }
 function refreshTimedToolLockStates() {
@@ -725,15 +800,13 @@ window.applyData = function(d) {
   const devBtn = document.getElementById('btn-dev-mode');
   if (devBtn) {
     devBtn.textContent = devOn ? 'Disable Dev Mode' : 'Enable Dev Mode';
-    devBtn.disabled = !isStandbyLike(d.mode);
-    devBtn.title = isStandbyLike(d.mode) ? '' : 'Developer mode can only be changed in STANDBY (or FAULT).';
   }
 
   // Safety checks state badge
   const skipSafety  = !!d.skip_safety_checks;
   const safetyState = document.getElementById('state-TOGGLE_SAFETY_CHECKS');
   if (safetyState) {
-    safetyState.textContent  = skipSafety ? 'BYPASSED' : 'Active';
+    safetyState.textContent  = skipSafety ? 'BYPASSED' : 'Enabled';
     safetyState.className    = 'tool-state ' + (skipSafety ? 'fault' : 'on');
   }
   // Safety button label
@@ -750,9 +823,6 @@ window.applyData = function(d) {
   const benchBtn = document.getElementById('btn-TOGGLE_BENCH_MODE');
   if (benchBtn) {
     benchBtn.textContent = benchOn ? 'Disable Bench Mode' : 'Enable Bench Mode';
-    benchBtn.disabled = (!devOn || !isStandbyLike(d.mode));
-    benchBtn.title = !devOn ? 'Enable Developer Mode first.' :
-                     (!isStandbyLike(d.mode) ? 'Bench mode can only be changed in STANDBY (or FAULT).' : '');
   }
 
   // Safety-bypass card: firmware allows TOGGLE_SAFETY_CHECKS once Dev Mode
@@ -800,12 +870,34 @@ window.applyData._toolsExtended = true;
 document.addEventListener('DOMContentLoaded', installToolsTelemetryExtension, { once:true });
 
 // ── Dev mode toggle ───────────────────────────────────────────
-async function toggleDevMode() {
-  const on = !!(liveData && liveData.dev_mode);
-  if (liveData && !isStandbyLike(liveData.mode)) {
-    alert('Developer mode can only be changed in STANDBY (or FAULT).');
+function modeToolBlockReason(field) {
+  if (!toolsTelemetryAvailable) return 'ECU connection unavailable. Wait for fresh telemetry.';
+  if (toolRequestPending) return 'Waiting for ECU acknowledgement.';
+  if (!isStandbyLike(engineMode)) return 'This setting can be changed in STANDBY or FAULT.';
+  if (field !== 'dev_mode' && !liveData.dev_mode) return 'Enable Developer Mode first.';
+  if (field === 'skip_safety_checks' && !liveData.bench_mode) return 'Enable Bench Mode first.';
+  return '';
+}
+
+async function sendConfirmedModeToggle(field, wasOn, cmd) {
+  const reason = modeToolBlockReason(field);
+  if (reason) { alert(reason); return; }
+  if (!!liveData[field] !== wasOn) {
+    alert('The setting changed while the confirmation was open. Review its current state and try again.');
     return;
   }
+  try {
+    await postToolCommand({cmd});
+    setTimeout(pollToolsTelemetry, 200);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function toggleDevMode() {
+  const on = !!(liveData && liveData.dev_mode);
+  const reason = modeToolBlockReason('dev_mode');
+  if (reason) { alert(reason); return; }
   const msg = on
     ? 'Disable dev mode?'
     : 'Enable dev mode?\n\nThis unlocks the safety bypass controls.\nOnly use for bench testing — never for engine operation.';
@@ -813,45 +905,37 @@ async function toggleDevMode() {
     title: on ? 'Disable developer mode?' : 'Enable developer mode?',
     confirmText: on ? 'Disable' : 'Enable developer mode', danger: !on
   })) return;
-  postToolCommand({ cmd: 'TOGGLE_DEV_MODE' })
-    .then(() => setTimeout(pollToolsTelemetry, 200))
-    .catch(e => alert('Developer mode command failed: ' + e.message));
+  await sendConfirmedModeToggle('dev_mode', on, 'TOGGLE_DEV_MODE');
 }
 
 // ── Safety checks bypass (dev mode only) ─────────────────────
 async function toggleSafetyChecks() {
   const on  = !!(liveData && liveData.skip_safety_checks);
-  if (!(liveData && liveData.dev_mode && liveData.bench_mode && isStandbyLike(liveData.mode))) {
-    alert('Safety bypass requires Developer Mode and Bench Mode while in STANDBY (or FAULT).');
-    return;
-  }
+  const reason = modeToolBlockReason('skip_safety_checks');
+  if (reason) { alert(reason); return; }
   const msg = on
     ? 'Re-enable safety checks? (recommended)'
-    : '⚠ DISABLE ALL SAFETY CHECKS?\n\nThe engine will NOT protect against:\n• Overspeed\n• Overtemperature\n• Oil pressure loss\n• Flameout\n\nFor bench testing only — NEVER with fuel flowing.\n\nAre you absolutely sure?';
+    : 'This bypasses overspeed, overtemperature, oil-pressure loss, and flameout checks. Use only for dry bench testing with fuel disabled.';
   if (!await OTDialog.confirm(msg, {
-    title: on ? 'Re-enable safety checks?' : 'Disable all safety checks?',
-    confirmText: on ? 'Re-enable safety checks' : 'Disable safety checks', danger: !on
+    title: on ? 'Re-enable safety checks?' : 'Bypass safety checks?',
+    confirmText: on ? 'Re-enable safety checks' : 'Bypass safety checks', danger: !on
   })) return;
-  postToolCommand({ cmd: 'TOGGLE_SAFETY_CHECKS' })
-    .then(() => setTimeout(pollToolsTelemetry, 200))
-    .catch(e => alert('Safety bypass command failed: ' + e.message));
+  await sendConfirmedModeToggle('skip_safety_checks', on, 'TOGGLE_SAFETY_CHECKS');
 }
 
 // ── Bench mode toggle ─────────────────────────────────────────
 async function toggleBenchMode() {
   const on   = !!(liveData && liveData.bench_mode);
-  const mode = liveData && liveData.mode;
-  if (!isStandbyLike(mode)) { alert('Bench mode can only be changed in STANDBY (or FAULT).'); return; }
+  const reason = modeToolBlockReason('bench_mode');
+  if (reason) { alert(reason); return; }
   const msg = on
     ? 'Disable bench mode and return to normal operation?'
-    : 'Enable BENCH MODE?\n\nAll sequencer blocks will complete on their configured timeout with NO sensor verification.\n\nSafety faults are bypassed. The engine will NOT protect itself.\n\nUse only to test actuator wiring and sequence timing — NEVER with fuel or a running engine.\n\nAre you sure?';
+    : 'Sequences can continue after failed checks or faults. Configured output actions still run. Use only for dry actuator and timing tests with fuel disabled.';
   if (!await OTDialog.confirm(msg, {
     title: on ? 'Disable bench mode?' : 'Enable bench mode?',
     confirmText: on ? 'Disable bench mode' : 'Enable bench mode', danger: !on
   })) return;
-  postToolCommand({ cmd: 'TOGGLE_BENCH_MODE' })
-    .then(() => setTimeout(pollToolsTelemetry, 200))
-    .catch(e => alert('Bench mode command failed: ' + e.message));
+  await sendConfirmedModeToggle('bench_mode', on, 'TOGGLE_BENCH_MODE');
 }
 
 // ── Load config to sync tool durations ───────────────────────
@@ -959,9 +1043,9 @@ function syncDynamicToolText() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-loadToolConfig().then(({cfg, hw}) => {
-  hwCfg = hw || {};
-  cfgData = cfg || {};
+window.OTConfigEditor.load(['/api/config', '/api/hardware']).then(([cfg, hw]) => {
+  hwCfg = hw;
+  cfgData = cfg;
   TOOLS.forEach(t => {
     if (!t.configKey) return;
     const v = getNestedVal(cfg, t.configKey);
@@ -970,8 +1054,10 @@ loadToolConfig().then(({cfg, hw}) => {
   syncRegistryOutputTools();
   syncDynamicToolText();
   renderTools();
-  startToolsTelemetry();
-});
+  toolConfigLoaded = true;
+}).catch(() => {
+  document.getElementById('tool-area').textContent = 'Tool settings and fitted hardware could not be loaded. Reload Tools to retry.';
+}).finally(startToolsTelemetry);
 updateToolConfirmationReset();
 }, { once:true });
 
@@ -988,27 +1074,8 @@ async function fetchJsonWithTimeout(url, ms = 8000) {
   }
 }
 
-async function fetchJsonWithRetry(url, attempts = 3) {
-  let lastError;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchJsonWithTimeout(url);
-    } catch (e) {
-      lastError = e;
-      await new Promise(resolve => setTimeout(resolve, 200 + i * 300));
-    }
-  }
-  throw lastError;
-}
-
-async function loadToolConfig() {
-  const cfg = await fetchJsonWithRetry('/api/config').catch(() => ({}));
-  const hw = await fetchJsonWithRetry('/api/hardware').catch(() => ({}));
-  return { cfg, hw };
-}
-
 async function pollToolsTelemetry() {
-  if (toolsTelemetryInFlight) return;
+  if (toolsTelemetryInFlight || toolSettingsSaving) return;
   toolsTelemetryInFlight = true;
   try {
     // Hardware and configuration were loaded above. Tools only needs changing

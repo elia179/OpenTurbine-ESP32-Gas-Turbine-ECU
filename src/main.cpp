@@ -3488,7 +3488,6 @@ static void handleCommand(const OTPacket& pkt) {
             case OTCommand::START_TEST:
             case OTCommand::FUEL_SOL_TEST:
             case OTCommand::IDLE_TEST:
-            case OTCommand::EXTRA_COOLDOWN:
             case OTCommand::PULSED_STARTER_ASSIST_TEST:
             case OTCommand::AB_FIRE:
             case OTCommand::OIL_SCAV_TEST:
@@ -3507,7 +3506,8 @@ static void handleCommand(const OTPacket& pkt) {
                 return false;
         }
     };
-    const bool energizing = pkt.cmd == OTCommand::SET_THROTTLE_PCT
+    const bool energizing = pkt.cmd == OTCommand::EXTRA_COOLDOWN
+        ? pkt.iParam > 0 : pkt.cmd == OTCommand::SET_THROTTLE_PCT
         ? (pkt.fParam != 0.0f ? pkt.fParam : float(pkt.iParam)) > 0.0f
         : (pkt.cmd == OTCommand::SET_OIL_CAL_PCT || pkt.cmd == OTCommand::PRESSURE_CAL_PUMP)
             ? pkt.fParam > 0.0f : mayEnergizeOutput(pkt.cmd);
@@ -3549,6 +3549,16 @@ static void handleCommand(const OTPacket& pkt) {
             strncpy(ed.lastEvent, "START blocked: rebooting to apply saved configuration", sizeof(ed.lastEvent) - 1);
         }
         Serial.println("[OT] Command blocked: reboot pending");
+        return;
+    }
+
+    struct StandbyOutputLease {
+        bool held;
+        ~StandbyOutputLease() { if (held) ConfigApplyGate::release(); }
+    } outputLease{standbyLike && energizing && ConfigApplyGate::tryBeginStartTransition()};
+    if (standbyLike && energizing &&
+        (!outputLease.held || WebServer::otaInProgress() || WebServer::rebootPending())) {
+        strncpy(ed.lastEvent, "Output blocked: ECU storage or configuration is busy", sizeof(ed.lastEvent) - 1);
         return;
     }
 
@@ -3788,10 +3798,13 @@ static void handleCommand(const OTPacket& pkt) {
                 // against Core 0 configuration replacement, then publish the
                 // non-STANDBY mode before releasing the gate.
                 if (!ConfigApplyGate::tryBeginStartTransition()) {
-                    strncpy(ed.lastEvent, "START blocked: configuration update in progress", sizeof(ed.lastEvent) - 1);
+                    strncpy(ed.lastEvent, ConfigApplyGate::state() == ConfigApplyGate::BackgroundStorage
+                        ? "START blocked: ECU is saving to flash"
+                        : "START blocked: configuration update in progress", sizeof(ed.lastEvent) - 1);
                     break;
                 }
-                if (ed.mode != SysMode::STANDBY) {
+                if (ed.mode != SysMode::STANDBY || WebServer::otaInProgress() || WebServer::rebootPending()) {
+                    strncpy(ed.lastEvent, "START blocked: ECU state changed", sizeof(ed.lastEvent) - 1);
                     ConfigApplyGate::release();
                     break;
                 }
@@ -4368,7 +4381,7 @@ static void checkStopSwitch() {
     _wasDebounced = _debounced;
 }
 
-static void checkStartSwitch() {
+static void checkStartSwitch(bool stopHandled) {
     // Edge-detect: normalise to active-low convention (cur==LOW means "pressed")
     // so all downstream logic is unchanged regardless of startActiveH.
     auto& hca = HardwareConfig::instance();
@@ -4432,7 +4445,7 @@ static void checkStartSwitch() {
         ed.startSwitchReady = true;
     }
 
-    if (ed.startSwitchReady && _last == HIGH && cur == LOW) {
+    if (!stopHandled && ed.startSwitchReady && _last == HIGH && cur == LOW) {
         // Only send START command in STANDBY — in RUNNING the hold logic below handles it.
         // FAULT: push anyway so handleCommand reports the block reason on the dashboard.
         if (ed.mode == SysMode::STANDBY || ed.mode == SysMode::FAULT) {
@@ -4731,6 +4744,7 @@ void loop() {
     static uint32_t loopWorstLedUs = 0;
     static float loopExecAvgUs = 0.0f;
     if (!Watchdog::feed()) EngineData::instance().watchdogReady = false;
+    const bool stopHandled = CommandQueue::drainEmergencyStop(handleCommand);
 
     // Core 0 has finished validating, persisting, and publishing a complete
     // settings document. Runtime-safe Config statics are already visible. A
@@ -4850,7 +4864,7 @@ void loop() {
     PcbPowerStage::checkDeadline();
     checkPcbPowerStageFault();
     checkStopSwitch();
-    checkStartSwitch();
+    checkStartSwitch(stopHandled);
 
     // Release expired tool ownership before accepting the next queued tool
     // command. Otherwise a command arriving on the expiry loop is reported as
@@ -4860,7 +4874,7 @@ void loop() {
     // Receive and expire remote input before commands and controller evaluation.
     if (HardwareConfig::hasMAVLink) g_mavlink.tick();
     else EngineData::instance().mavlinkThrottleValid=false;
-    CommandQueue::drain(handleCommand);
+    if (!stopHandled) CommandQueue::drain(handleCommand);
     uint32_t afterCommandsUs = micros();
 
     Hardware::updateSensors();

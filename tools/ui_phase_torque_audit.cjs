@@ -202,6 +202,16 @@ function installedBrowser() {
       };
     });
     assert.deepEqual(dashboard,{speed:'3,000',speedVisible:true,power:'13.35',powerVisible:true,duplicate:false});
+    const unavailable = await page.evaluate(() => {
+      applyData({has_torque:true,torque:42.5,torque_healthy:true,turbo_power_w:0,
+        has_governor:true,n2:12000,n2_healthy:false,
+        registry_inputs:[
+          {id:'torque_main',purpose:'torque',healthy:true,value:42.5,phase_speed_source:3},
+          {id:'torque_shaft_speed',purpose:'shaft_speed',healthy:false,value:3000,mirror_of:'torque_main'}
+        ]});
+      return ['torque-speed','turbo-power','gov-n2-actual'].map(id=>document.getElementById(id).textContent);
+    });
+    assert.deepEqual(unavailable,['N/A','N/A','N/A']);
     const torqueOnlyDashboard = await page.evaluate(() => {
       applyData({has_torque:true,torque:12,torque_healthy:true,turbo_power_w:0,
         registry_inputs:[

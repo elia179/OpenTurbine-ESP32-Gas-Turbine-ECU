@@ -33,7 +33,13 @@ const base=process.argv[2]||'http://192.168.4.1',target=process.argv[3]||'esp32d
     await p.setViewportSize({width,height});
     for(const page of ['index','hardware','controllers','calibration','sequence','log','tools','system']){
      try {
-     await p.goto(base+'/'+page+'.html',{waitUntil:'domcontentloaded',timeout:45000});
+     const route=page==='index'?'/':`/${page}.html`;
+     const options={waitUntil:'domcontentloaded',timeout:45000};
+     const link=p.locator(`nav a[href="${route}"], nav a[href^="${route}?"]`).first();
+     const response=p.url().startsWith(base+'/')
+       ? (await Promise.all([p.waitForNavigation(options),link.click()]))[0]
+       : await p.goto(base+route,options);
+     assert.ok(response?.ok(), `${name} ${route} returned HTTP ${response?.status()}`);
      await p.waitForFunction(()=>document.querySelector('#conn-label')?.textContent?.trim().toLowerCase()==='connected',null,{timeout:30000});
      if(page==='hardware')await p.waitForFunction(()=>typeof _hwLoading!=='undefined'&&!_hwLoading&&!document.querySelector('main').inert,null,{timeout:30000});
      if(page==='hardware')assert.deepEqual(await p.evaluate(()=>_checkGpioConflicts()),[], 'valid connector inventory must not report GPIO conflicts');

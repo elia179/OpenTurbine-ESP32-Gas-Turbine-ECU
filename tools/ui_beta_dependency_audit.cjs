@@ -34,6 +34,10 @@ async function patchData(page, patch) {
 async function goto(page, route, waitSelector) {
   await page.goto(`${base}/${route}`);
   await page.waitForSelector(waitSelector, { state: 'attached' });
+  if (route === 'hardware.html') {
+    await page.waitForFunction(() => typeof _hwLoading !== 'undefined' &&
+      !_hwLoading && !document.querySelector('main').inert);
+  }
   if (route === 'sequence.html') {
     // The menu exists in the initial HTML, before its hardware/config reads
     // finish. Inspect the loaded model rather than racing the empty shell.

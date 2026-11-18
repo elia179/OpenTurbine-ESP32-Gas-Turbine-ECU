@@ -65,7 +65,6 @@ function prepareSequenceTelemetryNavigation() {
   stopStatusPoll();
 }
 window.addEventListener('pagehide', stopSequenceTelemetry);
-window.addEventListener('beforeunload', stopSequenceTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareSequenceTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopSequenceTelemetry);
 window.addEventListener('pageshow', event => {
@@ -107,7 +106,7 @@ function sequenceIssueDestination(issue) {
 
 function _applySeqValidation(d) {
   const issues   = d.seq_issues   || [];
-  const hasErr   = d.seq_has_errors || false;
+  const hasErr   = d.seq_has_structural_errors || (d.seq_has_errors && !d.bench_mode);
   const banner   = document.getElementById('seq-validation-banner');
   if (!banner) return;
 

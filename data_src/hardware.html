@@ -8,7 +8,7 @@
 <style>html,body{background:#101012;color:#f5f5f7}html[data-theme="ember"],html[data-theme="ember"] body{background:#14110d}html[data-theme="slate"],html[data-theme="slate"] body{background:#101416}html[data-theme="midnight"],html[data-theme="midnight"] body{background:#0e1120}html[data-theme="contrast"],html[data-theme="contrast"] body{background:#000}html[data-theme="daylight"],html[data-theme="daylight"] body{background:#f4f2ee;color:#1b1917}@keyframes otFailsafeReveal{to{visibility:visible}}@keyframes otHideBootNotice{to{visibility:hidden}}html:not(.ot-theme-ready)::before{content:"Loading…";position:fixed;z-index:99999;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-width:calc(100vw - 2rem);padding:.8rem 1.15rem .8rem 2.8rem;border:1px solid currentColor;border-radius:10px;background:inherit;color:inherit;font:600 .9rem system-ui,sans-serif;text-align:center;pointer-events:none;animation:otHideBootNotice 0s 8s forwards}@keyframes otBootSpin{to{transform:rotate(360deg)}}html:not(.ot-theme-ready)::after{content:"";position:fixed;z-index:100000;top:calc(50% - .45rem);left:calc(50% - 3.35rem);width:.9rem;height:.9rem;box-sizing:border-box;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;pointer-events:none;animation:otBootSpin .8s linear infinite,otHideBootNotice 0s 8s forwards}@media(prefers-reduced-motion:reduce){html:not(.ot-theme-ready)::after{animation:otHideBootNotice 0s 8s forwards}}html:not(.ot-theme-ready) body{visibility:hidden;animation:otFailsafeReveal 0s 8s forwards}</style>
 <title>OpenTurbine — Hardware</title>
 <script>try{var t=localStorage.getItem('ot_theme');if(t&&/^[a-z]+$/.test(t))document.documentElement.setAttribute('data-theme',t);}catch(e){}
-document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261117s',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261117s');s.text=c;document.head.appendChild(s);},{once:true});</script>
+document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new XMLHttpRequest();x.open('GET','/theme.js?v=20261118x',false);x.send(null);if(x.status>=200&&x.status<300)c=x.responseText;}catch(e){}if(!c){document.documentElement.classList.add('ot-theme-ready');return}var s=document.createElement('script');s.setAttribute('data-ot-version','20261118x');s.text=c;document.head.appendChild(s);},{once:true});</script>
 </head>
 <body>
 <nav>
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
     <div class="hw-title">Inputs</div>
     <div class="hw-desc" style="margin-bottom:.6rem">Sensors, switches and operator inputs physically wired to this ECU.</div>
     <div class="warning-banner" id="required-controls-note" style="margin-bottom:.65rem">
-      <strong>Required controls:</strong> assign physical Start and Stop GPIO inputs before saving. Browser controls do not replace these required hardware inputs.
+      <strong>Physical controls:</strong> assign a Stop switch before saving Hardware. Assign a Start switch if you use one. Dashboard STOP is also available.
       <a data-ot-warning-link href="#builtin-inputs" style="color:inherit">Review Start and Stop inputs &rarr;</a>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.65rem"><button type="button" onclick="addRegistryChannel('input')">+ Add input</button></div>
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded',function(){var c='';try{var x=new X
   <!-- ── Save bar ──────────────────────────────────────── -->
   <div class="save-bar">
     <button id="btn-discard" onclick="resetDefaults()" disabled>Discard</button>
-    <span class="save-msg" id="save-msg">Loading hardware config…</span>
+    <span class="save-msg" id="save-msg" role="status">Loading hardware config…</span>
     <button id="btn-save" class="primary" onclick="saveHardware()" disabled>Save &amp; Reboot</button>
   </div>
 </main>
@@ -974,7 +974,6 @@ function applyHardwareTelemetry(d) {
   }
 }
 window.addEventListener('pagehide', stopHardwareTelemetry);
-window.addEventListener('beforeunload', stopHardwareTelemetry);
 window.addEventListener('ot:navigation-prepare', prepareHardwareTelemetryNavigation);
 window.addEventListener('ot:navigation-start', stopHardwareTelemetry);
 window.addEventListener('pageshow', event => {
@@ -1188,7 +1187,7 @@ function populate() {
   }
   const controlsNote = document.getElementById('required-controls-note');
   if (controlsNote && pcbProfileActive())
-    controlsNote.innerHTML = '<strong>Required controls:</strong> add the Stop switch (and Start switch when used) below, then choose the labelled PCB connection. GPIO routing and available electrical modes come from the flashed PCB profile; choose the active state that matches the connected switch.';
+    controlsNote.innerHTML = '<strong>Physical controls:</strong> add a Stop switch before saving Hardware. Add a Start switch if you use one. Choose the labelled PCB connection and the active state for each fitted switch.';
 
   const c = cfg.controls || {};
   v('f-stop-pol', c.stop_active_h ? '1' : '0');
@@ -4023,7 +4022,7 @@ function renderBuiltinInputSummary() {
     key,
     title,
     detail: `${detail} · Digital input · GPIO ${(pin ?? -1) >= 0 ? pin : 'not set'} · ${activeHigh ? 'Active HIGH' : 'Active LOW'}`,
-    status: rawPinStatus(pin),
+    status: key === 'start' && (pin ?? -1) < 0 ? 'Optional' : rawPinStatus(pin),
     pin,
     activeHigh,
     pullup,
@@ -4063,7 +4062,7 @@ function renderBuiltinInputSummary() {
     <div class="registry-card-summary">
       <div><strong>${escapeHtmlText(row.title)}</strong><div class="hw-desc">${escapeHtmlText(row.detail)}</div></div>
       <div class="registry-card-actions">
-        <span class="registry-status ${row.status === 'Ready' ? 'registry-status-ok' : 'registry-status-error'}">${escapeHtmlText(row.status)}</span>
+        <span class="registry-status ${row.status === 'Ready' ? 'registry-status-ok' : row.status === 'Optional' ? '' : 'registry-status-error'}">${escapeHtmlText(row.status)}</span>
         ${row.target ? '' : `<button type="button" data-card-edit aria-expanded="${_workflowEditOpen.has(row.key)}" onclick="toggleWorkflowEditor('${row.key}')">${_workflowEditOpen.has(row.key) ? 'Done' : 'Edit'}</button>`}
       </div>
     </div>
@@ -7473,7 +7472,7 @@ async function saveHardware() {
   const renamedWifi = (cfg.profile_id || 'OpenTurbine').trim() || 'OpenTurbine';
   const profileWillChange = renamedWifi !== (_loadedProfileId || 'OpenTurbine');
   subtitle.textContent = changes.length + ' field' + (changes.length > 1 ? 's' : '') +
-    ' changed. Hardware saves require a reboot — the device will restart.' +
+    ' changed. The ECU will restart.' +
     (profileWillChange ? ` Its Wi-Fi network name will change to “${renamedWifi}”; reconnect to that network afterward.` : '') +
     (idleSourceWillChange ? ' Review the highlighted Automatic Idle feedback-source fallback before continuing.' : '');
 
@@ -7533,6 +7532,7 @@ async function _saveHardwareChanges() {
     try { expectedEcu = window.OTConfigEditor.requireEcu(); }
     catch (error) {
       document.getElementById('save-msg').textContent = error.message;
+      startStatusPoll();
       return;
     }
     const saveCfg = {...cfg};
@@ -7542,20 +7542,21 @@ async function _saveHardwareChanges() {
     if (r.ok && j.ok === true) {
       window.OTSetup?.mark('hardware', r);
       clearDirty();
-      document.getElementById('save-msg').textContent = 'Saved — rebooting…';
-      showRebootOverlay(profileChanged ? nextProfileId : '');
+      const rebooting = j.reboot === true;
+      document.getElementById('save-msg').textContent = rebooting ? 'Saved — ECU restarting…' : window.OTSavedMessage(j);
+      if (rebooting) showRebootOverlay(profileChanged ? nextProfileId : '');
+      else startStatusPoll();
     } else {
       const message = friendlyHardwareSaveError(j);
-      document.getElementById('save-msg').textContent = j.rebooting
-        ? 'Not saved — restoring the previous setup…'
-        : 'Not saved — ' + message;
-      alert('Hardware was not saved.\n\n' + message);
-      if (j.rebooting) showRebootOverlay('');
-      else updateSaveButton();
+      document.getElementById('save-msg').textContent = 'Not saved — ' + message;
+      if (!window.OTShowSaveRollback({rebooting:j.rebooting, expectedEcu, message}, startStatusPoll)) {
+        alert('Hardware was not saved.\n\n' + message);
+        startStatusPoll();
+      }
     }
   } catch(e) {
-    document.getElementById('save-msg').textContent = 'Save status unconfirmed — verify before retrying';
-    alert('The ECU did not confirm whether Hardware was saved.\n\n'+e.message+'\n\nReconnect and reload Hardware to verify the setup before retrying.');
+    document.getElementById('save-msg').textContent = e.message;
+    startStatusPoll();
     updateSaveButton();
   }
 }
@@ -7580,9 +7581,9 @@ function friendlyHardwareSaveError(response) {
   ];
   const match = map.find(([key]) => detail.includes(key));
   if (match) return match[1];
-  return response?.error
-    ? `${response.error}. Review the Requirements section and any red device cards, then try again.`
-    : 'The ECU rejected the setup. Review the Requirements section and any red device cards, then try again.';
+  const reason = response?.error || response?.reason;
+  if (reason && rawDetail && reason !== rawDetail) return `${reason.replace(/[.]+$/, '')}. ${rawDetail}`;
+  return reason || rawDetail || 'The ECU did not give a reason. Check the connection and try the Hardware save again.';
 }
 
 function showRebootOverlay(nextWifiName = '') {

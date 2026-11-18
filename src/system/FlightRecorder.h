@@ -52,6 +52,7 @@ public:
     static int recordCount();
     static uint32_t droppedEvents();
     static uint16_t pendingCount();
+    static bool hasPendingWrites();
     static uint32_t pendingBytes();
     static uint32_t capacityBytes();
     static bool healthy();

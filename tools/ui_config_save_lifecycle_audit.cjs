@@ -72,10 +72,24 @@ const {chromium,firefox,webkit}=require('playwright');
    await start(value+10);await(await captured(writes,2)).fulfill({status:200,contentType:'application/json',body:'not JSON'});await p.evaluate(()=>__save);
    assert.ok(await p.evaluate(()=>_cfgDirty));assert.ok(await p.locator('#btn-save').isEnabled());assert.equal(await p.locator('#'+id).inputValue(),String(value+10));
    assert.match(await p.locator('#save-msg').textContent(),/unconfirmed/i);
+   if (surface==='system' && !gzip && name==='chromium') {
+    await p.mouse.click(5,5);
+    const prompt=p.waitForEvent('dialog');
+    const reload=p.reload({timeout:2500}).catch(()=>{});
+    const dialog=await prompt;
+    assert.equal(dialog.type(),'beforeunload');
+    await dialog.dismiss();
+    await reload;
+    assert.ok(await p.evaluate(()=>_cfgDirty));
+    assert.equal(await p.evaluate(async()=> (await fetch('/api/status')).status),200);
+   }
    await p.evaluate(()=>{window.__save=_doSave();});await(await captured(writes,3)).fulfill({status:400,contentType:'application/json',body:'{"ok":false,"error":"test rejection"}'});await p.evaluate(()=>__save);
    assert.ok(await p.evaluate(()=>_cfgDirty));assert.match(await p.locator('#save-msg').textContent(),/test rejection/);
-   await p.evaluate(()=>{window.__save=_doSave();});await(await captured(writes,4)).fulfill({status:200,contentType:'application/json',body:'{"ok":true}'});await p.evaluate(()=>__save);
+   if (surface==='system') await p.setViewportSize({width:390,height:844});
+   await p.evaluate(()=>{window.__save=_doSave();});await(await captured(writes,4)).fulfill({json:{ok:true,saved:true,applying:true}});await p.evaluate(()=>__save);
    assert.equal(await p.evaluate(()=>_cfgDirty),false);
+   await p.locator('#save-msg').filter({hasText:'ECU applying changes'}).waitFor({state:'visible'});
+   if (surface==='system') await p.setViewportSize({width:1280,height:720});
    // A mixed save must carry both edits in one request and keep the draft on a false acknowledgement.
    await p.evaluate(surface=>{if(surface==='system'){setSystemHardware('profile_id','Pending test');}else{hwCfg.safety.overtemp=!hwCfg.safety.overtemp;_controllerHardwareDirty=true;_markDirty();}},surface);
    await start(value+15);
@@ -91,6 +105,24 @@ const {chromium,firefox,webkit}=require('playwright');
    }
    await mixed.fulfill({status:200,contentType:'application/json',body:'{}'});await p.evaluate(()=>__save);
    assert.ok(await p.evaluate(()=>_cfgDirty));assert.equal(writes.length,4);assert.match(await p.locator('#save-msg').textContent(),/unconfirmed/i);
+   if (surface==='system' && !gzip && name==='chromium') {
+    await p.evaluate(()=>{
+     const original=window.OTShowRebootOverlay;
+     window.OTShowRebootOverlay=options=>original({...options,seconds:3});
+     window.__save=_doSave();
+    });
+    await (await captured(hardware,2)).fulfill({status:400,json:{
+     ok:false,error:'Hardware patch rejected',detail:'platform pins',rebooting:true
+    }});
+    await p.evaluate(()=>__save);
+    const rollback=p.locator('#reboot-overlay.show');
+    await rollback.waitFor();
+    assert.match(await rollback.innerText(),/Changes weren’t saved.*restore the previous setup/s);
+    assert.match(await rollback.innerText(),/platform pins/);
+    await rollback.waitFor({state:'hidden'});
+    assert.ok(await p.evaluate(()=>_cfgDirty));
+    assert.equal(await p.locator('#'+id).inputValue(),String(value+15));
+   }
    if(surface==='controllers'){
     await p.evaluate(()=>{
      OTSetup.clear();OTSetup.mark('tools');
@@ -138,6 +170,16 @@ const {chromium,firefox,webkit}=require('playwright');
    assert.equal(observedSwitch.dirty,true);
    assert.match(observedSwitch.message,/Reload this page/);
    assert.equal(observedSwitch.patches,0);
+   if (surface==='system' && !gzip && name==='chromium') {
+    await p.locator('#btn-discard').click();
+    const nativePrompts=[];
+    p.on('dialog', async dialog => { nativePrompts.push(dialog.type()); await dialog.accept(); });
+    const reloaded=p.waitForEvent('load');
+    await p.locator('#ot-dialog-confirm').click();
+    await reloaded;
+    await p.waitForFunction(()=>!_cfgDirty && document.getElementById('cf-tm_lh'));
+    assert.deepEqual(nativePrompts,[]);
+   }
    await p.route('**/api/hardware',route=>route.fulfill({
     json:{profile_id:'Second ECU'},headers:{'X-OpenTurbine-ECU':'abcdef012345'}
    }));

@@ -106,6 +106,7 @@ const banners=['dev-banner','empty-seq-banner','bench-banner','logging-health-ba
    // Navigation remains functional after the banners have been moved.
    await feed({config_load_warning:'Review pressure limit'});
    await slot.locator('#config-load-warn-banner a').click();await page.waitForURL('**/controllers.html*');
+   await page.locator('#cfg-form details').first().waitFor({state:'attached'});
    await page.goto(base+'/index.html');await ready();await feed({});
    // Old layouts retain warnings above their saved cards. Stale hidden/minimal
    // preferences must not conceal alarms, even when restored from storage.

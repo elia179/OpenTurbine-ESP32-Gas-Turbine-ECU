@@ -577,13 +577,18 @@ static void _drainRingLocked() {
     if (FlightRecorder::pendingCount() == 0) s_lastError = 0;
 }
 
+bool FlightRecorder::hasPendingWrites() {
+    return s_activeRawDownloads == 0 && (s_clearPending || pendingCount() || s_droppedEvents != s_droppedMarked);
+}
+
 void FlightRecorder::runEviction() {
     if (s_activeRawDownloads > 0) return;
     bool ringPending = pendingCount() || (s_droppedEvents != s_droppedMarked);
     if (!s_clearPending && !ringPending) return;
 
-    // portMAX_DELAY is safe — this runs on Core 0 (web task), not the ECU loop.
-    if (_mutex && xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
+    // A log download can hold this lock. Try again on the next web tick so
+    // the flash-write guard does not block START while waiting for a reader.
+    if (_mutex && xSemaphoreTake(_mutex, 0) != pdTRUE) return;
     if (s_activeRawDownloads > 0) {
         if (_mutex) xSemaphoreGive(_mutex);
         return;

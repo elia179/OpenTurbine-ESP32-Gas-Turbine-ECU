@@ -9,6 +9,29 @@ const {chromium}=require('playwright');
   await p.goto(base+'/sequence.html');assert(await p.locator('main').evaluate(el=>el.inert),'Sequence must remain locked until baseline is loaded');
   for(let n=0;!releaseLoad&&n<100;n++)await new Promise(resolve=>setTimeout(resolve,5));assert(releaseLoad,'initial settings request absent');releaseLoad();
   await p.waitForFunction(()=>typeof saveAll==='function'&&loadedHwCfg.channel_registry&&!_seqLoading&&!document.querySelector('main').inert);
+  const applyReads=await p.evaluate(async()=>{
+   const original=window.fetch,ecu='0123456789ab',different='abcdef012345';
+   const patch={sequence:{shutdown:{final_stop_timeout_ms:1234}}};
+   const outcomes=[];
+   try{
+    for(const [statusEcu,configEcu] of [[ecu,ecu],[different,ecu],[ecu,different]]){
+     const reads=[];
+     window.fetch=async url=>{
+      reads.push(url);
+      return new Response(JSON.stringify(url==='/api/status'?{config_apply_busy:false}:patch),{
+       headers:{'X-OpenTurbine-ECU':url==='/api/status'?statusEcu:configEcu}
+      });
+     };
+     const error=await confirmSequenceSettingsApplied(patch,ecu).then(()=>null,error=>error.message);
+     outcomes.push({reads,error});
+    }
+    return outcomes;
+   }finally{window.fetch=original;}
+  });
+  assert.deepEqual(applyReads[0],{reads:['/api/status','/api/config'],error:null});
+  assert.deepEqual(applyReads[1].reads,['/api/status']);
+  assert.deepEqual(applyReads[2].reads,['/api/status','/api/config']);
+  assert.ok(applyReads.slice(1).every(result=>result.error.includes('Reconnect to the original ECU')));
   const rows=await p.evaluate(async()=>{
    stopSequenceTelemetry();await OTWaitForPageTelemetryIdle(10000);
    refreshEngineStatus=async()=>{engineMode='STANDBY';};validateCustomBlockLimits=()=>[];validateSequenceHardwareForSave=()=>[];_validateSequence=()=>[];

@@ -1,14 +1,45 @@
 // Explicit bench-only write test. Never starts the engine or energizes outputs.
 // Changes only the description, restores it, and checks Settings preservation.
 const assert = require('node:assert/strict');
-const {execFileSync} = require('node:child_process');
+const {joinFixtureWifi} = require('./fixture_wifi_helper.cjs');
 const {chromium} = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 if (!process.argv.includes('--allow-write')) throw new Error('Requires --allow-write on an idle bench ECU');
 const base = process.argv.find(a => /^http/.test(a)) || 'http://192.168.4.1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const wifiProfile = process.env.OT_WIFI_PROFILE || 'OpenTurbine';
+const interruptSave = process.argv.includes('--interrupt-save');
 const temporaryDescription = `Development save audit ${Date.now()}`;
+
+function assertSettingsPreserved(actual, original) {
+  const expected = structuredClone(original);
+  // A settings save can materialize the firmware defaults in a sparse engine
+  // file. Validate each new value and keep every previously stored value exact.
+  const sequenceDefaults = {
+    startup: {
+      final_check_battery_enabled: false,
+      final_check_battery_max_v: null,
+      final_check_battery_min_v: null,
+      final_check_egt_max_c: null,
+      final_check_n1_max_rpm: null,
+      final_check_n2_max_rpm: null,
+      final_check_oil_max_bar: null,
+      final_check_oil_min_bar: null,
+      final_check_oil_use_shared_min: true,
+      final_check_p1_max_bar: null,
+      final_check_p2_max_bar: null,
+    },
+    shutdown: {cooldown_keep_oil_on_exit: false, final_stop_speed_source: 0},
+  };
+  for (const [phase, defaults] of Object.entries(sequenceDefaults)) {
+    for (const [key, value] of Object.entries(defaults)) {
+      if (Object.hasOwn(actual.sequence[phase], key) && !Object.hasOwn(expected.sequence[phase], key))
+        expected.sequence[phase][key] = value;
+    }
+  }
+  assert.deepEqual(actual, expected);
+}
 
 async function fetchJson(route, options = {}) {
   const attempts = options.method ? 1 : 5;
@@ -42,7 +73,7 @@ async function reconnect() {
     // Classic. Windows can join another remembered AP between those resets.
     // Keep selecting the fixture AP until the actual status read succeeds.
     if (i % 5 === 0 && process.platform === 'win32' && base === 'http://192.168.4.1') {
-      try { execFileSync('netsh', ['wlan','connect','name=OpenTurbine'], {stdio:'ignore'}); }
+      try { joinFixtureWifi(wifiProfile); }
       catch (_) {} // status read remains the authority
     }
     let fault = '';
@@ -86,6 +117,7 @@ async function restoreDescription(value) {
     .find(p=>fs.existsSync(p));
   const browser = await chromium.launch({headless:true,...(executablePath ? {executablePath}: {})});
   const page = await browser.newPage();
+  let observer;
   const originalDescription = original.hardware?.profile_desc ?? '';
   let restoreNeeded = false;
   try {
@@ -111,17 +143,35 @@ async function restoreDescription(value) {
     assert.doesNotMatch(await page.locator('#save-recap-body').innerText(), /Controller assignments|N1 pullback/);
     restoreNeeded = true;
     await page.locator('#save-recap-confirm-btn').click();
-    await page.waitForFunction(()=>document.querySelector('#save-msg')?.textContent.includes('Saved — ECU rebooting'),null,{timeout:15000});
+    await page.waitForFunction(()=>/Saved.*(?:rebooting|restarting)/i.test(document.querySelector('#save-msg')?.textContent || ''),null,{timeout:15000});
     await reconnect();
     let saved = await fetchJson('/api/ecu_config');
     assert.equal(saved.hardware.profile_desc,temporaryDescription);
     assert.deepEqual({...saved.hardware,profile_desc:originalDescription},original.hardware,
       'System save changed unrelated Hardware, including oil-loop IDs or registry bindings');
-    assert.deepEqual(saved.settings,original.settings);
+    assertSettingsPreserved(saved.settings, original.settings);
     // Exercise the combined page-save function with unchanged cosmetic settings:
     // the first reboot must finish before the second PATCH is transmitted.
     await page.goto(base+'/system.html');
     await page.waitForSelector('#system-engine-description',{state:'attached'});
+    const concurrentSave = /\/api\/hardware\?source=system/;
+    let writes = 0, delayedRead;
+    if (interruptSave) {
+      observer = await browser.newPage();
+      await observer.addInitScript(()=>{
+        localStorage.setItem('ot_beta_notice_ack_v1','1');
+        localStorage.setItem('ot_theme_onboarded_v1','1');
+      });
+      await observer.goto(base+'/');
+      await observer.waitForFunction(()=>typeof _dashboardSnapshotReady!=='undefined' && _dashboardSnapshotReady);
+      await page.route(concurrentSave, async route => {
+        writes++;
+        delayedRead = observer.request.get(base + '/api/ecu_config', {timeout:8000}).catch(() => null);
+        const submitted = await route.fetch();
+        if (submitted.ok()) await route.abort('connectionclosed');
+        else await route.fulfill({response:submitted});
+      });
+    }
     await page.evaluate(({value,theme})=>{
       setSystemHardware('profile_desc',value);
       window.__auditSave = _saveSystemChanges({ui_theme:theme},document.getElementById('save-msg'),document.getElementById('btn-save'));
@@ -129,14 +179,25 @@ async function restoreDescription(value) {
     // Reconnect Windows while the page waits for the first reboot.
     await reconnect();
     await page.evaluate(()=>window.__auditSave);
+    if (interruptSave) {
+      await page.unroute(concurrentSave);
+      assert.equal(writes,1,'the interrupted save must be sent once');
+      await delayedRead;
+      await observer.bringToFront();
+      await observer.waitForFunction(()=>_dashboardSnapshotReady && Date.now()-_lastMsgMs < 2500 && !_telemetryStale);
+      await observer.close();
+      observer = null;
+      console.log('PASS: lost acknowledgement verified without a repeat write, and the second dashboard recovered');
+    }
     await reconnect();
     saved = await fetchJson('/api/ecu_config');
     assert.equal(saved.hardware.profile_desc,value);
     assert.deepEqual(saved.hardware,original.hardware,'Combined save changed unrelated Hardware');
-    assert.deepEqual(saved.settings,original.settings);
+    assertSettingsPreserved(saved.settings, original.settings);
     restoreNeeded = false;
     console.log('PASS: System recap, unsaved navigation, page-only save, combined save across reboot, exact Settings preservation, and description restoration');
   } finally {
+    await observer?.close();
     if (restoreNeeded) {
       try {
         await restoreDescription(originalDescription);
