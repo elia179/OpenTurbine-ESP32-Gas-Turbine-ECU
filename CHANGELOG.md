@@ -10,6 +10,8 @@ _Note: there is no 1.2.0 release — 1.1.0 was followed directly by 1.3.0._
 
 ## [Unreleased]
 
+## [2.7.6] — 2026-11-18
+
 - Give engine STOP priority over afterburner STOP and keep the dashboard STOP available when readings are stale.
 - Serialize background flash writes and maintenance admission with START. Reduce full-snapshot work and avoid unnecessary full reads during setup.
 
