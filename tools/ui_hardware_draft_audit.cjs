@@ -6,13 +6,14 @@ const {latestPcbFixture,discovery}=require('./latest_pcb_fixture.cjs');
  globalThis.OT_UI_SIM_I2C_DISCOVERY={...discovery,devices:[],pcb_devices:[],bus_active:false};
  await import('./ui_mock_server.mjs');const base=`http://127.0.0.1:${globalThis.OT_UI_SIM_PORT}`;
  for(const engine of [chromium,firefox,webkit]){
-  const browser=await engine.launch();try{for(const packed of [false,true]){
-   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-   if(packed)await page.route(/\/(hardware\.html|app\.js|style\.css|theme\.js)(?:\?.*)?$/,r=>{
-    const name=new URL(r.request().url()).pathname.slice(1);
-    return r.fulfill({status:200,contentType:name.endsWith('.html')?'text/html':name.endsWith('.js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});
-   });
-   for(const pcb of [false,true]){
+  const browser=await engine.launch();try{for(const packed of [false,true])for(const pcb of [false,true]){
+    // Each fixture is a separate ECU setup. Start it in a fresh page so
+    // WebKit cannot carry a cancelled telemetry request across fixtures.
+    const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    if(packed)await page.route(/\/(hardware\.html|app\.js|style\.css|theme\.js)(?:\?.*)?$/,r=>{
+     const name=new URL(r.request().url()).pathname.slice(1);
+     return r.fulfill({status:200,contentType:name.endsWith('.html')?'text/html':name.endsWith('.js')?'application/javascript':'text/css',body:gunzipSync(fs.readFileSync('data/'+name+'.gz'))});
+    });
     await page.request.post(base+'/__sim/reset');
     if(pcb){const initial=await(await page.request.get(base+'/__sim/state')).json();await page.request.post(base+'/api/ecu_config',{data:latestPcbFixture(initial)});}
     await page.goto(base+'/hardware.html');
@@ -50,8 +51,7 @@ const {latestPcbFixture,discovery}=require('./latest_pcb_fixture.cjs');
      return counts;
     });
     assert.deepEqual(errors,[]);console.log(`${engine.name()} ${packed?'gzip':'source'} ${pcb?'PCB':'bare'}: ${counts.input} input and ${counts.output} output drafts open without buses; incomplete save blocked; thrust ADC/HX switching passed`);
-   }
-   await page.close();
+    await page.close();
   }}finally{await browser.close();}
  }
  process.exit(0);
